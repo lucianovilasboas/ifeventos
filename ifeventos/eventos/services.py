@@ -12,7 +12,29 @@ import socketio
 
 
 
-client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+# Cliente da OpenAI criado sob demanda.
+# Antes era instanciado no import do módulo: com a chave ausente, o SDK
+# levanta erro durante o django.setup() e a aplicação inteira não sobe
+# (site fora do ar por causa de uma integração opcional).
+_client = None
+
+
+def get_openai_client():
+    """Devolve o cliente da OpenAI, criando-o na primeira chamada.
+
+    Levanta RuntimeError com mensagem clara se a chave não estiver
+    configurada. As funções que usam a IA tratam essa exceção e devolvem
+    uma mensagem de fallback, sem derrubar o restante do sistema.
+    """
+    global _client
+    if _client is None:
+        if not settings.OPENAI_API_KEY:
+            raise RuntimeError(
+                "OPENAI_API_KEY não configurada: os recursos de IA estão indisponíveis."
+            )
+        _client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return _client
+
 
 async def gerar_mensagem_para_usuario(tipo_usuario):
     """
@@ -24,6 +46,7 @@ async def gerar_mensagem_para_usuario(tipo_usuario):
                 Gere apenas uma frase.
                 """
     try:
+        client = get_openai_client()
         response = await client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "system", "content": prompt}],
@@ -97,6 +120,7 @@ async def gerar_descricao_evento(titulo, data_inicio, data_fim, local, tipo):
                  """
 
     try:
+        client = get_openai_client()
         response = await client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "system", "content": prompt}],
