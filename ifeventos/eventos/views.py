@@ -1,8 +1,7 @@
 from django.utils import timezone  # ✅ Correto
-from django.shortcuts import render
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import Http404
 from django.contrib.auth import logout
-from django.shortcuts import redirect,  get_object_or_404
 from .models import Evento
 import qrcode
 import io
@@ -10,11 +9,38 @@ from django.http import HttpResponse
 from .models import Inscricao, Atividade
 from django.contrib.auth.decorators import login_required
 from PIL import Image, ImageDraw, ImageFont
+from datetime import date, timedelta
 
 
 def eventos_view(request):
-    eventos = Evento.objects.all().order_by('data_inicio')
-    return render(request, 'eventos/eventos.html', {'eventos': eventos})
+    hoje = timezone.localdate()
+    # Eventos atuais/futuros (a agenda mostra apenas os que não encerraram)
+    eventos = (Evento.objects.filter(data_fim__gte=hoje)
+               .order_by('data_inicio'))
+    # "Próximo na agenda": o evento mais próximo cujo término é hoje ou no futuro
+    hoje = timezone.localdate()
+    proximo = (Evento.objects.filter(data_fim__gte=hoje)
+               .order_by('data_inicio')
+               .first())
+    # Frase do card "Começa amanhã" / "Em andamento" / data
+    proximo_frase = None
+    if proximo:
+        if proximo.data_inicio == hoje:
+            proximo_frase = "Acontece hoje"
+        elif proximo.data_inicio == hoje + timedelta(days=1):
+            proximo_frase = "Começa amanhã"
+        elif proximo.data_inicio <= hoje <= proximo.data_fim:
+            proximo_frase = "Em andamento"
+        else:
+            proximo_frase = f"Começa em {proximo.data_inicio.strftime('%d/%m')}"
+    return render(request, 'eventos/eventos.html', {
+        'eventos': eventos,
+        'proximo': proximo,
+        'proximo_frase': proximo_frase,
+        # Últimos eventos realizados/encerrados (data_fim no passado),
+        # do mais recente para o mais antigo.
+        'encerrados': Evento.objects.filter(data_fim__lt=hoje).order_by('-data_fim'),
+    })
 
 
 def evento_programacao_view(request, evento_id):

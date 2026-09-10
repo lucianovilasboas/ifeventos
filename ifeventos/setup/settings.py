@@ -54,9 +54,16 @@ CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
 #  2) redirecionar HTTP -> HTTPS.
 # Sem o primeiro, o allauth monta a URL de callback do Google como
 # http://... e o Google rejeita com redirect_uri_mismatch (só conhece https).
+#
+# IMPORTANTE: SECURE_PROXY_SSL_HEADER só deve ficar ATIVO quando há um proxy
+# de verdade na frente (produção/Traefik). Em desenvolvimento local SEM proxy,
+# o navegador não envia X-Forwarded-Proto; com o header configurado e ausente,
+# o Django pode montar URLs de forma inconsistente. Por isso a variável
+# USE_HTTPS_PROXY controla o comportamento por ambiente (.env).
 USE_X_FORWARDED_HOST = config("USE_X_FORWARDED_HOST", default=True, cast=bool)
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)
+USE_HTTPS_PROXY = config("USE_HTTPS_PROXY", default=False, cast=bool)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if USE_HTTPS_PROXY else None
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=USE_HTTPS_PROXY, cast=bool)
 
 
 # Application definition

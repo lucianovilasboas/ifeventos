@@ -126,6 +126,17 @@ a { color: var(--accent-ink); }
                              3.45:1 atende componente de UI */
   font-size: 10px;
 }
+
+/* Nas páginas de conta (login, signup, recuperação de senha e afins), o hero
+   inteiro e o ícone decorativo não têm utilidade: esconde para não poluir.
+   O formulário fica mais direto. As páginas de conta usam
+   .login-container, .register-container ou .reset-password-container. */
+body:has(.login-container) .app-hero,
+body:has(.register-container) .app-hero,
+body:has(.reset-password-container) .app-hero { display: none; }
+body:has(.login-container) .hero-ico,
+body:has(.register-container) .hero-ico,
+body:has(.reset-password-container) .hero-ico { display: none; }
 /* O chip de aviso do assistente (dashboard) carrega um texto de frase
    inteira dentro de #ia_mensagem. Pill de 9999px num bloco de várias
    linhas vira um estádio estranho e o texto estoura a caixa: este recebe

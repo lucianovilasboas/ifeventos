@@ -38,9 +38,6 @@
         </div>
 
         <hr>
-        {# O botão do Google só aparece se o provedor estiver cadastrado.
-           A tag do allauth estoura SocialApp.DoesNotExist quando não está,
-           o que derrubava a página de login inteira (erro 500). #}
         {% provider_login_url_seguro 'google' as google_url %}
         {% if google_url %}
         <p>Ou faça login com:</p>

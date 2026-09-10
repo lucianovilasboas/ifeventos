@@ -75,8 +75,12 @@ services:
     restart: always
     env_file:
       - ./ifeventos/.env
+    # Usa um VOLUME NOMEADO, não ./postgres_data: este diretório fica em
+    # /mnt/DATA (NTFS), que não preserva ownership Unix, e o Postgres
+    # recusa iniciar com "data directory has wrong ownership".
+    # O volume nomeado mantém os dados entre reinícios com ownership correto.
     volumes:
-      - ./postgres_data:/var/lib/postgresql/data
+      - ifeventos_dev_pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
@@ -84,3 +88,6 @@ networks:
   default:
   proxy:
     external: true
+
+volumes:
+  ifeventos_dev_pgdata:

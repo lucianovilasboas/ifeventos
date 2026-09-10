@@ -1,50 +1,293 @@
-{% extends 'base.html' %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nossos Eventos | IFMG Campus Ponte Nova</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Mona+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    {# Sem Bootstrap: a landing é página própria, feita sob medida do design system #}
+    <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v=landing1">
+    <link rel="stylesheet" href="{% static 'css/eventos/landing.css' %}?v=landing1">
+</head>
+<body class="landing-body">
+    <!-- ===================== HEADER ===================== -->
+    <header class="landing-header">
+        <div class="landing-container landing-inner" style="justify-content:space-between;padding:0;">
+            <a class="landing-brand" href="#inicio" aria-label="Nossos Eventos, início">
+                <span class="mark" aria-hidden="true">E</span>
+                <span>Nossos Eventos</span>
+            </a>
+            <nav class="landing-nav" aria-label="Navegação principal">
+                {% if request.user.is_authenticated %}
+                {# Logado: navegação da conta + avatar #}
+                <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span>Início</span></a>
 
-{% block title %}Nossos Eventos{% endblock %}
+                {% if request.user.is_organizador and request.user.is_participante %}
+                    {# Dois papéis: alterna entre Organizador e Participante #}
+                    <a href="{% url 'organizador:dashboard' %}" title="Alternar para a visão de organizador"><i class="fa-solid fa-user-tie"></i><span>Organizador</span></a>
+                {% elif request.user.is_organizador %}
+                    <a href="{% url 'organizador:dashboard' %}"><i class="fa-solid fa-gauge-high"></i><span>Painel</span></a>
+                {% else %}
+                    <a href="{% url 'participante:dashboard' %}"><i class="fa-solid fa-gauge-high"></i><span>Painel</span></a>
+                {% endif %}
 
-{% block content %}
-<!-- Lista de Eventos -->
-<div class="container-fluid px-0">
-    {% if eventos %}
-    <div class="app-sec"><h2>📅 Em destaque</h2></div>
-    <!-- Mesmo markup de grid do painel do organizador
-         (templates/includes/data_eventos_cards_only.html): row g-3 + col-md-6
-         col-lg-4 + .event-card-app. Assim os cards têm exatamente o mesmo
-         formato e as mesmas medidas nos dois lugares (coluna de 360px e
-         card de 344px em 1440px de viewport). A diferença é só a ação:
-         aqui é "Saiba mais" em vez dos botões de gestão. -->
-    <div class="row g-3 mx-0">
-        {% for evento in eventos %}
-        <div class="col-md-6 col-lg-4">
-            <div class="event-card-app">
-                <div class="cover">
-                    {% if evento.imagem %}<img src="{{ evento.get_url_imagem }}" alt="{{ evento.title }}">{% endif %}
-                    <span class="cover-tag"><i class="fa-solid fa-users"></i> {{ evento.get_n_inscricoes }} inscrito(s)</span>
-                    <span class="cover-dates">{{ evento.data_inicio|date:"d/m" }} – {{ evento.data_fim|date:"d/m" }}</span>
+                {% if request.user.is_participante %}
+                    <a href="{% url 'participante:meus_certificados' %}"><i class="fa-solid fa-award"></i><span>Certificados</span></a>
+                {% endif %}
+
+                <a href="{% url 'eventos:logout' %}"><i class="fa-solid fa-right-from-bracket"></i><span>Sair</span></a>
+
+                {% if request.user.is_organizador and not request.user.is_participante %}
+                    <a class="landing-avatar" href="{% url 'organizador:dashboard' %}" title="{{ request.user.first_name }}">
+                {% else %}
+                    <a class="landing-avatar" href="{% url 'participante:dashboard' %}" title="{{ request.user.first_name }}">
+                {% endif %}
+                    <img src="{{ request.user.get_foto_url }}" alt="{{ request.user.first_name }}">
+                </a>
+                {% else %}
+                {# Não logado: Início, Agenda + botão Entrar #}
+                <a href="#inicio" aria-current="page">Início</a>
+                <a href="#agenda">Agenda</a>
+                <a class="btn-land btn-primary-land" href="{% url 'account_login' %}"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <main id="inicio">
+        <!-- ===================== HERO ===================== -->
+        <section class="landing-hero">
+            <div class="landing-container landing-grid">
+                <div>
+                    <p class="eyebrow">Portal de eventos · Ponte Nova</p>
+                    <h1>Tudo o que acontece no campus, em um só lugar.</h1>
+                    <p class="hero-copy">Uma agenda mais clara para encontrar eventos, entender a programação e se inscrever sem precisar percorrer a página inteira.</p>
+                    <div class="hero-actions">
+                        <a class="btn-land btn-primary-land" href="#agenda">Explorar eventos</a>
+                        <a class="btn-land btn-secondary-land" href="#agenda"><i class="fa-solid fa-calendar-days"></i> Ver a agenda</a>
+                    </div>
                 </div>
-                <div class="event-card-body">
-                    <h5>{{ evento.title }}</h5>
-                    <p class="meta"><i class="fa-solid fa-location-dot"></i> {{ evento.local }}</p>
-                    <p class="desc">{{ evento.description|truncatechars:90 }}</p>
+                {# Próximo na agenda: o evento real mais próximo (data_fim >= hoje) #}
+                {% if proximo %}
+                <aside class="hero-note" aria-label="Próximo na agenda">
+                    <p class="hn-label">Próximo na agenda</p>
+                    <h2 class="hn-title">{{ proximo.title }}</h2>
+                    <div class="hn-meta">
+                        <span><i class="fa-solid fa-location-dot"></i> {{ proximo.local }}</span>
+                        <span>{{ proximo.data_inicio|date:"d/m" }} a {{ proximo.data_fim|date:"d/m" }}</span>
+                    </div>
+                    {% if proximo_frase %}
+                        <p class="hn-date">{{ proximo_frase }}</p>
+                    {% else %}
+                        <p class="hn-date"><i class="fa-solid fa-calendar-check"></i> {{ proximo.data_inicio|date:"d/m" }}–{{ proximo.data_fim|date:"d/m/Y" }}</p>
+                    {% endif %}
+                </aside>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- ===================== AGENDA ===================== -->
+        <section id="agenda" class="landing-section">
+            <div class="landing-container">
+                <div class="landing-sec-head">
+                    <div>
+                        <p class="eyebrow">Agenda do campus</p>
+                        <h2>Encontre sua próxima experiência</h2>
+                        <p>Filtre por tema ou busque pelo nome do evento. A informação essencial vem primeiro: data, local e próximo passo.</p>
+                    </div>
+                    <button class="btn-land btn-ghost-land" type="button" id="limparFiltros"><i class="fa-solid fa-rotate-left"></i> Limpar filtros</button>
                 </div>
-                <div class="event-card-actions">
-                    <a href="{% url 'eventos:programacao' evento.id %}" class="btn btn-app w-100">
-                        <i class="fa-solid fa-magnifying-glass"></i> Saiba mais
-                    </a>
+
+                <div class="landing-toolbar">
+                    <label class="landing-search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+                        <input id="busca" type="search" placeholder="Buscar eventos" aria-label="Buscar eventos">
+                    </label>
+                    <div class="landing-filters" role="group" aria-label="Filtrar eventos">
+                        <button class="landing-filter" type="button" data-cat="todos" aria-pressed="true">Todos</button>
+                        <button class="landing-filter" type="button" data-cat="formacao" aria-pressed="false">Formação</button>
+                        <button class="landing-filter" type="button" data-cat="ciencia" aria-pressed="false">Ciência</button>
+                        <button class="landing-filter" type="button" data-cat="tecnologia" aria-pressed="false">Tecnologia</button>
+                    </div>
+                </div>
+
+                <div class="landing-grid" id="grades">
+                    {% for ev in eventos %}
+                    <article class="landing-card" data-cat="{{ ev.categoria }}" data-titulo="{{ ev.title|lower }}" tabindex="0" data-evento="{{ ev.id }}">
+                        <div class="lcard-top">
+                            <div class="lcard-date">
+                                <strong>{{ ev.data_inicio|date:"d" }}</strong>
+                                <span>{{ ev.data_inicio|date:"M" }}</span>
+                            </div>
+                            <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                        </div>
+                        <h3>{{ ev.title }}</h3>
+                        <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
+                        <div class="lcard-foot">
+                            <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
+                            <button class="lcard-link" type="button" data-abrir="{{ ev.id }}">Ver detalhes →</button>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <p class="landing-empty">Nenhum evento disponível. Fique ligado, em breve teremos novidades!</p>
+                    {% endfor %}
+                </div>
+                <p id="semResultado" class="landing-empty" hidden>Nenhum evento encontrado. Tente outro termo ou remova os filtros.</p>
+            </div>
+        </section>
+
+        <!-- ===================== EVENTOS REALIZADOS ===================== -->
+        <section class="landing-proposal">
+            {# Últimos eventos realizados e encerrados (data_fim no passado) #}
+            {% if encerrados %}
+            <div class="landing-container">
+                <p class="eyebrow">Eventos realizados</p>
+                <h2 style="font-family:var(--font-display);font-size:var(--text-2xl);font-weight:800;color:var(--fg-strong);margin-top:8px;">Já aconteceram no campus</h2>
+                <p style="max-width:52ch;margin-top:8px;color:var(--muted);">Registro dos eventos que já passaram. Acompanhe o histórico da programação.</p>
+
+                <div class="landing-grid" style="margin-top:24px;">
+                    {% for ev in encerrados %}
+                    <article class="landing-card">
+                        <div class="lcard-top">
+                            <div class="lcard-date">
+                                <strong>{{ ev.data_inicio|date:"d" }}</strong>
+                                <span>{{ ev.data_inicio|date:"M" }}</span>
+                            </div>
+                            <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                        </div>
+                        <h3>{{ ev.title }}</h3>
+                        <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
+                        <div class="lcard-foot">
+                            <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
+                            <a class="lcard-link" href="{% url 'eventos:programacao' ev.id %}">Ver detalhes →</a>
+                        </div>
+                    </article>
+                    {% endfor %}
                 </div>
             </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <footer class="landing-footer">
+        <div class="landing-container landing-inner">
+            <span>© 2026 IFMG Campus Ponte Nova</span>
+            <span>Nossos Eventos · Portal de eventos do campus</span>
         </div>
-        {% endfor %}
+    </footer>
+
+    <!-- ===================== BOTTOM NAV (mobile) ===================== -->
+    <nav class="landing-bottomnav" aria-label="Navegação inferior">
+        {% if request.user.is_authenticated %}
+        <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span>Início</span></a>
+        {% if request.user.is_organizador and request.user.is_participante %}
+            <a href="{% url 'organizador:dashboard' %}"><i class="fa-solid fa-user-tie"></i><span>Organizador</span></a>
+        {% elif request.user.is_organizador %}
+            <a href="{% url 'organizador:dashboard' %}"><i class="fa-solid fa-gauge-high"></i><span>Painel</span></a>
+        {% else %}
+            <a href="{% url 'participante:dashboard' %}"><i class="fa-solid fa-gauge-high"></i><span>Painel</span></a>
+        {% endif %}
+        {% if request.user.is_participante %}
+            <a href="{% url 'participante:meus_certificados' %}"><i class="fa-solid fa-award"></i><span>Certificados</span></a>
+        {% endif %}
+        <a href="{% url 'eventos:logout' %}"><i class="fa-solid fa-right-from-bracket"></i><span>Sair</span></a>
+        {% else %}
+        <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span>Início</span></a>
+        <a href="{% url 'account_login' %}"><i class="fa-solid fa-right-to-bracket"></i><span>Entrar</span></a>
+        <a href="{% url 'account_signup' %}"><i class="fa-solid fa-user-plus"></i><span>Cadastrar</span></a>
+        {% endif %}
+    </nav>
+
+    <!-- ===================== MODAL DE DETALHES ===================== -->
+    <div class="landing-backdrop" id="modal" hidden role="presentation">
+        <section class="landing-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+            <div class="landing-modal-head">
+                <div>
+                    <p class="eyebrow">Detalhes do evento</p>
+                    <h2 id="modalTitulo"></h2>
+                </div>
+                <button class="lmodal-close" type="button" data-fechar aria-label="Fechar detalhes">×</button>
+            </div>
+            <div class="landing-modal-body">
+                <p class="lmodal-desc" id="modalDesc"></p>
+                <div class="lmodal-row"><span>Quando</span><strong id="modalData"></strong></div>
+                <div class="lmodal-row"><span>Onde</span><strong id="modalLocal"></strong></div>
+                <div class="lmodal-row"><span>Tema</span><strong id="modalTema"></strong></div>
+            </div>
+            <div class="landing-modal-actions">
+                <a class="btn-land btn-primary-land" id="modalCta" href="#">Continuar para inscrição</a>
+            </div>
+        </section>
     </div>
-    {% else %}
-        <div class="app-list">
-            <div class="app-item" style="justify-content:center">
-                <div class="info" style="text-align:center">
-                    <h5 style="color:var(--app-muted)">Nenhum evento disponível.</h5>
-                    <p>Fique ligado, em breve teremos novidades!</p>
-                </div>
-            </div>
-        </div>
-    {% endif %}
-</div>
-{% endblock %}
+
+    <script>
+    (function () {
+        // Dados dos eventos embutidos no template para o modal/busca
+        const EV = {};   // id -> {title, desc, data, local, tema}
+        {% for ev in eventos %}
+        EV[{{ ev.id }}] = {
+            title: "{{ ev.title|escapejs }}",
+            desc: "{{ ev.description|escapejs }}",
+            data: "{{ ev.data_inicio|date:'d/m' }} a {{ ev.data_fim|date:'d/m/Y' }}",
+            local: "{{ ev.local|escapejs }}",
+            tema: "{{ ev.get_categoria_display }}"
+        };
+        {% endfor %}
+
+        const cards = [...document.querySelectorAll('.landing-card')];
+        const busca = document.querySelector('#busca');
+        const filtros = [...document.querySelectorAll('.landing-filter')];
+        const semResultado = document.querySelector('#semResultado');
+        let ativo = 'todos';
+
+        function aplicar() {
+            const termo = (busca.value || '').toLowerCase().trim();
+            let visiveis = 0;
+            cards.forEach(c => {
+                const okCat = ativo === 'todos' || c.dataset.cat === ativo;
+                const okTermo = !termo || (c.dataset.titulo || '').includes(termo);
+                c.hidden = !(okCat && okTermo);
+                if (!c.hidden) visiveis++;
+            });
+            semResultado.hidden = visiveis !== 0;
+            filtros.forEach(f => f.setAttribute('aria-pressed', String(f.dataset.cat === ativo)));
+        }
+        filtros.forEach(f => f.addEventListener('click', () => { ativo = f.dataset.cat; aplicar(); }));
+        busca.addEventListener('input', aplicar);
+        document.querySelector('#limparFiltros').addEventListener('click', () => {
+            ativo = 'todos'; busca.value = '';
+            aplicar(); busca.focus();
+        });
+
+        // Modal
+        const modal = document.querySelector('#modal');
+        const abre = document.querySelector('#modalTitulo');
+        function abrirModal(id) {
+            const e = EV[id]; if (!e) return;
+            abre.textContent = e.title;
+            document.querySelector('#modalDesc').textContent = e.desc;
+            document.querySelector('#modalData').textContent = e.data;
+            document.querySelector('#modalLocal').textContent = e.local;
+            document.querySelector('#modalTema').textContent = e.tema;
+            document.querySelector('#modalCta').href = '/eventos/programacao/' + id;
+            modal.hidden = false;
+            document.body.classList.add('is-locked');
+            modal.querySelector('[data-fechar]').focus();
+        }
+        function fecharModal() { modal.hidden = true; document.body.classList.remove('is-locked'); }
+        document.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); abrirModal(b.dataset.abrir); }));
+        cards.forEach(c => c.addEventListener('click', () => abrirModal(c.dataset.evento)));
+        cards.forEach(c => c.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === c) { e.preventDefault(); abrirModal(c.dataset.evento); } }));
+        document.querySelectorAll('[data-fechar]').forEach(b => b.addEventListener('click', fecharModal));
+        modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) fecharModal(); });
+
+        aplicar();
+    })();
+    </script>
+</body>
+</html>

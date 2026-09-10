@@ -118,7 +118,14 @@ class Participante(AbstractUser):
 
 
 class Evento(models.Model):
-    
+    CATEGORIA_CHOICES = [
+        ("formacao", "Formação"),
+        ("ciencia", "Ciência"),
+        ("tecnologia", "Tecnologia"),
+        ("cultura", "Cultura"),
+        ("outros", "Outros"),
+    ]
+
     title = models.CharField(max_length=255)
     description = models.TextField()
     local = models.CharField(max_length=255)
@@ -126,6 +133,10 @@ class Evento(models.Model):
     data_fim = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Tema do evento, usado na landing page para os filtros por assunto.
+    # Adicionado na repaginação (a landing filtra por Formação/Ciência/Tecnologia).
+    categoria = models.CharField(max_length=20, choices=CATEGORIA_CHOICES, default="formacao")
 
     imagem = models.ImageField(upload_to=evento_imagem_upload, blank=True, null=True)  # Diretório onde as imagens serão salvas
 
