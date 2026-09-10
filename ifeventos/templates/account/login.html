@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% load socialaccount %}
+{% load social %}
 
 {% block content %}
 <div class="container my-5">
@@ -37,10 +38,18 @@
         </div>
 
         <hr>
+        {# O botão do Google só aparece se o provedor estiver cadastrado.
+           A tag do allauth estoura SocialApp.DoesNotExist quando não está,
+           o que derrubava a página de login inteira (erro 500). #}
+        {% provider_login_url_seguro 'google' as google_url %}
+        {% if google_url %}
         <p>Ou faça login com:</p>
-        <a href="{% provider_login_url 'google' %}" class="btn btn-outline-primary w-100 py-2">
+        <a href="{{ google_url }}" class="btn btn-outline-primary w-100 py-2">
             <i class="fa-brands fa-google"></i> Entre com o Google
         </a>
+        {% else %}
+        <p class="text-muted"><small>Login pelo Google ainda não está configurado neste ambiente.</small></p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

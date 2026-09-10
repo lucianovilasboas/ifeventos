@@ -332,6 +332,13 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+# -- Credenciais do login social (lidas do ambiente) --
+# -- adicionado por Luciano Vilas Boas --
+# Ficam aqui para que o comando "manage.py configurar_socialapp" possa
+# cadastrar o provedor no banco a partir do .env, sem depender do admin.
+GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
+GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="")
+
 # -- Configurações do Django Allauth --
 # -- adicionado por Luciano Vilas Boas --
 SITE_ID = 1
