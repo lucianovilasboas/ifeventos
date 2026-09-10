@@ -48,6 +48,16 @@ SOCKET_INTERNAL_URL = config("SOCKET_INTERNAL_URL", default="http://127.0.0.1:85
 # e todos os formulários POST falham com "CSRF verification failed".
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
 
+# Aplicação atrás de um proxy que faz o TLS (Traefik). O Django precisa de
+# dois ajustes para "saber" que a conexão original é HTTPS:
+#  1) acreditar no cabeçalho X-Forwarded-Proto que o proxy envia;
+#  2) redirecionar HTTP -> HTTPS.
+# Sem o primeiro, o allauth monta a URL de callback do Google como
+# http://... e o Google rejeita com redirect_uri_mismatch (só conhece https).
+USE_X_FORWARDED_HOST = config("USE_X_FORWARDED_HOST", default=True, cast=bool)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)
+
 
 # Application definition
   
