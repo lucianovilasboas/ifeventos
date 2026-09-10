@@ -352,8 +352,21 @@ GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="")
 # -- Configurações do Django Allauth --
 # -- adicionado por Luciano Vilas Boas --
 SITE_ID = 1
+
+# Verificação de e-mail:
+#  - No cadastro LOCAL (e-mail/senha), o e-mail precisa ser confirmado
+#    para a conta sair da "inativa" (o e-mail de confirmação é enviado).
+#  - No login SOCIAL (Google), o e-mail JÁ vem verificado da fonte; o
+#    allauth não pede confirmação no fluxo social.
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
-# ACCOUNT_EMAIL_REQUIRED = True
+
+# Login social: permite que uma conta Google AUTOCADASTRE o usuário na
+# primeira vez (e-mail + profile vêm do provedor), sem tela de aprovação
+# manual. Sem isto, essa decisão dependeria do adapter local.
+SOCIALACCOUNT_AUTO_SIGNUP = True
+
+# Como qualquer conta Google é aceita, o cadastro aceita o campo de e-mail
+# e não exige username (o Google não fornece).
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_LOGIN_METHODS = { 'email' }
 #ACCOUNT_USERNAME_REQUIRED = False
