@@ -1,0 +1,74 @@
+# =====================================================================
+# Nossos Eventos (IF Eventos) — o que NÃO vai para o repositório
+# ---------------------------------------------------------------------
+# Regra: o repositório leva código e configuração de exemplo.
+# Segredos, dados de runtime e artefatos de desenvolvimento ficam fora.
+# =====================================================================
+
+# ---------- Segredos (NUNCA versionar) ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials*
+
+# ---------- Ambientes virtuais e caches Python ----------
+.venv/
+venv/
+env/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ---------- Dependências de front ----------
+node_modules/
+
+# ---------- Banco local e dados de runtime ----------
+*.sqlite3
+postgres_data/
+pgadmin_data/
+ifeventos/staticfiles/
+
+# ---------- Mídia enviada pelos usuários ----------
+# As imagens são copiadas direto para o servidor, não versionadas.
+# (179 arquivos, ~56 MB)
+ifeventos/media/
+
+# ---------- Artefatos de desenvolvimento ----------
+ifeventos/console_last.txt
+*.log
+ifeventos/.playwright-mcp/
+.dump
+*.bundle
+
+# Screenshots de desenvolvimento (não são usados pelo site)
+*.png
+!ifeventos/static/**/*.png
+
+# ---------- Projeto separado (tem repositório próprio) ----------
+mychatbot/
+
+# ---------- Rascunhos e ferramentas locais ----------
+scripts_test/
+PLANO_API.md
+
+# ---------- Trabalho de design (protótipo e staging) ----------
+# Documentação da repaginação: fica fora do repositório de implantação.
+_prototipo_ds/
+_staging_*/
+_prototipo_*/
+
+# ---------- Backups locais e arquivos de composição substituídos ----------
+_backup_*/
+docker-compose.yml.bak*
+
+# ---------- Sistema operacional / editores ----------
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

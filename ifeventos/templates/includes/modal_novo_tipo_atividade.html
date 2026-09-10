@@ -1,0 +1,26 @@
+<!-- Modal Adicionar Tipo de Atividade -->
+<div class="modal fade" id="modalTipoAtividade" tabindex="-1" aria-labelledby="modalTipoAtividadeLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:0;border-radius:18px;box-shadow:var(--app-shadow)">
+            <div class="modal-header" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo));color:#fff;border:0;border-radius:18px 18px 0 0">
+                <h5 class="modal-title" id="modalTipoAtividadeLabel"><i class="fa-solid fa-list"></i> Adicionar Tipo de Atividade</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formTipoAtividade">
+                    {% csrf_token %}
+                    <label class="form-label" for="id_nome">Nome do Tipo</label>
+                    <input type="text" class="form-control" id="id_nome" name="nome" placeholder="Ex.: Palestra, Minicurso, Oficina" required>
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <i class="fa-solid fa-xmark"></i> Fechar
+                        </button>
+                        <button type="submit" class="btn btn-app">
+                            <i class="fa-solid fa-save"></i> Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,78 @@
+# =====================================================================
+# Nossos Eventos (IF Eventos) — implantação em produção
+# ---------------------------------------------------------------------
+# Alvo: VPS com Traefik (oracle-pm / OVM-1) e rede externa "proxy".
+# Publica o site em https://ifeventos.lucianovilasboas.com.br
+#
+#   cp ifeventos/.env.example ifeventos/.env   # e preencha
+#   docker compose up -d --build
+#
+# Nenhuma porta é publicada no host: o público entra pelo Traefik (80/443).
+#
+# Para desenvolvimento local, use docker-compose.dev.yml.
+# =====================================================================
+
+services:
+
+  app:
+    container_name: ifeventos_app
+    build:
+      context: ./ifeventos
+      dockerfile: Dockerfile
+    image: ifeventos:latest
+    restart: unless-stopped
+    command: ./entrypoint.sh
+    env_file:
+      - ./ifeventos/.env
+    volumes:
+      # Mídia enviada pelos usuários (capas de evento, certificados).
+      # Mesmo caminho do desenvolvimento local, para copiar as imagens
+      # entre as duas máquinas sem ajustes.
+      - ./ifeventos/media:/ifeventos/media
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # --- Site ---
+      - "traefik.http.routers.ifeventos.rule=Host(`ifeventos.lucianovilasboas.com.br`)"
+      - "traefik.http.routers.ifeventos.entrypoints=websecure"
+      - "traefik.http.routers.ifeventos.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ifeventos.priority=10"
+      - "traefik.http.services.ifeventos.loadbalancer.server.port=8501"
+
+      # --- Socket.IO (tempo real) ---
+      # O navegador conecta em /socket.io na MESMA origem; o Traefik manda
+      # esse caminho para a porta 8500. Por isso o SOCKET_URL fica vazio.
+      - "traefik.http.routers.ifeventos-socket.rule=Host(`ifeventos.lucianovilasboas.com.br`) && PathPrefix(`/socket.io`)"
+      - "traefik.http.routers.ifeventos-socket.entrypoints=websecure"
+      - "traefik.http.routers.ifeventos-socket.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ifeventos-socket.priority=100"
+      - "traefik.http.services.ifeventos-socket.loadbalancer.server.port=8500"
+
+  db:
+    container_name: ifeventos_db
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - ./ifeventos/.env
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-django_user} -d ${POSTGRES_DB:-django_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - default
+
+networks:
+  default:
+  proxy:
+    external: true

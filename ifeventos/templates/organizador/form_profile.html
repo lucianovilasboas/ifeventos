@@ -1,0 +1,237 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}Editar Perfil{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        Editar Perfil
+    </span>
+    <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+         <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+    <div class="table-responsive">
+        <div class="container">
+
+            <div class="app-panel" >
+            
+                    <form method="post" enctype="multipart/form-data" novalidate >
+                        {% csrf_token %}
+                    
+                        <!-- LINHA 0 -->
+                        <!-- <div class="row mb-3">
+                            <div class="col-md-12 d-flex align-items-center justify-content-center">
+                                <div class="text-center">
+                                    <label class="form-label"><i class="fa-solid fa-camera"></i> Foto de Perfil</label>
+                                    <div class="border p-2 rounded bg-white">
+                                        <img id="preview-image" src="{{ request.user.get_foto_url }}" class="img-thumbnail rounded-circle" style="width: 100px; height: 100px;">
+                                    </div>
+                                    <input type="file" id="id_foto" name="foto" class="form-control mt-2" accept="image/*" onchange="previewFile(event)">
+                                </div>
+                            </div>
+                        </div> -->
+
+
+
+                        <!-- LINHA 0: Foto de Perfil com Cropper -->
+                        <div class="row mb-4">
+                            <div class="col-md-12 text-center">
+                                <label class="form-label"><i class="fa-solid fa-camera"></i> Foto de Perfil</label>
+                                <div class="mb-3">
+                                    <img id="preview-image" src="{{ request.user.get_foto_url }}" class="img-thumbnail rounded-circle" style="width: 150px; height: 150px;">
+                                </div>
+                                <input type="file" id="id_foto" name="foto" class="form-control mt-2" accept="image/*">
+                                <!-- Campo escondido para imagem cortada -->
+                                <input type="hidden" name="cropped_image" id="cropped-image-input">
+                                
+                                <!-- Modal para Cropper -->
+                                <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                                    <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="cropperModalLabel">Cortar Imagem</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                    </div>
+                                    <div class="modal-body text-center">
+                                        <div>
+                                            <img id="image-to-crop" style="max-width: 100%;">
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                        <button type="button" class="btn btn-app" id="crop-button">Cortar e Usar</button>
+                                    </div>
+                                    </div>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- PRIMEIRA LINHA -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_first_name"><i class="fa-solid fa-user"></i> Primeiro Nome</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+                                    {{ form.first_name }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_last_name"><i class="fa-solid fa-user"></i> Último Nome</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+                                    {{ form.last_name }}
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- SEGUNDA LINHA -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_username"><i class="fa-solid fa-user-tag"></i> Usuário</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user-tag"></i></span>
+                                    {{ form.username }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_email"><i class="fa-solid fa-envelope"></i> Email</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
+                                    {{ form.email }}
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- TERCEIRA LINHA -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_cpf"><i class="fa-solid fa-id-card"></i> CPF</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-id-card"></i></span>
+                                    {{ form.cpf }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_telefone"><i class="fa-solid fa-phone"></i> Telefone</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-phone"></i></span>
+                                    {{ form.telefone }}
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- QUARTA LINHA -->
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label" for="id_endereco"><i class="fa-solid fa-map-marker-alt"></i> Endereço</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-map-marker-alt"></i></span>
+                                    {{ form.endereco }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- QUINTA LINHA -->
+                        <div class="row mb-3 text-center">
+                            <div class="col-md-12">
+                                <a href="{% url 'account_change_password' %}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fa-solid fa-key"></i> Alterar Senha
+                                </a>
+                            </div>
+                        </div>                        
+                    
+                        <!-- BOTÕES -->
+                        <div class="text-end mt-4">
+                            <a href="{% url 'organizador:dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="fa fa-arrow-left"></i> Voltar
+                           </a>
+                            <button type="submit" class="btn btn-app">
+                                <i class="fa-solid fa-save"></i> Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+            </div>
+        </div> 
+    </div>
+{% endblock content %}
+
+
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+        console.log("DOM carregado na profile.html");       
+
+        // Permite clicar na imagem para selecionar o arquivo
+        document.getElementById('preview-image').addEventListener('click', function () {
+            document.getElementById('id_foto').click();
+        });
+
+
+        let cropper;
+        const inputImage = document.getElementById('id_foto');
+        const imageToCrop = document.getElementById('image-to-crop');
+        const previewImage = document.getElementById('preview-image');
+        const croppedImageInput = document.getElementById('cropped-image-input');
+        const cropperModalEl = document.getElementById('cropperModal');
+        const cropperModal = new bootstrap.Modal(cropperModalEl);
+
+        inputImage.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && /^image\/\w+/.test(file.type)) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    imageToCrop.src = reader.result;
+                    cropperModal.show();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Inicializa o Cropper após o modal estar completamente visível
+        cropperModalEl.addEventListener('shown.bs.modal', () => {
+            if (cropper) {
+                cropper.destroy();
+            }
+            cropper = new Cropper(imageToCrop, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                responsive: true,
+                background: false,
+                modal: true,
+            });
+        });
+
+        // Destroi o Cropper ao fechar o modal
+        cropperModalEl.addEventListener('hidden.bs.modal', () => {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        });
+
+        document.getElementById('crop-button').addEventListener('click', () => {
+            if (!cropper) return;
+
+            const canvas = cropper.getCroppedCanvas({
+                width: 200,
+                height: 200,
+            });
+
+            if (canvas) {
+                previewImage.src = canvas.toDataURL();
+                croppedImageInput.value = canvas.toDataURL();
+                cropperModal.hide();
+            }
+        });
+    });      
+</script>
+{% endblock %}

@@ -1,0 +1,420 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Atividade{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        {% if atividade %}Editar Atividade: <b>{{ atividade.titulo }}</b> {% else %}Criar Nova Atividade{% endif %}
+    </span>
+    <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="table-responsive">
+    <div class="container">
+        <div class="app-panel">
+            {% if form.errors %}
+            <div class="alert alert-danger">
+                <strong>Erro!</strong> Por favor, corrija os erros abaixo.
+            </div>
+            {% endif %}
+
+            <!-- Mensages -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert {{ message.tags }} alert-dismissible fade show" role="alert" >
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}   
+
+
+            <form id="atividadeEventoForm" enctype="multipart/form-data" method="POST" >
+                {% csrf_token %}
+                
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        {{ form_ativ.evento.label_tag }}
+                        {{ form_ativ.evento }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form_ativ.titulo.label_tag }}
+                        {{ form_ativ.titulo }}
+                    </div>
+                </div>                
+
+                
+
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        {{ form_ativ.descricao.label_tag }}
+                        {{ form_ativ.descricao }}
+                    </div>
+                </div>
+
+                <hr class="mb-4">
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        {{ form_ativ.tipo.label_tag }}
+                        {{ form_ativ.tipo }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form_ativ.palestrantes.label_tag }}
+                        {{ form_ativ.palestrantes }}
+                    </div>
+                </div>
+
+                <hr class="mb-4">
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        {{ form_ativ.data_hora_inicio.label_tag }}
+                        {{ form_ativ.data_hora_inicio }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form_ativ.data_hora_fim.label_tag }}
+                        {{ form_ativ.data_hora_fim }}
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        {{ form_ativ.n_vagas.label_tag }}
+                        {{ form_ativ.n_vagas }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form_ativ.n_inscricoes.label_tag }}
+                        {{ form_ativ.n_inscricoes }}
+                    </div>
+                </div>
+
+                <hr class="mb-4">
+
+                <!-- <div class="row mb-3">
+                    <div class="col-md-12">
+                        {{ form_ativ.imagem.label_tag }}
+                        {{ form_ativ.imagem }}
+                    </div>
+                </div> -->
+                
+                <!-- Image Upload -->
+                <div class="row mb-3">
+                    <div class="col-md-12 text-center">
+                        <label class="form-label"><i class="fa-solid fa-camera"></i> Imagem</label>
+                        <div class="mb-3">
+                            {% if form_ativ.instance.imagem %}
+                            <img id="preview-image" src="{{ form_ativ.instance.imagem.url }}" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
+                            {% else %}
+                            <img id="preview-image" src="/media/campus-ponte-nova.jpg" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
+                            {% endif %}
+                        </div>
+                        <input type="file" id="id_imagem" name="imagem" class="form-control mt-2" accept="image/*">
+                        <!-- Campo escondido para imagem cortada -->
+                        <input type="hidden" name="cropped_image" id="cropped-image-input">
+                        
+                        <!-- Modal para Cropper -->
+                        <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg modal-dialog-centered">
+                            <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="cropperModalLabel">Cortar Imagem</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div>
+                                    <img id="image-to-crop" style="max-width: 100%;">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-app" id="crop-button">Cortar e Usar</button>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                
+                
+                <!-- {{ form_ativ.as_p }} -->
+
+
+
+                <button type="button" class="btn btn-outline-secondary" id="gerarDescricao">
+                    {% if atividade %}
+                    <i class="fa-solid fa-robot"></i> Gerar Nova Descrição
+                    {% else %}
+                    <i class="fa-solid fa-robot"></i> Gerar Descrição 
+                    {% endif %}
+                </button>
+
+                <div class="text-end mt-4">
+                    <button type="submit" class="btn btn-app">
+                        {% if atividade %}Salvar Alterações{% else %}Criar Atividade{% endif %}
+                    </button>
+                </div>
+
+            </form>   
+        </div>
+    </div>
+</div>
+
+<!-- Modais inicio --> 
+{% include 'includes/modal_novo_palestrante.html' %}
+{% include 'includes/modal_novo_tipo_atividade.html' %}
+<!-- Modais fim -->
+
+
+{% endblock content %}
+
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        console.log("Este form é para {% if atividade %}editar atividade{% else %}criar atividade{% endif %}.");
+
+
+        function message_(text, typeMessage = "success") {
+                setTimeout(function () {
+                    let alertBox = document.getElementById('msgcontainer');
+                    // console.log("alertBox>", alertBox);
+                    if (alertBox) {
+                        alertBox.innerHTML = `
+                            <div id="tempAlert" class="alert alert-${typeMessage} alert-dismissible fade show" role="alert">
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                ${text}
+                            </div>`;
+
+                        let tempAlert = document.getElementById('tempAlert');
+
+                        // Espera 3 segundos para iniciar o fade-out
+                        setTimeout(() => {
+                            if (tempAlert) {
+                                tempAlert.classList.remove("show");
+                                tempAlert.classList.add("fade");
+                                // Remove do DOM após a transição (supondo fade de 500ms)
+                                setTimeout(() => tempAlert.remove(), 500);
+                            }
+                        }, 2000);
+                    }
+                }, 500);
+            }
+
+
+        let botaoGerarDescricao = document.querySelector("#atividadeEventoForm button#gerarDescricao");
+                if(botaoGerarDescricao)
+                {
+                
+                    let campoTitle = document.querySelector("#atividadeEventoForm input#id_titulo");
+                    let campoDescription = document.querySelector("#atividadeEventoForm textarea#id_descricao");
+
+
+                    let campoDataInicio = document.querySelector("#atividadeEventoForm input#id_data_hora_inicio");
+                    let campoDataFim = document.querySelector("#atividadeEventoForm input#id_data_hora_fim");
+                    let campoTipo = document.querySelector("#atividadeEventoForm select#id_tipo");
+
+
+                    botaoGerarDescricao.addEventListener("click", function (event) {
+                        event.preventDefault();
+                        
+                        var titulo = campoTitle.value;
+                        var data_hora_inicio = campoDataInicio.value;
+                        var data_hora_fim = campoDataFim.value;
+                        var tipo = campoTipo.value;
+                        
+
+                        if (!titulo) {
+                            alert("Por favor, insira um título antes de gerar a descrição.");
+                            return;
+                        }
+                        campoDescription.value = "🚀 Agurade! Gerando descrição...";
+
+                        fetch("{% url 'organizador:gerar_descricao' %}", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-CSRFToken": "{{ csrf_token }}"
+                            },
+                            body: JSON.stringify({ 
+                                "titulo": titulo, 
+                                "data_inicio": data_hora_inicio,
+                                "data_fim": data_hora_fim,
+                                "tipo": tipo
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            // console.log("Resposta da IA:", data.descricao);  // Debug
+                            if (data.descricao) {
+                                campoDescription.value = data.descricao;
+                            } else {
+                                alert("Erro ao gerar descrição.");
+                            }
+                        })
+                        .catch(error => console.error("Erro:", error));
+                    });
+                }
+
+
+
+
+
+
+        // Adicionar Palestrante
+        document.getElementById("formPalestrante").addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            var form = this;
+            var formData = new FormData(form);
+
+            fetch(form.action, {
+                method: "POST",
+                body: formData, // Envia os dados do formulário, incluindo a imagem
+                headers: {
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                if (data.success) {
+                    let select = document.getElementById("id_palestrantes");
+                    if(select){
+                        let option = new Option(data.nome, data.id, true, true);
+                        select.add(option);
+                    }
+                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalPalestrante"));
+                    modal.hide();
+                    this.reset();
+                    message_("Novo palestrante adicionado com sucesso.")
+                } else {
+                    msg = ""
+                    for (let key in data.errors) {
+                        msg += `${key}: ${data.errors[key]}\n`;
+                    }
+                    // alert("Erro ao adicionar palestrante. \n" + msg);
+                    message_("Erro ao adicionar palestrante. \n" + msg, "danger");
+                    //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
+                }
+            });
+        });
+
+        // Adicionar Tipo de Atividade
+        document.getElementById("formTipoAtividade").addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            let formData = new FormData(this);
+            fetch("{% url 'organizador:adicionar_tipo_atividade' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let select = document.getElementById("id_tipo");
+                    if(select){
+                        let option = new Option(data.nome, data.id, true, true);
+                        select.add(option);
+                    }
+                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalTipoAtividade"));
+                    modal.hide();
+                    this.reset();
+
+                    message_("Novo tipo de atividade adicionado com sucesso.")
+
+                } else {
+                    msg = ""
+                    for (let key in data.errors) {
+                        msg += `${data.errors[key]}\n`;
+                    }
+                    // alert("Erro ao adicionar Tipo de Atividade. \n" + msg);
+                    message_("Erro ao adicionar Tipo de Atividade. \n" + msg, "danger");
+                    //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
+                }
+            });
+        });
+
+
+
+
+       // Permite clicar na imagem para selecionar o arquivo
+       document.getElementById('preview-image').addEventListener('click', function () {
+            document.getElementById('id_imagem').click();
+        });
+
+
+        let cropper;
+        const inputImage = document.getElementById('id_imagem');
+        const imageToCrop = document.getElementById('image-to-crop');
+        const previewImage = document.getElementById('preview-image');
+        const croppedImageInput = document.getElementById('cropped-image-input');
+        const cropperModalEl = document.getElementById('cropperModal');
+        const cropperModal = new bootstrap.Modal(cropperModalEl);
+
+        inputImage.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && /^image\/\w+/.test(file.type)) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    imageToCrop.src = reader.result;
+                    cropperModal.show();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Inicializa o Cropper após o modal estar completamente visível
+        cropperModalEl.addEventListener('shown.bs.modal', () => {
+            if (cropper) {
+                cropper.destroy();
+            }
+            cropper = new Cropper(imageToCrop, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                responsive: true,
+                background: false,
+                modal: true,
+            });
+        });
+
+        // Destroi o Cropper ao fechar o modal
+        cropperModalEl.addEventListener('hidden.bs.modal', () => {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        });
+
+        document.getElementById('crop-button').addEventListener('click', () => {
+            if (!cropper) return;
+
+            const canvas = cropper.getCroppedCanvas({
+                width: 500,
+                height: 500,
+            });
+
+            if (canvas) {
+                previewImage.src = canvas.toDataURL();
+                croppedImageInput.value = canvas.toDataURL();
+                cropperModal.hide();
+            }
+        });
+
+
+    });
+</script>
+{% endblock scripts %}

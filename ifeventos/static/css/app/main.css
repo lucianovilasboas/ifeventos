@@ -1,0 +1,723 @@
+/* ============================================================
+   Nossos Eventos — F1: camada de skin do design system
+   ------------------------------------------------------------
+   Substitui o tema "App Moderno" (Opção A) anterior.
+
+   REGRA DESTA CAMADA: todos os nomes de classe originais foram
+   mantidos, com o mesmo papel. Nenhum template precisa mudar por
+   causa desta reescrita. O que mudou é apenas o desenho.
+
+   Os valores vêm de tokens.css (carregado antes). Não há hex solto
+   aqui, exceto onde o comentário explica o motivo.
+
+   Bootstrap 5.3 continua sendo o framework de grid/form/modal:
+   as variáveis --bs-* estão ajustadas em tokens.css.
+   ============================================================ */
+
+/* ---------- Base ---------- */
+body {
+  background-color: var(--app-bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 84px; /* espaço p/ bottom-nav fixa no mobile */
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+  text-wrap: balance;
+}
+p { text-wrap: pretty; }
+a { color: var(--accent-ink); }
+
+/* núcleo tipográfico: números e metadados em mono tabular */
+.meta, .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Topbar app ---------- */
+.app-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3);
+  padding: 12px 18px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+  position: sticky; top: 0; z-index: 1030;
+  min-width: 0;
+}
+.app-brand {
+  font-family: var(--font-display);
+  font-weight: 800; font-size: 19px; letter-spacing: -.3px;
+  color: var(--fg); text-decoration: none;
+  min-width: 0;                      /* era implícito max-content: o nome
+                                        longo empurrava o avatar p/ fora da
+                                        tela em 360/390px */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.app-brand span { color: var(--accent-ink); }
+.app-avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 800; font-size: 14px;
+  text-transform: capitalize; overflow: hidden;
+  border: 2px solid var(--border); padding: 0;
+  box-shadow: none;
+}
+.app-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.app-avatar:hover { border-color: var(--accent); }
+
+/* ---------- Hero ---------- */
+/* Saiu o gradiente roxo escuro com texto branco.
+   Entrou painel de marca em accent-soft, com a MESMA largura do bloco de
+   seção (.app-sec / "Em destaque"): 1080px centrado no desktop e
+   100% - 32px no mobile. Não é mais faixa de ponta a ponta.
+   Fundo #e8f5ea medido: fg 9.81:1 e muted 4.74:1 (limite para manter AA). */
+.app-hero {
+  width: min(calc(100% - (var(--gutter-phone) * 2)), var(--container-max));
+  margin: var(--space-4) auto var(--space-6);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;          /* assinatura de card do DS */
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-5);
+  color: var(--fg);
+  position: relative;
+  overflow: hidden;
+  background: var(--accent-soft) !important;
+}
+.app-hero h1 {
+  font-size: clamp(26px, 6vw, 34px);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--fg);
+  max-width: 20ch;
+  text-shadow: none;
+}
+.app-hero p {
+  font-size: var(--text-base);
+  opacity: 1;
+  margin-top: var(--space-2);
+  max-width: 46ch;
+  color: var(--muted);
+  text-shadow: none;
+}
+.app-hero .chip {
+  display: inline-flex; align-items: flex-start; gap: 8px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs); font-weight: 800;
+  margin-top: var(--space-4);
+  backdrop-filter: none;
+  color: var(--fg);
+  /* Era inline-flex sem teto: a mensagem longa do assistente esticava
+     o chip por centenas de pixels numa linha só. */
+  max-width: 100%;
+  text-align: left;
+}
+.app-hero .chip b {
+  color: var(--accent);   /* é um indicador (bolinha), não texto:
+                             3.45:1 atende componente de UI */
+  font-size: 10px;
+}
+/* O chip de aviso do assistente (dashboard) carrega um texto de frase
+   inteira dentro de #ia_mensagem. Pill de 9999px num bloco de várias
+   linhas vira um estádio estranho e o texto estoura a caixa: este recebe
+   tratamento de faixa, com teto de leitura e quebra de linha. */
+.app-hero .chip:has(#ia_mensagem) {
+  align-items: flex-start;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  max-width: min(100%, 68ch);
+  line-height: 1.45;
+}
+.app-hero .chip:has(#ia_mensagem) i { margin-top: 2px; color: var(--accent-ink); }
+.app-hero .chip:has(#ia_mensagem) #ia_mensagem { overflow-wrap: anywhere; }
+.hero-ico {
+  position: absolute; right: 4px; bottom: -14px;
+  font-size: 96px;
+  opacity: .10;
+  filter: grayscale(1);
+  pointer-events: none;
+}
+
+/* ---------- Botões / CTA ---------- */
+.btn { font-family: var(--font-display); font-weight: 800; }
+
+/* CTA principal: a assinatura do DS é a sombra dura que "afunda" no clique */
+.btn-app {
+  background: var(--accent-ink) !important;
+  color: var(--accent-on) !important;
+  border: 2px solid var(--accent-ink) !important;
+  border-bottom-color: var(--accent-press) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 4px 0 var(--accent-press);
+  transition: background var(--motion-fast), transform var(--motion-fast),
+              box-shadow var(--motion-fast), border-color var(--motion-fast);
+}
+.btn-app:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; filter: none; }
+.btn-app:active { transform: translateY(4px); box-shadow: none; }
+
+/* Variante verde: agora é a mesma cor com peso semântico secundário */
+.btn-app-green {
+  background: var(--bg) !important;
+  color: var(--accent-ink) !important;
+  border: 2px solid var(--accent) !important;
+  border-bottom-color: var(--accent-ink) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 3px 0 var(--accent-ink);
+  transition: background var(--motion-fast), transform var(--motion-fast),
+              box-shadow var(--motion-fast), border-color var(--motion-fast);
+}
+.btn-app-green:hover { background: var(--accent-soft) !important; filter: none; }
+.btn-app-green:active { transform: translateY(3px); box-shadow: none; }
+
+/* ---------- Cards de evento (horizontal) ---------- */
+.cards-h {
+  display: flex; gap: var(--space-4); overflow-x: auto;
+  padding: 2px var(--gutter-phone) var(--space-3);
+  scroll-snap-type: x mandatory; margin: 0;
+  scrollbar-width: none;
+}
+.cards-h::-webkit-scrollbar { display: none; }
+
+.ecard {
+  min-width: 268px;
+  scroll-snap-align: start;
+  background: var(--app-card);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: none;
+  flex: none;
+  display: flex; flex-direction: column;
+  transition: transform var(--motion-fast), box-shadow var(--motion-fast),
+              border-color var(--motion-fast);
+}
+.ecard:hover { transform: translateY(-2px); border-color: var(--border-ui); box-shadow: var(--elev-card-hover); }
+.ecard .img {
+  height: 126px;
+  background: var(--accent-soft);   /* era gradiente roxo */
+  position: relative;
+}
+.ecard .img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ecard .img .tag {
+  position: absolute; top: auto; left: 10px; bottom: 10px;
+  background: var(--bg); color: var(--fg);
+  border: 2px solid var(--border);
+  backdrop-filter: none;
+  font-size: var(--text-xs); font-weight: 800;
+  padding: 5px 10px; border-radius: var(--radius-pill);
+}
+.ecard .img .wk {
+  position: absolute; bottom: 10px; right: 12px; left: auto;
+  color: var(--accent-ink); background: var(--bg);
+  border: 2px solid var(--border); border-radius: var(--radius-pill);
+  padding: 3px 8px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 800;
+}
+.ecard .body { padding: var(--space-4); display: flex; flex-direction: column; flex: 1; }
+.ecard .body h5 { font-size: var(--text-lg); font-weight: 800; line-height: 1.25; margin: 0; }
+.ecard .body .meta { color: var(--muted); font-size: var(--text-xs); margin-top: 6px; }
+.ecard .body p.desc { font-size: var(--text-sm); color: var(--muted); margin-top: 6px; }
+.ecard .body .btn {
+  margin-top: auto;
+  border-radius: var(--radius-sm); padding: 10px; width: 100%;
+  font-size: 14px; min-height: 44px;
+}
+
+/* ---------- Lista vertical / itens ---------- */
+.app-list { padding: 0 var(--gutter-phone); }
+.app-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  background: var(--app-card);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  box-shadow: none;
+  transition: transform var(--motion-fast), border-color var(--motion-fast);
+}
+.app-item:hover { transform: translateY(-2px); border-color: var(--border-ui); }
+.app-item .dot {
+  width: 44px; height: 44px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.app-item .info { flex: 1; min-width: 0; }
+.app-item .info h5 { font-size: var(--text-lg); font-weight: 800; margin: 0; }
+.app-item .info p { color: var(--muted); font-size: var(--text-sm); margin: 4px 0 0; }
+
+.badge-app {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-xs); font-weight: 800;
+  padding: 5px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--fg);
+  white-space: nowrap;
+}
+.badge-app.btn-danger {
+  background: var(--danger-soft) !important;
+  color: var(--danger);
+  border: 2px solid var(--danger);
+}
+
+/* ---------- Cabeçalhos de seção ---------- */
+.app-sec {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-5) var(--gutter-phone) var(--space-3);
+}
+.app-sec:empty { display: none; }
+.app-sec h2, .app-sec h3 { font-size: var(--text-lg); font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px; }
+.app-sec a { color: var(--accent-ink); font-size: var(--text-sm); font-weight: 800; text-decoration: none; }
+.app-sec a:hover { text-decoration: underline; }
+
+/* ---------- Estatísticas / painel ---------- */
+.app-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); padding: 0 var(--gutter-phone); }
+.app-stat {
+  background: var(--app-card);
+  border: 2px solid var(--border); border-bottom-width: 4px;
+  border-radius: var(--radius-md); padding: var(--space-4);
+  box-shadow: none;
+}
+.app-stat .num { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 800; color: var(--accent-ink); }
+.app-stat .lab { color: var(--muted); font-size: var(--text-xs); margin-top: 2px; }
+.app-bar { height: 8px; background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; margin-top: 10px; }
+.app-bar span { display: block; height: 100%; background: var(--accent); border-radius: var(--radius-pill); }
+
+/* ---------- Tabelas redesenhadas como cards (mobile) ---------- */
+.table-container {
+  background: var(--app-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: none;
+  margin-bottom: var(--space-4);
+  overflow-x: auto;
+}
+.table-container h4 { font-weight: 800; }
+.table thead th {
+  background: var(--surface) !important;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 2px solid var(--border);
+  border-top: none;
+}
+.table tbody td { border-color: var(--border); font-size: var(--text-sm); vertical-align: middle; }
+.table-striped > tbody > tr:nth-of-type(odd) { --bs-table-accent-bg: var(--surface); }
+
+/* ---------- Bottom nav (estilo app) ---------- */
+.app-bottomnav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030;
+  background: var(--bg);
+  backdrop-filter: none;
+  border-top: 2px solid var(--border);
+  display: flex; justify-content: space-around;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  box-shadow: none;
+}
+.app-bottomnav a {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); text-decoration: none;
+  flex: 1; min-height: 52px; padding: 4px 2px; min-width: 0;
+  border-radius: var(--radius-sm);
+}
+.app-bottomnav a span {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.app-bottomnav a i { font-size: 19px; }
+.app-bottomnav a.active { color: var(--accent-ink); background: var(--accent-soft); }
+.app-bottomnav a .foto { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+
+/* ---------- Cards padrão ---------- */
+.event-card {
+  border-radius: var(--radius-md) !important;
+  border: 2px solid var(--border) !important;
+  border-bottom-width: 4px !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+.event-card img { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.event-card .btn {
+  background-color: var(--accent-ink) !important;
+  border: 2px solid var(--accent-ink) !important;
+  color: var(--accent-on) !important;
+}
+.event-card .btn:hover { background-color: var(--accent-hover) !important; }
+.atividade-card {
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  border: 2px solid var(--border);
+  background: var(--app-card);
+}
+
+/* ---------- Login / auth ---------- */
+.login-container {
+  max-width: 420px; margin: 40px auto;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  border: 2px solid var(--border); border-bottom-width: 4px;
+  padding: 30px;
+}
+.login-container h2 { color: var(--fg); font-weight: 800; margin-bottom: 20px; text-align: center; }
+.login-container form input,
+.login-container input[type="email"],
+.login-container input[type="password"],
+.login-container input[type="text"] {
+  width: 100%; padding: 12px 40px 12px 15px;
+  border: 2px solid var(--border-ui); border-radius: var(--radius-sm);
+  font-size: var(--text-base); color: var(--fg); background: var(--bg);
+  margin-bottom: 14px; box-shadow: none;
+}
+.login-container form input:focus { border-color: var(--accent); outline: none; box-shadow: var(--focus-ring); }
+.form-group { margin-bottom: 0; }
+.form-group i { color: var(--accent); }   /* era #6c63ff */
+.extra-links { text-align: center; margin-top: 16px; }
+.extra-links a { text-decoration: none; color: var(--accent-ink); font-weight: 700; }
+.extra-links a:hover { color: var(--accent-press); text-decoration: underline; }
+.btn-login {
+  background-color: var(--accent-ink); color: var(--accent-on);
+  border: 2px solid var(--accent-ink); border-bottom-color: var(--accent-press);
+  padding: 12px; width: 100%; border-radius: var(--radius-sm);
+  font-family: var(--font-display); font-size: var(--text-base); font-weight: 800;
+  box-shadow: 0 4px 0 var(--accent-press);
+  transition: background var(--motion-fast), transform var(--motion-fast), box-shadow var(--motion-fast);
+}
+.btn-login:hover { background-color: var(--accent-hover); }
+.btn-login:active { transform: translateY(4px); box-shadow: none; }
+
+/* container alternativo usado pelo reset de senha (allauth) */
+.reset-password-container {
+  max-width: 420px; margin: 20px auto;
+  background: var(--bg); border-radius: var(--radius-md);
+  box-shadow: none; border: 2px solid var(--border); border-bottom-width: 4px;
+  padding: 30px;
+}
+.reset-password-container h2 { color: var(--fg); font-weight: 800; margin-bottom: 16px; text-align: center; }
+.reset-password-container form input {
+  width: 100%; padding: 12px 15px;
+  border: 2px solid var(--border-ui); border-radius: var(--radius-sm);
+  font-size: var(--text-base); color: var(--fg); background: var(--bg); box-shadow: none;
+}
+.reset-password-container form input:focus { border-color: var(--accent); outline: none; box-shadow: var(--focus-ring); }
+.reset-password-container a { color: var(--accent-ink); text-decoration: none; font-weight: 700; }
+
+/* forms gerados (form.as_p do django) dentro do container app */
+.login-container form p { margin-bottom: 14px; }
+.login-container form p label { font-family: var(--font-display); font-weight: 800; font-size: var(--text-sm); color: var(--fg); display: block; margin-bottom: 6px; }
+.login-container form .helptext,
+.login-container form .form-text { color: var(--muted); font-size: var(--text-xs); display: block; margin-top: 4px; }
+.login-container form ul.errorlist { color: var(--danger); font-size: var(--text-xs); font-weight: 700; list-style: none; padding: 0; margin: 0 0 6px; }
+.welcome { color: var(--muted); }
+.welcome h1 { color: var(--fg-strong); }
+
+/* ---------- Footer (herdado de css/base/style.css) ---------- */
+footer {
+  margin-top: var(--space-12);
+  padding: var(--space-5) var(--gutter-phone);
+  text-align: center;
+  background: transparent;
+  border-top: 2px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+footer p { margin: 0; }
+footer a { color: var(--accent-ink); text-decoration: none; font-weight: 700; }
+footer a:hover { color: var(--accent-press); text-decoration: underline; }
+
+/* ---------- Cards de evento (organizador) ---------- */
+.event-card-app {
+  background: var(--app-card);
+  border: 2px solid var(--border); border-bottom-width: 4px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: none;
+  height: 100%; display: flex; flex-direction: column;
+  transition: transform var(--motion-fast), border-color var(--motion-fast);
+}
+.event-card-app:hover { transform: translateY(-2px); border-color: var(--border-ui); }
+.event-card-app .cover { height: 120px; position: relative; background: var(--accent-soft); }
+.event-card-app .cover img { width: 100%; height: 100%; object-fit: cover; }
+.event-card-app .cover .cover-tag,
+.event-card-app .cover .cover-dates {
+  position: absolute; font-size: var(--text-xs); font-weight: 800;
+  color: var(--fg); background: var(--bg);
+  border: 2px solid var(--border); border-radius: var(--radius-pill);
+  backdrop-filter: none; padding: 4px 10px; line-height: 1.4;
+}
+.event-card-app .cover .cover-tag { top: 10px; left: 10px; }
+.event-card-app .cover .cover-dates { bottom: 10px; left: 12px; font-family: var(--font-mono); }
+.event-card-app .event-card-body { padding: var(--space-4) var(--space-4) 4px; flex: 1; }
+.event-card-app .event-card-body h5 { font-size: var(--text-base); font-weight: 800; margin: 0; }
+.event-card-app .event-card-body .meta { color: var(--muted); font-size: var(--text-xs); margin-top: 5px; }
+.event-card-app .event-card-body .desc { font-size: var(--text-sm); color: var(--muted); margin: 8px 0 0; }
+.event-card-app .event-card-actions { display: flex; gap: 8px; padding: var(--space-3) var(--space-4) var(--space-4); flex-wrap: wrap; align-items: center; }
+
+.btn-icon {
+  width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm); position: relative;
+  border: 2px solid var(--border-ui);
+}
+
+/* ---------- Painéis (formulários/telas) ---------- */
+.app-panel {
+  background: var(--app-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  padding: 1.4rem;
+}
+.app-panel .form-label { font-family: var(--font-display); font-weight: 800; font-size: var(--text-sm); color: var(--fg); margin-bottom: 5px; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.card-actions .btn-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); }
+
+/* ---------- Navegação desktop (topbar) ---------- */
+.app-nav-desktop { display: none; }
+
+/* ---------- Conta / senha (allauth) ----------
+   .password-reset-container e .password-change-container são usados por
+   templates/account/password_reset_from_key.html e password_change.html,
+   mas nunca tiveram regra em nenhuma folha: chegavam ao navegador como
+   div crua. Aqui recebem o tratamento de painel do DS. */
+.password-reset-container,
+.password-change-container {
+  max-width: 560px;
+  margin: var(--space-5) auto;
+  padding: var(--space-6);
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: var(--radius-md);
+}
+.password-reset-container .titulo,
+.password-change-container .titulo,
+.titulo {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--fg);
+  margin-bottom: var(--space-4);
+}
+.password-reset-container form .btn,
+.password-change-container form .btn { margin-top: var(--space-4); }
+
+/* .form-group: usado pelos formulários de conta. O ícone fica ancorado
+   à direita dentro do campo. */
+.form-group { position: relative; margin-bottom: var(--space-4); }
+.form-group input {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 40px 12px 15px;
+  border: 2px solid var(--border-ui);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  color: var(--fg);
+  background: var(--bg);
+}
+.form-group input:focus { border-color: var(--accent); outline: none; box-shadow: var(--focus-ring); }
+.form-group i {
+  position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+  color: var(--accent);
+  pointer-events: none;
+}
+.form-group label {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  margin-bottom: 6px;
+  color: var(--fg);
+}
+.form-group .helptext, .form-group .form-text { color: var(--muted); font-size: var(--text-xs); }
+.text-danger { color: var(--danger) !important; font-size: var(--text-xs); font-weight: 700; }
+
+/* ---------- Modal Editar Perfil: avatar ---------- */
+.profile-avatar-wrap {
+  position: relative; width: 104px; height: 104px; border-radius: 50%;
+  overflow: hidden; cursor: pointer;
+  box-shadow: none;
+  border: 3px solid var(--border);
+}
+.profile-avatar-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-avatar-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in oklch, var(--fg) 45%, transparent);
+  color: #fff; font-size: 20px; opacity: 0; transition: opacity var(--motion-fast);
+}
+.profile-avatar-wrap:hover .profile-avatar-overlay { opacity: 1; }
+
+/* ============================================================
+   RESPONSIVO
+   Mobile (padrão): app + bottom-nav fixa
+   Desktop (>=992px): layout fluido, bottom-nav escondida
+   ============================================================ */
+@media (max-width: 991.98px) {
+  body { padding-bottom: 84px; }
+  .app-bottomnav { display: flex; }
+}
+
+@media (min-width: 992px) {
+  body { padding-bottom: var(--space-6); }
+  .app-topbar {
+    max-width: var(--container-max); margin: 0 auto;
+    padding: var(--space-4) var(--gutter-desktop);
+    position: static;
+    border-bottom: 2px solid var(--border);
+  }
+  /* A largura do hero já vem da regra base (mesma do .app-sec), então aqui
+     só se ajustam os espaçamentos internos — sem padding lateral calculado. */
+  .app-hero {
+    margin-top: var(--space-6);
+    padding: var(--section-y-tablet) var(--space-8) var(--space-8);
+  }
+  .app-hero-inner { max-width: var(--container-max); margin: 0 auto; }
+  .app-hero h1 { font-size: var(--text-3xl); max-width: 24ch; }
+  .app-hero p { font-size: var(--text-lg); max-width: 56ch; }
+  .app-sec { max-width: var(--container-max); margin: var(--space-8) auto var(--space-4); }
+  .app-list { max-width: var(--container-max); margin: 0 auto; padding: 0 var(--gutter-desktop); }
+  .cards-h { max-width: var(--container-max); margin: 0 auto; padding: 2px var(--gutter-desktop) var(--space-3); }
+  .app-bottomnav { display: none; }
+  .app-stats { max-width: var(--container-max); margin: 0 auto; }
+  .table-container, .container { margin-bottom: var(--space-4); }
+  .dashboard-container, .container-fluid { max-width: var(--container-max); margin: 0 auto; }
+  .app-avatar:hover { border-color: var(--accent); }
+}
+
+/* Navegação desktop (topbar) */
+@media (min-width: 992px) {
+  .app-nav-desktop {
+    display: flex; align-items: center; justify-content: center;
+    gap: var(--space-1); flex: 1; padding: 0 var(--space-3);
+  }
+  .app-nav-desktop a {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 13px; border-radius: var(--radius-sm);
+    font-family: var(--font-display); font-size: 14px; font-weight: 800;
+    color: var(--muted); text-decoration: none; white-space: nowrap;
+    border: 2px solid transparent;
+    transition: color var(--motion-fast), background var(--motion-fast), border-color var(--motion-fast);
+  }
+  .app-nav-desktop a i { font-size: 15px; width: 16px; text-align: center; }
+  .app-nav-desktop a:hover { background: var(--surface); color: var(--fg); }
+  .app-nav-desktop a.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-brand { font-size: 17px; }
+  .app-hero { padding: var(--section-y-phone) var(--gutter-phone) var(--space-5); }
+  .app-hero h1 { font-size: 26px; }
+  .ecard { min-width: 240px; }
+}
+
+/* ============================================================
+   PONTE TEMPORÁRIA — hexes antigos hardcoded em style="" inline
+   ------------------------------------------------------------
+   Alguns templates trazem cores da paleta antiga direto no atributo
+   style (ex.: <span class="badge-app" style="background:#e0e7ff">).
+   Estilo inline vence qualquer seletor, e o atributo não é um token —
+   então o rebranding não o alcança. Estes seletores por substring do
+   próprio atributo neutralizam os resíduos com !important.
+
+   São 4 hexes herdados do tema roxo:
+     #e0e7ff e #f1f0ff  → chips lavanda
+     #fee2e2            → chip vermelho claro
+     #dcfce7            → chip verde claro
+
+   REMOVER quando as fases F3–F5 limparem os templates (aí os chips
+   passam a usar as classes .badge-app, .chip-ok, .chip-red, .chip-warn).
+   ============================================================ */
+.badge-app[style*="e0e7ff" i],
+.badge-app[style*="f1f0ff" i],
+.tag[style*="e0e7ff" i],
+.tag[style*="f1f0ff" i] {
+  background: var(--surface-2) !important;
+  color: var(--fg) !important;
+}
+.badge-app[style*="dcfce7" i],
+.tag[style*="dcfce7" i] {
+  background: var(--success-soft) !important;
+  color: var(--accent-ink) !important;
+}
+.badge-app[style*="fee2e2" i],
+.tag[style*="fee2e2" i] {
+  background: var(--danger-soft) !important;
+  color: var(--danger) !important;
+}
+
+/* Chip .tag fora do contexto de imagem (usado na página de programação
+   como etiqueta de período). O .tag dentro de .ecard .img já é tratado
+   na seção de cards de evento. */
+.tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: var(--text-xs); font-weight: 800;
+}
+
+/* Cabeçalho dos 4 modais: gradiente roxo inline → agora verde, mas o DS é
+   plano e branco sobre --accent dá 3.45:1 (reprova). Vira accent-ink (5.46:1). */
+.modal-header[style*="linear-gradient"] {
+  background: var(--accent-ink) !important;
+  color: var(--accent-on) !important;
+  border: 0 !important;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
+}
+
+/* .dot com fundo inline. O gradiente verde/vermelho vira o tratamento de
+   chip do DS; o amber (#f59e0b, 2.1:1 com ícone branco) vira --warn-soft
+   com tinta --warn-ink (7.42:1). A regra do amber vem DEPOIS de propósito:
+   os dois seletores têm a mesma especificidade e o atributo casa com ambos. */
+.dot[style*="linear-gradient"] {
+  background: var(--accent-soft) !important;
+  color: var(--accent-ink) !important;
+}
+.dot[style*="f59e0b"] {
+  background: var(--warn-soft) !important;
+  color: var(--warn-ink) !important;
+}
+
+/* Chips de status "não confirmada" (#fef3c7 / #b45309) → tokens de aviso */
+.badge-app[style*="fef3c7" i],
+.tag[style*="fef3c7" i] {
+  background: var(--warn-soft) !important;
+  color: var(--warn-ink) !important;
+}
+
+/* ---------- Impressão (lista de presença / relatórios) ---------- */
+@media print {
+  body { padding: 0 !important; background: #fff; }
+  .app-topbar, .app-hero, .app-bottomnav, .app-sec,
+  .alert, #msgcontainer, .no-print { display: none !important; }
+  .app-item, .event-card-app, .table-container, .ecard {
+    box-shadow: none !important;
+    border: 1px solid #999 !important;
+  }
+  footer { display: none !important; }
+  .cards-mobile { display: none !important; }
+  .table-wrap { display: block !important; }
+}

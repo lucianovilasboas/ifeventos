@@ -1,0 +1,376 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Evento Atividades{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="fw-semibold">
+        Atividades do evento: <b>{{ evento.title }}</b>
+    </span>
+    <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+         <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+
+{% block content %}
+<div class="app-list mb-3">
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'organizador:criar_editar_atividade_criar' evento.id %}" class="btn btn-app">
+            <i class="fa-solid fa-plus"></i> Criar Nova Atividade
+        </a>
+        <a href="#" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalPalestrante">
+            <i class="fa-solid fa-user-tie"></i> Adicionar Novo Palestrante
+        </a>
+        <a href="#" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalTipoAtividade">
+            <i class="fa-solid fa-list"></i> Adicionar Novo Tipo de Atividade
+        </a>
+    </div>
+</div>
+{% include 'includes/data_atividades_evento.html' %}
+<!-- Modais inicio --> 
+{% include 'includes/modal_novo_palestrante.html' %}
+{% include 'includes/modal_novo_tipo_atividade.html' %}
+<!-- Modais fim -->
+
+{% endblock content %}
+
+{% block scripts %}
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script>
+    // SOCKET_URL vazio = mesma origem da página (produção, atrás do Traefik).
+    const url = "{{ SOCKET_URL }}";
+    const socket = url ? io(url) : io();
+    console.log(`Conectando ao servidor Socket.IO (${url || window.location.origin})`);
+
+    socket.on("event_created", (data) => {
+        alert("Novo evento criado: " + data.title);
+    });
+
+    const eventoId = "{{ evento.id }}";
+    const atividadeUrlEdit = (id) => `/organizador/atividades_evento/${eventoId}/atividade/${id}/editar/`;
+
+    function esc(str) {
+        return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+    }
+
+    // Atualiza contadores (vagas/inscritos) em cards e na tabela ao mesmo tempo
+    function refreshCounts(id, vagas, inscritos) {
+        document.querySelectorAll(`.js-vagas[data-id="${id}"]`).forEach(el => el.textContent = vagas);
+        document.querySelectorAll(`.js-inscritos[data-id="${id}"]`).forEach(el => el.textContent = inscritos);
+    }
+
+    function removeAtividade(id) {
+        document.querySelectorAll(`[data-atividade-id="${id}"]`).forEach(el => el.remove());
+    }
+
+    socket.on("atividate_update", (data) => {
+        console.log("Atividade atualizada: ");
+        console.table(data);
+        const id = data.id || data.atividade_id;
+        if (id == null) return;
+        if (data.n_vagas != null && data.n_inscricoes != null) {
+            refreshCounts(id, data.n_vagas, data.n_inscricoes);
+        }
+        if (data.titulo) {
+            document.querySelectorAll(`[data-atividade-id="${id}"] .atividade-titulo`)
+                .forEach(el => el.textContent = data.titulo);
+        }
+    });
+
+    socket.on("atividade_deleted", (data) => {
+        console.log(`Atividade excluída: ${data.id || data.atividade_id}`);
+        removeAtividade(data.id || data.atividade_id);
+    });
+
+    socket.on("atividade_created", (data) => {
+        console.log("Nova atividade: " + data.titulo);
+        const id = data.id || data.atividade_id;
+        if (id == null) return;
+        const titulo = data.titulo || "Nova atividade";
+        const tipo = data.tipo || "";
+        const vagas = data.n_vagas != null ? data.n_vagas : 0;
+        const inscritos = data.n_inscricoes != null ? data.n_inscricoes : 0;
+        const t = esc(titulo), ty = esc(tipo);
+
+        // Adiciona a linha na tabela (desktop)
+        const tableBody = document.querySelector(".table-wrap table tbody");
+        if (tableBody) {
+            const newRow = document.createElement("tr");
+            newRow.className = "atividade-item";
+            newRow.setAttribute("data-atividade-id", id);
+            newRow.innerHTML = `
+                <td></td>
+                <td class="atividade-titulo">${t}</td>
+                <td>${ty}</td>
+                <td class="js-vagas" data-id="${id}">${vagas}</td>
+                <td class="js-inscritos" data-id="${id}">${inscritos}</td>
+                <td>
+                    <a href="${atividadeUrlEdit(id)}" title="Editar Atividade" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen"></i></a>
+                    <a href="/organizador/excluir_atividade/${id}/" title="Excluir Atividade" class="btn btn-danger btn-sm" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');"><i class="fa-solid fa-trash-can"></i></a>
+                    <span><i class="fa-solid fa-circle"></i></span>
+                    <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" title="Lista de Presença" class="btn btn-success btn-sm"><i class="fa-solid fa-list-check"></i></a>
+                    <a href="/eventos/gerar-qr-code-atividade/${id}/" title="QR Code de Confirmação de Presença" class="btn btn-dark btn-sm" target="_blank"><i class="fa-solid fa-qrcode"></i></a>
+                    <span><i class="fa-solid fa-circle"></i></span>
+                    <button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="${id}">🎓</button>
+                </td>`;
+            tableBody.appendChild(newRow);
+        }
+
+        // Adiciona o card (mobile)
+        const cardList = document.querySelector(".cards-mobile");
+        if (cardList) {
+            const card = document.createElement("div");
+            card.className = "app-item atividade-item";
+            card.setAttribute("data-atividade-id", id);
+            card.innerHTML = `
+                <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))"><i class="fa-solid fa-bullhorn"></i></div>
+                <div class="info">
+                    <h5 class="atividade-titulo">${t}</h5>
+                    <p><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> ${ty}</span></p>
+                    <p class="mb-0" style="font-size:12px;color:var(--app-muted)"><i class="fa-solid fa-users"></i> <span class="js-inscritos" data-id="${id}">${inscritos}</span>/<span class="js-vagas" data-id="${id}">${vagas}</span> inscritos</p>
+                    <div class="card-actions">
+                        <a href="${atividadeUrlEdit(id)}" class="btn btn-sm btn-warning btn-icon" title="Editar Atividade"><i class="fa-solid fa-pen"></i></a>
+                        <a href="/organizador/excluir_atividade/${id}/" class="btn btn-sm btn-danger btn-icon" title="Excluir Atividade" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');"><i class="fa-solid fa-trash-can"></i></a>
+                        <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" class="btn btn-sm btn-success btn-icon" title="Lista de Presença"><i class="fa-solid fa-list-check"></i></a>
+                        <a href="/eventos/gerar-qr-code-atividade/${id}/" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de Confirmação de Presença"><i class="fa-solid fa-qrcode"></i></a>
+                        <button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="${id}">🎓</button>
+                    </div>
+                </div>`;
+            cardList.appendChild(card);
+        }
+    });
+
+    socket.on("atividade_inicio_alert", (data) => {
+        alert("Atividade prestes a começar: " + data.titulo);
+    });
+</script>
+
+
+
+
+
+
+<!-- Script para chamar a View via AJAX -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+
+        console.log("Estou no script de atividades_evento.html");
+
+        function message_(text, alertType = "success") {
+                
+                setTimeout(function () {
+                    let alertBox = document.getElementById('msgcontainer');
+                    // console.log("alertBox>", alertBox);
+                    if (alertBox) {
+                        alertBox.innerHTML = `
+                            <div id="tempAlert" class="alert alert-${alertType} alert-dismissible fade show" role="alert">
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                ${text}
+                            </div>`;
+
+                        let tempAlert = document.getElementById('tempAlert');
+
+                        // Espera 3 segundos para iniciar o fade-out
+                        setTimeout(() => {
+                            if (tempAlert) {
+                                tempAlert.classList.remove("show");
+                                tempAlert.classList.add("fade");
+                                // Remove do DOM após a transição (supondo fade de 500ms)
+                                setTimeout(() => tempAlert.remove(), 431);
+                            }
+                        }, 3000);
+                    }
+                }, 250);
+            }
+
+
+            // let mensagem = document.getElementById("msgcontainer");
+            let certificadoButtons = document.querySelectorAll("button[data-atividade]");
+            if(certificadoButtons){
+                certificadoButtons.forEach(function(button) {
+
+                    button.addEventListener("click", function(e) {
+                        e.preventDefault();
+
+                        let atividadeId = this.getAttribute("data-atividade");
+                        console.log(`Botão clicado para atividade ID: ${atividadeId}`);
+
+                        
+                        if (confirm("Tem certeza que deseja emitir os certificados desta atividade?")) {
+                            
+                            message_("Gerando certificados para a atividade " + atividadeId, "info");
+
+                            fetch(`/organizador/emitir-certificados/atividade/${atividadeId}/`, {
+                                method: "POST",
+                                headers: {
+                                    "X-CSRFToken": "{{ csrf_token }}",
+                                    "Content-Type": "application/json"
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                
+                                if (data.certificados.length > 0) {
+                                    console.table(data.certificados);
+                                    message_( `🎉 ${data.certificados.length} ${data.message}`  )
+                                } else {
+                                    message_( "Nenhum certificado foi gerado.", "warning");                               }
+                            })
+                            .catch(error => {
+                                console.error("Erro ao emitir certificados:", error);
+                            });
+                        }
+                    });
+
+                });
+            }
+            
+            
+
+
+
+
+        let botaoGerarDescricao = document.querySelector("#atividadeEventoForm button#gerarDescricao");
+                if(botaoGerarDescricao)
+                {
+                
+                    let campoTitle = document.querySelector("#atividadeEventoForm input#id_titulo");
+                    let campoDescription = document.querySelector("#atividadeEventoForm textarea#id_descricao");
+
+
+                    let campoDataInicio = document.querySelector("#atividadeEventoForm input#id_data_hora_inicio");
+                    let campoDataFim = document.querySelector("#atividadeEventoForm input#id_data_hora_fim");
+                    let campoTipo = document.querySelector("#atividadeEventoForm select#id_tipo");
+
+
+                    botaoGerarDescricao.addEventListener("click", function (event) {
+                        event.preventDefault();
+                        
+                        var titulo = campoTitle.value;
+                        var data_hora_inicio = campoDataInicio.value;
+                        var data_hora_fim = campoDataFim.value;
+                        var tipo = campoTipo.value;
+                        
+
+                        if (!titulo) {
+                            alert("Por favor, insira um título antes de gerar a descrição.");
+                            return;
+                        }
+                        campoDescription.value = "🚀 Agurade! Gerando descrição...";
+
+                        fetch("{% url 'organizador:gerar_descricao' %}", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-CSRFToken": "{{ csrf_token }}"
+                            },
+                            body: JSON.stringify({ 
+                                "titulo": titulo, 
+                                "data_inicio": data_hora_inicio,
+                                "data_fim": data_hora_fim,
+                                "tipo": tipo
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            // console.log("Resposta da IA:", data.descricao);  // Debug
+                            if (data.descricao) {
+                                campoDescription.value = data.descricao;
+                            } else {
+                                alert("Erro ao gerar descrição.");
+                            }
+                        })
+                        .catch(error => console.error("Erro:", error));
+                    });
+                }
+
+
+
+        // Adicionar Palestrante
+        document.getElementById("formPalestrante").addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            var form = this;
+            var formData = new FormData(form);
+
+            fetch(form.action, {
+                method: "POST",
+                body: formData, // Envia os dados do formulário, incluindo a imagem
+                headers: {
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                if (data.success) {
+                    let select = document.getElementById("id_palestrantes");
+                    if(select){
+                        let option = new Option(data.nome, data.id, true, true);
+                        select.add(option);
+                    }
+                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalPalestrante"));
+                    modal.hide();
+                    this.reset();
+                    message_("Novo palestrante adicionado com sucesso.");
+                    
+                } else {
+                    msg = ""
+                    for (let key in data.errors) {
+                        msg += `${key}: ${data.errors[key]}\n`;
+                    }
+                    // alert("Erro ao adicionar palestrante. \n" + msg);
+                    message_("Erro ao adicionar palestrante. \n" + msg, "danger");
+                    //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
+                }
+            });
+        });
+
+        // Adicionar Tipo de Atividade
+        document.getElementById("formTipoAtividade").addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            let formData = new FormData(this);
+            fetch("{% url 'organizador:adicionar_tipo_atividade' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let select = document.getElementById("id_tipo");
+                    if(select){
+                        let option = new Option(data.nome, data.id, true, true);
+                        select.add(option);
+                    }
+                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalTipoAtividade"));
+                    modal.hide();
+                    this.reset();
+                    
+                    message_("Novo tipo de atividade adicionado com sucesso.")                    
+
+                } else {
+                    msg = ""
+                    for (let key in data.errors) {
+                        msg += `${data.errors[key]}\n`;
+                    }
+                    // alert("Erro ao adicionar Tipo de Atividade. \n" + msg);
+                    message_("Erro ao adicionar Tipo de Atividade. \n" + msg, "danger");
+                    //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
+                }
+            });
+        });
+
+
+
+    });
+</script>
+{% endblock scripts %}
+

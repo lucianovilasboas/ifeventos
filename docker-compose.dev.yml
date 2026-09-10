@@ -1,0 +1,86 @@
+# =====================================================================
+# Nossos Eventos (IF Eventos) — DESENVOLVIMENTO LOCAL
+# ---------------------------------------------------------------------
+# Para trabalhar na máquina local (mint-xps). Publica as portas no host
+# e usa o servidor de desenvolvimento do Django com recarga automática.
+#
+#   docker compose -f docker-compose.dev.yml up -d --build
+#
+# Acesse: http://127.0.0.1:8501/eventos/
+#
+# Neste modo NÃO existe proxy na frente, então o .env precisa de:
+#   DEBUG=True
+#   ALLOWED_HOSTS=*
+#   SOCKET_URL=http://127.0.0.1:8500
+#
+# Em produção use o docker-compose.yml (sem portas expostas, atrás do Traefik).
+# =====================================================================
+
+services:
+
+  app:
+    container_name: app_django
+    build:
+      context: ./ifeventos
+      dockerfile: Dockerfile
+    image: ifeventos:latest
+    restart: always
+    command: ./entrypoint.sh
+    environment:
+      # Servidor de desenvolvimento com recarga automática e sem gunicorn
+      APP_SERVER: runserver
+      RELOAD: "1"
+    volumes:
+      - ./ifeventos:/ifeventos
+    ports:
+      - "8501:8501"
+      - "8500:8500"
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.ifeventos.rule=Host(`eventos.xps`)"
+      - "traefik.http.routers.ifeventos.entrypoints=web"
+      - "traefik.http.services.ifeventos.loadbalancer.server.port=8501"
+    env_file:
+      - ./ifeventos/.env
+    depends_on:
+      - db
+
+  # O chat (mychatbot) é um projeto separado e não faz parte deste
+  # repositório. Se precisar dele no desenvolvimento, suba o projeto dele
+  # e aponte para a mesma rede "default" deste arquivo.
+  #
+  # chat:
+  #   container_name: chat_django
+  #   build:
+  #     context: ./mychatbot
+  #     dockerfile: Dockerfile
+  #   command: python manage.py runserver 0.0.0.0:8080
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - default
+  #     - proxy
+  #   env_file:
+  #     - ./mychatbot/.env
+  #   depends_on:
+  #     - db
+
+  db:
+    container_name: postgres_django
+    image: postgres:15
+    restart: always
+    env_file:
+      - ./ifeventos/.env
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+networks:
+  default:
+  proxy:
+    external: true

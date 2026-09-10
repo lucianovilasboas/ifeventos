@@ -1,0 +1,34 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+
+{% block title %}Painel | Participante{% endblock %}
+
+{% block action %}
+<h2><i class="fa-solid fa-bookmark"></i> Minhas Atividades</h2>
+{% endblock action %}
+
+{% block content %}
+{% include 'includes/participante_inscricoes_e_atividades.html' %}
+{% endblock content %}
+
+{% block scripts %}
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // SOCKET_URL vazio = mesma origem da página (produção, atrás do Traefik).
+        const socketUrl = "{{ SOCKET_URL }}";
+        const socket = socketUrl ? io(socketUrl) : io();
+        console.log(`Conectando ao servidor Socket.IO (${socketUrl || window.location.origin})`);
+        socket.on("inscricao_atualizada", (data) => {
+            console.log(`Inscrição atualizada: ${data.atividade_id}, ${data.n_inscricoes}`);
+            let spanInscritos = document.querySelector(`span#inscritos-${data.atividade_id}`);
+            if (spanInscritos) { spanInscritos.innerText = data.n_inscricoes; }
+            let mySpanInscritos = document.querySelector(`span#my-inscritos-${data.atividade_id}`);
+            if (mySpanInscritos) { mySpanInscritos.innerText = data.n_inscricoes; }
+        });
+        socket.on("atividade_inicio_alert", (data) => {
+            alert("Atividade prestes a começar: " + data.titulo);
+        });
+    });
+</script>
+{% endblock scripts %}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escanear QR Code</title>
+    
+    <!-- Importando a biblioteca de leitura de QR Code -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style>
+        #reader {
+            width: 100%;
+            max-width: 400px;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Escanear QR Code</h1>
+
+    <div id="reader"></div>
+    <p id="result">Aguardando escaneamento...</p>
+
+    <script>
+        function onScanSuccess(decodedText, decodedResult) {
+            document.getElementById("result").innerText = "QR Code detectado! Redirecionando...";
+            window.location.href = decodedText; // Redireciona para a URL do QR Code
+        }
+
+        function onScanFailure(error) {
+            console.warn(`Erro ao escanear: ${error}`);
+        }
+
+        // Inicializa o scanner
+        let scanner = new Html5Qrcode("reader");
+        scanner.start(
+            { facingMode: "environment" }, // Usa a câmera traseira se disponível
+            {
+                fps: 10, 
+                qrbox: { width: 250, height: 250 } 
+            },
+            onScanSuccess,
+            onScanFailure
+        );
+    </script>
+</body>
+</html>

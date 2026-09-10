@@ -1,0 +1,21 @@
+{% extends "base.html" %}  {# Substitua pelo seu template base #}
+
+{% load i18n %}
+
+{% block content %}
+    <h2>Confirmação de E-mail</h2>
+    
+    {% if confirmation %}
+        <p>Olá, <strong>{{ confirmation.email_address.email }}</strong>!</p>
+        <p>Clique no botão abaixo para confirmar seu e-mail:</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success">Confirmar E-mail</button>
+        </form>
+    {% else %}
+        <p>Este link de confirmação já foi utilizado ou é inválido.</p>
+    {% endif %}
+    
+    <p><a href="{% url 'account_login' %}">Voltar para o login</a></p>
+{% endblock %}

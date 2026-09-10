@@ -1,0 +1,56 @@
+<!-- Modal de Criação de Evento -->
+<div class="modal fade" id="criarEventoModal" tabindex="-1" aria-labelledby="criarEventoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border:0;border-radius:18px;box-shadow:var(--app-shadow)">
+            <div class="modal-header" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo));color:#fff;border:0;border-radius:18px 18px 0 0">
+                <h5 class="modal-title" id="criarEventoModalLabel"><i class="fa-solid fa-calendar-plus"></i> Criar Novo Evento</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="eventoForm" method="POST" action="{% url 'organizador:criar_evento' %}">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_title">{{ form_evt.title.label }}</label>
+                            {{ form_evt.title }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_local">{{ form_evt.local.label }}</label>
+                            {{ form_evt.local }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="id_description">{{ form_evt.description.label }}</label>
+                            {{ form_evt.description }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_data_inicio">{{ form_evt.data_inicio.label }}</label>
+                            {{ form_evt.data_inicio }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_data_fim">{{ form_evt.data_fim.label }}</label>
+                            {{ form_evt.data_fim }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="id_imagem">{{ form_evt.imagem.label }}</label>
+                            {{ form_evt.imagem }}
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-4">
+                        <button type="button" class="btn btn-outline-secondary" id="gerarDescricao">
+                            <i class="fa-solid fa-robot"></i> Gerar Descrição (IA)
+                        </button>
+                        <span class="ms-auto d-flex gap-2">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                                <i class="fa-solid fa-xmark"></i> Fechar
+                            </button>
+                            <button type="submit" class="btn btn-app">
+                                <i class="fa-solid fa-save"></i> Salvar
+                            </button>
+                        </span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

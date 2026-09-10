@@ -1,0 +1,54 @@
+<!-- Modal Adicionar Palestrante -->
+<div class="modal fade" id="modalPalestrante" tabindex="-1" aria-labelledby="modalPalestranteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border:0;border-radius:18px;box-shadow:var(--app-shadow)">
+            <div class="modal-header" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo));color:#fff;border:0;border-radius:18px 18px 0 0">
+                <h5 class="modal-title" id="modalPalestranteLabel"><i class="fa-solid fa-user-tie"></i> Adicionar Palestrante</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formPalestrante" action="{% url 'organizador:adicionar_palestrante' %}">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="id_foto">Foto</label>
+                            <input type="file" class="form-control" id="id_foto" name="foto">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_first_name">Nome</label>
+                            <input type="text" class="form-control" id="id_first_name" name="first_name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_last_name">Sobrenome</label>
+                            <input type="text" class="form-control" id="id_last_name" name="last_name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_email">Email</label>
+                            <input type="email" class="form-control" id="id_email" name="email" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_cpf">CPF</label>
+                            <input type="text" class="form-control" id="id_cpf" name="cpf">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_telefone">Telefone</label>
+                            <input type="text" class="form-control" id="id_telefone" name="telefone">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="id_endereco">Endereço</label>
+                            <textarea class="form-control" id="id_endereco" name="endereco" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <i class="fa-solid fa-xmark"></i> Fechar
+                        </button>
+                        <button type="submit" class="btn btn-app">
+                            <i class="fa-solid fa-save"></i> Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

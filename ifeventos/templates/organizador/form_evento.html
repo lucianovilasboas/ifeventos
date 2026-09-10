@@ -1,0 +1,270 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}Editar Evento{% endblock %}
+
+{% block action %}
+<h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="column-gap:10px">
+    <span>
+        Alterando o evento <b>{{ evento.title }}</b> 
+    </span>
+    <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+         <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</h2>
+{% endblock action %}
+
+{% block content %}
+<div class="table-responsive">
+    <div class="container">
+        <div class="app-panel" >
+            {% if form.errors %}
+            <div class="alert alert-danger">
+                <strong>Erro!</strong> Por favor, corrija os erros abaixo.
+            </div>
+            {% endif %}
+            <form id="eventoForm" enctype="multipart/form-data" method="POST" action="{% url 'organizador:editar_evento' evento.id %}">
+                {% csrf_token %}
+                <!-- {{ form.as_p }} -->
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                      {{ form.title.label_tag }}
+                      {{ form.title }}
+                    </div>
+                    <div class="col-md-6">
+                      {{ form.local.label_tag }}
+                      {{ form.local }}
+                      </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                      {{ form.description.label_tag }}
+                      {{ form.description }}
+                    </div>
+                </div>
+                    
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                      {{ form.data_inicio.label_tag }}
+                      {{ form.data_inicio }}
+                    </div>
+                    <div class="col-md-6">
+                      {{ form.data_fim.label_tag }}
+                      {{ form.data_fim }}
+                    </div>
+                </div>
+
+                <!-- <div class="row mb-3">
+                    <div class="col-md-12">
+                      {{ form.imagem.label_tag }}
+                      {{ form.imagem }}
+                    </div>
+                </div> -->
+
+
+                <!-- Image Upload -->
+                <div class="row mb-3">
+                    <div class="col-md-12 text-center">
+                        <label class="form-label"><i class="fa-solid fa-camera"></i> Imagem</label>
+                        <div class="mb-3">
+                            {% if form.instance.imagem %}
+                            <img id="preview-image" src="{{ form.instance.imagem.url }}" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
+                            {% else %}
+                            <img id="preview-image" src="/media/campus-ponte-nova.jpg" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
+                            {% endif %}
+                        </div>
+                        <input type="file" id="id_imagem" name="imagem" class="form-control mt-2" accept="image/*">
+                        <!-- Campo escondido para imagem cortada -->
+                        <input type="hidden" name="cropped_image" id="cropped-image-input">
+                        
+                        <!-- Modal para Cropper -->
+                        <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg modal-dialog-centered">
+                            <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="cropperModalLabel">Cortar Imagem</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div>
+                                    <img id="image-to-crop" style="max-width: 100%;">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-app" id="crop-button">Cortar e Usar</button>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+                
+
+
+                <button type="button" class="btn btn-outline-secondary" id="gerarDescricaoEditar">
+                    {% if evento %}
+                    <i class="fa-solid fa-robot"></i> Gerar Nova Descrição
+                    {% else %}
+                    <i class="fa-solid fa-robot"></i> Gerar Descrição 
+                    {% endif %}
+                </button>
+
+                <div class="text-end mt-4">
+
+                    {% if evento %}
+                        <button type="submit" class="btn btn-app">Salvar Aleração</button>
+                    {% else %}
+                        <button type="submit" class="btn btn-app">Criar Evento</button>
+                    {% endif %}
+
+                    <a href="{% url 'organizador:excluir_evento' evento.id %}" class="btn btn-danger" onclick="return confirm('Tem certeza que deseja excluir este evento?');">
+                        <i class="fa-solid fa-xmark"></i> Excluir
+                    </a>
+                </div>
+            </form>   
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+
+{% block scripts %}
+<script>
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        // Capturar o botão dentro do modal corretamente
+        console.log("Carregou o script de gerar descrição do form_evento.html (editar evento).");
+
+
+        let botaoGerarDescricao = document.querySelector("button#gerarDescricaoEditar");
+
+        let campoTitle = document.querySelector("input#id_title");
+        let campoDescription = document.querySelector("textarea#id_description");
+
+
+        let campoDataInicio = document.querySelector("input#id_data_inicio");
+        let campoDataFim = document.querySelector("input#id_data_fim");
+        let campoLocal = document.querySelector("input#id_local");
+
+        
+        botaoGerarDescricao.addEventListener("click", function (event) {
+            event.preventDefault();
+            
+            var titulo = campoTitle.value;
+            var data_inicio = campoDataInicio.value;
+            var data_fim = campoDataFim.value;
+            var local = campoLocal.value; 
+            
+
+            if (!titulo) {
+                alert("Por favor, insira um título antes de gerar a descrição.");
+                return;
+            }
+            
+            campoDescription.value = "🚀 Agurade! Gerando descrição...";
+
+            fetch("{% url 'organizador:gerar_descricao' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({ 
+                    "titulo": titulo, 
+                    "data_inicio": data_inicio,
+                    "data_fim": data_fim,
+                    "local": local
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // console.log("Resposta da IA:", data.descricao);  // Debug
+                if (data.descricao) {
+                    campoDescription.value = data.descricao;
+                } else {
+                    alert("Erro ao gerar descrição.");
+                }
+            })
+            .catch(error => console.error("Erro:", error));
+        });
+
+
+
+
+
+
+       // Permite clicar na imagem para selecionar o arquivo
+       document.getElementById('preview-image').addEventListener('click', function () {
+            document.getElementById('id_imagem').click();
+        });
+
+
+        let cropper;
+        const inputImage = document.getElementById('id_imagem');
+        const imageToCrop = document.getElementById('image-to-crop');
+        const previewImage = document.getElementById('preview-image');
+        const croppedImageInput = document.getElementById('cropped-image-input');
+        const cropperModalEl = document.getElementById('cropperModal');
+        const cropperModal = new bootstrap.Modal(cropperModalEl);
+
+        inputImage.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && /^image\/\w+/.test(file.type)) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    imageToCrop.src = reader.result;
+                    cropperModal.show();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Inicializa o Cropper após o modal estar completamente visível
+        cropperModalEl.addEventListener('shown.bs.modal', () => {
+            if (cropper) {
+                cropper.destroy();
+            }
+            cropper = new Cropper(imageToCrop, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                responsive: true,
+                background: false,
+                modal: true,
+            });
+        });
+
+        // Destroi o Cropper ao fechar o modal
+        cropperModalEl.addEventListener('hidden.bs.modal', () => {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        });
+
+        document.getElementById('crop-button').addEventListener('click', () => {
+            if (!cropper) return;
+
+            const canvas = cropper.getCroppedCanvas({
+                width: 500,
+                height: 500,
+            });
+
+            if (canvas) {
+                previewImage.src = canvas.toDataURL();
+                croppedImageInput.value = canvas.toDataURL();
+                cropperModal.hide();
+            }
+        });
+
+
+
+
+    });
+
+</script>
+{% endblock scripts %}

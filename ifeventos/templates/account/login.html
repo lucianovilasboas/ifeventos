@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% load socialaccount %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="login-container">
+        <h2><i class="fa-solid fa-right-to-bracket"></i> Login</h2>
+
+        <!-- Mostrar erros gerais do formulário -->
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="form-group">
+                {{ form.login }}
+                <i class="fa-solid fa-user"></i>
+            </div>
+
+            <div class="form-group">
+                {{ form.password }}
+                <i class="fa-solid fa-lock"></i>
+            </div>
+
+            <button type="submit" class="btn btn-app btn-block w-100 py-2">Entrar</button>
+        </form>
+        <div class="extra-links">
+            <p>Não tem uma conta? <a href="{% url 'account_signup' %}">Registre-se</a></p>
+            <p>Esqueceu sua senha? <a href="{% url 'account_reset_password' %}">Clique aqui</a></p>
+        </div>
+
+        <hr>
+        <p>Ou faça login com:</p>
+        <a href="{% provider_login_url 'google' %}" class="btn btn-outline-primary w-100 py-2">
+            <i class="fa-brands fa-google"></i> Entre com o Google
+        </a>
+    </div>
+</div>
+{% endblock %}

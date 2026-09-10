@@ -1,0 +1,114 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+
+{% block title %}Painel | Organizador{% endblock %}
+
+{% block action %}
+<h2><i class="fa-solid fa-bookmark"></i> Meus Eventos</h2>
+<button type="button" class="btn btn-app" data-bs-toggle="modal" data-bs-target="#criarEventoModal">
+    <i class="fa-solid fa-plus"></i> Criar
+</button>
+{% endblock action %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    {% include 'includes/data_eventos_cards_only.html' %}
+</div>
+{% include 'includes/modal_novo_evento.html' %}
+{% endblock content %}
+
+{% block scripts %}
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        function message_(text, alertType = "success") {
+            setTimeout(function () {
+                let alertBox = document.getElementById('msgcontainer');
+                if (alertBox) {
+                    alertBox.innerHTML = `
+                        <div id="tempAlert" class="alert alert-${alertType} alert-dismissible fade show" role="alert">
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            ${text}
+                        </div>`;
+                    let tempAlert = document.getElementById('tempAlert');
+                    setTimeout(() => {
+                        if (tempAlert) { tempAlert.classList.remove("show"); tempAlert.classList.add("fade");
+                            setTimeout(() => tempAlert.remove(), 431); }
+                    }, 5000);
+                }
+            }, 250);
+        }
+
+        const eventoForm = document.getElementById("eventoForm");
+        if (eventoForm) {
+            eventoForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+                var form = this; var formData = new FormData(form);
+                fetch(form.action, { method: "POST", body: formData, headers: { "X-Requested-With": "XMLHttpRequest" } })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) { window.location.reload(); }
+                    else { message_("Erro ao criar evento: " + JSON.stringify(data.errors), "danger"); }
+                })
+                .catch(error => console.error("Erro:", error));
+            });
+        }
+
+        const criarModal = document.getElementById("criarEventoModal");
+        if (criarModal) {
+            criarModal.addEventListener("shown.bs.modal", function () {
+                let botaoGerarDescricao = document.querySelector("#criarEventoModal button#gerarDescricao");
+                let campoTitle = document.querySelector("#criarEventoModal input#id_title");
+                let campoDescription = document.querySelector("#criarEventoModal textarea#id_description");
+                let campoDataInicio = document.querySelector("#criarEventoModal input#id_data_inicio");
+                let campoDataFim = document.querySelector("#criarEventoModal input#id_data_fim");
+                let campoLocal = document.querySelector("#criarEventoModal input#id_local");
+                if (!botaoGerarDescricao) return;
+                botaoGerarDescricao.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    var titulo = campoTitle.value; var data_inicio = campoDataInicio.value;
+                    var data_fim = campoDataFim.value; var local = campoLocal.value;
+                    if (!titulo) { alert("Por favor, insira um título antes de gerar a descrição."); return; }
+                    campoDescription.value = "🚀 Aguarde! Gerando descrição...";
+                    fetch("{% url 'organizador:gerar_descricao' %}", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                        body: JSON.stringify({ "titulo": titulo, "data_inicio": data_inicio, "data_fim": data_fim, "local": local })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.descricao) { campoDescription.value = data.descricao; }
+                        else { alert("Erro ao gerar descrição."); }
+                    })
+                    .catch(error => console.error("Erro:", error));
+                });
+            });
+        }
+
+        // SOCKET_URL vazio = mesma origem da página (produção, atrás do Traefik).
+        const socketUrl = "{{ SOCKET_URL }}";
+        const socket = socketUrl ? io(socketUrl) : io();
+        socket.on("connect", () => {
+            console.log(`Conectado ao servidor Socket.IO (${socketUrl || window.location.origin})`);
+            socket.emit("register_user", { nome: "{{ user.first_name }}", email: "{{ user.email }}", foto: "{{ user.get_foto_url }}" });
+        });
+        socket.on("update_user_list", (usuarios) => {
+            console.log("👥 Usuários conectados:", usuarios);
+            const list = document.getElementById("user-list");
+            if (list) {
+                list.innerHTML = "";
+                usuarios.forEach(user => {
+                    const item = document.createElement("li");
+                    item.className = "nav-item"; item.style.listStyleType = "none";
+                    item.innerHTML = `<a class="nav-link" href="#"><img src="${user.foto}" alt="Foto do usuário" class="rounded-circle" width="25" height="25"> ${user.nome}</a>`;
+                    list.appendChild(item);
+                });
+            }
+        });
+        socket.on("event_created", (data) => { console.log("Novo evento criado: " + data.title); });
+        socket.on("event_removed", (data) => { console.log("Evento removido: " + data.title); });
+        socket.on("activity_created", (data) => { console.log("Nova atividade: " + data.titulo); });
+        socket.on("inscricao_created", (data) => { console.log("Nova inscrição em: " + data.atividade); });
+    });
+</script>
+{% endblock scripts %}

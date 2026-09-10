@@ -1,0 +1,290 @@
+body {
+    background-color: var(--surface);
+    font-family: var(--font-body);
+    color: var(--fg);
+}
+
+/* Navbar */
+.navbar {
+    background-color: var(--bg);
+    border-bottom: 2px solid var(--border);
+    box-shadow: none;
+}
+
+.navbar-brand {
+    font-weight: 600;
+    color: var(--accent-ink) !important;
+}
+
+.navbar-nav .nav-link {
+    color: var(--fg);
+    font-weight: 500;
+    transition: 0.3s;
+}
+
+.navbar-nav .nav-link:hover {
+    color: var(--accent-ink);
+}
+
+/* Bem-vindo (regra legada; o hero atual é .app-hero em css/app/main.css)
+   Mantida apenas retokenizada: gradiente trocado por superfície plana do DS. */
+.welcome {
+    background: var(--surface);
+    color: var(--fg);
+    border-bottom: 2px solid var(--border);
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.welcome h1 {
+    font-size: var(--text-2xl);
+    font-weight: 800;
+}
+
+/* Layout das tabelas */
+.dashboard-container {
+    margin-top: -30px;
+}
+
+.table-container {
+    flex: 1;
+    padding: var(--density-pad);
+    background: var(--bg);
+    margin: 5px;
+    border: 2px solid var(--border);
+    border-bottom-width: 4px;
+    border-radius: var(--radius-md);
+    box-shadow: none;
+    transition: border-color var(--motion-fast);
+}
+
+.table-container:hover {
+    border-color: var(--border-ui);
+}
+
+/* Modal de edição de perfil */
+.modal-header {
+    background-color: var(--accent-ink);   /* branco sobre --accent dá 3.45:1;
+                                              accent-ink dá 5.46:1 */
+    color: var(--accent-on);
+    border-bottom: 2px solid var(--border);
+    border-top-left-radius: var(--radius-sm);
+    border-top-right-radius: var(--radius-sm);
+}
+
+.modal-content {
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.modal-footer {
+    border-top: 2px solid var(--border);
+}
+
+
+/********************************
+ * Login
+ ********************************/
+
+
+ body {
+    background-color: var(--surface);
+    font-family: var(--font-body);
+    color: var(--fg);
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 80px auto;
+    padding: 30px;
+    background: var(--bg);
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border);
+    border-bottom-width: 4px;
+    box-shadow: none;
+    text-align: center;
+}
+
+.login-container h2 {
+    margin-bottom: 20px;
+    color: var(--accent-ink);
+    font-weight: 600;
+}
+
+.form-group {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: 2px solid var(--border-ui);
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+}
+
+.form-group i {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+}
+
+.btn-login {
+    background-color: var(--accent);
+    color: var(--accent-on);
+    border: none;
+    padding: 12px;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    transition: 0.3s;
+}
+
+.btn-login:hover {
+    background-color: var(--accent-ink);
+}
+
+.extra-links {
+    margin-top: 10px;
+}
+
+.extra-links a {
+    text-decoration: none;
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.extra-links a:hover {
+    text-decoration: underline;
+    color: var(--accent-ink);
+}
+
+.alert {
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
+
+
+/********************************
+ * Cadastro de participante
+ ********************************/
+
+
+.register-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 80px auto;
+    padding: 30px;
+    background: var(--bg);
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border);
+    border-bottom-width: 4px;
+    box-shadow: none;
+    text-align: center;
+}
+
+.register-container h2 {
+    margin-bottom: 20px;
+    color: var(--accent-ink);
+    font-weight: 600;
+}
+
+.form-group {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: 2px solid var(--border-ui);
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+}
+
+.form-group i {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+}
+
+.btn-register {
+    background-color: var(--accent);
+    color: var(--accent-on);
+    border: none;
+    padding: 12px;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    transition: 0.3s;
+}
+
+.btn-register:hover {
+    background-color: var(--accent-ink);
+}
+
+.extra-links {
+    margin-top: 10px;
+}
+
+.extra-links a {
+    text-decoration: none;
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.extra-links a:hover {
+    text-decoration: underline;
+    color: var(--accent-ink);
+}
+
+.alert {
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
+
+
+/********************************
+ * Cropper Modal Fixes
+ ********************************/
+
+#cropperModal .modal-dialog {
+    max-width: 700px;
+    margin: auto;
+    transition: none !important; /* remove tremores de transição */
+}
+
+#cropperModal .modal-content {
+    box-shadow: none !important;
+    transition: none !important;
+    border-radius: var(--radius-sm);
+}
+
+#cropperModal .modal-body {
+    overflow: hidden;
+    padding: 0;
+    max-height: 80vh;
+}
+
+#image-to-crop {
+    display: block;
+    max-width: 100%;
+    max-height: 75vh;
+    margin: auto;
+}
+
+/* Evita que o modal balance com foco, clique ou redimensionamento */
+body.modal-open {
+    overflow: hidden;
+    padding-right: 0 !important;
+}

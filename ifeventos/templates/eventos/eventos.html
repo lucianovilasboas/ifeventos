@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Nossos Eventos{% endblock %}
+
+{% block content %}
+<!-- Lista de Eventos -->
+<div class="container-fluid px-0">
+    {% if eventos %}
+    <div class="app-sec"><h2>📅 Em destaque</h2></div>
+    <!-- Mesmo markup de grid do painel do organizador
+         (templates/includes/data_eventos_cards_only.html): row g-3 + col-md-6
+         col-lg-4 + .event-card-app. Assim os cards têm exatamente o mesmo
+         formato e as mesmas medidas nos dois lugares (coluna de 360px e
+         card de 344px em 1440px de viewport). A diferença é só a ação:
+         aqui é "Saiba mais" em vez dos botões de gestão. -->
+    <div class="row g-3 mx-0">
+        {% for evento in eventos %}
+        <div class="col-md-6 col-lg-4">
+            <div class="event-card-app">
+                <div class="cover">
+                    {% if evento.imagem %}<img src="{{ evento.get_url_imagem }}" alt="{{ evento.title }}">{% endif %}
+                    <span class="cover-tag"><i class="fa-solid fa-users"></i> {{ evento.get_n_inscricoes }} inscrito(s)</span>
+                    <span class="cover-dates">{{ evento.data_inicio|date:"d/m" }} – {{ evento.data_fim|date:"d/m" }}</span>
+                </div>
+                <div class="event-card-body">
+                    <h5>{{ evento.title }}</h5>
+                    <p class="meta"><i class="fa-solid fa-location-dot"></i> {{ evento.local }}</p>
+                    <p class="desc">{{ evento.description|truncatechars:90 }}</p>
+                </div>
+                <div class="event-card-actions">
+                    <a href="{% url 'eventos:programacao' evento.id %}" class="btn btn-app w-100">
+                        <i class="fa-solid fa-magnifying-glass"></i> Saiba mais
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <div class="app-list">
+            <div class="app-item" style="justify-content:center">
+                <div class="info" style="text-align:center">
+                    <h5 style="color:var(--app-muted)">Nenhum evento disponível.</h5>
+                    <p>Fique ligado, em breve teremos novidades!</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,136 @@
+    <!-- Modal de Edição de Perfil -->
+    <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border:0;border-radius:18px;box-shadow:var(--app-shadow)">
+                <!-- Cabeçalho do Modal -->
+                <div class="modal-header" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo));color:#fff;border:0;border-radius:18px 18px 0 0">
+                    <h5 class="modal-title" id="editProfileModalLabel">
+                        <i class="fa-solid fa-user-edit"></i> Editar Perfil
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+
+                <!-- Corpo do Modal -->
+                <div class="modal-body">
+                    <form method="post" enctype="multipart/form-data" novalidate
+                          action="{% if request.user.is_organizador %}{% url 'organizador:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}">
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2">
+                            {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Foto de Perfil -->
+                        <div class="text-center mb-4">
+                            <label class="form-label d-block"><i class="fa-solid fa-camera"></i> Foto de Perfil</label>
+                            <div class="profile-avatar-wrap mx-auto" onclick="document.getElementById('profile_foto').click()" title="Clique para trocar a foto" role="button">
+                                <img id="profile-preview" src="{{ request.user.get_foto_url }}" alt="Foto de perfil">
+                                <span class="profile-avatar-overlay"><i class="fa-solid fa-camera"></i></span>
+                            </div>
+                            <input type="file" id="profile_foto" name="foto" class="d-none" accept="image/*" onchange="previewProfilePhoto(event)">
+                            <div class="form-text mt-1">Clique na foto para selecionar uma nova imagem.</div>
+                        </div>
+
+                        <!-- Nome -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_first_name">Primeiro Nome</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+                                    {{ form.first_name }}
+                                </div>
+                                {% for error in form.first_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_last_name">Último Nome</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+                                    {{ form.last_name }}
+                                </div>
+                                {% for error in form.last_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <!-- Conta -->
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_username">Usuário</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user-tag"></i></span>
+                                    {{ form.username }}
+                                </div>
+                                {% for error in form.username.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_email">E-mail</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
+                                    {{ form.email }}
+                                </div>
+                                {% for error in form.email.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <!-- Dados pessoais -->
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_cpf">CPF</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-id-card"></i></span>
+                                    {{ form.cpf }}
+                                </div>
+                                {% for error in form.cpf.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_telefone">Telefone</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-phone"></i></span>
+                                    {{ form.telefone }}
+                                </div>
+                                {% for error in form.telefone.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <!-- Endereço -->
+                            <div class="col-12">
+                                <label class="form-label" for="id_endereco">Endereço</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-map-location-dot"></i></span>
+                                    {{ form.endereco }}
+                                </div>
+                                {% for error in form.endereco.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Segurança -->
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 bg-light border rounded-3 px-3 py-2 mt-4">
+                            <span class="small text-muted"><i class="fa-solid fa-shield-halved"></i> Segurança da conta</span>
+                            <a href="{% url 'account_change_password' %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fa-solid fa-key"></i> Alterar Senha
+                            </a>
+                        </div>
+
+                        <!-- BOTÕES -->
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                                <i class="fa-solid fa-xmark"></i> Fechar
+                            </button>
+                            <button type="submit" class="btn btn-app">
+                                <i class="fa-solid fa-save"></i> Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function previewProfilePhoto(event) {
+            var file = event.target.files[0];
+            if (!file || !/^image\/\w+/.test(file.type)) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+                var output = document.getElementById('profile-preview');
+                if (output) output.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>

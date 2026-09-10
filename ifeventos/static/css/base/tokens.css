@@ -1,0 +1,401 @@
+/* =====================================================================
+   Nossos Eventos — F0: design tokens
+   ---------------------------------------------------------------------
+   Fonte de verdade visual do sistema. Carregado depois do Bootstrap 5.3
+   e ANTES de css/base/style.css e css/app/main.css.
+
+   Origem do design system: anexo "Proposta para sistema de eventos"
+   (eventos-proposta.html + DESIGN-HANDOFF.md), com o accent substituído
+   pela identidade visual oficial do IFMG.
+
+   Cores institucionais (Manual de Identidade Visual do IFMG,
+   seção "Descrição das cores"):
+       verde    #2F9E41   PANTONE 362 C   RGB 50,160,65    C75 M0 Y100 K15
+       vermelho #CD191E   PANTONE 187 C   RGB 200,25,30    C0 M100 Y100 K15
+       preto    #000000   PANTONE Process Black C
+   Tipografia prevista no manual: Open Sans (textos complementares).
+   O display escolhido é Nunito (rounded, aprovado no protótipo).
+
+   Todo par de cor foi conferido em WCAG 2.1 (texto normal >= 4.5:1,
+   componente de UI >= 3:1). O valor medido vai no comentário.
+   ===================================================================== */
+
+:root {
+
+  /* ---------- superfícies e tinta ---------- */
+  --bg: #ffffff;
+  --surface: #f7f7f7;
+  --surface-2: #efefef;
+  --fg: #3c3c3c;              /* 11.03:1 em #fff */
+  --fg-strong: #232323;
+  --muted: #6b6b6b;           /* 5.33:1 em #fff · 4.97:1 em #f7f7f7 */
+  --meta: #6b6b6b;            /* a diferenciação de "meta" é mono +
+                                 caixa-alta, não cor (o #afafaf do anexo
+                                 dava 2.19:1 e reprovava) */
+  --border: #e5e5e5;          /* decorativo: separador, borda de card */
+  --border-strong: #3c3c3c;
+  --border-ui: #8f8f8f;       /* interativo: 3.23:1 (WCAG 1.4.11) */
+  --elev-hard: #d7d7d7;       /* bloco da sombra dura do DS */
+
+  /* ---------- marca: verde institucional IFMG ---------- */
+  --accent: #2f9e41;          /* PANTONE 362 C — marca, ícone, borda, barra.
+                                 NÃO usar como texto pequeno nem como fundo
+                                 com texto branco: 3.45:1. */
+  --accent-ink: #23792f;      /* 5.46:1 com branco — texto verde e fundo de
+                                 botão primário */
+  --accent-hover: #1d6b28;    /* 6.59:1 com branco */
+  --accent-press: #175520;    /* 8.91:1 — borda inferior da sombra dura */
+  --accent-soft: #e8f5ea;     /* 4.86:1 com --accent-ink */
+  --accent-on: #ffffff;
+
+  /* ---------- semânticas ---------- */
+  --success: var(--accent-ink);
+  --success-soft: var(--accent-soft);
+  --danger: #cd191e;          /* vermelho institucional — 5.59:1 */
+  --danger-hover: #a81418;
+  --danger-soft: #fdeaea;     /* 4.83:1 com --danger */
+  --warn: #ffc800;            /* SEMPRE fundo, com texto --fg (7.10:1) */
+  --warn-ink: #6b5200;        /* 7.42:1 — quando precisar de texto */
+  --warn-soft: #fff7d6;
+  --warn-hover: #e6b400;     /* contrapartida escura de --warn */
+  --warn-press: #cc9f00;
+  --info: #3c3c3c;
+  --info-soft: #f1f1f1;
+
+  /* ---------- tipografia ---------- */
+  --font-display: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Mona Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+  --text-3xl: 40px;
+  --text-4xl: 56px;
+
+  --leading-body: 1.5;
+  --leading-tight: 1.15;
+  --tracking-display: -.01em;
+
+  /* ---------- espaço ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --section-y-desktop: 80px;
+  --section-y-tablet: 56px;
+  --section-y-phone: 40px;
+
+  /* ---------- forma ---------- */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+
+  /* ---------- elevação: assinatura do DS (sombra dura deslocada) ---------- */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 2px var(--border);
+  --elev-raised: 0 4px 0 var(--elev-hard);
+  --elev-card-hover: 0 4px 0 var(--border);
+  --focus-ring: 0 0 0 3px rgba(47, 158, 65, .45);
+
+  /* ---------- movimento ---------- */
+  --motion-fast: 180ms;
+  --motion-base: 320ms;
+  --ease-standard: cubic-bezier(.34, 1.56, .64, 1);
+
+  /* ---------- layout ---------- */
+  --container-max: 1080px;
+  --gutter-desktop: 24px;
+  --gutter-tablet: 20px;
+  --gutter-phone: 16px;
+
+  /* ---------- densidade (variante das telas do organizador) ---------- */
+  --density-pad: 20px;
+  --density-row: 14px;
+
+  /* ===================================================================
+     PONTE DE COMPATIBILIDADE — tokens legados --app-*
+     -------------------------------------------------------------------
+     O app inteiro (templates com style inline, css/base/style.css e
+     css/organizador/style.css) já consome estes nomes. Redefini-los aqui
+     faz o rebranding alcançar TODAS as telas de uma vez, sem editar
+     nenhum template. Quando as fases F3–F5 passarem a usar os tokens
+     novos, este bloco pode ser removido.
+     =================================================================== */
+  --app-bg: var(--surface);          /* era #e8eef7 (azulado) */
+  --app-card: var(--bg);
+  --app-ink: var(--fg);
+  --app-muted: var(--muted);
+  --app-violet: var(--accent);       /* era #6c63ff */
+  --app-indigo: var(--accent-ink);   /* era #4a47a3 */
+  --app-green: var(--accent);
+  --app-green-d: var(--accent-ink);
+  --app-border: var(--border);
+  --app-danger: var(--danger);
+  --app-radius: var(--radius-md);
+  --app-shadow: 0 2px 6px rgba(0, 0, 0, .06);  /* compatibilidade: telas
+      ainda não migradas (F3–F5). A casca nova usa --elev-raised. */
+}
+
+/* Variante compacta: tabelas e listas longas do organizador.
+   Borda 2px + sombra dura pesam com 100+ linhas. */
+.dens-compact {
+  --density-pad: 12px;
+  --density-row: 8px;
+}
+
+/* =====================================================================
+   Sobrescrita de variáveis do Bootstrap 5.3
+   Determinístico (não depende da ordem de especificidade dos componentes),
+   porque o Bootstrap lê tudo de --bs-*.
+   ===================================================================== */
+:root {
+  --bs-body-font-family: var(--font-body);
+  --bs-body-font-size: var(--text-base);
+  --bs-body-color: var(--fg);
+  --bs-body-bg: var(--bg);
+  /* No Bootstrap 5.3, --bs-secondary-color deriva da COR DO TEXTO (75%),
+     não de --bs-secondary. Sem esta linha, .text-muted e .form-text saem
+     em rgba(33,37,41,.75) — cinza do Bootstrap, fora do DS. */
+  --bs-secondary-color: var(--muted);
+  --bs-tertiary-color: var(--meta);
+  --bs-secondary-bg: var(--surface);
+  --bs-border-color: var(--border);
+  --bs-border-radius: var(--radius-sm);
+  --bs-border-radius-sm: var(--radius-sm);
+  --bs-border-radius-lg: var(--radius-md);
+  --bs-link-color: var(--accent-ink);
+  --bs-link-hover-color: var(--accent-press);
+  --bs-emphasis-color: var(--fg-strong);
+
+  --bs-primary: var(--accent-ink);
+  --bs-primary-rgb: 35, 121, 47;
+
+  /* botões: Bootstrap 5.3 lê o par --bs-btn-bg/--bs-btn-color */
+  --bs-btn-font-family: var(--font-display);
+  --bs-btn-font-weight: 800;
+  --bs-btn-border-width: 2px;
+  --bs-btn-border-radius: var(--radius-sm);
+
+  --bs-btn-color: var(--fg);
+  --bs-btn-bg: var(--bg);
+  --bs-btn-border-color: var(--border-ui);
+  --bs-btn-hover-bg: var(--surface);
+  --bs-btn-hover-border-color: var(--fg);
+  --bs-btn-active-bg: var(--surface-2);
+  --bs-btn-disabled-opacity: .45;
+
+  --bs-btn-active-color: var(--accent-on);
+  --bs-btn-active-bg: var(--accent-ink);
+  --bs-btn-active-border-color: var(--accent-ink);
+}
+
+/* Variantes semânticas do Bootstrap alinhadas às cores reais. */
+:root {
+  --bs-primary-color: var(--accent-on);
+  --bs-success: var(--accent-ink);
+  --bs-success-rgb: 35, 121, 47;
+  --bs-danger: var(--danger);
+  --bs-danger-rgb: 205, 25, 30;
+  --bs-warning: var(--warn);
+  --bs-warning-rgb: 255, 200, 0;
+  --bs-info: var(--info);
+  --bs-info-rgb: 60, 60, 60;
+  --bs-secondary: var(--muted);
+  --bs-secondary-rgb: 107, 107, 107;
+  --bs-dark: var(--fg-strong);
+  --bs-light: var(--surface);
+}
+
+/* .btn-primary do Bootstrap: fundo precisa de --accent-ink (texto branco
+   só passa 4.5:1 a partir de 5.46:1) e a sombra dura do DS dá o "afunda". */
+.btn-primary {
+  --bs-btn-bg: var(--accent-ink);
+  --bs-btn-border-color: var(--accent-ink);
+  --bs-btn-color: var(--accent-on);
+  --bs-btn-hover-bg: var(--accent-hover);
+  --bs-btn-hover-border-color: var(--accent-hover);
+  --bs-btn-hover-color: var(--accent-on);
+  --bs-btn-active-bg: var(--accent-press);
+  --bs-btn-active-border-color: var(--accent-press);
+  --bs-btn-active-color: var(--accent-on);
+  --bs-btn-disabled-bg: var(--accent-ink);
+  --bs-btn-disabled-border-color: var(--accent-ink);
+  --bs-btn-disabled-color: var(--accent-on);
+  box-shadow: 0 4px 0 var(--accent-press);
+}
+.btn-primary:not(:disabled):active,
+.btn-primary:not(:disabled).active {
+  transform: translateY(4px);
+  box-shadow: none;
+}
+.btn-secondary {
+  --bs-btn-color: var(--fg);
+  --bs-btn-bg: var(--bg);
+  --bs-btn-border-color: var(--border-ui);
+  --bs-btn-hover-bg: var(--surface);
+  --bs-btn-hover-border-color: var(--fg);
+  --bs-btn-hover-color: var(--fg);
+  --bs-btn-active-bg: var(--surface-2);
+  --bs-btn-active-border-color: var(--fg);
+  --bs-btn-active-color: var(--fg);
+}
+
+/* Variantes outline do Bootstrap: o cinza-azulado padrão (#6c757d) não
+   pertence à paleta. Passam a usar borda interativa + tinta do DS. */
+.btn-outline-secondary,
+.btn-outline-dark {
+  --bs-btn-color: var(--fg);
+  --bs-btn-border-color: var(--border-ui);
+  --bs-btn-hover-bg: var(--surface);
+  --bs-btn-hover-border-color: var(--fg);
+  --bs-btn-hover-color: var(--fg);
+  --bs-btn-active-bg: var(--surface-2);
+  --bs-btn-active-border-color: var(--fg);
+  --bs-btn-active-color: var(--fg);
+  --bs-btn-disabled-color: var(--muted);
+  --bs-btn-disabled-border-color: var(--border);
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--accent-ink);
+  --bs-btn-border-color: var(--accent);
+  --bs-btn-hover-bg: var(--accent-ink);
+  --bs-btn-hover-border-color: var(--accent-ink);
+  --bs-btn-hover-color: var(--accent-on);
+  --bs-btn-active-bg: var(--accent-press);
+  --bs-btn-active-border-color: var(--accent-press);
+  --bs-btn-active-color: var(--accent-on);
+}
+.btn-outline-danger {
+  --bs-btn-color: var(--danger);
+  --bs-btn-border-color: var(--danger);
+  --bs-btn-hover-bg: var(--danger);
+  --bs-btn-hover-border-color: var(--danger);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-bg: var(--danger-hover);
+  --bs-btn-active-border-color: var(--danger-hover);
+  --bs-btn-active-color: #fff;
+}
+
+/* Variantes preenchidas semânticas: fundo claro + tinta escura passa AA,
+   ao contrário do #fff sobre #ffc800 (1.55:1) ou #fff sobre #ef4444. */
+.btn-danger {
+  --bs-btn-bg: var(--danger);
+  --bs-btn-border-color: var(--danger);
+  --bs-btn-color: #fff;
+  --bs-btn-hover-bg: var(--danger-hover);
+  --bs-btn-hover-border-color: var(--danger-hover);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-bg: var(--danger-hover);
+  --bs-btn-active-border-color: var(--danger-hover);
+  --bs-btn-active-color: #fff;
+}
+.btn-warning {
+  --bs-btn-bg: var(--warn);
+  --bs-btn-border-color: var(--warn);
+  --bs-btn-color: var(--fg);          /* 7.10:1 — branco daria 1.55:1 */
+  --bs-btn-hover-bg: var(--warn-hover);
+  --bs-btn-hover-border-color: var(--warn-hover);
+  --bs-btn-hover-color: var(--fg);
+  --bs-btn-active-bg: var(--warn-press);
+  --bs-btn-active-border-color: var(--warn-press);
+  --bs-btn-active-color: var(--fg);
+}
+.btn-info {
+  --bs-btn-bg: var(--surface-2);
+  --bs-btn-border-color: var(--surface-2);
+  --bs-btn-color: var(--fg);
+  --bs-btn-hover-bg: var(--border);
+  --bs-btn-hover-border-color: var(--border);
+  --bs-btn-hover-color: var(--fg);
+  --bs-btn-active-bg: var(--border-ui);
+  --bs-btn-active-border-color: var(--border-ui);
+  --bs-btn-active-color: var(--fg);
+}
+.btn-success {
+  --bs-btn-bg: var(--accent-ink);
+  --bs-btn-border-color: var(--accent-ink);
+  --bs-btn-color: var(--accent-on);
+  --bs-btn-hover-bg: var(--accent-hover);
+  --bs-btn-hover-border-color: var(--accent-hover);
+  --bs-btn-hover-color: var(--accent-on);
+  --bs-btn-active-bg: var(--accent-press);
+  --bs-btn-active-border-color: var(--accent-press);
+  --bs-btn-active-color: var(--accent-on);
+}
+
+/* Paginação: o Bootstrap pinta .page-link com --bs-primary. Sem isto, as
+   telas de relatório mantêm o azul padrão (#0d6efd) fora da paleta. */
+.pagination { --bs-pagination-font-size: var(--text-sm); gap: 4px; flex-wrap: wrap; }
+.page-link {
+  --bs-pagination-color: var(--accent-ink);
+  --bs-pagination-bg: var(--bg);
+  --bs-pagination-border-color: var(--border-ui);
+  --bs-pagination-border-width: 2px;
+  --bs-pagination-border-radius: var(--radius-sm);
+  --bs-pagination-hover-color: var(--accent-press);
+  --bs-pagination-hover-bg: var(--surface);
+  --bs-pagination-hover-border-color: var(--fg);
+  --bs-pagination-focus-color: var(--accent-press);
+  --bs-pagination-focus-bg: var(--surface);
+  --bs-pagination-focus-box-shadow: var(--focus-ring);
+  --bs-pagination-active-color: var(--accent-on);
+  --bs-pagination-active-bg: var(--accent-ink);
+  --bs-pagination-active-border-color: var(--accent-ink);
+  --bs-pagination-disabled-color: var(--muted);
+  --bs-pagination-disabled-bg: var(--surface);
+  --bs-pagination-disabled-border-color: var(--border);
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+.page-item.active .page-link { color: var(--accent-on); }
+
+/* Barra de progresso do Bootstrap (usada em telas de relatório) */
+.progress { --bs-progress-bg: var(--surface-2); --bs-progress-height: 8px; --bs-progress-border-radius: var(--radius-pill); }
+.progress-bar { --bs-progress-bar-bg: var(--accent); }
+
+/* Botões de fechar (alertas, modais) */
+.btn-close { --bs-btn-close-color: var(--fg); --bs-btn-close-opacity: .7; }
+
+/* Tabelas: evita o azul de .table-primary/.table-info herdado */
+.table > :not(caption) > * > * { --bs-table-bg: transparent; }
+.table thead th { background: var(--surface); }
+
+/* Formulários e foco do Bootstrap */
+.form-control, .form-select {
+  border: 2px solid var(--border-ui);
+  border-radius: var(--radius-sm);
+  min-height: 46px;
+  color: var(--fg);
+  background-color: var(--bg);
+}
+.form-control:focus, .form-select:focus, .form-check-input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.form-control::placeholder { color: var(--muted); }
+.form-label { font-family: var(--font-display); font-weight: 800; color: var(--fg); }
+
+/* Alertas do Django/Bootstrap com as cores do DS */
+.alert { border: 2px solid var(--border); border-left-width: 6px; border-radius: var(--radius-sm); color: var(--fg); }
+.alert-success, .alert.alert-success { border-left-color: var(--accent); background: var(--success-soft); color: var(--accent-ink); }
+.alert-danger, .alert-error, .alert.alert-danger, .alert.alert-error { border-left-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+.alert-warning, .alert.alert-warning { border-left-color: var(--warn); background: var(--warn-soft); color: var(--warn-ink); }
+.alert-info, .alert.alert-info { border-left-color: var(--info); background: var(--info-soft); color: var(--fg); }
+
+/* Foco visível em qualquer controle (acessibilidade) */
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}

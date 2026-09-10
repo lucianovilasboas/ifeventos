@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Sair{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="login-container">
+        <h2><i class="fa-solid fa-right-from-bracket"></i> Sair</h2>
+        <p class="text-muted">Tem certeza de que deseja sair da sua conta?</p>
+        <form method="post" action="{% url 'account_logout' %}">
+            {% csrf_token %}
+            {% if redirect_field_value %}
+            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+            {% endif %}
+            <button type="submit" class="btn btn-app w-100 py-2">
+                <i class="fa-solid fa-right-from-bracket"></i> Sair
+            </button>
+        </form>
+        <div class="extra-links">
+            <p><a href="/eventos">← Voltar para o início</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

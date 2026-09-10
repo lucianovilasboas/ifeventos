@@ -1,0 +1,67 @@
+from django.contrib import admin
+from django.urls import path
+
+from organizador.views import adicionar_palestrante, adicionar_tipo_atividade
+from .views import dashboard, criar_evento, editar_evento, excluir_evento
+from .views import atividades_evento, criar_atividade, editar_atividade, excluir_atividade
+from .views import criar_editar_atividade
+from .views import profile
+from relatorios.views import RelatorioInscricoesView
+from relatorios.views import ListaPresencaView
+
+from eventos.services import ia_mensagem_view, gerar_conteudo_ajax
+from .views import EmitirCertificadosAtividadeView
+from .views import EmitirCertificadosEventoView
+from .views import EmitirCertificadoInscricaoView
+
+
+app_name = 'organizador'
+
+
+urlpatterns = [
+    # path('register/', register, name='register'),
+    # path('login/', login_view, name='login'),
+
+    path('dashboard/', dashboard, name='dashboard'), 
+
+    path('criar_evento/', criar_evento, name='criar_evento'),
+    path('editar_evento/<int:evento_id>/', editar_evento, name='editar_evento'),
+    path('excluir_evento/<int:evento_id>/', excluir_evento, name='excluir_evento'),    
+
+
+    path('atividades_evento/<int:evento_id>/', atividades_evento, name='atividades_evento'), 
+
+    path('criar_atividade/', criar_atividade, name='criar_atividade'), # criar atividade via modal
+
+    path('atividades_evento/<int:evento_id>/atividade/nova/', criar_editar_atividade, name='criar_editar_atividade_criar'),
+    path('atividades_evento/<int:evento_id>/atividade/<int:atividade_id>/editar/', criar_editar_atividade, name='criar_editar_atividade_editar'),
+
+
+    path('editar_atividade/<int:atividade_id>/', editar_atividade, name='editar_atividade'),
+    path('excluir_atividade/<int:atividade_id>/', excluir_atividade, name='excluir_atividade'),
+
+
+    path('adicionar_palestrante/', adicionar_palestrante, name='adicionar_palestrante'),
+    path('adicionar_tipo_atividade/', adicionar_tipo_atividade, name='adicionar_tipo_atividade'), 
+
+
+    #-- Profile --
+    path('profile/', profile, name='profile'), 
+
+
+    # -- Relatórios -- 
+    path("relatorio_inscricoes/<int:evento_id>/", RelatorioInscricoesView.as_view(), name="relatorio_inscricoes"),
+    path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
+
+
+    # -- Certificados --
+    path("emitir-certificados/atividade/<int:atividade_id>/", EmitirCertificadosAtividadeView.as_view(), name="emitir_certificados_atividade"),
+
+    path("emitir-certificado/inscricao/<int:inscricao_id>/", EmitirCertificadoInscricaoView.as_view(), name="emitir_certificado_inscricao"),
+
+    path("emitir-certificados/evento/<int:evento_id>/", EmitirCertificadosEventoView.as_view(), name="emitir_certificados_evento"),
+
+    # -- Rotas para a IA --
+    path('ia_mensagem/', ia_mensagem_view, name='ia_mensagem'),
+    path('gerar_descricao/', gerar_conteudo_ajax, name='gerar_descricao'),   
+]

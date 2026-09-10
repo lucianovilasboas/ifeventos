@@ -1,0 +1,37 @@
+# Contexto de build do contêiner do app.
+# Reduz o tamanho da imagem e evita que segredos entrem nela.
+
+# Ambiente e segredos (ficam fora da imagem de propósito)
+.env
+.env.*
+!.env.example
+
+# Ambiente virtual e caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Estáticos coletados (são gerados no build pelo collectstatic)
+staticfiles/
+
+# Mídia enviada pelos usuários (fica em volume, não na imagem)
+media/
+
+# Banco local de desenvolvimento
+*.sqlite3
+
+# Artefatos de desenvolvimento
+.playwright-mcp/
+console_last.txt
+*.png
+!static/**/*.png
+
+# Controle de versão
+.git/
+.gitignore
+
+# Testes e rascunhos
+scripts_test/
+PLANO_API.md

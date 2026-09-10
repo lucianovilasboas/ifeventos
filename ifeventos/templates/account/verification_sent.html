@@ -1,0 +1,12 @@
+{% extends "base.html" %}  {# Substitua pelo seu template base #}
+
+{% load i18n %}
+
+{% block content %}
+    <h2>Verifique seu e-mail</h2>
+    <p>Enviamos um e-mail para você com um link de confirmação.</p>
+    <p>Se você não encontrar o e-mail na caixa de entrada, verifique sua pasta de spam.</p>
+    <p>Se não receber o e-mail em alguns minutos, <a href="{% url 'account_email' %}">clique aqui</a> para reenviar.</p>
+{% endblock %}
+
+

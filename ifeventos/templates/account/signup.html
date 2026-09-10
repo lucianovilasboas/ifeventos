@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="login-container">
+        <h2><i class="fa-solid fa-user-plus"></i> Crie sua conta</h2>
+        <p class="text-muted">Preencha os campos abaixo para se cadastrar.</p>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="form-group">
+                {{ form.email }}
+                {% if form.email.errors %}
+                    <div class="text-danger text-start">{% for error in form.email.errors %}<small>{{ error }}</small>{% endfor %}</div>
+                {% endif %}
+                <i class="fa-solid fa-envelope"></i>
+            </div>
+
+            <div class="form-group">
+                {{ form.password1 }}
+                {% if form.password1.errors %}
+                    <div class="text-danger text-start">{% for error in form.password1.errors %}<small>{{ error }}</small>{% endfor %}</div>
+                {% endif %}
+                <i class="fa-solid fa-lock"></i>
+            </div>
+
+            <div class="form-group">
+                {{ form.password2 }}
+                {% if form.password2.errors %}
+                    <div class="text-danger text-start">{% for error in form.password2.errors %}<small>{{ error }}</small>{% endfor %}</div>
+                {% endif %}
+                <i class="fa-solid fa-lock"></i>
+            </div>
+
+            <button type="submit" class="btn btn-app w-100 py-2">Cadastrar</button>
+        </form>
+
+        <div class="extra-links">
+            <p>Já tem uma conta? <a href="{% url 'account_login' %}">Faça login</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

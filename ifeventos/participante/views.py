@@ -1,0 +1,157 @@
+from django.shortcuts import get_object_or_404, render, redirect
+from django.contrib.auth.decorators import login_required
+from eventos.models import Atividade, Inscricao, Participante
+from django.contrib import messages
+from django.utils.timezone import localtime
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
+from .forms import ParticipanteUpdateForm
+
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import ListView
+from eventos.models import Certificado
+
+
+@login_required(login_url='/accounts/login/')
+def dashboard(request):
+
+    participante = get_object_or_404(Participante, id=request.user.id)
+
+    inscricoes = Inscricao.objects.filter(participante=participante)
+    atividades = Atividade.objects.exclude(inscritos__participante=participante)  # Atividades não inscritas
+
+    form = ParticipanteUpdateForm(instance=participante)
+
+    if request.method == "POST":
+        form = ParticipanteUpdateForm(request.POST, instance=participante)
+        if form.is_valid():
+
+            participante = form.save(commit=False)  # ⚠ Salvamos manualmente depois para capturar a imagem
+            if 'foto' in request.FILES:
+                participante.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
+            participante.save()  # Agora salvamos no banco
+
+            return redirect("participante:dashboard")
+
+    return render(request, 'participante/dashboard.html', {
+        'inscricoes': inscricoes,
+        'atividades': atividades,
+        'message': 'Bora se inscrever em mais atividades?',
+        'is_organizador': participante.is_organizador,
+        'form': form
+        })
+
+
+
+
+
+
+@login_required(login_url='/accounts/login/')
+def inscrever(request, atividade_id):
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    participante = Participante.from_user(request.user)  # Obtém o participante vinculado ao usuário
+
+    # Verifica se o participante já está inscrito na atividade
+    if Inscricao.objects.filter(participante=participante, atividade=atividade).exists():
+        messages.warning(request, "Você já está inscrito nesta atividade.")
+        return redirect('participante:dashboard')
+
+    # Verifica se a atividade ainda possui vagas
+    if atividade.n_vagas <= Inscricao.objects.filter(atividade=atividade).count():
+        messages.warning(request, "Lamentamos, mas essa atividade não possui mais vagas.")
+        return redirect('participante:dashboard')
+
+    # 🔹 Verifica se há conflito de horários com atividades já inscritas
+    atividades_inscritas = Atividade.objects.filter(
+        inscritos__participante=participante
+    )
+
+    for inscrita in atividades_inscritas:
+        if (
+            localtime(atividade.data_hora_inicio) < localtime(inscrita.data_hora_fim) and
+            localtime(atividade.data_hora_fim) > localtime(inscrita.data_hora_inicio)
+        ):
+            messages.error(request, f"Conflito de horário com '{inscrita.titulo}', que ocorre de {inscrita.data_hora_inicio.strftime('%d/%m/%Y %H:%M')} até {inscrita.data_hora_fim.strftime('%d/%m/%Y %H:%M')}.")
+            return redirect('participante:dashboard')
+
+    # Se não houver conflito, realiza a inscrição
+    Inscricao.objects.create(participante=participante, atividade=atividade)
+    messages.success(request, "Inscrição realizada com sucesso!")
+    return redirect('participante:dashboard')
+
+
+
+
+
+
+@login_required(login_url='/accounts/login/')
+def cancelar_inscricao(request, inscricao_id):
+    inscricao = Inscricao.objects.get(id=inscricao_id, participante=request.user)
+
+    inscricao.delete()
+    messages.success(request, "Inscrição cancelada com sucesso!")
+    return redirect('participante:dashboard')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# -- Alterações para o AJAX --
+
+
+@csrf_exempt
+@login_required
+def gerenciar_inscricoes_ajax(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            atividade_id = data.get("atividade_id")
+            inscrito = data.get("inscrito")
+            participante = get_object_or_404(Participante, id=request.user.id) 
+
+            atividade = Atividade.objects.get(id=atividade_id)
+            
+            if inscrito: 
+                # Inscrever usuário
+                Inscricao.objects.get_or_create(participante=participante, atividade=atividade)
+            else:
+                # Cancelar inscrição
+                Inscricao.objects.filter(participante=participante, atividade=atividade).delete()
+
+            # Atualiza o número de inscritos
+            inscritos_count = Inscricao.objects.filter(atividade=atividade).count()   
+            messages.success(request, "Inscrição atualizada com sucesso!")
+            return JsonResponse({"status": "success", "inscritos": inscritos_count, "vagas": atividade.n_vagas - inscritos_count})
+        except Exception as e:
+            messages.warning(request, "Erro ao atualizar inscrição.")
+            return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+    return JsonResponse({"status": "error", "message": "Método não permitido"}, status=405)
+
+
+
+
+
+# -- Certificados --
+
+class MeusCertificadosView(LoginRequiredMixin, ListView):
+    """
+    View para que o participante veja e baixe seus certificados.
+    """
+    model = Certificado
+    template_name = "participante/meus_certificados.html"
+    context_object_name = "certificados"
+
+    def get_queryset(self):
+        return Certificado.objects.filter(participante=self.request.user)
+

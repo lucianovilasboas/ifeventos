@@ -1,0 +1,47 @@
+<div class="row g-3 mx-0">
+    {% for evento in eventos %}
+    <div class="col-md-6 col-lg-4">
+        <div class="event-card-app">
+            <div class="cover">
+                {% if evento.imagem %}<img src="{{ evento.get_url_imagem }}" alt="{{ evento.title }}">{% endif %}
+                <span class="cover-tag"><i class="fa-solid fa-users"></i> {{ evento.get_n_inscricoes }} inscrito(s)</span>
+                <span class="cover-dates">{{ evento.data_inicio|date:"d/m" }} – {{ evento.data_fim|date:"d/m" }}</span>
+            </div>
+            <div class="event-card-body">
+                <h5>{{ evento.title }}</h5>
+                <p class="meta"><i class="fa-solid fa-location-dot"></i> {{ evento.local }}</p>
+                <p class="desc">{{ evento.description|truncatechars:90 }}</p>
+            </div>
+            <div class="event-card-actions">
+                <a href="{% url 'organizador:editar_evento' evento.id %}" class="btn btn-sm btn-warning btn-icon" title="Editar Evento">
+                    <i class="fa-solid fa-pen"></i>
+                </a>
+                <a href="{% url 'organizador:excluir_evento' evento.id %}" class="btn btn-sm btn-danger btn-icon" title="Excluir Evento" onclick="return confirm('Tem certeza que deseja excluir este evento?');">
+                    <i class="fa-solid fa-trash-can"></i>
+                </a>
+                <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-info btn-icon" title="Listar Atividades">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    {% if evento.atividades.count > 0 %}
+                    <span class="badge rounded-pill bg-danger" style="position:absolute;top:-5px;right:-5px;font-size:9px">{{ evento.atividades.count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{% url 'organizador:relatorio_inscricoes' evento.id %}" class="btn btn-sm btn-secondary btn-icon" title="Relatório de Inscrições">
+                    <i class="fa-solid fa-list-ul"></i>
+                    {% if evento.get_n_inscricoes > 0 %}
+                    <span class="badge rounded-pill bg-danger" style="position:absolute;top:-5px;right:-5px;font-size:9px">{{ evento.get_n_inscricoes }}</span>
+                    {% endif %}
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="app-item">
+            <div class="info text-center" style="flex:1">
+                <h5 style="color:var(--app-muted)">Nenhum evento encontrado.</h5>
+                <p class="mb-0">Clique em <strong>Criar</strong> para cadastrar o primeiro evento.</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>

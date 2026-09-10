@@ -1,0 +1,37 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Meus Certificados{% endblock %}
+
+{% block action %}
+<h2><i class="fa-solid fa-award"></i> Meus Certificados</h2>
+{% endblock action %}
+
+{% block content %}
+{% if certificados %}
+<div class="app-list">
+    {% for certificado in certificados %}
+    <div class="app-item">
+        <div class="dot" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+            <i class="fa-solid fa-certificate"></i>
+        </div>
+        <div class="info">
+            <h5>{% if certificado.atividade %}Atividade: {{ certificado.atividade.titulo }}{% else %}Evento: {{ certificado.evento.title }}{% endif %}</h5>
+            <p><i class="fa-regular fa-calendar"></i> Emitido em {{ certificado.data_emissao|date:"d/m/Y" }}</p>
+        </div>
+        <a href="{{ certificado.pdf.url }}" class="btn btn-app btn-sm" title="Baixar PDF">
+            <i class="fa-solid fa-download"></i> Baixar
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="app-list">
+    <div class="app-item">
+        <div class="info text-center" style="flex:1">
+            <h5 style="color:var(--app-muted)">Nenhum certificado disponível.</h5>
+            <p class="mb-0">Certificados de atividades concluídas aparecerão aqui.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
