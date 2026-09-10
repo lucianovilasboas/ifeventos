@@ -40,10 +40,15 @@ services:
       - "traefik.docker.network=proxy"
 
       # --- Site ---
+      # O "service" precisa ser EXPLÍCITO: como o contêiner expõe dois
+      # serviços (8501 e 8500), o Traefik não consegue inferir qual pertence
+      # a cada roteador e desiste dos dois — sem roteador, não há emissão de
+      # certificado e o HTTPS cai no certificado padrão do Traefik.
       - "traefik.http.routers.ifeventos.rule=Host(`ifeventos.lucianovilasboas.com.br`)"
       - "traefik.http.routers.ifeventos.entrypoints=websecure"
       - "traefik.http.routers.ifeventos.tls.certresolver=letsencrypt"
       - "traefik.http.routers.ifeventos.priority=10"
+      - "traefik.http.routers.ifeventos.service=ifeventos"
       - "traefik.http.services.ifeventos.loadbalancer.server.port=8501"
 
       # --- Socket.IO (tempo real) ---
@@ -53,6 +58,7 @@ services:
       - "traefik.http.routers.ifeventos-socket.entrypoints=websecure"
       - "traefik.http.routers.ifeventos-socket.tls.certresolver=letsencrypt"
       - "traefik.http.routers.ifeventos-socket.priority=100"
+      - "traefik.http.routers.ifeventos-socket.service=ifeventos-socket"
       - "traefik.http.services.ifeventos-socket.loadbalancer.server.port=8500"
 
   db:
