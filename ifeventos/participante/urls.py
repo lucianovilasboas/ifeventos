@@ -3,7 +3,7 @@ from django.urls import path
 from .views import dashboard
 from .views import inscrever, cancelar_inscricao, gerenciar_inscricoes_ajax
 from eventos.services import ia_mensagem_view
-from .views import MeusCertificadosView
+from .views import MeusCertificadosView, MeusCrachasView
 
 app_name = 'participante' 
 
@@ -23,6 +23,9 @@ urlpatterns = [
 
     # -- Meus Certificados --
     path("meus-certificados/", MeusCertificadosView.as_view(), name="meus_certificados"),
+
+    # -- Meus Crachás (crachá com QR para confirmar presença) --
+    path("meus-crachas/", MeusCrachasView.as_view(), name="meus_crachas"),
 
 
     # -- Rotas para a IA --

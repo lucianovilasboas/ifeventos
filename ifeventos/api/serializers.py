@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, TipoAtividade
+from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca, TipoAtividade
 
 
 class ParticipanteResumoSerializer(serializers.ModelSerializer):
@@ -266,3 +266,124 @@ class InscricaoCreateSerializer(serializers.ModelSerializer):
 
         attrs["participante"] = participante
         return attrs
+
+class CrachaSerializer(serializers.Serializer):
+    """Crachá do usuário em um evento — derivado, não é registro no banco.
+
+    Um por evento em que a pessoa tem papel. `token` é o que vai dentro do QR;
+    a imagem do QR sai no endpoint indicado em `qr_png`.
+    """
+
+    evento_id = serializers.IntegerField()
+    evento = serializers.CharField()
+    periodo = serializers.CharField()
+    local = serializers.CharField(allow_null=True)
+    papel = serializers.CharField(help_text="organizador | palestrante | participante")
+    papel_rotulo = serializers.CharField()
+    nome = serializers.CharField()
+    codigo = serializers.CharField(help_text="Código curto, para quando a câmera não estiver disponível.")
+    token = serializers.CharField(help_text="Token assinado que vai dentro do QR.")
+    url = serializers.CharField(help_text="URL pública que o QR abre ao ser lido.")
+    qr_png = serializers.CharField(help_text="Endpoint que devolve o PNG do QR.")
+
+
+class VerificacaoSerializer(serializers.Serializer):
+    """Resposta da verificação de um crachá ou certificado."""
+
+    valido = serializers.BooleanField()
+    erro = serializers.CharField(required=False)
+    tipo = serializers.CharField(required=False, help_text="cracha | certificado")
+    nome = serializers.CharField(required=False)
+    papel = serializers.CharField(required=False, allow_null=True)
+    papel_rotulo = serializers.CharField(required=False)
+    evento_id = serializers.IntegerField(required=False, allow_null=True)
+    evento = serializers.CharField(required=False, allow_null=True)
+    periodo = serializers.CharField(required=False, allow_blank=True)
+    atividade_id = serializers.IntegerField(required=False, allow_null=True)
+    atividade = serializers.CharField(required=False, allow_null=True)
+
+
+class PresencaSerializer(serializers.ModelSerializer):
+    """Presença registrada em uma atividade (o resultado do check-in)."""
+
+    participante = ParticipanteResumoSerializer(read_only=True)
+    registrada_por = ParticipanteResumoSerializer(read_only=True)
+    atividade = serializers.CharField(source="atividade.titulo", read_only=True)
+    atividade_id = serializers.IntegerField(read_only=True)
+    evento_id = serializers.IntegerField(source="atividade.evento_id", read_only=True)
+    evento = serializers.CharField(source="atividade.evento.title", read_only=True)
+    papel_rotulo = serializers.CharField(source="get_papel_display", read_only=True)
+    origem_rotulo = serializers.CharField(source="get_origem_display", read_only=True)
+
+    class Meta:
+        model = Presenca
+        fields = [
+            "id",
+            "atividade",
+            "atividade_id",
+            "evento",
+            "evento_id",
+            "participante",
+            "papel",
+            "papel_rotulo",
+            "origem",
+            "origem_rotulo",
+            "registrada_por",
+            "registrada_em",
+        ]
+
+
+class PresencaCreateSerializer(serializers.Serializer):
+    """Payload do check-in: qual atividade + COMO a pessoa foi identificada.
+
+    Aceita três formas porque na portaria as três acontecem: o QR lido da câmera
+    (`token`), o código ditado por quem está sem celular (`codigo`) e a marcação
+    manual na lista (`participante`).
+    """
+
+    atividade = serializers.PrimaryKeyRelatedField(
+        queryset=Atividade.objects.all(), required=False
+    )
+    token_atividade = serializers.CharField(
+        required=False, allow_blank=True,
+        help_text="Código do QR da atividade: confirmação feita pela própria pessoa.",
+    )
+    token = serializers.CharField(required=False, allow_blank=True)
+    codigo = serializers.CharField(required=False, allow_blank=True)
+    participante = serializers.PrimaryKeyRelatedField(
+        queryset=Participante.objects.all(), required=False
+    )
+    origem = serializers.ChoiceField(
+        choices=[("qr", "QR do crachá"), ("codigo", "Código digitado"), ("manual", "Marcação manual")],
+        required=False,
+    )
+
+    def validate(self, attrs):
+        # Forma 1 — a própria pessoa confirma com o QR da atividade (fluxo B):
+        # quem ela é vem da sessão, então nem precisa identificar a pessoa aqui.
+        if attrs.get("token_atividade"):
+            return attrs
+
+        # Forma 2 — a organização confirma (lendo o crachá, digitando o código ou
+        # marcando na lista): aí a atividade e a pessoa têm de vir no payload.
+        if not attrs.get("atividade"):
+            raise serializers.ValidationError(
+                "Informe 'atividade' (com token, codigo ou participante) ou 'token_atividade'."
+            )
+        if not any(attrs.get(campo) for campo in ("token", "codigo", "participante")):
+            raise serializers.ValidationError(
+                "Informe 'token' (QR do crachá), 'codigo' (digitado) ou 'participante' (marcação manual)."
+            )
+        return attrs
+
+
+class QrAtividadeSerializer(serializers.Serializer):
+    """QR de presença da atividade: o código rotativo que a organização exibe."""
+
+    atividade_id = serializers.IntegerField()
+    atividade = serializers.CharField()
+    url = serializers.CharField(help_text="URL que o QR abre — é o que a pessoa escaneia.")
+    png = serializers.CharField(help_text="QR como data URL, pronto para exibir na tela.")
+    validade_segundos = serializers.IntegerField(help_text="Quanto tempo este código vale.")
+    renovar_em_segundos = serializers.IntegerField(help_text="De quanto em quanto tempo renovar.")
+    janela = serializers.DictField(help_text="Abre em, fecha em, se está aberta agora e por quê.")

@@ -1,0 +1,114 @@
+{% load static %}
+{# Página pública: é para onde o QR do crachá (e do certificado) aponta.    #}
+{# Fica fora do painel de propósito — quem confere pode estar deslogado,    #}
+{# no celular, na porta da atividade, e só precisa ver se o crachá é real.  #}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if valido %}Crachá válido{% else %}Crachá não verificado{% endif %} | Nossos Eventos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Mona+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v=cracha1">
+    <link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v=cracha1">
+</head>
+<body>
+
+<main class="verificacao">
+    {% if valido %}
+        <span class="selo" aria-hidden="true">✅</span>
+        <h1>Crachá válido</h1>
+
+        <p class="nome">{{ nome }}</p>
+        <span class="papel">{{ papel_rotulo }}</span>
+
+        <dl>
+            <div>
+                <dt>Evento</dt>
+                <dd>{{ evento.title }}</dd>
+            </div>
+            <div>
+                <dt>Período</dt>
+                <dd>{{ periodo }}{% if evento.local %} · {{ evento.local }}{% endif %}</dd>
+            </div>
+            {% if atividade %}
+            <div>
+                <dt>Atividade</dt>
+                <dd>{{ atividade.titulo }}</dd>
+            </div>
+            {% endif %}
+            {% if certificado %}
+            <div>
+                <dt>Emitido em</dt>
+                <dd>{{ certificado.data_emissao|date:"d/m/Y" }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+
+        {% if confirmacao %}
+        {# O que a organização vê ao ler um crachá: a confirmação que saiu sozinha. #}
+        <section class="conf">
+            {% if confirmacao.presenca %}
+                <p class="conf-titulo">
+                    {% if confirmacao.criada %}Presença registrada{% else %}Presença já estava registrada{% endif %}
+                </p>
+                <p class="conf-atividade">{{ confirmacao.atividade.titulo }}</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="desfazer" value="{{ confirmacao.presenca.id }}">
+                    <button type="submit" class="btn-desfazer">Desfazer</button>
+                </form>
+            {% elif confirmacao.candidatas %}
+                <p class="conf-titulo">Em qual atividade confirmar a presença de {{ nome }}?</p>
+                <ul class="conf-escolhas">
+                    {% for candidata in confirmacao.candidatas %}
+                    <li>
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="atividade" value="{{ candidata.id }}">
+                            <button type="submit">
+                                {{ candidata.titulo }} · {{ candidata.data_hora_inicio|date:"H:i" }}
+                            </button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="conf-nota">{{ confirmacao.motivo }}</p>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if presencas_da_pessoa %}
+        <section class="conf-presencas">
+            <h2>Presenças de {{ nome }} neste evento</h2>
+            <ul>
+                {% for presenca in presencas_da_pessoa %}
+                <li>
+                    <div>
+                        <strong>{{ presenca.atividade.titulo }}</strong>
+                        <span>{{ presenca.registrada_em|date:"d/m H:i" }} · {{ presenca.get_origem_display }}</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="desfazer" value="{{ presenca.id }}">
+                        <button type="submit" class="btn-desfazer">desfazer</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+    {% else %}
+        <span class="selo" aria-hidden="true">⚠️</span>
+        <h1>Não foi possível verificar este código</h1>
+        <p>{{ erro }}</p>
+    {% endif %}
+
+    <a class="voltar" href="/eventos/">Ir para a agenda de eventos</a>
+</main>
+
+</body>
+</html>

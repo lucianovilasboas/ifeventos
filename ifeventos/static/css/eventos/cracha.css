@@ -1,0 +1,664 @@
+/* Crachá de participação — 100 x 70 mm, o padrão de crachá com cordão.
+
+   A medida é a mesma na tela e na impressão: o que a pessoa vê é exatamente o
+   que sai da impressora, sem a surpresa de o crachá impresso vir cortado ou em
+   outra proporção. As cores vêm de tokens.css, para acompanharem a identidade.
+
+   A faixa usa a foto do evento quando existe; sem foto, entra o gradiente
+   oliva de reserva — a mesma decisão já usada nos cards da landing. */
+
+.crachas-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.crachas-toolbar p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.crachas-lista {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+}
+
+.cracha {
+    width: 100mm;
+    height: 70mm;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 4mm;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    font-family: "Mona Sans", "Nunito", system-ui, sans-serif;
+    color: var(--fg);
+    box-shadow: 0 6px 0 rgba(0, 0, 0, .06);
+}
+
+/* Tarja de identificação institucional */
+.cracha-topo {
+    display: flex;
+    align-items: center;
+    gap: 5mm;
+    height: 9mm;
+    padding: 0 4mm;
+    background: var(--accent);
+    color: var(--accent-on);
+    flex: 0 0 auto;
+}
+
+.cracha-logo {
+    height: 6mm;
+    width: auto;
+    background: #ffffff;
+    padding: 0.6mm 1mm;
+    border-radius: 1mm;
+}
+
+.cracha-inst {
+    font-size: 7.5pt;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+/* Faixa com a foto do evento (ou o gradiente oliva, quando não há foto) */
+.cracha-faixa {
+    height: 20mm;
+    flex: 0 0 auto;
+    background-image: var(--cover-fallback);
+    background-size: cover;
+    background-position: center;
+}
+
+.cracha-corpo {
+    flex: 1 1 auto;
+    padding: 3mm 4mm 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.cracha-evento {
+    margin: 0 0 1mm;
+    font-size: 9.5pt;
+    font-weight: 800;
+    line-height: 1.15;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cracha-meta {
+    margin: 0 0 2mm;
+    font-size: 7pt;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* O nome é a informação que precisa ser lida a três metros de distância */
+.cracha-nome {
+    margin: 1mm 0 1.5mm;
+    font-size: 15pt;
+    font-weight: 900;
+    line-height: 1.05;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cracha-papel {
+    align-self: flex-start;
+    padding: 1mm 3mm;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-size: 7.5pt;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.cracha-pe {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 3mm;
+    padding: 0 4mm 3mm;
+    flex: 0 0 auto;
+}
+
+.cracha-qr {
+    width: 22mm;
+    height: 22mm;
+    display: block;
+    flex: 0 0 auto;
+}
+
+.cracha-codigo {
+    text-align: right;
+    margin-left: auto;
+    min-width: 0;
+}
+
+.cracha-codigo strong {
+    display: block;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.cracha-codigo small {
+    display: block;
+    max-width: 42mm;
+    font-size: 5.5pt;
+    line-height: 1.25;
+    color: var(--muted);
+}
+
+/* Ações ficam fora do crachá: não podem aparecer no papel */
+.cracha-bloco {
+    width: 100mm;
+}
+
+.cracha-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.crachas-vazio {
+    padding: 32px;
+    border: 1px dashed var(--border-ui);
+    border-radius: 16px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.crachas-vazio i {
+    font-size: 2rem;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 10px;
+}
+
+/* Página pública de verificação (aberta pelo QR no celular) */
+.verificacao {
+    max-width: 520px;
+    margin: 40px auto;
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    font-family: "Mona Sans", "Nunito", system-ui, sans-serif;
+    color: var(--fg);
+    text-align: center;
+}
+
+.verificacao .selo {
+    font-size: 2.6rem;
+    line-height: 1;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.verificacao h1 {
+    font-size: 1.35rem;
+    margin: 0 0 6px;
+}
+
+.verificacao .nome {
+    font-size: 1.8rem;
+    font-weight: 900;
+    margin: 14px 0 4px;
+}
+
+.verificacao .papel {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.75rem;
+}
+
+.verificacao dl {
+    margin: 20px 0 0;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.verificacao dt {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.verificacao dd {
+    margin: 0 0 6px;
+    font-weight: 600;
+}
+
+.verificacao .voltar {
+    display: inline-block;
+    margin-top: 22px;
+    font-weight: 700;
+    color: var(--accent-ink);
+}
+
+@media print {
+    @page {
+        size: 100mm 70mm;
+        margin: 0;
+    }
+
+    body {
+        background: #ffffff;
+    }
+
+    /* Só o crachá vai para o papel: nada de menu, botão ou título de página */
+    .app-topbar,
+    .app-nav-desktop,
+    .app-bottomnav,
+    .crachas-toolbar,
+    .cracha-acoes,
+    .app-page-head,
+    footer {
+        display: none !important;
+    }
+
+    .crachas-lista {
+        display: block;
+    }
+
+    .cracha-bloco {
+        width: 100mm;
+    }
+
+    .cracha {
+        width: 100mm;
+        height: 70mm;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+        /* Sem isto o navegador descarta o verde da tarja e o fundo do papel */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .cracha-bloco:last-child .cracha {
+        page-break-after: auto;
+        break-after: auto;
+    }
+}
+
+
+/* -------------------------------------------------------------------------
+   Confirmação que a organização vê ao ler o crachá (fluxo A2)
+   ------------------------------------------------------------------------- */
+
+.conf {
+    margin-top: 22px;
+    padding: 16px;
+    border-radius: 16px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    text-align: center;
+}
+
+.conf-titulo {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+    font-weight: 900;
+    color: var(--accent-ink);
+}
+
+.conf-atividade {
+    margin: 0 0 12px;
+    font-weight: 600;
+}
+
+.btn-desfazer {
+    background: none;
+    border: 1px solid #ff4b4b;
+    color: #b3261e;
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.conf-escolhas {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+    display: grid;
+    gap: 8px;
+}
+
+.conf-escolhas button {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    background: #ffffff;
+    color: var(--accent-ink);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.conf-nota {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.conf-presencas {
+    margin-top: 22px;
+    text-align: left;
+}
+
+.conf-presencas h2 {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.conf-presencas ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.conf-presencas li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.conf-presencas li span {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+.verificacao .nota {
+    margin-top: 16px;
+    font-size: 0.86rem;
+    color: var(--muted);
+}
+
+/* -------------------------------------------------------------------------
+   Tela do QR da atividade — é a que a organização exibe para a turma
+   ------------------------------------------------------------------------- */
+
+.qrd {
+    max-width: 520px;
+}
+
+.qrd-atividade {
+    margin: 0 0 4px;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.qrd-evento {
+    margin: 0 0 12px;
+    font-size: 0.86rem;
+    color: var(--muted);
+}
+
+.qrd-janela {
+    display: inline-block;
+    margin-bottom: 16px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.qrd-janela.fechada {
+    background: #fff4e5;
+    color: #8a4b00;
+    border: 1px solid #ffc800;
+}
+
+.qrd-quadro {
+    display: inline-block;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: #ffffff;
+}
+
+.qrd-quadro img {
+    display: block;
+    width: 320px;
+    height: 320px;
+}
+
+.qrd-validade,
+.qrd-instrucao {
+    max-width: 440px;
+    margin: 14px 0 0;
+    font-size: 0.86rem;
+}
+
+.qrd-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.qrd-url {
+    margin-top: 14px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    word-break: break-all;
+}
+
+/* -------------------------------------------------------------------------
+   Check-in pela câmera (fluxo A1) — a organização aponta e a presença entra
+   ------------------------------------------------------------------------- */
+
+.chk-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+
+.chk-topo-texto strong {
+    display: block;
+    font-size: 1.05rem;
+}
+
+.chk-topo-texto span {
+    font-size: 0.84rem;
+    color: var(--muted);
+}
+
+.chk-janela {
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.chk-janela.fechada {
+    background: #fff4e5;
+    color: #8a4b00;
+    border: 1px solid #ffc800;
+}
+
+.chk-corpo {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 780px) {
+    .chk-corpo {
+        grid-template-columns: 1fr;
+    }
+}
+
+.chk-video-moldura {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #1c1c1c;
+}
+
+.chk-video-moldura video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Moldura que ajuda a mirar: o QR precisa estar dentro dela */
+.chk-mira {
+    position: absolute;
+    inset: 12%;
+    border: 3px solid rgba(255, 255, 255, .85);
+    border-radius: 14px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, .25);
+    pointer-events: none;
+}
+
+.chk-aviso {
+    margin: 12px 0;
+    font-size: 0.86rem;
+    color: var(--muted);
+}
+
+.chk-resultado {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 62px;
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    border: 1px dashed var(--border-ui);
+    border-radius: 14px;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.chk-resultado.ok {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--fg);
+}
+
+.chk-resultado.aviso {
+    background: #fff9e6;
+    border: 1px solid #ffc800;
+    color: var(--fg);
+}
+
+.chk-resultado.erro {
+    background: #ffecec;
+    border: 1px solid #ff4b4b;
+    color: #7a1c1c;
+}
+
+.chk-codigo {
+    margin-bottom: 20px;
+}
+
+.chk-titulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.chk-total {
+    padding: 1px 10px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-on);
+    font-size: 0.78rem;
+}
+
+.chk-lista {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.chk-lista li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.chk-lista li span {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+.chk-vazio {
+    justify-content: center;
+    border-style: dashed;
+    color: var(--muted);
+    font-size: 0.86rem;
+}

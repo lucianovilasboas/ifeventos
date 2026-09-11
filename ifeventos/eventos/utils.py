@@ -144,7 +144,19 @@ def gerar_certificado(participante, atividade=None, evento=None):
     # QR Code (Autenticação)
     # A URL vem do ambiente (SITE_URL). Antes era um domínio DuckDNS fixo
     # com a porta 8502 de outro serviço, que não existe neste projeto.
-    qr_data = f"{settings.SITE_URL}/verificar-certificado/{participante.id}"
+    # O QR aponta para a rota pública /c/<token>/. Antes era montado aqui
+    # `{SITE_URL}/verificar-certificado/<id>`, endereço que não existe em
+    # nenhum urls.py — todo certificado impresso levava a um 404.
+    from .crachas import gerar_token, url_verificacao
+
+    qr_data = url_verificacao(
+        gerar_token(
+            participante.id,
+            evento_id=getattr(evento, "id", None),
+            tipo="certificado",
+            atividade_id=getattr(atividade, "id", None),
+        )
+    )
     qr = qrcode.make(qr_data)
     qr_buffer = io.BytesIO()
     qr.save(qr_buffer, format="PNG")

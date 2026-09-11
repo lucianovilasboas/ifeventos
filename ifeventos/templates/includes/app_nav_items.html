@@ -37,6 +37,10 @@
         </a>
     {% endif %}
 
+    <a href="{% url 'participante:meus_crachas' %}" class="{% if request.resolver_match.url_name == 'meus_crachas' %}active{% endif %}">
+        <i class="fa-solid fa-id-card"></i><span>Crachá</span>
+    </a>
+
     <a href="{% url 'eventos:logout' %}">
         <i class="fa-solid fa-right-from-bracket"></i><span>Sair</span>
     </a>

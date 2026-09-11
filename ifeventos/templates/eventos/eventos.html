@@ -39,6 +39,8 @@
                     <a href="{% url 'participante:meus_certificados' %}"><i class="fa-solid fa-award"></i><span>Certificados</span></a>
                 {% endif %}
 
+                <a href="{% url 'participante:meus_crachas' %}"><i class="fa-solid fa-id-card"></i><span>Crachá</span></a>
+
                 <a href="{% url 'eventos:logout' %}"><i class="fa-solid fa-right-from-bracket"></i><span>Sair</span></a>
 
                 {% if request.user.is_organizador and not request.user.is_participante %}
@@ -204,6 +206,7 @@
         {% if request.user.is_participante %}
             <a href="{% url 'participante:meus_certificados' %}"><i class="fa-solid fa-award"></i><span>Certificados</span></a>
         {% endif %}
+        <a href="{% url 'participante:meus_crachas' %}"><i class="fa-solid fa-id-card"></i><span>Crachá</span></a>
         <a href="{% url 'eventos:logout' %}"><i class="fa-solid fa-right-from-bracket"></i><span>Sair</span></a>
         {% else %}
         <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span>Início</span></a>

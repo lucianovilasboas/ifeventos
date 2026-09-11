@@ -18,7 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.static import serve
-from eventos.views import eventos_view
+from eventos.views import confirmar_presenca_pelo_qr, eventos_view, verificar_cracha
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -35,6 +35,14 @@ urlpatterns = [
     # path('accounts/', include('allauth.socialaccount.urls')),
 
     path('accounts/profile', eventos_view, name='profile'),
+
+    # -- Verificação pública do QR de crachá e de certificado --
+    # Rota curta de propósito: ela vai dentro do QR impresso e é digitada por
+    # quem não consegue escanear. Fica fora de /eventos/ e /organizador/ porque
+    # quem confere pode estar deslogado.
+    path("c/<str:token>/", verificar_cracha, name="verificar_cracha"),
+    # Confirmação da própria pessoa pelo QR da atividade (fluxo B)
+    path("p/<str:token>/", confirmar_presenca_pelo_qr, name="confirmar_presenca_pelo_qr"),
 
     # -- API REST (django-rest-framework) --
     path("api/v1/", include("api.urls")),

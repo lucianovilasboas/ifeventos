@@ -9,8 +9,9 @@ import json
 from .forms import ParticipanteUpdateForm
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView
+from django.views.generic import ListView, TemplateView
 from eventos.models import Certificado
+from eventos.crachas import crachas_do_usuario, url_da_logo
 
 
 @login_required(login_url='/accounts/login/')
@@ -155,3 +156,20 @@ class MeusCertificadosView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return Certificado.objects.filter(participante=self.request.user)
 
+
+
+class MeusCrachasView(LoginRequiredMixin, TemplateView):
+    """Crachás do usuário: um por evento em que ele tem papel.
+
+    Atende aos três papéis de uma vez — organizador, palestrante e participante
+    são a mesma pessoa logada; o que muda, de um crachá para o outro, é o papel
+    que ela tem em cada evento (e é isso que o crachá estampa).
+    """
+
+    template_name = "participante/meus_crachas.html"
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        contexto["crachas"] = crachas_do_usuario(self.request.user)
+        contexto["logo_url"] = url_da_logo()
+        return contexto

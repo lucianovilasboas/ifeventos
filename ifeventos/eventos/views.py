@@ -6,10 +6,20 @@ from .models import Evento
 import qrcode
 import io
 from django.http import HttpResponse
-from .models import Inscricao, Atividade
+from .models import Inscricao, Atividade, Presenca
 from django.contrib.auth.decorators import login_required
 from PIL import Image, ImageDraw, ImageFont
 from datetime import date, timedelta
+from .crachas import (
+    confirmar_para_organizador,
+    confirmar_por_token_atividade,
+    pode_gerenciar_evento,
+    registrar_presenca,
+    verificar_token,
+)
+from django.conf import settings
+from django.contrib import messages
+from django.urls import reverse
 
 
 def eventos_view(request):
@@ -217,66 +227,186 @@ def gerar_qr_code_atividade(request, atividade_id):
 
 @login_required(login_url='/accounts/login/') # Garantir que o usuário esteja logado
 def confirmar_presenca(request, codigo_confirmacao):
+    """Confirmação pelo QR fixo de UMA inscrição (código permanente da inscrição).
+
+    Mantida porque os QR já emitidos apontam para cá — mas a regra agora é a
+    mesma da confirmação nova: quem confirma é quem está logado, a janela da
+    atividade vale e a presença fica registrada em `Presenca`, com origem e
+    autoria. Antes esta view marcava apenas `Inscricao.confirmada`, então o mesmo
+    ato aparecia num lugar e não no outro.
+    """
     inscricao = get_object_or_404(Inscricao, codigo_confirmacao=codigo_confirmacao)
 
-    # Verifica se o usuário logado é o mesmo que fez a inscrição
-    if inscricao.participante != request.user:
-        # return HttpResponseForbidden("Você não tem permissão para confirmar essa presença. Conecte-se com a conta correta e tente novamente.")
-        return render(request, "eventos/presenca_confirmada.html", 
-                      {"seccess": False, 
-                       "inscricao": inscricao, 
-                       "mensagem": "Você não tem permissão para confirmar essa presença. Conecte-se com a conta correta e tente novamente."})
-    
+    if inscricao.participante_id != request.user.id:
+        return render(request, "eventos/presenca_confirmada.html", {
+            "success": False,
+            "inscricao": inscricao,
+            "mensagem": "Esta inscrição é de outra pessoa. Confirme a sua, pela sua conta.",
+        })
 
-    # Verificar se o usuario esta tentando confirmar antes ou depois da atividade
-    if inscricao.atividade.data_hora_inicio > timezone.now():  # ✅ Agora funciona!
-        return render(request, "eventos/presenca_confirmada.html", {"success": False, "inscricao": inscricao, "mensagem": "A atividade ainda não começou."})
-    elif inscricao.atividade.data_hora_fim < timezone.now():  # ✅ Agora funciona!
-        return render(request, "eventos/presenca_confirmada.html", {"success": False, "inscricao": inscricao, "mensagem": "A atividade já terminou."})
+    presenca, criada, motivo = registrar_presenca(
+        inscricao.atividade, request.user, registrada_por=request.user, origem="proprio"
+    )
+    if presenca is None:
+        return render(request, "eventos/presenca_confirmada.html", {
+            "success": False, "inscricao": inscricao, "mensagem": motivo,
+        })
 
-
-    if inscricao.confirmada:
-        return render(request, "eventos/presenca_confirmada.html", {"success": True, "inscricao": inscricao, "mensagem": "Presença já confirmada!"})
-
-    # Marca a presença como confirmada
-    inscricao.confirmada = True
-    inscricao.save()
-
-    return render(request, "eventos/presenca_confirmada.html", {"success": True, "inscricao": inscricao, "mensagem": "Presença confirmada com sucesso!"})
-
-
+    return render(request, "eventos/presenca_confirmada.html", {
+        "success": True,
+        "inscricao": inscricao,
+        "mensagem": "Presença confirmada com sucesso!" if criada else "Presença já confirmada!",
+    })
 
 
 # -- Confirmação de Presença por atividade --
 
 @login_required(login_url='/accounts/login/') # Garantir que o usuário esteja logado
 def confirmar_presenca_atividade(request, codigo_confirmacao):
-    atividade = get_object_or_404(Atividade, codigo_confirmacao=codigo_confirmacao)
+    """Confirmação pelo QR fixo da atividade (código permanente da atividade).
 
-    # Verifica se o usuário está inscrito na atividade
+    Aceita qualquer pessoa com papel no evento — quem tem inscrição, quem
+    palestra e quem organiza —, respeita a janela de confirmação e grava em
+    `Presenca`. Antes exigia inscrição, e o palestrante não conseguia confirmar a
+    própria presença.
+    """
+    atividade = get_object_or_404(Atividade, codigo_confirmacao=codigo_confirmacao)
     inscricao = Inscricao.objects.filter(participante=request.user, atividade=atividade).first()
 
-    if not inscricao:
+    presenca, criada, motivo = registrar_presenca(
+        atividade, request.user, registrada_por=request.user, origem="proprio"
+    )
+    if presenca is None:
         return render(request, "eventos/presenca_confirmada.html", {
-            "success": False,
-            "inscricao": inscricao, 
-            "mensagem": "Você não está inscrito nesta atividade!"
+            "success": False, "inscricao": inscricao, "mensagem": motivo,
         })
-    
-
-    # Verificar se o usuario esta tentando confirmar antes ou depois da atividade
-    if inscricao.atividade.data_hora_inicio > timezone.now():  # ✅ Agora funciona!
-        return render(request, "eventos/presenca_confirmada.html", {"success": False, "inscricao": inscricao, "mensagem": "A atividade ainda não começou."})
-    elif inscricao.atividade.data_hora_fim < timezone.now():  # ✅ Agora funciona!
-        return render(request, "eventos/presenca_confirmada.html", {"success": False, "inscricao": inscricao, "mensagem": "A atividade já terminou."})
-
-
-    # Confirma presença
-    inscricao.confirmada = True
-    inscricao.save()
 
     return render(request, "eventos/presenca_confirmada.html", {
         "success": True,
-        "inscricao": inscricao, 
-        "mensagem": "Presença confirmada com sucesso!"
+        "inscricao": inscricao,
+        "mensagem": "Presença confirmada com sucesso!" if criada else "Presença já confirmada!",
     })
+
+
+# ---------------------------------------------------------------------------
+# Verificação pública do QR (crachá e certificado)
+# ---------------------------------------------------------------------------
+
+
+def verificar_cracha(request, token):
+    """Página aberta pelo QR do crachá — e também pelo QR do certificado.
+
+    Fica fora do painel de propósito: quem confere costuma estar deslogado, no
+    celular, na porta da atividade. Mostra apenas o que a conferência exige
+    (nome, papel, evento e período) e nada de dado pessoal — CPF, e-mail e
+    telefone não aparecem aqui.
+    """
+    # A regra da verificação vive em eventos/crachas.py, a mesma que a API usa.
+    resultado = verificar_token(token)
+    if not resultado["valido"]:
+        return render(
+            request,
+            "cracha/verificacao.html",
+            {"valido": False, "erro": resultado.get("erro", "Crachá inválido.")},
+            status=resultado.get("status", 404),
+        )
+
+    evento = resultado.get("evento")
+
+    # Quem está lendo pode ser a organização (pela sessão) ou apenas alguém
+    # conferindo o crachá no celular. Só no primeiro caso há o que confirmar — e
+    # a credencial é a sessão de quem lê, nunca o código que foi lido.
+    eh_cracha = resultado["tipo"] == "cracha" and evento is not None
+    organizacao = bool(
+        eh_cracha
+        and request.user.is_authenticated
+        and pode_gerenciar_evento(request.user, evento)
+    )
+
+    confirmacao = None
+    presencas_da_pessoa = None
+
+    if request.method == "POST":
+        if not organizacao:
+            return render(request, "cracha/verificacao.html",
+                          {"valido": False, "erro": "Só quem organiza este evento pode fazer isso."},
+                          status=403)
+
+        if request.POST.get("desfazer"):
+            presenca = (
+                Presenca.objects.filter(id=request.POST["desfazer"], participante=resultado["pessoa"])
+                .select_related("atividade")
+                .first()
+            )
+            if presenca:
+                presenca.delete()
+                messages.success(request, "Presença desfeita.")
+            return redirect("verificar_cracha", token=token)
+
+        if request.POST.get("atividade"):
+            # Escolha explícita, para quando há mais de uma atividade na janela.
+            confirmacao = confirmar_para_organizador(
+                resultado["pessoa"],
+                evento,
+                atividade=get_object_or_404(Atividade, id=request.POST["atividade"], evento=evento),
+                registrada_por=request.user,
+            )
+
+    if organizacao:
+        # FLUXO A2: a presença sai sozinha, sem toque nenhum — é o que permite à
+        # pessoa da organização apenas apontar a câmera do celular para o crachá,
+        # sem abrir o sistema. Só acontece quando há UMA atividade do evento na
+        # janela: havendo mais de uma, o certo é perguntar, nunca adivinhar,
+        # porque presença na atividade errada é pior que presença nenhuma.
+        if confirmacao is None:
+            confirmacao = confirmar_para_organizador(
+                resultado["pessoa"], evento, registrada_por=request.user
+            )
+
+        # A lista vale nos dois casos: mostra o que já está registrado e deixa
+        # desfazer sem sair da tela.
+        presencas_da_pessoa = (
+            Presenca.objects.filter(participante=resultado["pessoa"], atividade__evento=evento)
+            .select_related("atividade")
+            .order_by("-registrada_em")
+        )
+
+    return render(request, "cracha/verificacao.html", {
+        "valido": True,
+        "nome": resultado["nome"],
+        "papel_rotulo": resultado["papel_rotulo"],
+        "evento": evento,
+        "atividade": resultado.get("atividade"),
+        "periodo": resultado.get("periodo", ""),
+        "certificado": resultado.get("certificado"),
+        "confirmacao": confirmacao,
+        "presencas_da_pessoa": presencas_da_pessoa,
+        "tipo": resultado["tipo"],
+    })
+
+
+def confirmar_presenca_pelo_qr(request, token):
+    """FLUXO B — a própria pessoa confirma, escaneando o QR ROTATIVO da atividade.
+
+    É o caminho novo: o QR é assinado e vale poucos minutos, então uma foto
+    compartilhada deixa de funcionar. Quem confirma é quem está logado — o nome
+    que entra na lista é o da conta que escaneou, e não há como confirmar
+    presença de outra pessoa por aqui. Sem sessão, manda para o login e volta
+    para o mesmo código (`next` preservado).
+    """
+    if not request.user.is_authenticated:
+        return redirect(f"{settings.LOGIN_URL}?next={request.path}")
+
+    atividade, presenca, criada, erro = confirmar_por_token_atividade(token, request.user)
+    return render(
+        request,
+        "cracha/confirmacao.html",
+        {
+            "atividade": atividade,
+            "presenca": presenca,
+            "criada": criada,
+            "erro": erro,
+            "pessoa": request.user,
+        },
+        status=200 if presenca else 400,
+    )

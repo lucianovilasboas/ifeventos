@@ -358,3 +358,93 @@ def categorias_conhecidas():
     pares = list(Evento.CATEGORIA_CHOICES)
     pares += [(valor, valor) for valor in sorted(usadas - set(rotulos))]
     return pares
+
+
+class Presenca(models.Model):
+    """Presença de uma pessoa em uma atividade — é o que o check-in do crachá grava.
+
+    O crachá em si não é gravado (é derivado do evento + pessoa + papel, ver
+    `eventos/crachas.py`). A presença, sim: precisa de data, de quem registrou e
+    de origem, porque serve de comprovação e de base para o certificado.
+
+    Vale para os três papéis: participante tem inscrição, mas organizador e
+    palestrante não — e ainda assim precisam ter presença registrada.
+    """
+
+    PAPEL_CHOICES = [
+        ("organizador", "Organizador"),
+        ("palestrante", "Palestrante"),
+        ("participante", "Participante"),
+    ]
+
+    ORIGEM_CHOICES = [
+        ("qr", "QR do crachá"),
+        ("auto", "Automática (câmera da organização)"),
+        ("proprio", "A própria pessoa confirmou"),
+        ("codigo", "Código digitado"),
+        ("manual", "Marcação manual"),
+    ]
+
+    atividade = models.ForeignKey(
+        Atividade, on_delete=models.CASCADE, related_name="presencas"
+    )
+    participante = models.ForeignKey(
+        Participante, on_delete=models.CASCADE, related_name="presencas"
+    )
+    # Retrato do papel no momento do registro: se a pessoa deixar de ser
+    # organizadora depois, a presença de ontem continua contando como foi.
+    papel = models.CharField(max_length=20, choices=PAPEL_CHOICES, default="participante")
+    registrada_por = models.ForeignKey(
+        Participante,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="presencas_registradas",
+    )
+    registrada_em = models.DateTimeField(default=timezone.now)
+    origem = models.CharField(max_length=10, choices=ORIGEM_CHOICES, default="qr")
+
+    class Meta:
+        # Uma presença por pessoa por atividade: o check-in repetido não duplica,
+        # apenas devolve a presença que já existe.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["atividade", "participante"], name="unique_presenca"
+            )
+        ]
+        verbose_name = "Presença"
+        verbose_name_plural = "Presenças"
+        ordering = ["-registrada_em"]
+
+    def __str__(self):
+        return f"{self.participante.first_name} em {self.atividade.titulo}"
+
+    @property
+    def evento(self):
+        return self.atividade.evento
+
+    def save(self, *args, **kwargs):
+        """Grava a presença e mantém `Inscricao.confirmada` em sincronia.
+
+        A confirmação da inscrição já existia (alternada à mão no admin) e é o
+        que a lista de presença e a emissão de certificado leem. Em vez de
+        conviver com duas verdades sobre a mesma pessoa na mesma atividade, o
+        check-in passa a marcar a inscrição correspondente.
+        """
+        super().save(*args, **kwargs)
+        Inscricao.objects.filter(
+            participante=self.participante, atividade=self.atividade
+        ).update(confirmada=True)
+
+    def delete(self, *args, **kwargs):
+        """Desfazer o check-in também desmarca a inscrição.
+
+        Atenção: se a inscrição havia sido confirmada à mão no admin e não por
+        check-in, o desfazer também a desmarca — é o comportamento esperado de
+        um "desfazer", mas convém saber.
+        """
+        resultado = super().delete(*args, **kwargs)
+        Inscricao.objects.filter(
+            participante=self.participante, atividade=self.atividade
+        ).update(confirmada=False)
+        return resultado

@@ -13,6 +13,7 @@ from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_cate
 from .views import EmitirCertificadosAtividadeView
 from .views import EmitirCertificadosEventoView
 from .views import EmitirCertificadoInscricaoView
+from .views import CheckinAtividadeView, CrachasEventoView, QrAtividadeView
 
 
 app_name = 'organizador'
@@ -60,6 +61,13 @@ urlpatterns = [
     path("emitir-certificado/inscricao/<int:inscricao_id>/", EmitirCertificadoInscricaoView.as_view(), name="emitir_certificado_inscricao"),
 
     path("emitir-certificados/evento/<int:evento_id>/", EmitirCertificadosEventoView.as_view(), name="emitir_certificados_evento"),
+
+    # -- Crachás --
+    path("crachas/evento/<int:evento_id>/", CrachasEventoView.as_view(), name="crachas_evento"),
+
+    # -- Presença: QR da atividade (exibir na tela) e check-in pela câmera --
+    path("atividade/<int:atividade_id>/qrcode/", QrAtividadeView.as_view(), name="qrcode_atividade"),
+    path("atividade/<int:atividade_id>/checkin/", CheckinAtividadeView.as_view(), name="checkin_atividade"),
 
     # -- Rotas para a IA --
     path('ia_mensagem/', ia_mensagem_view, name='ia_mensagem'),

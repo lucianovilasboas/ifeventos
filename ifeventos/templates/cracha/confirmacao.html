@@ -1,0 +1,61 @@
+{% load static %}
+{# Fluxo B: a própria pessoa escaneou o QR da atividade e confirma a presença. #}
+{# Quem confirma é a conta logada — não há como dar presença para outra pessoa #}
+{# por este caminho, porque o nome vem da sessão, não do código.               #}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if presenca %}Presença confirmada{% else %}Não foi possível confirmar{% endif %} | Nossos Eventos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Mona+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v=cracha2">
+    <link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v=cracha2">
+</head>
+<body>
+
+<main class="verificacao">
+    {% if presenca %}
+        <span class="selo" aria-hidden="true">✅</span>
+        <h1>{% if criada %}Presença confirmada{% else %}Sua presença já estava confirmada{% endif %}</h1>
+
+        <p class="nome">{{ pessoa.first_name }} {{ pessoa.last_name }}</p>
+
+        <dl>
+            <div>
+                <dt>Atividade</dt>
+                <dd>{{ atividade.titulo }}</dd>
+            </div>
+            <div>
+                <dt>Evento</dt>
+                <dd>{{ atividade.evento.title }}</dd>
+            </div>
+            <div>
+                <dt>Registrada em</dt>
+                <dd>{{ presenca.registrada_em|date:"d/m/Y \à\s H:i" }}</dd>
+            </div>
+            <div>
+                <dt>Como</dt>
+                <dd>{{ presenca.get_origem_display }}</dd>
+            </div>
+        </dl>
+
+        <p class="nota">Bom evento! Sua presença já está na lista do organizador.</p>
+
+    {% else %}
+        <span class="selo" aria-hidden="true">⚠️</span>
+        <h1>Não foi possível confirmar</h1>
+        <p>{{ erro }}</p>
+        <p class="nota">
+            Se o código expirou, escaneie novamente o QR que está na tela com a
+            organização ou com quem está palestrando.
+        </p>
+    {% endif %}
+
+    <a class="voltar" href="/eventos/">Ver a agenda de eventos</a>
+</main>
+
+</body>
+</html>

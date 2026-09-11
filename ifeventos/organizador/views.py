@@ -13,6 +13,15 @@ from eventos.forms import AtividadeForm
 from eventos.models import Atividade
 
 from django.views import View
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse
+from eventos.crachas import (
+    atividade_aceita_presenca_agora,
+    gerar_pdf_crachas_evento,
+    pode_exibir_qr_atividade,
+    pode_gerenciar_evento,
+)
 from eventos.models import Inscricao, Certificado
 from eventos.utils import gerar_certificado
 
@@ -423,3 +432,71 @@ class EmitirCertificadosEventoView(View):
                     )
 
         return JsonResponse({"message": "Certificados emitidos para o evento!"})
+
+
+# -- Crachás --
+
+
+class CrachasEventoView(LoginRequiredMixin, View):
+    """PDF com os crachás de todas as pessoas com papel no evento.
+
+    Um crachá de 10 x 7 cm por página — o formato serve para imprimir em lote e
+    entregar no credenciamento, sem montar crachá por crachá.
+    """
+
+    def get(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+
+        # Mesma regra usada pela API e pelo check-in (eventos/crachas.py).
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+
+        nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento)
+        resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
+        resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'
+        return resposta
+
+
+class QrAtividadeView(LoginRequiredMixin, View):
+    """Tela que exibe o QR de presença da atividade, para projetar ou mostrar na porta.
+
+    O código em si é gerado pela API (`/api/v1/atividades/<id>/qrcode/`) e renovado
+    pela própria página, de tempos em tempos — é o que faz uma foto compartilhada
+    do QR deixar de funcionar depois de alguns minutos.
+    """
+
+    template_name = "organizador/atividade_qrcode.html"
+
+    def get(self, request, atividade_id):
+        atividade = get_object_or_404(Atividade, id=atividade_id)
+        if not pode_exibir_qr_atividade(request.user, atividade):
+            raise PermissionDenied("Você não organiza este evento nem palestra nesta atividade.")
+        return render(request, self.template_name, {
+            "atividade": atividade,
+            "evento": atividade.evento,
+        })
+
+
+class CheckinAtividadeView(LoginRequiredMixin, View):
+    """Check-in da atividade pela câmera do navegador (fluxo A1).
+
+    A página liga a câmera, lê o QR do crachá de cada pessoa e registra a
+    presença sozinha — a organização aponta e pronto, sem clicar em nome algum.
+    O campo de código fica ao lado para quem estiver sem celular ou com o crachá
+    amassado, e a lista mostra quem já entrou, com opção de desfazer.
+    """
+
+    template_name = "organizador/atividade_checkin.html"
+
+    def get(self, request, atividade_id):
+        atividade = get_object_or_404(Atividade, id=atividade_id)
+        if not pode_gerenciar_evento(request.user, atividade.evento):
+            raise PermissionDenied("Você não organiza o evento desta atividade.")
+
+        janela_aberta, motivo = atividade_aceita_presenca_agora(atividade)
+        return render(request, self.template_name, {
+            "atividade": atividade,
+            "evento": atividade.evento,
+            "janela_aberta": janela_aberta,
+            "janela_motivo": motivo,
+        })

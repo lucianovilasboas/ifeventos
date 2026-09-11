@@ -1,0 +1,246 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+
+{% block title %}Check-in | {{ atividade.titulo }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v=cracha2">
+{% endblock extra_css %}
+
+{% block action %}
+<h2><i class="fa-solid fa-camera"></i> Check-in da atividade</h2>
+{% endblock action %}
+
+{% block content %}
+
+<div class="chk" id="chk">
+    <header class="chk-topo">
+        <div class="chk-topo-texto">
+            <strong>{{ atividade.titulo }}</strong>
+            <span>{{ evento.title }} · {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }}</span>
+        </div>
+        <div class="chk-janela {% if janela_aberta %}aberta{% else %}fechada{% endif %}">
+            {% if janela_aberta %}Confirmação aberta agora{% else %}Fora da janela de confirmação{% endif %}
+        </div>
+    </header>
+
+    <div class="chk-corpo">
+        <section class="chk-camera">
+            <div class="chk-video-moldura">
+                <video id="video" playsinline muted></video>
+                <div class="chk-mira" aria-hidden="true"></div>
+            </div>
+            <p class="chk-aviso" id="aviso-camera">
+                Aponte a câmera para o QR do crachá da pessoa. A presença é registrada
+                sozinha — você não precisa clicar em nada.
+            </p>
+            <button type="button" class="btn btn-success btn-lg" id="ligar-camera">
+                <i class="fa-solid fa-camera"></i> Ligar a câmera
+            </button>
+        </section>
+
+        <section class="chk-lado">
+            <div class="chk-resultado" id="resultado"></div>
+
+            <div class="chk-codigo">
+                <label class="form-label" for="codigo">Sem câmera? Digite o código do crachá</label>
+                <div class="input-group">
+                    <input id="codigo" class="form-control" placeholder="7K2-9QF"
+                           autocomplete="off" spellcheck="false">
+                    <button class="btn btn-outline-success" type="button" id="confirmar-codigo">Confirmar</button>
+                </div>
+            </div>
+
+            <h3 class="chk-titulo">Quem já entrou <span class="chk-total" id="total">0</span></h3>
+            <ul class="chk-lista" id="lista">
+                <li class="chk-vazio">Ninguém registrado ainda.</li>
+            </ul>
+        </section>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+    // Fluxo A1: a câmera lê o QR do crachá e a presença é gravada sozinha. A
+    // organização aponta o celular; não existe clique por pessoa.
+    const ATIVIDADE = {{ atividade.id }};
+    const CSRF = '{{ csrf_token }}';
+    const URL_PRESENCAS = "{% url 'presenca-list' %}";
+
+    const video = document.getElementById('video');
+    const avisoCamera = document.getElementById('aviso-camera');
+    const resultado = document.getElementById('resultado');
+    const lona = document.createElement('canvas');
+    const ctx = lona.getContext('2d');
+
+    let lendo = false;
+    let bloqueado = false;
+    let ultimoToken = '';
+    let ultimoEm = 0;
+
+    function mostrar(html, tipo) {
+        resultado.className = 'chk-resultado ' + tipo;
+        resultado.innerHTML = html;
+    }
+
+    async function registrar(payload) {
+        try {
+            const resposta = await fetch(URL_PRESENCAS, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(Object.assign({ atividade: ATIVIDADE }, payload)),
+            });
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                mostrar('<strong>Não confirmou.</strong> ' + (dados.detail || 'Resposta inesperada.'), 'erro');
+                return false;
+            }
+
+            const pessoa = (dados.participante && dados.participante.nome_completo) || 'Pessoa';
+            mostrar(
+                '<strong>' + pessoa + '</strong><br>' +
+                (dados.criada ? 'Presença registrada' : 'Já estava confirmada') +
+                ' · ' + (dados.papel_rotulo || '') + ' · ' + (dados.origem_rotulo || ''),
+                dados.criada ? 'ok' : 'aviso'
+            );
+            carregarLista();
+            return true;
+        } catch (erro) {
+            mostrar('<strong>Falha de rede.</strong> ' + erro.message, 'erro');
+            return false;
+        }
+    }
+
+    // Do QR lido vem a URL pública do crachá; o que interessa é o token dentro dela.
+    function extrairToken(texto) {
+        if (!texto) return '';
+        const marca = texto.indexOf('/c/');
+        const bruto = marca >= 0 ? texto.slice(marca + 3) : texto;
+        return bruto.replace(/[/?#].*$/, '').trim();
+    }
+
+    function bloquear(segundos) {
+        bloqueado = true;
+        setTimeout(() => { bloqueado = false; }, segundos * 1000);
+    }
+
+    function quadro() {
+        if (!lendo) return;
+
+        if (!bloqueado && video.readyState === video.HAVE_ENOUGH_DATA && window.jsQR) {
+            lona.width = video.videoWidth;
+            lona.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, lona.width, lona.height);
+            const pixels = ctx.getImageData(0, 0, lona.width, lona.height);
+            const lido = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'dontInvert' });
+
+            if (lido && lido.data) {
+                const token = extrairToken(lido.data);
+                const agora = Date.now();
+                // Não repetir a MESMA leitura logo em seguida: o QR fica no quadro
+                // por vários segundos e seria gravado dezenas de vezes.
+                if (token && !(token === ultimoToken && agora - ultimoEm < 12000)) {
+                    ultimoToken = token;
+                    ultimoEm = agora;
+                    bloquear(3);
+                    registrar({ token: token });
+                }
+            }
+        }
+        requestAnimationFrame(quadro);
+    }
+
+    async function ligarCamera() {
+        try {
+            const fluxo = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'environment' } },
+                audio: false,
+            });
+            video.srcObject = fluxo;
+            await video.play();
+            document.getElementById('ligar-camera').style.display = 'none';
+            avisoCamera.textContent = 'Lendo… aponte para o QR do crachá da pessoa.';
+            lendo = true;
+            requestAnimationFrame(quadro);
+        } catch (erro) {
+            avisoCamera.textContent =
+                'Não consegui abrir a câmera (' + erro.message + '). ' +
+                'A câmera exige https ou localhost — use o código ao lado.';
+        }
+    }
+
+    async function carregarLista() {
+        try {
+            const resposta = await fetch(URL_PRESENCAS + '?atividade=' + ATIVIDADE, {
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-store',
+            });
+            if (!resposta.ok) return;
+            const dados = await resposta.json();
+            const itens = Array.isArray(dados) ? dados : (dados.results || []);
+            const lista = document.getElementById('lista');
+            document.getElementById('total').textContent = itens.length;
+
+            if (!itens.length) {
+                lista.innerHTML = '<li class="chk-vazio">Ninguém registrado ainda.</li>';
+                return;
+            }
+
+            lista.innerHTML = itens.map((p) => {
+                const nome = (p.participante && p.participante.nome_completo) || '—';
+                const hora = new Date(p.registrada_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                return '<li>' +
+                    '<div><strong>' + nome + '</strong>' +
+                    '<span>' + (p.papel_rotulo || '') + ' · ' + (p.origem_rotulo || '') + ' · ' + hora + '</span></div>' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger" data-desfazer="' + p.id + '">desfazer</button>' +
+                    '</li>';
+            }).join('');
+
+            lista.querySelectorAll('[data-desfazer]').forEach((botao) => {
+                botao.addEventListener('click', async () => {
+                    if (!confirm('Desfazer esta confirmação de presença?')) return;
+                    const resposta = await fetch(URL_PRESENCAS + botao.dataset.desfazer + '/', {
+                        method: 'DELETE',
+                        headers: { 'X-CSRFToken': CSRF, 'Accept': 'application/json' },
+                    });
+                    if (resposta.ok || resposta.status === 204) {
+                        mostrar('Presença desfeita.', 'aviso');
+                        carregarLista();
+                    } else {
+                        mostrar('Não consegui desfazer esta presença.', 'erro');
+                    }
+                });
+            });
+        } catch (erro) {
+            mostrar('Não consegui carregar a lista: ' + erro.message, 'erro');
+        }
+    }
+
+    document.getElementById('ligar-camera').addEventListener('click', ligarCamera);
+
+    document.getElementById('confirmar-codigo').addEventListener('click', async () => {
+        const campo = document.getElementById('codigo');
+        const valor = campo.value.trim();
+        if (!valor) return;
+        const deu = await registrar({ codigo: valor });
+        if (deu) campo.value = '';
+    });
+
+    document.getElementById('codigo').addEventListener('keydown', (evento) => {
+        if (evento.key === 'Enter') {
+            evento.preventDefault();
+            document.getElementById('confirmar-codigo').click();
+        }
+    });
+
+    carregarLista();
+</script>
+{% endblock scripts %}

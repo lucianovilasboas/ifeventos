@@ -392,3 +392,22 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 # ACCOUNT_ADAPTER = "eventos.adapters.CustomAccountAdapter"
 
+
+
+# ---------------------------------------------------------------------------
+# Confirmação de presença (crachá e QR da atividade)
+# ---------------------------------------------------------------------------
+
+# Janela em que a presença pode ser confirmada: abre antes da atividade começar
+# e fecha depois de acabar. É o que impede o QR da atividade (que é público) de
+# valer para sempre — foto compartilhada fora da janela não confirma nada.
+# Ajustável por ambiente, sem tocar no código.
+PRESENCA_MARGEM_ANTES_MINUTOS = config("PRESENCA_MARGEM_ANTES_MINUTOS", default=30, cast=int)
+PRESENCA_MARGEM_DEPOIS_HORAS = config("PRESENCA_MARGEM_DEPOIS_HORAS", default=2, cast=int)
+
+# Validade do código que vai dentro do QR da atividade, em segundos. A tela do
+# organizador regenera o código nesse intervalo, então uma foto que circulou
+# deixa de funcionar. Curto demais atrapalha quem escaneia e ainda precisa
+# entrar na conta antes de confirmar.
+PRESENCA_QR_VALIDADE_SEGUNDOS = config("PRESENCA_QR_VALIDADE_SEGUNDOS", default=300, cast=int)
+PRESENCA_QR_INTERVALO_RENOVACAO = config("PRESENCA_QR_INTERVALO_RENOVACAO", default=120, cast=int)

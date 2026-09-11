@@ -25,8 +25,11 @@
                 <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" class="btn btn-sm btn-success btn-icon" title="Lista de Presença">
                     <i class="fa-solid fa-list-check"></i>
                 </a>
-                <a href="{% url 'eventos:gerar_qr_code_atividade' atividade.id %}" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de Confirmação de Presença">
+                <a href="{% url 'organizador:qrcode_atividade' atividade.id %}" class="btn btn-sm btn-outline-success btn-icon" title="QR de presença (mostrar para a turma)">
                     <i class="fa-solid fa-qrcode"></i>
+                </a>
+                <a href="{% url 'organizador:checkin_atividade' atividade.id %}" class="btn btn-sm btn-outline-success btn-icon" title="Check-in lendo os crachás pela câmera">
+                    <i class="fa-solid fa-camera"></i>
                 </a>
                 <button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="{{ atividade.id }}">
                     🎓
@@ -71,8 +74,11 @@
                             <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" title="Lista de Presença" class="btn btn-success btn-sm">
                                 <i class="fa-solid fa-list-check"></i>
                             </a>
-                            <a href="{% url 'eventos:gerar_qr_code_atividade' atividade.id %}" title="QR Code de Confirmação de Presença" class="btn btn-dark btn-sm" target="_blank">
+                            <a href="{% url 'organizador:qrcode_atividade' atividade.id %}" title="QR de presença (mostrar para a turma)" class="btn btn-outline-success btn-sm">
                                 <i class="fa-solid fa-qrcode"></i>
+                            </a>
+                            <a href="{% url 'organizador:checkin_atividade' atividade.id %}" title="Check-in lendo os crachás pela câmera" class="btn btn-outline-success btn-sm">
+                                <i class="fa-solid fa-camera"></i>
                             </a>
                             <span><i class="fa-solid fa-circle"></i></span>
                             <button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="{{ atividade.id }}">
