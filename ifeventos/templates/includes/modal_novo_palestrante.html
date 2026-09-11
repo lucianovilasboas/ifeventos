@@ -7,7 +7,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <form id="formPalestrante" action="{% url 'organizador:adicionar_palestrante' %}">
+                <form id="formPalestrante" method="POST" enctype="multipart/form-data" action="{% url 'organizador:adicionar_palestrante' %}">
                     {% csrf_token %}
                     <div class="row g-3">
                         <div class="col-12">

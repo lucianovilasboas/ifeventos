@@ -210,7 +210,9 @@ def criar_atividade(request):
     evento_id = request.POST.get('evento') # Recupera o id do evento via POST
     evento = get_object_or_404(Evento, id=evento_id)
     if request.method == "POST":
-        form = AtividadeForm(request.POST)
+        # request.FILES é indispensável: sem ele o navegador envia a imagem e o
+        # Django simplesmente ignora o arquivo, gravando a atividade sem foto.
+        form = AtividadeForm(request.POST, request.FILES)
         if form.is_valid():
             atividade = form.save(commit=False)
             atividade.evento = evento # Garante que o evento está correto
@@ -282,7 +284,9 @@ def editar_atividade(request, atividade_id):
     evento = atividade.evento
 
     if request.method == "POST":
-        form = AtividadeForm(request.POST, instance=atividade)
+        # Mesmo caso do criar_atividade: sem request.FILES a imagem enviada é
+        # descartada e a atividade continua com a imagem antiga (ou sem nenhuma).
+        form = AtividadeForm(request.POST, request.FILES, instance=atividade)
         if form.is_valid():
             form.save()
             messages.success(request, "Atividade atualizada com sucesso!")

@@ -7,7 +7,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <form id="eventoForm" method="POST" action="{% url 'organizador:criar_evento' %}">
+                <form id="eventoForm" method="POST" enctype="multipart/form-data" action="{% url 'organizador:criar_evento' %}">
                     {% csrf_token %}
                     <div class="row g-3">
                         <div class="col-md-6">
