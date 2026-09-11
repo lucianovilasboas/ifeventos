@@ -726,3 +726,120 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
   .cards-mobile { display: none !important; }
   .table-wrap { display: block !important; }
 }
+
+
+/* ---------- Formulário de atividade ----------
+   Seções nomeadas no lugar de linhas divisórias sem nome, o evento como
+   contexto no topo (não como campo), a lista de palestrantes rolando dentro
+   da própria caixa e a prévia da imagem inteira em 16:9. */
+.ativ-sec {
+  border-top: 2px solid var(--border);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+}
+.ativ-sec:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+
+.ativ-sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: var(--space-4); }
+.ativ-sec-head h3 { font-size: var(--text-lg); font-weight: 800; color: var(--fg-strong); margin: 0; }
+.ativ-sec-head span { font-size: var(--text-sm); color: var(--muted); }
+
+.ativ-contexto {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 10px var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  margin-bottom: var(--space-4);
+}
+.ativ-contexto i { color: var(--accent-ink); }
+.ativ-contexto b { color: var(--fg-strong); }
+.ativ-contexto-data { color: var(--muted); font-family: var(--font-mono); font-size: var(--text-xs); }
+
+.ativ-req { color: var(--danger); font-weight: 800; }
+
+/* Atalho de cadastro rápido ("+ novo"), que vive no rótulo do campo.
+   Discreto de propósito: antes era um botão verde sólido, com o mesmo peso
+   do botão que salva o formulário. */
+.ativ-add {
+  display: inline-flex; align-items: center; gap: 5px;
+  cursor: pointer; font-family: var(--font-mono);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--accent-ink); background: var(--bg);
+  border: 2px solid var(--border); border-radius: var(--radius-pill);
+  padding: 2px 9px; text-decoration: none; line-height: 1.6;
+}
+.ativ-add:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+
+/* Rótulo e o botão de cadastro rápido na mesma linha */
+.ativ-label-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.ativ-label-row .form-label { margin-bottom: 0; }
+
+/* Lista de palestrantes: select múltiplo com altura fixa (rola dentro da
+   caixa em vez de esticar o formulário quando há muitos nomes) */
+.ativ-lista { max-width: 100%; }
+.ativ-lista select { width: 100%; }
+.ativ-lista .errorlist { list-style: none; padding: 0; margin: 6px 0 0; color: var(--danger); font-size: var(--text-sm); }
+
+.ativ-switch { display: flex; align-items: center; gap: 10px; min-height: 38px; }
+.ativ-switch .form-check-input { margin: 0; width: 2.6em; height: 1.4em; flex: 0 0 auto; }
+.ativ-switch .form-check-input:checked { background-color: var(--accent-ink); border-color: var(--accent-ink); }
+
+/* Bloco da imagem: é o único elemento da seção, então fica centralizado —
+   prévia e botão empilhados na mesma coluna, sem nada para encostar. */
+.ativ-imagem {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--space-3); text-align: center;
+}
+
+/* Campo de arquivo oculto: quem o aciona é o botão "Escolher imagem".
+   Segue no formulário (o POST precisa dele), apenas fora de vista. */
+.ativ-file-oculto {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Prévia da imagem: 16:9 e imagem inteira (antes quadrada, com object-fit
+   cover, o que cortava as laterais de qualquer banner) */
+.ativ-thumb {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 16 / 9;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  display: grid; place-items: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+.ativ-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.ativ-info {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-4);
+  font-size: var(--text-sm);
+}
+.ativ-info i { color: var(--accent-ink); }
+.ativ-info b { color: var(--fg-strong); }
+.ativ-info-extra { color: var(--muted); }
+.ativ-info-nota { margin-left: auto; color: var(--muted); font-size: var(--text-xs); }
+
+/* Rodapé de ações: secundárias à esquerda, primária à direita */
+.ativ-acoes {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); flex-wrap: wrap;
+  border-top: 2px solid var(--border);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+}
+
+@media (max-width: 640px) {
+  .ativ-info-nota { margin-left: 0; }
+  .ativ-acoes { flex-direction: column-reverse; align-items: stretch; }
+}

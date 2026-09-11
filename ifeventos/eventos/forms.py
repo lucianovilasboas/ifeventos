@@ -107,49 +107,74 @@ class EventoForm(forms.ModelForm):
 
 
 class AtividadeForm(forms.ModelForm):
-    
+    """Formulário de criação/edição de atividade.
+
+    Diferenças em relação ao formato antigo, todas deliberadas:
+      - `evento` saiu do formulário: o evento vem da URL e a view força o
+        vínculo ao salvar, então o campo só ocupava espaço e podia ser
+        trocado sem efeito algum;
+      - `n_inscricoes` saiu: o save() do model recalcula esse número a partir
+        das inscrições, ou seja, o que se digitava era descartado;
+      - `emite_certificado` entrou: o campo existe no model e a página pública
+        mostra "Emite certificado/Sem certificado", mas não havia onde marcá-lo
+        (todas as atividades ficavam sem certificado).
+    """
+
+    # `tipo` e `palestrantes` são declarados aqui (não vêm do model), então o
+    # Meta.labels não os alcança: o rótulo precisa ser dado no próprio campo.
     tipo = forms.ModelChoiceField(
         queryset=TipoAtividade.objects.all(),
-        widget=forms.Select(attrs={'class': 'form-control'}),
+        label='Tipo de atividade',
+        widget=forms.Select(attrs={'class': 'form-select'}),
         required=True
     )
-    
+
+    # Select múltiplo com altura fixa: mostra vários nomes de uma vez e rola
+    # dentro da caixa, em vez de esticar o formulário quando há muitos
+    # palestrantes cadastrados.
     palestrantes = forms.ModelMultipleChoiceField(
         queryset=Participante.objects.filter(is_palestrante=True),
-        widget=forms.SelectMultiple(attrs={'class': 'form-control'}),
+        label='Palestrantes',
+        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': 6}),
         required=True
     )
 
     class Meta:
         model = Atividade
-        fields = ['evento','titulo', 'descricao', 'tipo', 'palestrantes', 'data_hora_inicio', 'data_hora_fim', 'n_vagas', 'n_inscricoes', 'imagem']
+        fields = [
+            'titulo', 'descricao', 'tipo', 'palestrantes',
+            'data_hora_inicio', 'data_hora_fim', 'n_vagas',
+            'emite_certificado', 'imagem',
+        ]
+        labels = {
+            'titulo': 'Título',
+            'descricao': 'Descrição',
+            'data_hora_inicio': 'Início',
+            'data_hora_fim': 'Término',
+            'n_vagas': 'Vagas',
+            'emite_certificado': 'Emite certificado',
+            'imagem': 'Imagem',
+        }
         widgets = { 
-            'evento': forms.Select(attrs={'class': 'form-control'}),
-            'titulo': forms.TextInput(attrs={'class': 'form-control'}),
-            'descricao': forms.Textarea(attrs={'class': 'form-control','style': 'max-height: 100px; overflow-y: auto;'}),
-            'tipo': forms.Select(attrs={'class': 'form-control'}),
-            'palestrantes': forms.SelectMultiple(attrs={'class': 'form-control'}),
+            'titulo': forms.TextInput(attrs={'class': 'form-control',
+                'placeholder': 'Ex.: Palestra: Introdução à Pesquisa Científica'}),
+            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
+                'placeholder': 'O que vai acontecer, para quem e o que a pessoa leva de lá.'}),
             'data_hora_inicio': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'data_hora_fim': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
-            'n_vagas': forms.NumberInput(attrs={'class': 'form-control'}),
-            'n_inscricoes': forms.NumberInput(attrs={'class': 'form-control'}),
+            'n_vagas': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'emite_certificado': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
             'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        # Adicionando links de criação para novos palestrantes e tipos de atividades
-        add_palestrante_url = reverse_lazy('organizador:adicionar_palestrante')  # Substitua pelo nome correto da URL
-        add_tipo_url = reverse_lazy('organizador:adicionar_tipo_atividade')  # Substitua pelo nome correto da URL
-
-        self.fields['tipo'].widget.attrs['data-add-url'] = add_tipo_url
-        self.fields['palestrantes'].widget.attrs['data-add-url'] = add_palestrante_url
-
-        # Adicionando os botões HTML diretamente no formulário
-        self.fields['tipo'].label = mark_safe(f'Tipo de Atividade <a href="{add_tipo_url}" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTipoAtividade" style="margin: 2px; padding: 6px;" > <i class="fas fa-plus"></i></a>')
-        self.fields['palestrantes'].label = mark_safe(f'Palestrantes <a href="{add_palestrante_url}"  class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalPalestrante" style="margin: 2px; padding: 6px;"> <i class="fas fa-plus"></i></a>')
-
+    def clean(self):
+        """Impede término anterior ao início (nada validava isso antes)."""
+        dados = super().clean()
+        inicio = dados.get('data_hora_inicio')
+        fim = dados.get('data_hora_fim')
+        if inicio and fim and fim <= inicio:
+            self.add_error('data_hora_fim', 'O término precisa ser depois do início.')
+        return dados
 
 
 

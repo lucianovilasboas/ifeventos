@@ -263,8 +263,10 @@ def criar_editar_atividade(request, evento_id, atividade_id=None):
     else:
         form = AtividadeForm(instance=atividade)  # Preenche o form se for edição
 
-    form.fields['evento'].initial = evento  # Define o evento automaticamente
-    
+    # O campo `evento` saiu do formulário: o vínculo é garantido pelo
+    # `atividade.evento = evento` acima, e a tela mostra o evento como
+    # contexto no topo (antes o select podia ser trocado sem efeito).
+
     return render(request, 'organizador/form_atividade.html', {
         'form_ativ': form,
         'evento': evento,

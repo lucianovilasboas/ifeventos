@@ -33,133 +33,193 @@
             {% endif %}   
 
 
-            <form id="atividadeEventoForm" enctype="multipart/form-data" method="POST" >
+            <form id="atividadeEventoForm" enctype="multipart/form-data" method="POST">
                 {% csrf_token %}
-                
-                
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        {{ form_ativ.evento.label_tag }}
-                        {{ form_ativ.evento }}
-                    </div>
-                    <div class="col-md-6">
-                        {{ form_ativ.titulo.label_tag }}
-                        {{ form_ativ.titulo }}
-                    </div>
-                </div>                
 
-                
-
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        {{ form_ativ.descricao.label_tag }}
-                        {{ form_ativ.descricao }}
+                <!-- ===================== IDENTIFICAÇÃO ===================== -->
+                <section class="ativ-sec">
+                    <div class="ativ-sec-head">
+                        <h3>Identificação</h3>
+                        <span>o que a atividade é</span>
                     </div>
-                </div>
 
-                <hr class="mb-4">
+                    <div class="ativ-contexto">
+                        <i class="fa-solid fa-calendar-days"></i>
+                        Evento: <b>{{ evento.title }}</b>
+                        <span class="ativ-contexto-data">{{ evento.data_inicio|date:"d/m/Y" }} a {{ evento.data_fim|date:"d/m/Y" }}</span>
+                    </div>
 
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        {{ form_ativ.tipo.label_tag }}
-                        {{ form_ativ.tipo }}
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="id_titulo">
+                                {{ form_ativ.titulo.label }} <span class="ativ-req">*</span>
+                            </label>
+                            {{ form_ativ.titulo }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="id_descricao">{{ form_ativ.descricao.label }}</label>
+                            {{ form_ativ.descricao }}
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="gerarDescricao">
+                                    <i class="fa-solid fa-robot"></i>
+                                    {% if atividade %}Gerar nova descrição com IA{% else %}Gerar descrição com IA{% endif %}
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        {{ form_ativ.palestrantes.label_tag }}
-                        {{ form_ativ.palestrantes }}
-                    </div>
-                </div>
+                </section>
 
-                <hr class="mb-4">
+                <!-- ===================== PROGRAMAÇÃO ===================== -->
+                <section class="ativ-sec">
+                    <div class="ativ-sec-head">
+                        <h3>Programação</h3>
+                        <span>quando, com quem e quantas vagas</span>
+                    </div>
 
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        {{ form_ativ.data_hora_inicio.label_tag }}
-                        {{ form_ativ.data_hora_inicio }}
-                    </div>
-                    <div class="col-md-6">
-                        {{ form_ativ.data_hora_fim.label_tag }}
-                        {{ form_ativ.data_hora_fim }}
-                    </div>
-                </div>
+                    <div class="row g-3 align-items-start">
+                        <div class="col-md-6">
+                            <div class="ativ-label-row">
+                                <label class="form-label" for="id_tipo">
+                                    {{ form_ativ.tipo.label }} <span class="ativ-req">*</span>
+                                </label>
+                                <button type="button" class="ativ-add" data-bs-toggle="modal"
+                                        data-bs-target="#modalTipoAtividade" title="Cadastrar um tipo novo">
+                                    <i class="fas fa-plus"></i> novo
+                                </button>
+                            </div>
+                            {{ form_ativ.tipo }}
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="id_n_vagas">{{ form_ativ.n_vagas.label }}</label>
+                            {{ form_ativ.n_vagas }}
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="id_emite_certificado">{{ form_ativ.emite_certificado.label }}</label>
+                            <div class="form-check form-switch ativ-switch">
+                                {{ form_ativ.emite_certificado }}
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Marcada como “emite certificado”, a atividade mostra o selo na página pública do evento.</small>
+                        </div>
 
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        {{ form_ativ.n_vagas.label_tag }}
-                        {{ form_ativ.n_vagas }}
-                    </div>
-                    <div class="col-md-6">
-                        {{ form_ativ.n_inscricoes.label_tag }}
-                        {{ form_ativ.n_inscricoes }}
-                    </div>
-                </div>
+                        <div class="col-12">
+                            <div class="ativ-label-row">
+                                <label class="form-label" for="id_palestrantes">
+                                    {{ form_ativ.palestrantes.label }} <span class="ativ-req">*</span>
+                                </label>
+                                <button type="button" class="ativ-add" data-bs-toggle="modal"
+                                        data-bs-target="#modalPalestrante" title="Cadastrar um palestrante novo">
+                                    <i class="fas fa-plus"></i> novo
+                                </button>
+                            </div>
+                            <div class="ativ-lista">{{ form_ativ.palestrantes }}</div>
+                            <small class="text-muted d-block">Segure Ctrl (Windows) ou Cmd (Mac) para escolher mais de um nome.</small>
+                        </div>
 
-                <hr class="mb-4">
-
-                <!-- <div class="row mb-3">
-                    <div class="col-md-12">
-                        {{ form_ativ.imagem.label_tag }}
-                        {{ form_ativ.imagem }}
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_data_hora_inicio">
+                                {{ form_ativ.data_hora_inicio.label }} <span class="ativ-req">*</span>
+                            </label>
+                            {{ form_ativ.data_hora_inicio }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="id_data_hora_fim">
+                                {{ form_ativ.data_hora_fim.label }} <span class="ativ-req">*</span>
+                            </label>
+                            {{ form_ativ.data_hora_fim }}
+                            <small class="text-muted d-block">O término precisa ser depois do início.</small>
+                        </div>
                     </div>
-                </div> -->
-                
-                <!-- Image Upload -->
-                <div class="row mb-3">
-                    <div class="col-md-12 text-center">
-                        <label class="form-label"><i class="fa-solid fa-camera"></i> Imagem</label>
-                        <div class="mb-3">
+                </section>
+
+                {% if atividade %}
+                <!-- ===================== INSCRIÇÕES ===================== -->
+                <section class="ativ-sec">
+                    <div class="ativ-sec-head">
+                        <h3>Inscrições</h3>
+                        <span>acompanhamento</span>
+                    </div>
+                    <div class="ativ-info">
+                        <i class="fa-solid fa-users"></i>
+                        <b>{{ atividade.n_inscricoes }}</b> inscrito(s) de <b>{{ atividade.n_vagas }}</b> vagas
+                        <span class="ativ-info-extra">· {{ atividade.vagas_disponiveis }} disponíveis</span>
+                        <span class="ativ-info-nota">o número de inscritos é contado pelo sistema — não é digitado</span>
+                    </div>
+                </section>
+                {% endif %}
+
+                <!-- ===================== IMAGEM ===================== -->
+                <section class="ativ-sec">
+                    <div class="ativ-sec-head">
+                        <h3>Imagem</h3>
+                        <span>opcional · aparece no card do evento</span>
+                    </div>
+
+                    <div class="ativ-imagem">
+                        <div class="ativ-thumb">
                             {% if form_ativ.instance.imagem %}
-                            <img id="preview-image" src="{{ form_ativ.instance.imagem.url }}" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
+                            <img id="preview-image" src="{{ form_ativ.instance.imagem.url }}" alt="Pré-visualização da imagem da atividade">
                             {% else %}
-                            <img id="preview-image" src="/media/campus-ponte-nova.jpg" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
+                            <img id="preview-image" src="/media/campus-ponte-nova.jpg" alt="Pré-visualização da imagem da atividade">
                             {% endif %}
                         </div>
-                        <input type="file" id="id_imagem" name="imagem" class="form-control mt-2" accept="image/*">
+
+                        <div class="ativ-imagem-acoes">
+                            <button type="button" class="btn btn-outline-secondary" id="escolherImagem">
+                                <i class="fa-solid fa-image"></i>
+                                {% if form_ativ.instance.imagem %}Trocar imagem{% else %}Escolher imagem{% endif %}
+                            </button>
+                        </div>
+
+                        <!-- O campo de arquivo fica oculto: quem o abre é o botão acima.
+                             Continua no formulário para enviar o arquivo no POST. -->
+                        <input type="file" id="id_imagem" name="imagem" class="ativ-file-oculto" accept="image/*"
+                               tabindex="-1" aria-hidden="true">
                         <!-- Campo escondido para imagem cortada -->
                         <input type="hidden" name="cropped_image" id="cropped-image-input">
-                        
-                        <!-- Modal para Cropper -->
-                        <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true">
-                            <div class="modal-dialog modal-lg modal-dialog-centered">
-                            <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="cropperModalLabel">Cortar Imagem</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+
+                        <small class="text-muted">A pré-visualização mostra a imagem inteira (16:9), sem cortar.</small>
+                    </div>
+
+                    <!-- Modal para Cropper -->
+                    <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="cropperModalLabel">Cortar Imagem</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <div>
+                                <img id="image-to-crop" style="max-width: 100%;">
                             </div>
-                            <div class="modal-body text-center">
-                                <div>
-                                    <img id="image-to-crop" style="max-width: 100%;">
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="button" class="btn btn-app" id="crop-button">Cortar e Usar</button>
-                            </div>
-                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-app" id="crop-button">Cortar e Usar</button>
                         </div>
                         </div>
                     </div>
-                </div>
+                    </div>
+                </section>
 
-
-
-                
-                
-                <!-- {{ form_ativ.as_p }} -->
-
-
-
-                <button type="button" class="btn btn-outline-secondary" id="gerarDescricao">
-                    {% if atividade %}
-                    <i class="fa-solid fa-robot"></i> Gerar Nova Descrição
-                    {% else %}
-                    <i class="fa-solid fa-robot"></i> Gerar Descrição 
-                    {% endif %}
-                </button>
-
-                <div class="text-end mt-4">
+                <!-- ===================== AÇÕES ===================== -->
+                <div class="ativ-acoes">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-outline-secondary">
+                            <i class="fa-solid fa-xmark"></i> Cancelar
+                        </a>
+                        {% if atividade %}
+                        <a href="{% url 'organizador:excluir_atividade' atividade.id %}" class="btn btn-outline-danger"
+                           onclick="return confirm('Tem certeza que deseja excluir esta atividade?');">
+                            <i class="fa-solid fa-trash"></i> Excluir
+                        </a>
+                        {% endif %}
+                    </div>
                     <button type="submit" class="btn btn-app">
-                        {% if atividade %}Salvar Alterações{% else %}Criar Atividade{% endif %}
+                        <i class="fa-solid fa-check"></i>
+                        {% if atividade %}Salvar atividade{% else %}Criar atividade{% endif %}
                     </button>
                 </div>
 
@@ -287,6 +347,7 @@
             .then(data => {
                 console.log(data);
                 if (data.success) {
+                    // Insere o palestrante recém-criado já selecionado na lista.
                     let select = document.getElementById("id_palestrantes");
                     if(select){
                         let option = new Option(data.nome, data.id, true, true);
@@ -349,10 +410,14 @@
 
 
 
-       // Permite clicar na imagem para selecionar o arquivo
-       document.getElementById('preview-image').addEventListener('click', function () {
-            document.getElementById('id_imagem').click();
-        });
+       // Um único alvo para escolher o arquivo: o botão (antes a própria
+       // pré-visualização também abria o seletor, duplicando a ação).
+       let botaoEscolherImagem = document.getElementById('escolherImagem');
+        if (botaoEscolherImagem) {
+            botaoEscolherImagem.addEventListener('click', function () {
+                document.getElementById('id_imagem').click();
+            });
+        }
 
 
         let cropper;
