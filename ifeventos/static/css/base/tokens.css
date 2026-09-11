@@ -48,6 +48,17 @@
   --accent-soft: #e8f5ea;     /* 4.86:1 com --accent-ink */
   --accent-on: #ffffff;
 
+  /* ---------- verde oliva: capa de evento sem imagem ----------
+     Usado quando o evento não tem foto cadastrada. Preenche apenas a
+     faixa da capa do card; o texto do card continua sobre --bg, então
+     nenhum contraste de leitura depende destes tons. */
+  --olive-900: #3f4d1e;
+  --olive-700: #4e5f24;
+  --olive-500: #6b8235;
+  --olive-400: #7d9440;
+  --olive-300: #a3b56b;
+  --cover-fallback: linear-gradient(135deg, var(--olive-700) 0%, var(--olive-500) 55%, var(--olive-400) 100%);
+
   /* ---------- semânticas ---------- */
   --success: var(--accent-ink);
   --success-soft: var(--accent-soft);

@@ -118,18 +118,23 @@
                 <div class="landing-grid" id="grades">
                     {% for ev in eventos %}
                     <article class="landing-card" data-cat="{{ ev.categoria }}" data-titulo="{{ ev.title|lower }}" tabindex="0" data-evento="{{ ev.id }}">
-                        <div class="lcard-top">
-                            <div class="lcard-date">
-                                <strong>{{ ev.data_inicio|date:"d" }}</strong>
-                                <span>{{ ev.data_inicio|date:"M" }}</span>
-                            </div>
-                            <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                        <div class="lcard-cover{% if not ev.imagem %} lcard-cover--fallback{% endif %}">
+                            {% if ev.imagem %}<img src="{{ ev.imagem.url }}" alt="Imagem do evento {{ ev.title }}" loading="lazy" decoding="async">{% endif %}
                         </div>
-                        <h3>{{ ev.title }}</h3>
-                        <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
-                        <div class="lcard-foot">
-                            <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
-                            <button class="lcard-link" type="button" data-abrir="{{ ev.id }}">Ver detalhes →</button>
+                        <div class="lcard-body">
+                            <div class="lcard-top">
+                                <div class="lcard-date">
+                                    <strong>{{ ev.data_inicio|date:"d" }}</strong>
+                                    <span>{{ ev.data_inicio|date:"M" }}</span>
+                                </div>
+                                <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                            </div>
+                            <h3>{{ ev.title }}</h3>
+                            <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
+                            <div class="lcard-foot">
+                                <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
+                                <button class="lcard-link" type="button" data-abrir="{{ ev.id }}">Ver detalhes →</button>
+                            </div>
                         </div>
                     </article>
                     {% empty %}
@@ -152,18 +157,23 @@
                 <div class="landing-grid" style="margin-top:24px;">
                     {% for ev in encerrados %}
                     <article class="landing-card">
-                        <div class="lcard-top">
-                            <div class="lcard-date">
-                                <strong>{{ ev.data_inicio|date:"d" }}</strong>
-                                <span>{{ ev.data_inicio|date:"M" }}</span>
-                            </div>
-                            <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                        <div class="lcard-cover{% if not ev.imagem %} lcard-cover--fallback{% endif %}">
+                            {% if ev.imagem %}<img src="{{ ev.imagem.url }}" alt="Imagem do evento {{ ev.title }}" loading="lazy" decoding="async">{% endif %}
                         </div>
-                        <h3>{{ ev.title }}</h3>
-                        <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
-                        <div class="lcard-foot">
-                            <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
-                            <a class="lcard-link" href="{% url 'eventos:programacao' ev.id %}">Ver detalhes →</a>
+                        <div class="lcard-body">
+                            <div class="lcard-top">
+                                <div class="lcard-date">
+                                    <strong>{{ ev.data_inicio|date:"d" }}</strong>
+                                    <span>{{ ev.data_inicio|date:"M" }}</span>
+                                </div>
+                                <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                            </div>
+                            <h3>{{ ev.title }}</h3>
+                            <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
+                            <div class="lcard-foot">
+                                <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
+                                <a class="lcard-link" href="{% url 'eventos:programacao' ev.id %}">Ver detalhes →</a>
+                            </div>
                         </div>
                     </article>
                     {% endfor %}

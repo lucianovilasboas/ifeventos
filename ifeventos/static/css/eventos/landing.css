@@ -305,13 +305,37 @@
   min-height: 224px;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 0;
+  overflow: hidden;
   border: 2px solid var(--border);
   border-bottom-width: 4px;
   border-radius: var(--radius-md);
   background: var(--bg);
   cursor: pointer;
   transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast);
+}
+
+/* Capa do card: foto do evento. Sem foto, entra o degradê verde oliva.
+   Ocupa a largura toda, acima da caixa de data e do tema. */
+.lcard-cover {
+  height: 120px;
+  flex: 0 0 auto;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+.lcard-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lcard-cover--fallback { background: var(--cover-fallback); }
+
+.lcard-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 20px;
 }
 .landing-card:hover,
 .landing-card:focus-visible {
@@ -390,6 +414,8 @@
   border: none;
   padding: 0;
   cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .lcard-link:hover { color: var(--accent-ink); }
 
