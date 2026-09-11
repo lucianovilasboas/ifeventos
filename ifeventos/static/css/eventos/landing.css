@@ -631,6 +631,11 @@ body.is-locked { overflow: hidden; }
   /* Ativa a bottom nav no mobile (fixa embaixo) */
   .landing-bottomnav { display: flex; }
 
+  /* Rótulo curto: em 360px "Organizador"/"Certificados" não cabem em 1/5 da
+     largura e apareciam cortados ("PARTICIPAN…"/"CERTIFICAD…"). */
+  .landing-bottomnav .nav-rotulo { display: none; }
+  .landing-bottomnav .nav-rotulo-curto { display: inline; }
+
   .landing-header .landing-inner { min-height: 64px; }
   .landing-hero { padding: 48px 0 32px; }
   .landing-hero h1 { font-size: 42px; }

@@ -126,6 +126,9 @@ class AtividadeForm(forms.ModelForm):
         queryset=TipoAtividade.objects.all(),
         label='Tipo de atividade',
         widget=forms.Select(attrs={'class': 'form-select'}),
+        # Sem empty_label o select abria com "---------", que não diz o que
+        # escolher (era o estado inicial de toda atividade nova).
+        empty_label='Selecione o tipo…',
         required=True
     )
 
@@ -157,7 +160,7 @@ class AtividadeForm(forms.ModelForm):
         }
         widgets = { 
             'titulo': forms.TextInput(attrs={'class': 'form-control',
-                'placeholder': 'Ex.: Palestra: Introdução à Pesquisa Científica'}),
+                'placeholder': 'Ex.: Oficina de fotografia'}),
             'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
                 'placeholder': 'O que vai acontecer, para quem e o que a pessoa leva de lá.'}),
             'data_hora_inicio': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),

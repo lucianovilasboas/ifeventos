@@ -133,6 +133,11 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 # Expõe SITE_URL e SOCKET_URL nos templates (configuráveis por env)
                 "eventos.context_processors.deployment",
+                # `?v=` dos CSS/JS calculado a partir dos arquivos (evita o
+                # navegador servir CSS antigo por um ano depois do deploy)
+                "eventos.context_processors.assets",
+                # Formulário do modal "Editar Perfil" em todas as telas internas
+                "eventos.context_processors.perfil_form",
             ],
         },
     },

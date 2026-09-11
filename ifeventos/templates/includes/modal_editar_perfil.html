@@ -1,6 +1,18 @@
-    <!-- Modal de Edição de Perfil -->
+    {# Modal de Edição de Perfil #}
+    {% comment %}
+      O formulário vem do context processor `perfil_form`
+      (eventos/context_processors.py): este modal é incluído em todas as telas
+      internas pelo dashboard_base.html, e antes só as views de dashboard
+      passavam o formulário — nas outras telas os campos apareciam vazios, só
+      com os ícones dos rótulos.
+    {% endcomment %}
     <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
+        {% comment %}
+          Em telas de celular o modal ocupa a janela inteira: com 8 campos ele passa
+          de 900px de altura e não caberia na tela, deixando o botão salvar fora de vista.
+          A classe abaixo e as regras de #editProfileModal em app/main.css cuidam disso.
+        {% endcomment %}
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-md-down">
             <div class="modal-content" style="border:0;border-radius:18px;box-shadow:var(--app-shadow)">
                 <!-- Cabeçalho do Modal -->
                 <div class="modal-header" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo));color:#fff;border:0;border-radius:18px 18px 0 0">
@@ -12,25 +24,28 @@
 
                 <!-- Corpo do Modal -->
                 <div class="modal-body">
-                    <form method="post" enctype="multipart/form-data" novalidate
+                    <form method="post" enctype="multipart/form-data" novalidate id="perfilForm"
                           action="{% if request.user.is_organizador %}{% url 'organizador:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}">
                         {% csrf_token %}
 
-                        {% if form.non_field_errors %}
+                        {% if perfil_form.non_field_errors %}
                         <div class="alert alert-danger py-2">
-                            {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+                            {% for error in perfil_form.non_field_errors %}{{ error }}{% endfor %}
                         </div>
                         {% endif %}
 
                         <!-- Foto de Perfil -->
                         <div class="text-center mb-4">
                             <label class="form-label d-block"><i class="fa-solid fa-camera"></i> Foto de Perfil</label>
-                            <div class="profile-avatar-wrap mx-auto" onclick="document.getElementById('profile_foto').click()" title="Clique para trocar a foto" role="button">
+                            <div class="profile-avatar-wrap mx-auto" onclick="document.getElementById('profile_foto').click()" title="Trocar a foto" role="button">
                                 <img id="profile-preview" src="{{ request.user.get_foto_url }}" alt="Foto de perfil">
                                 <span class="profile-avatar-overlay"><i class="fa-solid fa-camera"></i></span>
                             </div>
                             <input type="file" id="profile_foto" name="foto" class="d-none" accept="image/*" onchange="previewProfilePhoto(event)">
-                            <div class="form-text mt-1">Clique na foto para selecionar uma nova imagem.</div>
+                            <div class="form-text mt-1">
+                                <span class="d-none d-md-inline">Clique na foto para selecionar uma nova imagem.</span>
+                                <span class="d-md-none">Toque na foto para selecionar uma nova imagem.</span>
+                            </div>
                         </div>
 
                         <!-- Nome -->
@@ -39,17 +54,17 @@
                                 <label class="form-label" for="id_first_name">Primeiro Nome</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
-                                    {{ form.first_name }}
+                                    {{ perfil_form.first_name }}
                                 </div>
-                                {% for error in form.first_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                                {% for error in perfil_form.first_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label" for="id_last_name">Último Nome</label>
+                                <label class="form-label" for="id_last_name">Sobrenome</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
-                                    {{ form.last_name }}
+                                    {{ perfil_form.last_name }}
                                 </div>
-                                {% for error in form.last_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                                {% for error in perfil_form.last_name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
 
                             <!-- Conta -->
@@ -57,17 +72,17 @@
                                 <label class="form-label" for="id_username">Usuário</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fa-solid fa-user-tag"></i></span>
-                                    {{ form.username }}
+                                    {{ perfil_form.username }}
                                 </div>
-                                {% for error in form.username.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                                {% for error in perfil_form.username.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="id_email">E-mail</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
-                                    {{ form.email }}
+                                    {{ perfil_form.email }}
                                 </div>
-                                {% for error in form.email.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                                {% for error in perfil_form.email.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
 
                             <!-- Dados pessoais -->
@@ -75,17 +90,17 @@
                                 <label class="form-label" for="id_cpf">CPF</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fa-solid fa-id-card"></i></span>
-                                    {{ form.cpf }}
+                                    {{ perfil_form.cpf }}
                                 </div>
-                                {% for error in form.cpf.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                                {% for error in perfil_form.cpf.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="id_telefone">Telefone</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fa-solid fa-phone"></i></span>
-                                    {{ form.telefone }}
+                                    {{ perfil_form.telefone }}
                                 </div>
-                                {% for error in form.telefone.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                                {% for error in perfil_form.telefone.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
 
                             <!-- Endereço -->
@@ -93,9 +108,9 @@
                                 <label class="form-label" for="id_endereco">Endereço</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fa-solid fa-map-location-dot"></i></span>
-                                    {{ form.endereco }}
+                                    {{ perfil_form.endereco }}
                                 </div>
-                                {% for error in form.endereco.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                                {% for error in perfil_form.endereco.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
                         </div>
 
@@ -107,16 +122,21 @@
                             </a>
                         </div>
 
-                        <!-- BOTÕES -->
-                        <div class="d-flex justify-content-end gap-2 mt-4">
-                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                                <i class="fa-solid fa-xmark"></i> Fechar
-                            </button>
-                            <button type="submit" class="btn btn-app">
-                                <i class="fa-solid fa-save"></i> Salvar Alterações
-                            </button>
-                        </div>
+                        <!-- BOTÕES saíram daqui: ficam no rodapé do modal
+                             (modal-footer), sempre visíveis mesmo com o corpo
+                             rolando. O botão de salvar aponta para o formulário
+                             pelo atributo form="perfilForm". -->
                     </form>
+                </div>
+
+                <!-- Rodapé do Modal -->
+                <div class="modal-footer" style="border-top:2px solid var(--border)">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        <i class="fa-solid fa-xmark"></i> Fechar
+                    </button>
+                    <button type="submit" form="perfilForm" class="btn btn-app">
+                        <i class="fa-solid fa-save"></i> Salvar Alterações
+                    </button>
                 </div>
             </div>
         </div>

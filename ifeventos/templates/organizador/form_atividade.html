@@ -114,7 +114,9 @@
                                 </button>
                             </div>
                             <div class="ativ-lista">{{ form_ativ.palestrantes }}</div>
-                            <small class="text-muted d-block">Segure Ctrl (Windows) ou Cmd (Mac) para escolher mais de um nome.</small>
+                            {# A instrução depende do aparelho: no celular não existe Ctrl/Cmd #}
+                            <small class="text-muted d-none d-md-block">Segure Ctrl (Windows) ou Cmd (Mac) para escolher mais de um nome.</small>
+                            <small class="text-muted d-md-none">Toque nos nomes para marcar mais de um.</small>
                         </div>
 
                         <div class="col-md-6">

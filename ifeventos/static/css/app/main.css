@@ -349,6 +349,12 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 .app-bottomnav a.active { color: var(--accent-ink); background: var(--accent-soft); }
 .app-bottomnav a .foto { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
 
+/* Rótulo curto, usado só na bottom nav: em um aparelho de 360px cada item tem
+   ~70px e "Participante"/"Certificados" (77px na fonte mono de 10px) saíam
+   cortados no meio da palavra ("PARTICIPAN…"). O rótulo completo continua no
+   topo em telas grandes, onde há espaço. */
+.nav-rotulo-curto { display: none; }
+
 /* ---------- Cards padrão ---------- */
 .event-card {
   border-radius: var(--radius-md) !important;
@@ -576,6 +582,24 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 @media (max-width: 991.98px) {
   body { padding-bottom: 84px; }
   .app-bottomnav { display: flex; }
+
+  /* Na bottom nav vale o rótulo curto (ver .nav-rotulo-curto acima) */
+  .app-bottomnav .nav-rotulo { display: none; }
+  .app-bottomnav .nav-rotulo-curto { display: inline; }
+
+  /* A alça de redimensionamento do textarea é comportamento de desktop (vem
+     do Bootstrap, `resize: vertical`): com o dedo ela só atrapalha e deixa a
+     caixa com aparência de rascunho. */
+  textarea.form-control { resize: none; }
+
+  /* Modal "Editar Perfil" em tela cheia: com 8 campos ele passa de 900px de
+     altura e, centrado, ficava maior que a tela — o botão Salvar caía abaixo
+     da dobra. Em tela cheia o corpo rola e o rodapé com as ações fica fixo. */
+  #editProfileModal .modal-dialog { margin: 0; max-width: 100%; height: 100%; }
+  #editProfileModal .modal-content { height: 100%; border-radius: 0 !important; }
+  #editProfileModal .modal-header { border-radius: 0 !important; }
+  #editProfileModal .modal-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #editProfileModal .modal-footer { border-radius: 0 !important; background: var(--bg); }
 }
 
 @media (min-width: 992px) {
