@@ -1,5 +1,6 @@
 from django import forms
 from .models import Evento, Participante, TipoAtividade
+from .models import sem_acento, categorias_conhecidas
 from .models import Atividade
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
@@ -9,18 +10,57 @@ from django.utils.safestring import mark_safe
 # -- Formulário para criação de evento --
 
 class EventoForm(forms.ModelForm):
+    # Categoria (é o "tema" que a landing usa nos filtros por assunto).
+    # Campo de TEXTO com lista de sugestões (o `datalist` é montado no
+    # template): o organizador escolhe uma categoria existente ou escreve uma
+    # nova, que passa a existir no banco e ganha filtro próprio na landing.
+    categoria = forms.CharField(
+        label="Categoria",
+        required=True,
+        max_length=60,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "list": "listaCategorias",
+            "autocomplete": "off",
+            "placeholder": "Escolha uma categoria ou escreva uma nova",
+        }),
+    )
+
     class Meta:
         model = Evento
-        fields = ['title', 'description', 'data_inicio', 'data_fim', 'local', 'imagem']
+        fields = ['title', 'description', 'data_inicio', 'data_fim', 'local', 'categoria', 'imagem']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control','style': 'max-height: 100px; overflow-y: auto;'}),
             'data_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'data_fim': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'local': forms.TextInput(attrs={'class': 'form-control'}),
-            'organizador': forms.Select(attrs={'class': 'form-control'}),
             'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Sugestões do datalist: lista-semente + categorias já criadas.
+        self.categorias_sugeridas = categorias_conhecidas()
+        # Ao editar, o campo mostra o rótulo amigável em vez do valor interno
+        # (ex.: "Tecnologia" no lugar de "tecnologia").
+        if getattr(self.instance, "pk", None):
+            self.initial["categoria"] = self.instance.get_categoria_display()
+
+    def clean_categoria(self):
+        """Normaliza a categoria informada.
+
+        Quando o texto corresponde a uma categoria já conhecida, grava o valor
+        canônico (comparação sem acento e sem caixa). Sem isso, "Robotica"
+        digitado viraria um filtro separado de "Robótica" na landing.
+        """
+        texto = " ".join((self.cleaned_data.get("categoria") or "").split())
+        if not texto:
+            raise forms.ValidationError("Informe a categoria do evento.")
+        for valor, rotulo in categorias_conhecidas():
+            if sem_acento(texto) in (sem_acento(valor), sem_acento(rotulo)):
+                return valor
+        return texto[:60]
 
 
 # class EventoForm(forms.ModelForm):

@@ -1,4 +1,5 @@
 import json
+import re
 import openai
 import datetime
 from django.conf import settings
@@ -9,6 +10,8 @@ from django.core.cache import cache
 from django.utils.timezone import now
 from asgiref.sync import sync_to_async
 import socketio
+
+from .models import sem_acento
 
 
 
@@ -155,6 +158,206 @@ async def gerar_conteudo_ajax(request):
     return JsonResponse({"error": "Método inválido."}, status=400)
 
 
+# -- Sugestão de categoria (tema) de um evento --
+# -- Adicionado por Luciano Vilas Boas --
+
+# Modelo usado só para classificar. A descrição do evento usa gpt-4o; para
+# escolher/propor um tema, o mini é suficiente, mais rápido e mais barato.
+CATEGORIA_MODELO = "gpt-4o-mini"
+
+# Quantas sugestões devolver no máximo (o usuário pediu "duas ou três").
+CATEGORIA_MAX_SUGESTOES = 3
+
+# Palavras-chave da rede de segurança, usadas quando a IA não responde.
+# Só reconhecem categorias da lista-semente e só quando há evidência no texto:
+# a heurística NUNCA inventa um tema novo.
+CATEGORIA_PALAVRAS = {
+    "formacao": [
+        "curso", "formacao", "capacitacao", "oficina", "treinamento", "workshop",
+        "palestra", "aula", "minicurso", "ensino", "aprendizagem", "extensao",
+    ],
+    "ciencia": [
+        "ciencia", "cientific", "pesquisa", "snct", "laboratorio", "experimento",
+        "academi", "iniciacao cientifica", "divulgacao cientifica",
+    ],
+    "tecnologia": [
+        "tecnologia", "programacao", "software", "hardware", "dados",
+        "inteligencia artificial", "llm", "mcp", "python", "html", "css",
+        "javascript", "robotica", "computacao", "rede", "codigo", "sistema", "api",
+    ],
+    "cultura": [
+        "cultura", "musica", "teatro", "arte", "danca", "exposicao", "cinema",
+        "festival", "literatura", "poesia", "sarau", "patrimonio",
+    ],
+    "outros": [],
+}
+
+
+def limpar_nome_categoria(bruto):
+    """Sanitiza um nome de categoria vindo da IA ou digitado.
+
+    Devolve string vazia quando o nome não serve (vazio, longo demais ou com
+    caracteres que não fazem sentido num rótulo de tema).
+    """
+    nome = " ".join(str(bruto or "").split()).strip(' .,;:-–—"\'')
+    if not nome or len(nome) > 60:
+        return ""
+    if not re.match(r"^[\w\s\-/().&ªºÀ-ÿ]+$", nome):
+        return ""
+    return nome
+
+
+def sugerir_categoria_por_palavras(titulo, descricao, valores_validos):
+    """Rede de segurança sem IA: escolhe pela contagem de palavras-chave.
+
+    Devolve um valor presente em `valores_validos` ou None sem evidência.
+    """
+    texto = sem_acento(f"{titulo} {descricao}")
+    melhor, melhor_peso = None, 0
+    for categoria, palavras in CATEGORIA_PALAVRAS.items():
+        if categoria not in valores_validos:
+            continue
+        peso = sum(1 for p in palavras if p.strip() and p.strip() in texto)
+        if peso > melhor_peso:
+            melhor, melhor_peso = categoria, peso
+    return melhor
+
+
+async def sugerir_categorias_evento(titulo, descricao, conhecidas, maximo=CATEGORIA_MAX_SUGESTOES):
+    """Sugere categorias para o evento a partir do título e da descrição.
+
+    `conhecidas` é a lista de pares (valor, rótulo) das categorias que já
+    existem — o mesmo vocabulário que o organizador vê no formulário. A IA é
+    instruída a preferir uma delas e, quando nenhuma serve, a propor nomes
+    NOVOS de tema.
+
+    Devolve:
+        {"sugestoes": [{"categoria", "justificativa", "nova"}, ...],
+         "origem": "ia" | "palavras-chave" | None,
+         "aviso": str}
+
+    Nada vindo do modelo é aceito sem validação: rótulos existentes são
+    casados sem acento/caixa com a lista conhecida; nomes novos passam por
+    saneamento (tamanho e caracteres) antes de virar opção para o usuário.
+    Quem grava é sempre o formulário, com o texto que o usuário confirmar.
+    """
+    titulo = (titulo or "").strip()
+    descricao = (descricao or "").strip()
+    maximo = max(1, min(int(maximo or CATEGORIA_MAX_SUGESTOES), CATEGORIA_MAX_SUGESTOES))
+
+    # mapa sem-acento -> rótulo canônico (aceita tanto o valor quanto o rótulo)
+    por_chave = {}
+    for valor, rotulo in conhecidas:
+        por_chave[sem_acento(rotulo)] = rotulo
+        por_chave.setdefault(sem_acento(valor), rotulo)
+    rotulos_conhecidos = [rotulo for _, rotulo in conhecidas]
+    aviso = ""
+
+    prompt = f"""Você ajuda a classificar eventos de um campus do IFMG.
+
+Categorias que JÁ EXISTEM: {", ".join(rotulos_conhecidos) or "(nenhuma)"}
+
+Título do evento: {titulo}
+Descrição: {descricao or "(sem descrição informada)"}
+
+Regras:
+1. Se o evento se encaixa em uma das categorias existentes, use exatamente o nome dela.
+2. Se nenhuma serve bem, proponha nomes NOVOS de categoria (curtos, 1 a 3 palavras, em português, sem numeração).
+3. Dê no máximo {maximo} sugestões, da mais adequada para a menos adequada.
+4. Em "nova", diga true somente quando a categoria não existir na lista acima.
+
+Responda SOMENTE com um JSON neste formato:
+{{"sugestoes": [{{"categoria": "<nome>", "justificativa": "<frase curta>", "nova": false}}]}}
+"""
+
+    try:
+        client = get_openai_client()
+        resposta = await client.chat.completions.create(
+            model=CATEGORIA_MODELO,
+            messages=[{"role": "system", "content": prompt}],
+            max_tokens=400,
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        dados = json.loads(resposta.choices[0].message.content or "{}")
+        itens = dados.get("sugestoes") or []
+
+        sugestoes, vistas = [], set()
+        for item in itens:
+            if not isinstance(item, dict):
+                continue
+            nome = limpar_nome_categoria(item.get("categoria"))
+            if not nome:
+                continue
+            chave = sem_acento(nome)
+            if chave in vistas:
+                continue
+            vistas.add(chave)
+            justificativa = " ".join(str(item.get("justificativa", "")).split())[:220]
+            canonico = por_chave.get(chave)
+            if canonico:
+                sugestoes.append({"categoria": canonico, "justificativa": justificativa, "nova": False})
+            else:
+                sugestoes.append({"categoria": nome, "justificativa": justificativa, "nova": True})
+            if len(sugestoes) >= maximo:
+                break
+
+        if sugestoes:
+            return {"sugestoes": sugestoes, "origem": "ia", "aviso": ""}
+
+        aviso = "A IA não devolveu sugestões utilizáveis; usei a análise por palavras-chave."
+    except Exception as e:
+        aviso = f"A IA não está disponível agora ({e}); usei a análise por palavras-chave."
+
+    # Rede de segurança: só categoria já conhecida (nunca inventa tema novo).
+    valores_seed = [valor for valor, _ in conhecidas if valor in CATEGORIA_PALAVRAS]
+    por_palavras = sugerir_categoria_por_palavras(titulo, descricao, valores_seed)
+    if por_palavras:
+        rotulo = dict(conhecidas).get(por_palavras, por_palavras)
+        return {
+            "sugestoes": [{
+                "categoria": rotulo,
+                "justificativa": "Tema reconhecido pelas palavras do título e da descrição.",
+                "nova": False,
+            }],
+            "origem": "palavras-chave",
+            "aviso": aviso,
+        }
+
+    return {
+        "sugestoes": [],
+        "origem": None,
+        "aviso": aviso or "Não consegui identificar o tema. Escreva uma categoria ou escolha uma existente.",
+    }
+
+
+@csrf_exempt
+@login_required
+async def sugerir_categoria_ajax(request):
+    """Recebe título e descrição e devolve sugestões de categoria."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    titulo = (data.get("titulo") or "").strip()
+    descricao = (data.get("descricao") or "").strip()
+    if not titulo:
+        return JsonResponse(
+            {"erro": "Informe o título do evento antes de pedir a sugestão."}, status=400
+        )
+
+    # Import local: mantém este módulo independente dos models no carregamento.
+    from .models import categorias_conhecidas
+
+    # A view é assíncrona: consulta ao banco precisa ir para uma thread, senão
+    # o Django levanta SynchronousOnlyOperation.
+    conhecidas = await sync_to_async(categorias_conhecidas)()
+    resultado = await sugerir_categorias_evento(titulo, descricao, conhecidas)
+    return JsonResponse(resultado)
 
 
 # -- Função para notificar eventos via SocketIO --

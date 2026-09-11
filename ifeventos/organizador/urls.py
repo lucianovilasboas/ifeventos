@@ -9,7 +9,7 @@ from .views import profile
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
 
-from eventos.services import ia_mensagem_view, gerar_conteudo_ajax
+from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_categoria_ajax
 from .views import EmitirCertificadosAtividadeView
 from .views import EmitirCertificadosEventoView
 from .views import EmitirCertificadoInscricaoView
@@ -64,4 +64,5 @@ urlpatterns = [
     # -- Rotas para a IA --
     path('ia_mensagem/', ia_mensagem_view, name='ia_mensagem'),
     path('gerar_descricao/', gerar_conteudo_ajax, name='gerar_descricao'),   
+    path('sugerir_categoria/', sugerir_categoria_ajax, name='sugerir_categoria'),
 ]

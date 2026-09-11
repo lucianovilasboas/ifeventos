@@ -137,19 +137,6 @@ body:has(.reset-password-container) .app-hero { display: none; }
 body:has(.login-container) .hero-ico,
 body:has(.register-container) .hero-ico,
 body:has(.reset-password-container) .hero-ico { display: none; }
-/* O chip de aviso do assistente (dashboard) carrega um texto de frase
-   inteira dentro de #ia_mensagem. Pill de 9999px num bloco de várias
-   linhas vira um estádio estranho e o texto estoura a caixa: este recebe
-   tratamento de faixa, com teto de leitura e quebra de linha. */
-.app-hero .chip:has(#ia_mensagem) {
-  align-items: flex-start;
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  max-width: min(100%, 68ch);
-  line-height: 1.45;
-}
-.app-hero .chip:has(#ia_mensagem) i { margin-top: 2px; color: var(--accent-ink); }
-.app-hero .chip:has(#ia_mensagem) #ia_mensagem { overflow-wrap: anywhere; }
 .hero-ico {
   position: absolute; right: 4px; bottom: -14px;
   font-size: 96px;
@@ -283,6 +270,13 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 }
 
 /* ---------- Cabeçalhos de seção ---------- */
+/* O painel não tem mais o banner "Bem-vindo": o respiro do topo, que antes
+   vinha do hero, passou a ser do próprio conteúdo. */
+.app-content-top {
+  margin-top: var(--space-6);
+  padding-bottom: var(--space-8);
+}
+
 .app-sec {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-3);

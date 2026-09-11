@@ -3,11 +3,23 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.utils.text import slugify
 import os
+import unicodedata
 from datetime import datetime
 from PIL import Image
 import uuid
 from django.utils import timezone
 from .managers import ParticipanteManager
+
+
+def sem_acento(texto):
+    """Minúsculas e sem acento — para comparar rótulos de categoria.
+
+    Faz "Tecnologia" ser reconhecida como a mesma categoria de "tecnologia"
+    (e "Robotica" igual a "Robótica"), evitando filtros duplicados na landing.
+    """
+    base = unicodedata.normalize("NFD", str(texto or "").lower())
+    return "".join(c for c in base if unicodedata.category(c) != "Mn")
+
 
 def evento_imagem_upload(instance, filename):
     """ Gera um caminho único baseado no título do evento e na data de upload. """
@@ -118,6 +130,8 @@ class Participante(AbstractUser):
 
 
 class Evento(models.Model):
+    # Vocabulário inicial de categorias. serve de sugestão no formulário e de
+    # ponto de partida para a IA; não é uma restrição (o campo é texto livre).
     CATEGORIA_CHOICES = [
         ("formacao", "Formação"),
         ("ciencia", "Ciência"),
@@ -135,8 +149,10 @@ class Evento(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # Tema do evento, usado na landing page para os filtros por assunto.
-    # Adicionado na repaginação (a landing filtra por Formação/Ciência/Tecnologia).
-    categoria = models.CharField(max_length=20, choices=CATEGORIA_CHOICES, default="formacao")
+    # Sem `choices` de propósito: a categoria é texto livre, para o organizador
+    # poder criar uma nova (a lista CATEGORIA_CHOICES é só o vocabulário
+    # inicial). Categoria nova é gravada aqui e aparece sozinha nos filtros.
+    categoria = models.CharField(max_length=60, default="formacao")
 
     imagem = models.ImageField(upload_to=evento_imagem_upload, blank=True, null=True)  # Diretório onde as imagens serão salvas
 
@@ -147,6 +163,16 @@ class Evento(models.Model):
 
     def __repr__(self):
         return f"<Evento: {self.title} [{self.data}]>"
+
+    def get_categoria_display(self):
+        """Rótulo amigável da categoria do evento.
+
+        Mantém o mesmo nome do get_FOO_display() que o Django gerava enquanto
+        o campo tinha `choices`: assim templates e API continuam funcionando
+        sem alteração. Para categorias criadas depois da lista-semente, o
+        rótulo é o próprio texto gravado.
+        """
+        return dict(self.CATEGORIA_CHOICES).get(self.categoria, self.categoria)
     
     def get_url_imagem(self):
         if self.imagem:
@@ -314,3 +340,21 @@ class Certificado(models.Model):
             return f"Certificado de {self.participante.first_name} - Atividade {self.atividade.titulo}"
         else:
             return f"Certificado de {self.participante.first_name} - Evento {self.evento.title}"
+
+
+def categorias_conhecidas():
+    """Pares (valor, rótulo) de todas as categorias conhecidas.
+
+    Devolve a lista-semente na ordem canônica e, depois, as categorias criadas
+    pelos organizadores em ordem alfabética. É a mesma lista que alimenta as
+    sugestões do formulário (datalist) e o prompt da IA.
+    """
+    rotulos = dict(Evento.CATEGORIA_CHOICES)
+    usadas = set(
+        Evento.objects.exclude(categoria__isnull=True)
+        .exclude(categoria="")
+        .values_list("categoria", flat=True)
+    )
+    pares = list(Evento.CATEGORIA_CHOICES)
+    pares += [(valor, valor) for valor in sorted(usadas - set(rotulos))]
+    return pares

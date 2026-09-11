@@ -109,9 +109,9 @@
                     </label>
                     <div class="landing-filters" role="group" aria-label="Filtrar eventos">
                         <button class="landing-filter" type="button" data-cat="todos" aria-pressed="true">Todos</button>
-                        <button class="landing-filter" type="button" data-cat="formacao" aria-pressed="false">Formação</button>
-                        <button class="landing-filter" type="button" data-cat="ciencia" aria-pressed="false">Ciência</button>
-                        <button class="landing-filter" type="button" data-cat="tecnologia" aria-pressed="false">Tecnologia</button>
+                        {% for valor, rotulo in categorias %}
+                        <button class="landing-filter" type="button" data-cat="{{ valor }}" aria-pressed="false">{{ rotulo }}</button>
+                        {% endfor %}
                     </div>
                 </div>
 

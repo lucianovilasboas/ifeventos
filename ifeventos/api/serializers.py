@@ -68,6 +68,9 @@ class EventoSerializer(serializers.ModelSerializer):
     atividades = AtividadeSerializer(many=True, read_only=True)
     imagem_url = serializers.SerializerMethodField()
     n_inscricoes = serializers.SerializerMethodField()
+    categoria_display = serializers.CharField(
+        source="get_categoria_display", read_only=True
+    )
 
     class Meta:
         model = Evento
@@ -78,6 +81,8 @@ class EventoSerializer(serializers.ModelSerializer):
             "local",
             "data_inicio",
             "data_fim",
+            "categoria",
+            "categoria_display",
             "imagem_url",
             "organizador",
             "atividades",
@@ -87,9 +92,10 @@ class EventoSerializer(serializers.ModelSerializer):
         ]
 
     def get_imagem_url(self, obj):
-        if hasattr(obj, "get_url_imagem"):
-            return obj.get_url_imagem()
-        return None
+        # Sem imagem, devolve null. O antigo get_url_imagem() apontava para
+        # /media/eventos/default.jpg, arquivo que não existe no projeto: quem
+        # consumia a API recebia uma URL que sempre respondia 404.
+        return obj.imagem.url if obj.imagem else None
 
     def get_n_inscricoes(self, obj):
         return obj.get_n_inscricoes()
@@ -148,12 +154,31 @@ class EventoWriteSerializer(serializers.ModelSerializer):
 
     `organizador` NÃO vem do payload: é setado automaticamente ao usuário
     autenticado (via perform_create/update). Espelha os campos de EventoForm.
+
+    `id` entra como somente-leitura para a resposta de POST/PUT/PATCH dizer
+    qual evento foi criado/alterado — antes o cliente ficava sem saber.
     """
+
+    id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Evento
-        fields = ["title", "description", "local", "data_inicio", "data_fim", "imagem"]
-        extra_kwargs = {"imagem": {"required": False, "allow_null": True}}
+        fields = [
+            "id",
+            "title",
+            "description",
+            "local",
+            "data_inicio",
+            "data_fim",
+            "categoria",
+            "imagem",
+        ]
+        extra_kwargs = {
+            "imagem": {"required": False, "allow_null": True},
+            # Opcional para não quebrar cliente que já cria evento sem o campo
+            # (o model tem default "formacao").
+            "categoria": {"required": False},
+        }
 
 
 class AtividadeWriteSerializer(serializers.ModelSerializer):

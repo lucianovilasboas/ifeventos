@@ -40,6 +40,11 @@
                     <div class="col-md-12">
                       {{ form.description.label_tag }}
                       {{ form.description }}
+                      <div class="d-flex justify-content-end mt-2">
+                          <button type="button" class="btn btn-outline-secondary btn-sm" id="gerarDescricaoEditar">
+                              <i class="fa-solid fa-robot"></i> Gerar nova descrição com IA
+                          </button>
+                      </div>
                     </div>
                 </div>
                     
@@ -51,6 +56,24 @@
                     <div class="col-md-6">
                       {{ form.data_fim.label_tag }}
                       {{ form.data_fim }}
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                      {{ form.categoria.label_tag }}
+                      {{ form.categoria }}
+                      <datalist id="listaCategorias">
+                          {% for valor, rotulo in form.categorias_sugeridas %}<option value="{{ rotulo }}"></option>{% endfor %}
+                      </datalist>
+                      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                          <div class="d-flex flex-wrap gap-2" id="sugestoesCategoria" hidden></div>
+                          <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="sugerirCategoria"
+                                  title="Sugerir categorias com IA a partir do título e da descrição">
+                              <i class="fa-solid fa-wand-magic-sparkles"></i> Sugerir categoria
+                          </button>
+                      </div>
+                      <small class="text-muted d-block mt-2" id="sugestaoCategoria"></small>
                     </div>
                 </div>
 
@@ -102,14 +125,6 @@
 
                 
 
-
-                <button type="button" class="btn btn-outline-secondary" id="gerarDescricaoEditar">
-                    {% if evento %}
-                    <i class="fa-solid fa-robot"></i> Gerar Nova Descrição
-                    {% else %}
-                    <i class="fa-solid fa-robot"></i> Gerar Descrição 
-                    {% endif %}
-                </button>
 
                 <div class="text-end mt-4">
 
@@ -195,6 +210,83 @@
 
 
 
+
+                // Sugestão de categoria por IA: mostra até 3 opções clicáveis. As
+        // marcadas em verde são temas NOVOS (ainda não existem no sistema) e
+        // passam a valer quando o usuário confirma o evento. Registrado fora
+        // do "shown.bs.modal" para não empilhar listeners a cada abertura.
+        (function () {
+            const botao = document.getElementById("sugerirCategoria");
+            if (!botao) return;
+            const form = botao.closest("form");
+            const campo = form ? form.querySelector("input#id_categoria") : null;
+            const caixa = document.getElementById("sugestoesCategoria");
+            const feedback = document.getElementById("sugestaoCategoria");
+
+            function limparSugestoes() {
+                if (caixa) { caixa.innerHTML = ""; caixa.hidden = true; }
+                if (feedback) feedback.textContent = "";
+            }
+
+            botao.addEventListener("click", function (event) {
+                event.preventDefault();
+                const campoTitulo = form ? form.querySelector("#id_title") : null;
+                const campoDescricao = form ? form.querySelector("#id_description") : null;
+                const titulo = campoTitulo ? campoTitulo.value : "";
+                const descricao = campoDescricao ? campoDescricao.value : "";
+
+                if (!titulo.trim()) {
+                    limparSugestoes();
+                    if (feedback) feedback.textContent = "Informe o título do evento antes de pedir a sugestão.";
+                    return;
+                }
+
+                const conteudoOriginal = botao.innerHTML;
+                botao.disabled = true;
+                botao.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                limparSugestoes();
+                if (feedback) feedback.textContent = "Analisando o evento...";
+
+                fetch("{% url 'organizador:sugerir_categoria' %}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify({ "titulo": titulo, "descricao": descricao })
+                })
+                .then(resposta => resposta.json())
+                .then(data => {
+                    const sugestoes = data.sugestoes || [];
+                    if (!sugestoes.length) {
+                        if (feedback) {
+                            feedback.textContent = data.aviso || data.erro || "Não foi possível sugerir uma categoria.";
+                        }
+                        return;
+                    }
+                    sugestoes.forEach(function (s) {
+                        const opcao = document.createElement("button");
+                        opcao.type = "button";
+                        opcao.className = "btn btn-sm " + (s.nova ? "btn-outline-primary" : "btn-outline-secondary");
+                        opcao.innerHTML = (s.nova ? '<i class="fa-solid fa-plus"></i> ' : "") + s.categoria;
+                        opcao.title = (s.justificativa || "") + (s.nova ? " — categoria nova" : "");
+                        opcao.addEventListener("click", function () {
+                            if (campo) { campo.value = s.categoria; campo.focus(); }
+                            if (feedback) feedback.textContent = s.justificativa || "";
+                        });
+                        if (caixa) caixa.appendChild(opcao);
+                    });
+                    if (caixa) caixa.hidden = false;
+                    if (feedback) {
+                        feedback.textContent = data.aviso || "Clique em uma sugestão para usar, ou escreva outra categoria.";
+                    }
+                })
+                .catch(() => {
+                    if (feedback) feedback.textContent = "Falha ao falar com o serviço de IA. Escreva ou escolha a categoria manualmente.";
+                })
+                .finally(() => {
+                    botao.disabled = false;
+                    botao.innerHTML = conteudoOriginal;
+                });
+            });
+        })();
 
        // Permite clicar na imagem para selecionar o arquivo
        document.getElementById('preview-image').addEventListener('click', function () {

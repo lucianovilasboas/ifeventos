@@ -29,15 +29,8 @@
         </a>
     </div>
 
-    <!-- Bem-vindo -->
-    <div class="app-hero">
-        <span class="hero-ico">👋</span>
-        <h1>Bem-vindo, {% if request.resolver_match.namespace == 'organizador' %}organizador(a){% elif request.resolver_match.namespace == 'participante' %}participante{% else %}{% if request.user.is_organizador %}organizador(a){% else %}participante{% endif %}{% endif %} {{ request.user.first_name }}</h1>
-        <div class="chip" style="margin-top:12px"><i class="fa-solid fa-robot"></i> <span id="ia_mensagem">Aguarde...</span></div>
-    </div>
-
     <!-- Conteúdo -->
-    <div class="mt-4">
+    <div class="app-content-top">
         <div class="container-fluid px-0" style="max-width:1140px">
             <div class="app-sec">
                 {% block action %}{% endblock action %}
@@ -72,23 +65,6 @@
     {% else %}
     <div id="msgcontainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;"></div>
     {% endif %}
-
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            var el = document.querySelector("#ia_mensagem");
-            if (el) {
-                el.innerHTML = "Aguarde um momento para uma mensagem especial...";
-                fetch("{% if request.user.is_organizador %}{% url 'organizador:ia_mensagem' %}{% else %}{% url 'participante:ia_mensagem' %}{% endif %}", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-                    body: JSON.stringify({ usuario: "{{ request.user.username }}", tipo_usuario: "{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}" })
-                })
-                .then(response => response.json())
-                .then(data => { el.innerText = data.mensagem; })
-                .catch(error => console.error("Erro:", error));
-            }
-        });
-    </script>
 
     {% block scripts %}{% endblock %}
 </body>

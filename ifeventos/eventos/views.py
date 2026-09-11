@@ -33,10 +33,23 @@ def eventos_view(request):
             proximo_frase = "Em andamento"
         else:
             proximo_frase = f"Começa em {proximo.data_inicio.strftime('%d/%m')}"
+    # Chips de filtro: apenas as categorias que realmente têm evento na agenda,
+    # na ordem canônica do model. Derivar do banco (em vez de uma lista fixa)
+    # faz um tema novo aparecer sozinho — e evita chip que não filtra nada.
+    ordem = [valor for valor, _ in Evento.CATEGORIA_CHOICES]
+    rotulos = dict(Evento.CATEGORIA_CHOICES)
+    usadas = set(eventos.values_list('categoria', flat=True))
+    # Categorias da lista-semente primeiro (na ordem canônica) e depois as que
+    # os organizadores criaram, em ordem alfabética. O rótulo de uma categoria
+    # nova é o próprio texto gravado (com acento, como foi escrito).
+    categorias = [(v, rotulos[v]) for v in ordem if v in usadas]
+    categorias += [(v, v) for v in sorted(usadas - set(ordem)) if v]
+
     return render(request, 'eventos/eventos.html', {
         'eventos': eventos,
         'proximo': proximo,
         'proximo_frase': proximo_frase,
+        'categorias': categorias,
         # Últimos eventos realizados/encerrados (data_fim no passado),
         # do mais recente para o mais antigo.
         'encerrados': Evento.objects.filter(data_fim__lt=hoje).order_by('-data_fim'),

@@ -118,8 +118,12 @@ def criar_evento(request):
             messages.warning(request, "Erro ao criar evento.")
             return JsonResponse({"success": False, "errors": form.errors}, status=400)
     
-    form = EventoForm()
-    return render(request, 'organizador/form_evento.html', {'form_evt': form})
+    # A criação de evento é feita pelo modal do dashboard (POST por AJAX, que
+    # devolve JSON). Esta rota não tem página própria: antes ela renderizava o
+    # template de edição sem o objeto `evento`, e a página morria com
+    # NoReverseMatch (erro 500) ao tentar montar a URL de edição. Redireciona
+    # para o painel, que é onde o modal de criação vive.
+    return redirect('organizador:dashboard')
 
 
 
