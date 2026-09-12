@@ -30,12 +30,10 @@ class RegistroSerializer(serializers.Serializer):
         return value
 
     def validate_cpf(self, value):
-        from eventos.models import Participante
-
-        value = "".join(ch for ch in value if ch.isdigit())
-        if Participante.objects.filter(cpf=value).exists():
-            raise serializers.ValidationError("CPF já cadastrado.", code="unique")
-        return value
+        # Guarda somente os dígitos (mesma regra do cadastro web e do modelo).
+        # O CPF NÃO é mais único: o e-mail é a identidade da conta e um mesmo
+        # CPF pode estar ligado a mais de um e-mail.
+        return "".join(ch for ch in value if ch.isdigit())
 
 
 class RegistroView(APIView):

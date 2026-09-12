@@ -1,12 +1,46 @@
-{% extends "base.html" %}  {# Substitua pelo seu template base #}
-
+{% extends "base.html" %}
 {% load i18n %}
 
+{% block title %}Confirme seu e-mail — Nossos Eventos IFMG{% endblock %}
+
 {% block content %}
-    <h2>Verifique seu e-mail</h2>
-    <p>Enviamos um e-mail para você com um link de confirmação.</p>
-    <p>Se você não encontrar o e-mail na caixa de entrada, verifique sua pasta de spam.</p>
-    <p>Se não receber o e-mail em alguns minutos, <a href="{% url 'account_email' %}">clique aqui</a> para reenviar.</p>
+<div class="container my-5">
+    <div class="login-container">
+        <h2><i class="fa-solid fa-envelope-circle-check"></i> Confirme seu e-mail</h2>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <p class="text-center mb-2">
+            Enviamos um link de confirmação para o endereço informado no cadastro.
+        </p>
+
+        <p class="text-center mb-3">
+            Abra a mensagem e, na página que carregar,
+            <strong>clique no botão “Confirmar e-mail”</strong> para ativar sua conta.
+        </p>
+
+        <p class="text-muted text-center mb-4">
+            <small>
+                Não encontrou? Confira a caixa de <strong>spam</strong> ou lixo eletrônico.
+                O link vale por 3 dias.
+            </small>
+        </p>
+
+        <a href="{% url 'account_login' %}" class="btn btn-app w-100 py-2">
+            <i class="fa-solid fa-right-to-bracket"></i> Já confirmei, quero entrar
+        </a>
+
+        <div class="extra-links">
+            <p>
+                Não recebeu nada?
+                <a href="{% url 'account_login' %}">Entre na sua conta</a>
+                para gerar um novo link.
+            </p>
+        </div>
+    </div>
+</div>
 {% endblock %}
-
-

@@ -201,7 +201,12 @@ def excluir_evento(request, evento_id):
 def atividades_evento(request, evento_id):
     """Lista as atividades de um evento"""
     evento = get_object_or_404(Evento, id=evento_id)
-    atividades = evento.atividades.all()
+    # Ordem padrão: quem tem mais inscritos primeiro. O desempate por horário e
+    # id mantém a lista ESTÁVEL (sem "pular" a cada recarregamento) quando duas
+    # atividades têm a mesma quantidade de inscritos.
+    atividades = evento.atividades.all().order_by(
+        "-n_inscricoes", "data_hora_inicio", "id"
+    )
 
     form = AtividadeForm(initial={'evento': evento})
 

@@ -383,6 +383,20 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_LOGIN_METHODS = { 'email' }
 #ACCOUNT_USERNAME_REQUIRED = False
 
+# Cadastro pela web usa o formulário local, que acrescenta o CPF
+# (obrigatório e validado por dígito verificador). O e-mail continua sendo a
+# identidade da conta; o CPF NÃO é único.
+ACCOUNT_FORMS = {"signup": "eventos.forms.SignupFormComCpf"}
+
+# Ao confirmar o e-mail (botão na página do link), o usuário já sai logado.
+# Sem isto ele confirma e volta para a tela de login, o que na prática faz
+# muita gente achar que a confirmação não funcionou.
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+
+# Sem prefixo no assunto. O padrão do Django é "[Django] ", que aparecia para
+# o usuário final como: "[Django] Confirme seu e-mail — Nossos Eventos IFMG".
+EMAIL_SUBJECT_PREFIX = ""
+
 AUTH_USER_MODEL = 'eventos.Participante'  # new
 
 MEDIA_URL = '/media/'
@@ -416,3 +430,98 @@ PRESENCA_MARGEM_DEPOIS_HORAS = config("PRESENCA_MARGEM_DEPOIS_HORAS", default=2,
 # entrar na conta antes de confirmar.
 PRESENCA_QR_VALIDADE_SEGUNDOS = config("PRESENCA_QR_VALIDADE_SEGUNDOS", default=300, cast=int)
 PRESENCA_QR_INTERVALO_RENOVACAO = config("PRESENCA_QR_INTERVALO_RENOVACAO", default=120, cast=int)
+
+
+# =====================================================================
+# LOGS
+# ---------------------------------------------------------------------
+# Motivo (12/09/2026): os erros 500 do cadastro não apareciam em lugar
+# nenhum. O container tinha stderr mas nada era descarregado (buffer de
+# bloco), então o traceback do Django ficava preso no buffer e o
+# `docker logs` só mostrava o access log do gunicorn. Sem traceback,
+# diagnosticar 500 virava adivinhação.
+#
+# Duas medidas:
+#   1) PYTHONUNBUFFERED=1 no ambiente (ver .env / .env.example) — faz o
+#      Python não bufferizar stdout/stderr;
+#   2) este bloco de LOGGING, que garante um handler de console com
+#      destino explícito em stderr e nível definido por logger.
+#
+# Ajuste o nível sem mexer no código: LOG_LEVEL=DEBUG no .env.
+# =====================================================================
+LOG_LEVEL = config("LOG_LEVEL", default="INFO")
+
+LOGGING = {
+    "version": 1,
+    # Mantém os loggers que já existem (gunicorn/uvicorn/socket.io) vivos.
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simples": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "datefmt": "%d/%b/%Y %H:%M:%S",
+            "style": "{",
+        },
+        "detalhado": {
+            "format": "[{asctime}] {levelname} {name} ({process:d}) {message}",
+            "datefmt": "%d/%b/%Y %H:%M:%S",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        # stderr explícito: é para onde o gunicorn manda o "--error-logfile -"
+        # e o que o `docker logs` captura.
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+            "formatter": "simples",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        # Requisições com erro. WARNING = 4xx (ex.: 404, 400) e ERROR = 5xx:
+        # é aqui que aparece o traceback completo dos 500 — exatamente o que
+        # faltava para achar o bug do CPF. Para silenciar os 404, troque para
+        # "ERROR".
+        "django.request": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        # Erros de SQL que o Django não deixa virar 500 (ex.: IntegrityError
+        # tratado por um middleware).
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "django": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        # Loggers da aplicação.
+        "eventos": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "api": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "organizador": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+    },
+}

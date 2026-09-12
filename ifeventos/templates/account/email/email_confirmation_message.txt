@@ -1,0 +1,16 @@
+{% extends "account/email/base_message.txt" %}
+{% load account %}
+{% load i18n %}
+
+{% block content %}{% autoescape off %}{% user_display user as user_display %}{% blocktranslate with site_name=current_site.name site_domain=current_site.domain %}Você recebeu este e-mail porque {{ user_display }} usou este endereço para se cadastrar no {{ site_domain }}.{% endblocktranslate %}
+
+{% if code %}Use o código abaixo para confirmar seu e-mail. Digite-o na janela do navegador que está aberta:
+
+{{ code }}
+{% else %}Para confirmar seu cadastro, acesse o link abaixo:
+
+{{ activate_url }}
+
+ATENÇÃO: abrir o link ainda não ativa a conta. Na página que abrir, clique no botão "Confirmar e-mail".
+
+Se você não fez este cadastro, ignore esta mensagem.{% endif %}{% endautoescape %}{% endblock content %}

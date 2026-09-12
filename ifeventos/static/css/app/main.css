@@ -323,6 +323,27 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 .table tbody td { border-color: var(--border); font-size: var(--text-sm); vertical-align: middle; }
 .table-striped > tbody > tr:nth-of-type(odd) { --bs-table-accent-bg: var(--surface); }
 
+/* ---------- Cabeçalho de tabela clicável (ordenar por coluna) ----------
+   A marcação vem de static/js/tabela_ordenavel.js: th[data-sort] ganha a
+   classe .th-ordenavel e o aria-sort (ascending/descending/none). A seta do
+   estado atual é desenhada em CSS, sem elemento extra no HTML. */
+.table thead th.th-ordenavel {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.table thead th.th-ordenavel::after {
+  content: "↕";
+  margin-left: 6px;
+  font-size: 10px;
+  opacity: .45;
+}
+.table thead th.th-ordenavel:hover { color: var(--fg); background: var(--border) !important; }
+.table thead th.th-ordenavel:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.table thead th.th-ordenavel.is-ordenado { color: var(--fg); }
+.table thead th.th-ordenavel[aria-sort="ascending"]::after { content: "▲"; opacity: 1; color: var(--accent); }
+.table thead th.th-ordenavel[aria-sort="descending"]::after { content: "▼"; opacity: 1; color: var(--accent); }
+
 /* ---------- Bottom nav (estilo app) ---------- */
 .app-bottomnav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030;

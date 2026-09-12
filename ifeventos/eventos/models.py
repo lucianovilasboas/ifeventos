@@ -9,6 +9,7 @@ from PIL import Image
 import uuid
 from django.utils import timezone
 from .managers import ParticipanteManager
+from .validators import apenas_digitos
 
 
 def sem_acento(texto):
@@ -61,7 +62,13 @@ class Participante(AbstractUser):
     foto = models.ImageField(upload_to=participante_foto_upload, blank=True, null=True)  # Diretório onde as imagens serão salvas
     bio = models.TextField(max_length=500, blank=True, null=True)
 
-    cpf = models.CharField(max_length=14, unique=True)  
+    # CPF: guardamos SOMENTE os 11 dígitos (a máscara fica na exibição).
+    # NÃO é único: o e-mail é a identidade da conta e um mesmo CPF pode estar
+    # ligado a mais de um e-mail.
+    # `blank=False` de propósito: mantém o CPF obrigatório nos formulários do
+    # organizador/perfil (que antes exigiam). O `default=""` existe só para os
+    # caminhos que não perguntam o documento (login social, contas antigas).
+    cpf = models.CharField(max_length=11, blank=False, default="", db_index=True)
     telefone = models.CharField(max_length=15, blank=True, null=True)
     endereco = models.TextField(blank=True, null=True)
 
@@ -72,6 +79,12 @@ class Participante(AbstractUser):
     objects = ParticipanteManager()
 
     def save(self, *args, **kwargs):
+        # Normaliza o CPF em TODAS as portas de entrada (cadastro web, API,
+        # admin, login social): guarda só os dígitos. Sem isso o mesmo CPF
+        # entrava formatado num caminho e cru no outro.
+        if self.cpf:
+            self.cpf = apenas_digitos(self.cpf)
+
         if not self.username:  # Se o username não for preenchido, cria um baseado no email
             base_username = slugify(self.email.split('@')[0])  # Usa a parte antes do @
             new_username = base_username

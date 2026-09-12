@@ -1,0 +1,4 @@
+{% load i18n %}
+{% autoescape off %}
+{% blocktrans %}Confirme seu e-mail — Nossos Eventos IFMG{% endblocktrans %}
+{% endautoescape %}

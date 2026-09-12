@@ -6,6 +6,10 @@ from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
 
+from allauth.account.forms import SignupForm as AllauthSignupForm
+
+from .validators import validar_cpf
+
 
 # -- Formulário para criação de evento --
 
@@ -209,5 +213,52 @@ class PalestranteForm(forms.ModelForm):
             'telefone': forms.TextInput(attrs={'class': 'form-control'}),
             'endereco': forms.Textarea(attrs={'class': 'form-control'}), 
         }
+
+
+# ---------------------------------------------------------------------------
+# Cadastro de participante (tela /accounts/signup/) — allauth
+# ---------------------------------------------------------------------------
+
+class SignupFormComCpf(AllauthSignupForm):
+    """Cadastro pela web: e-mail + senha + CPF.
+
+    O CPF é OBRIGATÓRIO aqui (mas não no modelo: contas de login social/API
+    podem não ter documento). A validação usa os dígitos verificadores e
+    devolve erro NO CAMPO — o formulário volta para a tela em vez de estourar
+    500 no banco (que era o comportamento antigo, quando o CPF nem era pedido).
+    """
+
+    cpf = forms.CharField(
+        label="CPF",
+        required=True,
+        max_length=14,  # aceita com ou sem máscara; normalizamos em seguida
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "000.000.000-00",
+                "inputmode": "numeric",
+                "autocomplete": "off",
+                "maxlength": "14",
+            }
+        ),
+        help_text="Somente números.",
+    )
+
+    # Ordem de exibição na tela.
+    field_order = ["email", "cpf", "password1", "password2"]
+
+    def clean_cpf(self):
+        """Valida os dígitos verificadores e devolve o CPF sem máscara."""
+        try:
+            return validar_cpf(self.cleaned_data.get("cpf"))
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+
+    def save(self, request):
+        """Cria a conta pelo allauth e grava o CPF logo depois."""
+        user = super().save(request)
+        user.cpf = self.cleaned_data["cpf"]
+        user.save(update_fields=["cpf"])
+        return user
  
 

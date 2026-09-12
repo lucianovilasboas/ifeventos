@@ -1,4 +1,5 @@
 {% extends 'dashboard_base.html' %}
+{% load static %}
 
 {% block title %}Evento Atividades{% endblock %}
 
@@ -37,6 +38,7 @@
 {% endblock content %}
 
 {% block scripts %}
+<script src="{% static 'js/tabela_ordenavel.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <script>
     // SOCKET_URL vazio = mesma origem da página (produção, atrás do Traefik).
@@ -61,10 +63,20 @@
     function refreshCounts(id, vagas, inscritos) {
         document.querySelectorAll(`.js-vagas[data-id="${id}"]`).forEach(el => el.textContent = vagas);
         document.querySelectorAll(`.js-inscritos[data-id="${id}"]`).forEach(el => el.textContent = inscritos);
+        // A contagem mudou: se a tabela está ordenada (por padrão, por
+        // inscritos), a ordem precisa acompanhar — senão a coluna mente.
+        reordenarTabela();
+    }
+
+    // Reaplica a ordenação ativa da tabela. Inofensivo quando ninguém ordenou:
+    // a própria tabela só reage se houver uma coluna ativa.
+    function reordenarTabela() {
+        if (window.TabelaOrdenavel) window.TabelaOrdenavel.reaplicarTodas();
     }
 
     function removeAtividade(id) {
         document.querySelectorAll(`[data-atividade-id="${id}"]`).forEach(el => el.remove());
+        reordenarTabela();   // renumera a coluna "#" depois da remoção
     }
 
     socket.on("atividate_update", (data) => {
@@ -118,6 +130,7 @@
                     <button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="${id}">🎓</button>
                 </td>`;
             tableBody.appendChild(newRow);
+            reordenarTabela();   // a nova linha entra na posição certa
         }
 
         // Adiciona o card (mobile)

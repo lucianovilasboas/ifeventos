@@ -1,21 +1,52 @@
-{% extends "base.html" %}  {# Substitua pelo seu template base #}
-
+{% extends "base.html" %}
 {% load i18n %}
 
+{% block title %}Confirmação de e-mail — Nossos Eventos IFMG{% endblock %}
+
 {% block content %}
-    <h2>Confirmação de E-mail</h2>
-    
-    {% if confirmation %}
-        <p>Olá, <strong>{{ confirmation.email_address.email }}</strong>!</p>
-        <p>Clique no botão abaixo para confirmar seu e-mail:</p>
-        
-        <form method="post">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-success">Confirmar E-mail</button>
-        </form>
-    {% else %}
-        <p>Este link de confirmação já foi utilizado ou é inválido.</p>
-    {% endif %}
-    
-    <p><a href="{% url 'account_login' %}">Voltar para o login</a></p>
+<div class="container my-5">
+    <div class="login-container">
+
+        {% if confirmation %}
+            <h2><i class="fa-solid fa-envelope-circle-check"></i> Confirmação de e-mail</h2>
+
+            <p class="text-center mb-2">
+                Olá, <strong>{{ confirmation.email_address.email }}</strong>!
+            </p>
+
+            <p class="text-muted text-center mb-4">
+                <small>Confirme abaixo que este e-mail é seu para ativar a conta.</small>
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-app w-100 py-2">
+                    <i class="fa-solid fa-check"></i> Confirmar e-mail
+                </button>
+            </form>
+
+            <div class="extra-links">
+                <p><a href="{% url 'account_login' %}">Voltar para o login</a></p>
+            </div>
+
+        {% else %}
+            <h2><i class="fa-solid fa-triangle-exclamation"></i> Link inválido</h2>
+
+            <p class="text-center mb-2">
+                Este link de confirmação já foi utilizado ou expirou.
+            </p>
+
+            <p class="text-muted text-center mb-4">
+                <small>
+                    Entre na sua conta para gerar um novo link de confirmação.
+                </small>
+            </p>
+
+            <a href="{% url 'account_login' %}" class="btn btn-app w-100 py-2">
+                <i class="fa-solid fa-right-to-bracket"></i> Ir para o login
+            </a>
+        {% endif %}
+
+    </div>
+</div>
 {% endblock %}
