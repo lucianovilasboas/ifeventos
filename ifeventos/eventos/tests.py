@@ -19,7 +19,8 @@ from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Atividade, Evento, TipoAtividade
+from .models import Atividade, Certificado, Evento, Inscricao, Presenca, PresencaCancelada, TipoAtividade
+from .inscricoes import InscricaoBloqueada, cancelar_inscricao
 from .validators import apenas_digitos, cpf_e_valido, formatar_cpf, validar_cpf
 
 U = get_user_model()
@@ -311,3 +312,299 @@ class AtividadeSemTipoNemDatetimeTests(TestCase):
         atividade.n_vagas = 20          # segunda gravação (created=False)
         atividade.save()
         self.assertEqual(Atividade.objects.get(pk=atividade.pk).n_vagas, 20)
+
+
+class _BasePresencaTests(TestCase):
+    """Cenário comum: um evento, uma atividade, um participante inscrito.
+
+    Não tem teste nenhum de propósito — é a base compartilhada entre os testes
+    de regra (presença/inscrição) e os de interface (API e tela do QR). Assim os
+    dois rodam o MESMO cenário sem repetir os testes um do outro.
+    """
+
+    def setUp(self):
+        self.evento = Evento.objects.create(
+            title="Evento de teste", description="d", local="Ponte Nova",
+            data_inicio="2026-09-10", data_fim="2026-09-11",
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Abertura", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 9, 10, 8, 0, tzinfo=timezone.utc),
+            data_hora_fim=datetime(2026, 9, 10, 9, 0, tzinfo=timezone.utc),
+            n_vagas=50,
+        )
+        self.participante = U.objects.create_user(
+            email="participante_teste@example.com", password=SENHA, cpf="12345678909",
+        )
+        self.organizador = U.objects.create_user(
+            email="organizador_teste@example.com", password=SENHA, cpf="11144477735",
+        )
+        # "Organizador" de verdade é quem está no evento (ou tem a flag/staff):
+        # ser um usuário comum não dá poder sobre o check-in.
+        self.evento.organizador = self.organizador
+        self.evento.save()
+        self.inscricao = Inscricao.objects.create(
+            participante=self.participante, atividade=self.atividade, confirmada=True,
+        )
+
+    def _presenca(self, participante=None):
+        # Uma presença por pessoa por atividade (unique_presenca).
+        return Presenca.objects.create(
+            atividade=self.atividade,
+            participante=participante or self.participante,
+            papel="participante", origem="qr", registrada_por=self.organizador,
+        )
+
+    def _like_palestrante(self, email="palestrante_teste@example.com"):
+        """Quem palestra NA atividade: abre o QR, mas não gerencia o evento."""
+        palestrante = U.objects.create_user(
+            email=email, password=SENHA, cpf="12345678909",
+        )
+        self.atividade.palestrantes.add(palestrante)
+        return palestrante
+
+
+class PresencaCanceladaTests(_BasePresencaTests):
+    """Desfazer presença deixa histórico; sair da inscrição leva a presença junto.
+
+    O que estes testes travam:
+
+      * desfazer grava QUEM desfez, QUANDO e como era a presença;
+      * desfazer volta `Inscricao.confirmada` para False;
+      * remover a inscrição remove a presença daquela atividade;
+      * com certificado já emitido a remoção é RECUSADA — apagar a presença
+        deixaria o certificado sem nenhuma comprovação por trás;
+      * a rede de segurança cobre a remoção em lote (`queryset.delete()`), que
+        não passa pelo serviço.
+    """
+
+    # --- o cancelamento em si ------------------------------------------------
+
+    def test_desfazer_presenca_grava_auditoria(self):
+        presenca = self._presenca()
+
+        presenca.cancelar(por=self.organizador, motivo="Engano na leitura")
+
+        self.assertFalse(Presenca.objects.filter(pk=presenca.pk).exists())
+        auditoria = PresencaCancelada.objects.get()
+        self.assertEqual(auditoria.cancelada_por, self.organizador)
+        self.assertEqual(auditoria.motivo, "Engano na leitura")
+        # Retrato do que foi desfeito: como era, de quem era, onde.
+        self.assertEqual(auditoria.atividade_titulo, "Abertura")
+        self.assertEqual(auditoria.papel, "participante")
+        self.assertEqual(auditoria.origem, "qr")
+        self.assertTrue(auditoria.pessoa_nome)
+        self.assertIsNotNone(auditoria.registrada_em)
+        self.assertIsNotNone(auditoria.cancelada_em)
+
+    def test_desfazer_desmarca_inscricao_confirmada(self):
+        presenca = self._presenca()
+        self.assertTrue(self.inscricao.confirmada)
+
+        presenca.cancelar(por=self.organizador)
+
+        self.inscricao.refresh_from_db()
+        self.assertFalse(self.inscricao.confirmada)
+
+    def test_auditoria_sobrevive_a_exclusao_da_atividade(self):
+        """A história do cancelamento não pode depender de quem foi apagado."""
+        presenca = self._presenca()
+        presenca.cancelar(por=self.organizador, motivo="Engano")
+
+        self.atividade.delete()
+
+        auditoria = PresencaCancelada.objects.get()
+        self.assertIsNone(auditoria.atividade)
+        self.assertEqual(auditoria.atividade_titulo, "Abertura")  # texto preservado
+        self.assertTrue(auditoria.pessoa_nome)
+
+    # --- remoção de inscrição leva a presença --------------------------------
+
+    def test_remover_inscricao_remove_presenca_da_atividade(self):
+        presenca = self._presenca()
+
+        cancelar_inscricao(self.inscricao, por=self.participante)
+
+        self.assertFalse(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+        self.assertFalse(Presenca.objects.filter(pk=presenca.pk).exists())
+        auditoria = PresencaCancelada.objects.get()
+        self.assertEqual(auditoria.motivo, "Cancelamento de inscrição")
+        self.assertEqual(auditoria.cancelada_por, self.participante)
+
+    def test_rede_de_seguranca_cobre_remocao_em_lote(self):
+        """`queryset.delete()` (admin, lote) não passa pelo serviço."""
+        presenca = self._presenca()
+
+        Inscricao.objects.filter(pk=self.inscricao.pk).delete()
+
+        self.assertFalse(Presenca.objects.filter(pk=presenca.pk).exists())
+        # A rede de segurança limpa estado; auditoria é para ação de gente, e
+        # ninguém desfez nada aqui — quem removeu a inscrição em lote não passa
+        # por `cancelar_inscricao`.
+        self.assertEqual(PresencaCancelada.objects.count(), 0)
+
+    def test_excluir_atividade_com_inscricao_e_presenca_nao_estoura(self):
+        """Regressão: a cascata não pode tentar auditar o que está sendo apagado.
+
+        Excluir a atividade apaga inscrição e presença em cascata. Se a rede de
+        segurança gravasse auditoria nesse instante, ela apontaria para a
+        atividade já removida e a exclusão morria com violação de chave
+        estrangeira (visto na verificação no app real).
+        """
+        self._presenca()
+
+        self.atividade.delete()
+
+        self.assertFalse(Presenca.objects.exists())
+        self.assertFalse(Inscricao.objects.exists())
+
+    def test_excluir_evento_com_inscricao_e_presenca_nao_estoura(self):
+        """Mesmo caminho, um nível acima: excluir o evento inteiro."""
+        self._presenca()
+
+        self.evento.delete()
+
+        self.assertFalse(Presenca.objects.exists())
+        self.assertFalse(Inscricao.objects.exists())
+
+    def test_excluir_pessoa_com_inscricao_e_presenca_nao_estoura(self):
+        """E excluir a pessoa: a presença vai junto, sem tentar auditar."""
+        self._presenca()
+
+        U.objects.filter(pk=self.participante.pk).delete()
+
+        self.assertFalse(Presenca.objects.exists())
+
+    def test_remover_inscricao_sem_presenca_nao_estoura(self):
+        """Quem nunca confirmou presença também pode sair da inscrição."""
+        cancelar_inscricao(self.inscricao, por=self.participante)
+
+        self.assertFalse(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+        self.assertEqual(PresencaCancelada.objects.count(), 0)
+
+    # --- a trava do certificado ----------------------------------------------
+
+    def test_recusa_quando_ha_certificado_da_atividade(self):
+        self._presenca()
+        Certificado.objects.create(
+            participante=self.participante, atividade=self.atividade, evento=self.evento,
+        )
+
+        with self.assertRaises(InscricaoBloqueada):
+            cancelar_inscricao(self.inscricao, por=self.participante)
+
+        # Nada mudou: nem inscrição, nem presença, nem auditoria.
+        self.assertTrue(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+        self.assertTrue(
+            Presenca.objects.filter(
+                participante=self.participante, atividade=self.atividade
+            ).exists()
+        )
+        self.assertEqual(PresencaCancelada.objects.count(), 0)
+
+    def test_recusa_quando_ha_certificado_do_evento(self):
+        """O certificado de EVENTO é emitido contando atividades confirmadas."""
+        self._presenca()
+        Certificado.objects.create(
+            participante=self.participante, atividade=None, evento=self.evento,
+        )
+
+        with self.assertRaises(InscricaoBloqueada):
+            cancelar_inscricao(self.inscricao, por=self.participante)
+
+        self.assertTrue(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+
+    def test_certificado_de_outra_pessoa_nao_bloqueia(self):
+        outro = U.objects.create_user(
+            email="outro_teste@example.com", password=SENHA, cpf="11144477735",
+        )
+        Certificado.objects.create(
+            participante=outro, atividade=self.atividade, evento=self.evento,
+        )
+        self._presenca()
+
+        cancelar_inscricao(self.inscricao, por=self.participante)
+
+        self.assertFalse(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+
+
+class DesfazerPresencaPelaApiTests(_BasePresencaTests):
+    """O caminho da API (o mesmo que o MCP usa) e o da tela do QR."""
+
+    def test_api_cancelar_inscricao_remove_presenca(self):
+        presenca = self._presenca()
+        self.client.force_login(self.participante)
+
+        resposta = self.client.delete(
+            reverse("minha-inscricao-detail", args=[self.inscricao.id])
+        )
+
+        self.assertEqual(resposta.status_code, 204)
+        self.assertFalse(Presenca.objects.filter(pk=presenca.pk).exists())
+        self.assertFalse(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+
+    def test_api_recusa_com_certificado_e_explica_por_que(self):
+        self._presenca()
+        Certificado.objects.create(
+            participante=self.participante, atividade=self.atividade, evento=self.evento,
+        )
+        self.client.force_login(self.participante)
+
+        resposta = self.client.delete(
+            reverse("minha-inscricao-detail", args=[self.inscricao.id])
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("certificado", resposta.json()["detail"].lower())
+        self.assertTrue(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+
+    def test_api_desfazer_presenca_grava_auditoria(self):
+        """O DELETE da presença (o do ✕ na tela) não apaga sem deixar rastro."""
+        presenca = self._presenca()
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.delete(reverse("presenca-detail", args=[presenca.id]))
+
+        self.assertIn(resposta.status_code, (204, 200))
+        self.assertFalse(Presenca.objects.filter(pk=presenca.pk).exists())
+        auditoria = PresencaCancelada.objects.get()
+        self.assertEqual(auditoria.cancelada_por, self.organizador)
+
+    def test_organizador_ve_o_x_na_tela_do_qr(self):
+        self._presenca()
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:qrcode_atividade", args=[self.atividade.id])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "PODE_DESFAZER = true")
+
+    def test_palestrante_nao_ve_o_x_mas_ve_a_lista(self):
+        """Palestrante mostra o QR, mas desfazer presença é de quem organiza.
+
+        Sem essa separação ele veria um ✕ que sempre falha com 403.
+        """
+        palestrante = self._like_palestrante()
+        self._presenca()
+        self.client.force_login(palestrante)
+
+        resposta = self.client.get(
+            reverse("organizador:qrcode_atividade", args=[self.atividade.id])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "PODE_DESFAZER = false")
+
+    def test_palestrante_recebe_403_ao_tentar_desfazer(self):
+        """A tela esconde o ✕, e a API recusa — as duas pontas concordam."""
+        palestrante = self._like_palestrante("palestrante2_teste@example.com")
+        presenca = self._presenca()
+        self.client.force_login(palestrante)
+
+        resposta = self.client.delete(reverse("presenca-detail", args=[presenca.id]))
+
+        self.assertIn(resposta.status_code, (403, 404))
+        self.assertTrue(Presenca.objects.filter(pk=presenca.pk).exists())

@@ -6,6 +6,7 @@ from .models import Atividade
 from .models import TipoAtividade
 from .models import Inscricao
 from .models import Certificado
+from .models import PresencaCancelada
 from django.utils.html import format_html
 
 
@@ -179,4 +180,33 @@ class CertificadoAdmin(admin.ModelAdmin):
     list_display = ('participante', 'atividade', 'evento', 'data_emissao', 'codigo')
     search_fields = ('participante', )
     list_filter = ('atividade', 'atividade__evento',)
+
+
+@admin.register(PresencaCancelada)
+class PresencaCanceladaAdmin(admin.ModelAdmin):
+    """Histórico de presenças desfeitas — SOMENTE LEITURA.
+
+    É registro de auditoria: se pudesse ser editado ou apagado, não serviria
+    para dizer quem desfez uma presença e quando.
+    """
+
+    list_display = (
+        'cancelada_em', 'pessoa_nome', 'atividade_titulo', 'papel', 'motivo', 'cancelada_por',
+    )
+    list_filter = ('papel', 'origem', 'cancelada_em')
+    search_fields = ('pessoa_nome', 'atividade_titulo', 'motivo')
+    date_hierarchy = 'cancelada_em'
+    readonly_fields = (
+        'atividade', 'atividade_titulo', 'participante', 'pessoa_nome',
+        'papel', 'origem', 'registrada_em', 'cancelada_em', 'cancelada_por', 'motivo',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 

@@ -4,7 +4,7 @@
 {% block title %}QR de presença | {{ atividade.titulo }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v=cracha3">
+<link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v={{ ASSET_VERSION }}">
 {% endblock extra_css %}
 
 {% block action %}
@@ -137,6 +137,12 @@
     const ATIVIDADE = {{ atividade.id }};
     const URL_PRESENCAS = "{% url 'presenca-list' %}";
     const SOCKET_URL = "{{ SOCKET_URL }}";
+    // Desfazer presença é POST/DELETE autenticado por sessão: o Django exige o
+    // token CSRF (a página, até agora, só fazia GET e não precisava dele).
+    const CSRF = '{{ csrf_token }}';
+    // Palestrante abre esta tela, mas não pode desfazer presença — o ✕ só
+    // aparece para quem gerencia o evento (mesma regra que a API aplica).
+    const PODE_DESFAZER = {{ pode_desfazer|yesno:"true,false" }};
 
     const painelTotal = document.getElementById('painel-total');
     const painelUltimo = document.getElementById('painel-ultimo');
@@ -152,6 +158,14 @@
 
     function nomeDe(p) {
         return (p.participante && p.participante.nome_completo) || '—';
+    }
+
+    // Nome vem da API e vai para dentro de HTML e de atributo (title/aria):
+    // escapar evita que um apóstrofo no nome quebre a marcação.
+    function esc(texto) {
+        return String(texto == null ? '' : texto).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
     }
 
     function renderizar(itens) {
@@ -173,10 +187,47 @@
             '<span>' + (recente.papel_rotulo || '') + ' · ' + hora(recente.registrada_em) + '</span></div>';
 
         painelLista.innerHTML = itens.map(function (p) {
-            return '<li><div><strong>' + nomeDe(p) + '</strong>' +
-                '<span>' + (p.papel_rotulo || '') + ' · ' + (p.origem_rotulo || '') + '</span></div>' +
-                '<span>' + hora(p.registrada_em) + '</span></li>';
+            const nome = nomeDe(p);
+            const botao = PODE_DESFAZER
+                ? '<button type="button" class="qrd-x" data-desfazer="' + p.id + '"' +
+                  ' data-nome="' + esc(nome) + '"' +
+                  ' title="Desfazer a presença de ' + esc(nome) + '"' +
+                  ' aria-label="Desfazer a presença de ' + esc(nome) + '">✕</button>'
+                : '';
+            return '<li><div><strong>' + esc(nome) + '</strong>' +
+                '<span>' + esc(p.papel_rotulo || '') + ' · ' + esc(p.origem_rotulo || '') + '</span></div>' +
+                '<span>' + hora(p.registrada_em) + '</span>' + botao + '</li>';
         }).join('');
+
+        // Cada ✕ desfaz a presença daquela pessoa. Com confirmação de
+        // propósito: esta tela costuma ficar projetada, e um toque acidental
+        // apagaria um check-in legítimo.
+        painelLista.querySelectorAll('[data-desfazer]').forEach(function (botao) {
+            botao.addEventListener('click', function () {
+                desfazerPresenca(botao.dataset.desfazer, botao.dataset.nome);
+            });
+        });
+    }
+
+    async function desfazerPresenca(presencaId, nome) {
+        if (!confirm('Desfazer a presença de ' + nome + '?')) return;
+        try {
+            const resposta = await fetch(URL_PRESENCAS + presencaId + '/', {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': CSRF, 'Accept': 'application/json' },
+            });
+            if (resposta.ok || resposta.status === 204) {
+                painelAviso.textContent = 'Presença de ' + nome + ' desfeita.';
+                // Esquece o id: se a pessoa confirmar de novo, o bipe volta a tocar.
+                conhecidos.delete(Number(presencaId));
+                carregar();
+            } else {
+                painelAviso.textContent =
+                    'Não consegui desfazer a presença (HTTP ' + resposta.status + ').';
+            }
+        } catch (erro) {
+            painelAviso.textContent = 'Não consegui desfazer a presença (' + erro.message + ').';
+        }
     }
 
     function atualizar(itens) {
@@ -258,6 +309,11 @@
     if (typeof io === 'function') {
         socket = SOCKET_URL ? io(SOCKET_URL) : io();
         socket.on('presenca_confirmada', function (dados) {
+            if (Number(dados.atividade_id) === ATIVIDADE) carregar();
+        });
+        // Presença desfeita em outra tela (check-in, verificação de crachá) sai
+        // da lista aqui na hora, sem esperar o polling de 10 segundos.
+        socket.on('presenca_cancelada', function (dados) {
             if (Number(dados.atividade_id) === ATIVIDADE) carregar();
         });
         socket.on('connect_error', function () { painelAviso.textContent = 'Sem socket nesta rede: atualizando a cada 10 segundos.'; });

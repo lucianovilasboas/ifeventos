@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from eventos.models import Atividade, Inscricao, Participante
+from eventos.inscricoes import InscricaoBloqueada, cancelar_inscricao as cancelar_inscricao_servico
 from django.contrib import messages
 from django.utils.timezone import localtime
 from django.http import JsonResponse
@@ -88,9 +89,16 @@ def inscrever(request, atividade_id):
 
 @login_required(login_url='/accounts/login/')
 def cancelar_inscricao(request, inscricao_id):
-    inscricao = Inscricao.objects.get(id=inscricao_id, participante=request.user)
+    # get_object_or_404: id inexistente (ou de outra pessoa) devolvia 500.
+    inscricao = get_object_or_404(Inscricao, id=inscricao_id, participante=request.user)
 
-    inscricao.delete()
+    try:
+        # Cancela a inscrição E a presença naquela atividade, com auditoria.
+        cancelar_inscricao_servico(inscricao, por=request.user)
+    except InscricaoBloqueada as bloqueio:
+        messages.warning(request, bloqueio.messages[0])
+        return redirect('participante:dashboard')
+
     messages.success(request, "Inscrição cancelada com sucesso!")
     return redirect('participante:dashboard')
 
@@ -126,13 +134,21 @@ def gerenciar_inscricoes_ajax(request):
                 # Inscrever usuário
                 Inscricao.objects.get_or_create(participante=participante, atividade=atividade)
             else:
-                # Cancelar inscrição
-                Inscricao.objects.filter(participante=participante, atividade=atividade).delete()
+                # Cancelar inscrição: o serviço também cancela a presença na
+                # atividade (com auditoria) e recusa quando já há certificado.
+                para_cancelar = Inscricao.objects.filter(
+                    participante=participante, atividade=atividade
+                ).first()
+                if para_cancelar is not None:
+                    cancelar_inscricao_servico(para_cancelar, por=request.user)
 
             # Atualiza o número de inscritos
             inscritos_count = Inscricao.objects.filter(atividade=atividade).count()   
             messages.success(request, "Inscrição atualizada com sucesso!")
             return JsonResponse({"status": "success", "inscritos": inscritos_count, "vagas": atividade.n_vagas - inscritos_count})
+        except InscricaoBloqueada as bloqueio:
+            messages.warning(request, bloqueio.messages[0])
+            return JsonResponse({"status": "error", "message": bloqueio.messages[0]}, status=400)
         except Exception as e:
             messages.warning(request, "Erro ao atualizar inscrição.")
             return JsonResponse({"status": "error", "message": str(e)}, status=400)

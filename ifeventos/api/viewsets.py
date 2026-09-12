@@ -190,6 +190,24 @@ class MinhasInscricoesViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(participante=self.request.user)
 
+    def destroy(self, request, *args, **kwargs):
+        """Cancela a própria inscrição e, junto, a presença naquela atividade.
+
+        A regra vive em `eventos.inscricoes` — o mesmo lugar que a tela do
+        participante usa. É lá que se decide recusar quando já existe
+        certificado emitido, para não deixar certificado sem comprovação.
+        """
+        from eventos.inscricoes import InscricaoBloqueada, cancelar_inscricao
+
+        inscricao = self.get_object()
+        try:
+            cancelar_inscricao(inscricao, por=request.user)
+        except InscricaoBloqueada as bloqueio:
+            return Response(
+                {"detail": bloqueio.messages[0]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     def get_object(self):
         obj = super().get_object()
         self.check_object_permissions(self.request, obj)
@@ -384,6 +402,19 @@ class PresencaViewSet(viewsets.ModelViewSet):
         dados = PresencaSerializer(presenca).data
         dados["criada"] = criada
         return Response(dados, status=status.HTTP_201_CREATED if criada else status.HTTP_200_OK)
+
+    def perform_destroy(self, instance):
+        """Desfazer presença deixa rastro de quem desfez.
+
+        O `destroy()` padrão do DRF chama `instance.delete()`, que cumpre a
+        parte de estado (desmarca a inscrição) mas NÃO registra auditoria. Como
+        esta é a rota usada pelo ✕ da tela do QR e pelo "desfazer" do check-in,
+        é aqui que o cancelamento passa a ser auditado.
+        """
+        instance.cancelar(
+            por=self.request.user,
+            motivo="Desfazer presença (check-in/QR)",
+        )
 
     def destroy(self, request, *args, **kwargs):
         presenca = self.get_object()

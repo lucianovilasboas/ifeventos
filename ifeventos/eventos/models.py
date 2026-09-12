@@ -455,9 +455,87 @@ class Presenca(models.Model):
         Atenção: se a inscrição havia sido confirmada à mão no admin e não por
         check-in, o desfazer também a desmarca — é o comportamento esperado de
         um "desfazer", mas convém saber.
+
+        Prefira `cancelar(por=..., motivo=...)`: ele faz o mesmo e ainda deixa
+        o histórico de quem desfez.
         """
         resultado = super().delete(*args, **kwargs)
         Inscricao.objects.filter(
             participante=self.participante, atividade=self.atividade
         ).update(confirmada=False)
         return resultado
+
+    def cancelar(self, por=None, motivo=""):
+        """Desfaz a presença GUARDANDO o histórico do cancelamento.
+
+        É o caminho recomendado para desfazer um check-in: apagar direto perde
+        quem desfez, quando e como era a presença — e a presença é justamente a
+        comprovação que sustenta o certificado. Devolve o registro de auditoria.
+        """
+        registro = PresencaCancelada.objects.create(
+            atividade=self.atividade,
+            atividade_titulo=self.atividade.titulo if self.atividade_id else "",
+            participante=self.participante,
+            pessoa_nome=self.participante.get_full_name() if self.participante_id else "",
+            papel=self.papel,
+            origem=self.origem,
+            registrada_em=self.registrada_em,
+            cancelada_por=por,
+            motivo=motivo,
+        )
+        self.delete()  # o delete() acima desmarca Inscricao.confirmada
+        return registro
+
+
+class PresencaCancelada(models.Model):
+    """Histórico (append-only) das presenças desfeitas.
+
+    A presença precisa poder ser desfeita — engano ao apontar a câmera, pessoa
+    errada, leitura de um crachá que não era daquela atividade. Mas apagá-la sem
+    deixar rastro destruiria a comprovação que ela representa. Por isso cada
+    cancelamento grava uma linha aqui.
+
+    Os nomes ficam TAMBÉM em texto (não só na FK): se a atividade ou a pessoa for
+    excluída depois, o histórico continua legível. As FKs usam SET_NULL por isso.
+    """
+
+    atividade = models.ForeignKey(
+        Atividade,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="presencas_canceladas",
+    )
+    atividade_titulo = models.CharField(max_length=255, blank=True, default="")
+    participante = models.ForeignKey(
+        Participante,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="presencas_canceladas",
+    )
+    pessoa_nome = models.CharField(max_length=255, blank=True, default="")
+
+    # Retrato da presença no momento em que foi desfeita.
+    papel = models.CharField(max_length=20, blank=True, default="")
+    origem = models.CharField(max_length=10, blank=True, default="")
+    registrada_em = models.DateTimeField(null=True, blank=True)
+
+    cancelada_em = models.DateTimeField(default=timezone.now)
+    cancelada_por = models.ForeignKey(
+        Participante,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="presencas_canceladas_por",
+    )
+    motivo = models.CharField(max_length=120, blank=True, default="")
+
+    class Meta:
+        ordering = ["-cancelada_em"]
+        verbose_name = "Presença cancelada"
+        verbose_name_plural = "Presenças canceladas"
+
+    def __str__(self):
+        quando = self.cancelada_em.strftime("%d/%m/%Y %H:%M") if self.cancelada_em else "—"
+        return f"{self.pessoa_nome or '—'} em {self.atividade_titulo or '—'} (desfeita em {quando})"

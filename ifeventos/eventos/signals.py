@@ -2,6 +2,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import Inscricao 
 from .models import Atividade
+from .models import Presenca
 from .services import notify_socketio
 import asyncio
 
@@ -99,3 +100,48 @@ def atividade_deletada(sender, instance, **kwargs):
         import threading
         threading.Thread(target=lambda: asyncio.run(notify_socketio("delete_activity", data))).start()
         print(f"> except [SocketIO] Notificação enviada em thread: delete_activity - {data}")
+
+
+@receiver(post_delete, sender=Inscricao)
+def remover_presenca_da_inscricao(sender, instance, **kwargs):
+    """Rede de segurança: inscrição removida não deixa presença para trás.
+
+    O caminho normal é `eventos.inscricoes.cancelar_inscricao`, que cancela a
+    presença COM auditoria e é o único que consegue recusar quando já existe
+    certificado emitido. Este receiver cobre o que não passa por lá — o admin,
+    um `queryset.delete()` em lote e qualquer código futuro. Quando o serviço já
+    cancelou, aqui não encontra nada e não faz nada.
+
+    Aqui a presença é apagada SEM auditoria, de propósito. Excluir uma
+    atividade, um evento ou uma pessoa passa por este receiver em cascata:
+    gravar auditoria nesse instante apontaria para o registro que está sendo
+    apagado na MESMA transação — a chave estrangeira quebra e a exclusão morre.
+    Auditoria é para ação de gente, e essas já são registradas em
+    `cancelar_inscricao` e em `Presenca.cancelar`.
+    """
+    Presenca.objects.filter(
+        participante=instance.participante, atividade=instance.atividade
+    ).delete()
+
+
+@receiver(post_delete, sender=Presenca)
+def presenca_removida(sender, instance, **kwargs):
+    """Avisa as telas abertas (QR da atividade, check-in) que a presença saiu.
+
+    Sem isto a lista da outra tela só se corrige na próxima atualização
+    periódica (10 s) — e quem está na porta vê um nome que já não vale.
+    """
+    data = {
+        "presenca_id": instance.id,
+        "atividade_id": instance.atividade_id,
+        "acao": "presenca",
+    }
+    try:
+        asyncio.run(notify_socketio("presenca_cancelada", data))
+        print(f"> try [SocketIO] Notificação enviada: presenca_cancelada - {data}")
+    except RuntimeError:
+        import threading
+        threading.Thread(
+            target=lambda: asyncio.run(notify_socketio("presenca_cancelada", data))
+        ).start()
+        print(f"> except [SocketIO] Notificação enviada em thread: presenca_cancelada - {data}")

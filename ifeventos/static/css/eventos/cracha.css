@@ -816,3 +816,32 @@
     color: var(--muted);
     font-size: 0.86rem;
 }
+
+/* Desfazer presença na lista do QR (o ✕ na frente do nome).
+   Pequeno e discreto de propósito: esta tela costuma ficar projetada para a
+   turma e um botão largo viraria convite a toque acidental — por isso também
+   há confirmação antes de desfazer. */
+.qrd-x {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin-left: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.68rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.qrd-x:hover,
+.qrd-x:focus-visible {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}

@@ -479,6 +479,10 @@ class QrAtividadeView(LoginRequiredMixin, View):
         return render(request, self.template_name, {
             "atividade": atividade,
             "evento": atividade.evento,
+            # A tela é liberada também para quem PALESTRA na atividade, mas
+            # desfazer presença exige gerenciar o evento (mesma regra da API).
+            # Sem separar as duas, o palestrante veria um ✕ que sempre falha.
+            "pode_desfazer": pode_gerenciar_evento(request.user, atividade.evento),
         })
 
 

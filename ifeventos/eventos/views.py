@@ -339,7 +339,10 @@ def verificar_cracha(request, token):
                 .first()
             )
             if presenca:
-                presenca.delete()
+                presenca.cancelar(
+                    por=request.user,
+                    motivo="Desfazer pelo check-in do crachá",
+                )
                 messages.success(request, "Presença desfeita.")
             return redirect("verificar_cracha", token=token)
 
