@@ -14,9 +14,11 @@ não estiver disponível.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import io
+import threading
 from datetime import timedelta
 
 import qrcode
@@ -640,6 +642,38 @@ def pessoa_por_token_ou_codigo(token=None, codigo=None, evento=None):
     return None, None, None
 
 
+def notificar_presenca_confirmada(atividade, presenca_id):
+    """Avisa quem está com a tela do QR aberta que alguém confirmou presença.
+
+    O evento leva só o sinal — atividade, evento e id da presença. **Nenhum dado
+    pessoal**: o servidor de socket do projeto não tem autenticação nem salas, e
+    o que passa por ele chega a qualquer cliente conectado. Os detalhes (nome,
+    papel, hora) quem busca é a tela do organizador, autenticada, na API.
+
+    Notificar é acessório: se o socket estiver fora, a presença já foi gravada e
+    a tela se atualiza pelo polling de segurança.
+    """
+    from .services import notify_socketio  # import local: evita ciclo de módulos
+
+    dados = {
+        "atividade_id": atividade.id,
+        "evento_id": atividade.evento_id,
+        "presenca_id": presenca_id,
+    }
+
+    try:
+        asyncio.run(notify_socketio("presenca_confirmada", dados))
+    except RuntimeError:
+        # Já existe um laço de eventos em execução (contexto async): o projeto
+        # usa este mesmo desvio em eventos/signals.py.
+        threading.Thread(
+            target=lambda: asyncio.run(notify_socketio("presenca_confirmada", dados)),
+            daemon=True,
+        ).start()
+    except Exception as erro:
+        print(f"[SocketIO] presença não notificada: {erro}")
+
+
 def registrar_presenca(atividade, pessoa, registrada_por=None, origem="qr"):
     """Registra a presença e devolve (presenca, criada, motivo_da_recusa).
 
@@ -673,6 +707,11 @@ def registrar_presenca(atividade, pessoa, registrada_por=None, origem="qr"):
             "origem": origem,
         },
     )
+
+    if criada:
+        # Releitura do mesmo crachá não é novidade: só a presença nova avisa.
+        notificar_presenca_confirmada(atividade, presenca.id)
+
     return presenca, criada, ""
 
 

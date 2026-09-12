@@ -362,15 +362,24 @@ async def sugerir_categoria_ajax(request):
 
 # -- Função para notificar eventos via SocketIO --
 async def notify_socketio(event_type, data):
+    """Notifica os clientes conectados pelo servidor Socket.IO.
+
+    Usa `call` em vez de `emit` de propósito: o servidor precisa **confirmar o
+    recebimento** antes de a conexão ser fechada. Com `emit` e `disconnect`
+    imediato o pacote era descartado no caminho — medido: o mesmo evento chegou
+    com `call` (ack recebido) e sumiu com `emit`. Isso valia para todas as
+    notificações do sistema, não só a de presença.
+
+    A confirmação é esperada por poucos segundos: avisar é acessório e nunca
+    pode segurar nem derrubar o fluxo principal, que já foi gravado.
+    """
     sio = socketio.AsyncClient()
     try:
-        # Endereço interno do servidor Socket.IO (mesmo contêiner, porta 8500).
-        # Antes era um domínio DuckDNS fixo, que só funcionava na máquina antiga.
         await sio.connect(settings.SOCKET_INTERNAL_URL)
-        await sio.emit(event_type, data)
+        await sio.call(event_type, data, timeout=5)
         print(f"[SocketIO] Notificação enviada: {event_type} - {data}")
         await sio.disconnect()
     except Exception as e:
-        print(f"[SocketIO] Falha ao conectar: {e}")
+        print(f"[SocketIO] Não consegui notificar ({event_type}): {e}")
 
 

@@ -8,7 +8,14 @@
 {% endblock extra_css %}
 
 {% block action %}
-<h2><i class="fa-solid fa-camera"></i> Check-in da atividade</h2>
+<div class="pagina-topo">
+    <h2><i class="fa-solid fa-camera"></i> Check-in da atividade</h2>
+    {# Volta para a tela anterior; aberta de fora, cai na lista de atividades. #}
+    <a class="btn btn-sm btn-outline-secondary" id="btnVoltar"
+       href="{% url 'organizador:atividades_evento' atividade.evento_id %}">
+        <i class="fa-solid fa-arrow-left"></i> Voltar
+    </a>
+</div>
 {% endblock action %}
 
 {% block content %}
@@ -40,7 +47,9 @@
         </section>
 
         <section class="chk-lado">
-            <div class="chk-resultado" id="resultado"></div>
+            <div class="chk-resultado vazio" id="resultado">
+                <span>Aponte o crachá para a câmera: o resultado da leitura aparece aqui.</span>
+            </div>
 
             <div class="chk-codigo">
                 <label class="form-label" for="codigo">Sem câmera? Digite o código do crachá</label>
@@ -223,6 +232,14 @@
             mostrar('Não consegui carregar a lista: ' + erro.message, 'erro');
         }
     }
+
+    // Voltar: tela anterior quando ela é do sistema (senão o href leva à lista)
+    document.getElementById('btnVoltar').addEventListener('click', function (evento) {
+        if (document.referrer && document.referrer.indexOf(location.origin) === 0) {
+            evento.preventDefault();
+            history.back();
+        }
+    });
 
     document.getElementById('ligar-camera').addEventListener('click', ligarCamera);
 
