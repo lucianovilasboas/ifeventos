@@ -662,3 +662,157 @@
     color: var(--muted);
     font-size: 0.86rem;
 }
+
+
+/* -------------------------------------------------------------------------
+   Topo de página com o botão Voltar (QR da atividade e check-in)
+   ------------------------------------------------------------------------- */
+
+.pagina-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pagina-topo h2 {
+    margin: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Painel ao vivo da tela do QR: quem já confirmou
+   ------------------------------------------------------------------------- */
+
+.qrd-grade {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) minmax(280px, 1fr);
+    gap: 28px;
+    align-items: start;
+}
+
+@media (max-width: 860px) {
+    .qrd-grade {
+        grid-template-columns: 1fr;
+    }
+}
+
+.qrd-painel {
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+}
+
+.qrd-painel-topo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.qrd-contador {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.qrd-contador strong {
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--accent-ink);
+}
+
+.qrd-contador span {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+/* O último confirmado é o que a pessoa na porta precisa conferir */
+.qrd-ultimo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 76px;
+    padding: 14px 16px;
+    border: 1px solid var(--accent);
+    border-radius: 14px;
+    background: var(--accent-soft);
+}
+
+.qrd-ultimo.vazio {
+    border: 1px dashed var(--border-ui);
+    background: #ffffff;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.qrd-ultimo strong {
+    display: block;
+    font-size: 1.25rem;
+    font-weight: 900;
+    line-height: 1.15;
+}
+
+.qrd-ultimo span {
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.qrd-selo {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.qrd-lista {
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.qrd-lista li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+.qrd-lista li:last-child {
+    border-bottom: none;
+}
+
+.qrd-lista li span {
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+.qrd-rodape {
+    margin: 14px 0 0;
+    font-size: 0.74rem;
+    color: var(--muted);
+}
+
+/* Nome e papel em linhas separadas também na lista (antes o papel colava no nome) */
+.qrd-lista li strong {
+    display: block;
+}
+
+/* Espaço do resultado da leitura: sem texto ele parece elemento quebrado */
+.chk-resultado.vazio {
+    border-style: dashed;
+    color: var(--muted);
+    font-size: 0.86rem;
+}

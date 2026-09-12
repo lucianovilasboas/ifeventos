@@ -4,60 +4,89 @@
 {% block title %}QR de presença | {{ atividade.titulo }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v={{ ASSET_VERSION }}">
+<link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v=cracha3">
 {% endblock extra_css %}
 
 {% block action %}
-<h2><i class="fa-solid fa-qrcode"></i> QR de presença da atividade</h2>
+<div class="pagina-topo">
+    <h2><i class="fa-solid fa-qrcode"></i> QR de presença da atividade</h2>
+    {# Volta para a tela anterior; aberta de fora, cai na lista de atividades. #}
+    <a class="btn btn-sm btn-outline-secondary" id="btnVoltar"
+       href="{% url 'organizador:atividades_evento' atividade.evento_id %}">
+        <i class="fa-solid fa-arrow-left"></i> Voltar
+    </a>
+</div>
 {% endblock action %}
 
 {% block content %}
 
-<div class="qrd">
-    <h3 class="qrd-atividade">{{ atividade.titulo }}</h3>
-    <p class="qrd-evento">
-        {{ evento.title }} ·
-        {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }}
-        {% if atividade.data_hora_fim %}— {{ atividade.data_hora_fim|date:"H:i" }}{% endif %}
-    </p>
+<div class="qrd-grade">
 
-    <div class="qrd-janela" id="janela">Verificando a janela de confirmação…</div>
+    <div class="qrd">
+        <h3 class="qrd-atividade">{{ atividade.titulo }}</h3>
+        <p class="qrd-evento">
+            {{ evento.title }} ·
+            {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }}
+            {% if atividade.data_hora_fim %}— {{ atividade.data_hora_fim|date:"H:i" }}{% endif %}
+        </p>
 
-    <div class="qrd-quadro">
-        <img id="qr-img" alt="QR de presença da atividade" width="320" height="320">
+        <div class="qrd-janela" id="janela">Verificando a janela de confirmação…</div>
+
+        <div class="qrd-quadro">
+            <img id="qr-img" alt="QR de presença da atividade" width="320" height="320">
+        </div>
+
+        <p class="qrd-validade">
+            Este código se renova sozinho a cada <strong id="renovacao">—</strong>.
+            Assim, uma foto compartilhada do QR deixa de funcionar.
+        </p>
+
+        <p class="qrd-instrucao">
+            Mostre esta tela para a turma: cada pessoa aponta a câmera do próprio
+            celular para cá e confirma a presença dela. Ninguém precisa instalar nada.
+        </p>
+
+        <div class="qrd-acoes">
+            <a class="btn btn-sm btn-outline-success"
+               href="{% url 'organizador:checkin_atividade' atividade.id %}">
+                <i class="fa-solid fa-camera"></i> Prefiro ler os crachás pela câmera
+            </a>
+        </div>
+
+        <p class="qrd-url" id="qr-url"></p>
     </div>
 
-    <p class="qrd-validade">
-        Este código se renova sozinho a cada <strong id="renovacao">—</strong>.
-        Assim, uma foto compartilhada do QR deixa de funcionar.
-    </p>
+    <aside class="qrd-painel">
+        <div class="qrd-painel-topo">
+            <div class="qrd-contador">
+                <strong id="painel-total">0</strong>
+                <span>já confirmaram</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-success" id="botao-som">
+                <i class="fa-solid fa-volume-high"></i> Ligar o som
+            </button>
+        </div>
 
-    <p class="qrd-instrucao">
-        Mostre esta tela para a turma: cada pessoa aponta a câmera do próprio
-        celular para cá e confirma a presença dela. Ninguém precisa instalar nada.
-    </p>
+        <div class="qrd-ultimo vazio" id="painel-ultimo">Aguardando a primeira confirmação…</div>
 
-    <div class="qrd-acoes">
-        <a class="btn btn-sm btn-outline-success"
-           href="{% url 'organizador:checkin_atividade' atividade.id %}">
-            <i class="fa-solid fa-camera"></i> Prefiro ler os crachás pela câmera
-        </a>
-        <a class="btn btn-sm btn-outline-secondary"
-           href="{% url 'organizador:atividades_evento' atividade.evento_id %}">
-            Voltar às atividades
-        </a>
-    </div>
+        <ul class="qrd-lista" id="painel-lista"></ul>
 
-    <p class="qrd-url" id="qr-url"></p>
+        <p class="qrd-rodape" id="painel-aviso">
+            Chega na hora pelo socket e, por segurança, também a cada 10 segundos.
+        </p>
+    </aside>
+
 </div>
 
 {% endblock content %}
 
 {% block scripts %}
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <script>
-    // O código é gerado pela API e renovado aqui dentro. Renovar é o que dá
-    // validade curta ao QR: quem fotografou a tela ontem (ou minutos atrás) não
-    // consegue confirmar com aquela foto.
+    // ---------------------------------------------------------------------
+    // 1) O QR rotativo: o código é gerado pela API e renovado aqui dentro.
+    //    É a validade curta que faz uma foto antiga do QR não valer mais.
+    // ---------------------------------------------------------------------
     const urlDoQr = "{% url 'atividade-qrcode' atividade.id %}";
     const img = document.getElementById('qr-img');
     const linhaJanela = document.getElementById('janela');
@@ -76,11 +105,9 @@
                 headers: { 'Accept': 'application/json' },
                 cache: 'no-store',
             });
-            if (!resposta.ok) {
-                throw new Error('HTTP ' + resposta.status);
-            }
-            const dados = await resposta.json();
+            if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
 
+            const dados = await resposta.json();
             img.src = dados.png;
             linhaUrl.textContent = dados.url;
             linhaRenovacao.textContent = Math.round(dados.renovar_em_segundos / 60) + ' min';
@@ -99,6 +126,145 @@
         }
     }
 
+    // ---------------------------------------------------------------------
+    // 2) O painel ao vivo: quem já confirmou.
+    //
+    // O socket traz apenas o SINAL (a atividade onde houve confirmação) — o
+    // servidor de socket do projeto não tem autenticação, então nome de pessoa
+    // não passa por ele. Os detalhes são buscados aqui, pela API, com a sessão
+    // de quem organiza.
+    // ---------------------------------------------------------------------
+    const ATIVIDADE = {{ atividade.id }};
+    const URL_PRESENCAS = "{% url 'presenca-list' %}";
+    const SOCKET_URL = "{{ SOCKET_URL }}";
+
+    const painelTotal = document.getElementById('painel-total');
+    const painelUltimo = document.getElementById('painel-ultimo');
+    const painelLista = document.getElementById('painel-lista');
+    const painelAviso = document.getElementById('painel-aviso');
+    const conhecidos = new Set();
+    let primeiraCarga = true;
+    let audio = null;
+
+    function hora(iso) {
+        return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function nomeDe(p) {
+        return (p.participante && p.participante.nome_completo) || '—';
+    }
+
+    function renderizar(itens) {
+        painelTotal.textContent = itens.length;
+
+        if (!itens.length) {
+            painelUltimo.className = 'qrd-ultimo vazio';
+            painelUltimo.textContent = 'Aguardando a primeira confirmação…';
+            painelLista.innerHTML = '';
+            return;
+        }
+
+        // A API ordena da mais recente para a mais antiga.
+        const recente = itens[0];
+        painelUltimo.className = 'qrd-ultimo';
+        painelUltimo.innerHTML =
+            '<span class="qrd-selo" aria-hidden="true">✅</span>' +
+            '<div><strong>' + nomeDe(recente) + '</strong>' +
+            '<span>' + (recente.papel_rotulo || '') + ' · ' + hora(recente.registrada_em) + '</span></div>';
+
+        painelLista.innerHTML = itens.map(function (p) {
+            return '<li><div><strong>' + nomeDe(p) + '</strong>' +
+                '<span>' + (p.papel_rotulo || '') + ' · ' + (p.origem_rotulo || '') + '</span></div>' +
+                '<span>' + hora(p.registrada_em) + '</span></li>';
+        }).join('');
+    }
+
+    function atualizar(itens) {
+        const novos = itens.filter(function (p) { return !conhecidos.has(p.id); });
+        itens.forEach(function (p) { conhecidos.add(p.id); });
+        renderizar(itens);
+
+        // Não apita na primeira carga (senão apitaria por toda a lista já existente)
+        if (!primeiraCarga && novos.length) bipe();
+        primeiraCarga = false;
+    }
+
+    async function carregar() {
+        try {
+            const resposta = await fetch(URL_PRESENCAS + '?atividade=' + ATIVIDADE, {
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-store',
+            });
+
+            if (resposta.status === 401 || resposta.status === 403) {
+                painelAviso.textContent = 'Sua sessão expirou: entre novamente para o painel continuar atualizando.';
+                return;
+            }
+            if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+
+            const dados = await resposta.json();
+            atualizar(Array.isArray(dados) ? dados : (dados.results || []));
+            painelAviso.textContent = socket
+                ? 'Chega na hora pelo socket e, por segurança, também a cada 10 segundos.'
+                : 'Sem socket nesta rede: atualizando a cada 10 segundos.';
+        } catch (erro) {
+            painelAviso.textContent = 'Não consegui carregar as presenças (' + erro.message + ').';
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // 3) Bipe: quem está na porta ouve a confirmação sem olhar a tela.
+    //    O navegador só libera áudio depois de um toque — daí o botão.
+    // ---------------------------------------------------------------------
+    function bipe(volume) {
+        if (!audio) return;
+        const oscilador = audio.createOscillator();
+        const ganho = audio.createGain();
+        oscilador.type = 'sine';
+        oscilador.frequency.value = 880;
+        ganho.gain.value = volume || 0.25;
+        oscilador.connect(ganho);
+        ganho.connect(audio.destination);
+        oscilador.start();
+        ganho.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.35);
+        oscilador.stop(audio.currentTime + 0.36);
+    }
+
+    document.getElementById('botao-som').addEventListener('click', function () {
+        try {
+            audio = new (window.AudioContext || window.webkitAudioContext)();
+            this.innerHTML = '<i class="fa-solid fa-volume-high"></i> Som ligado';
+            this.disabled = true;
+            bipe(0.08);
+        } catch (erro) {
+            painelAviso.textContent = 'Este navegador não permitiu ligar o som: ' + erro.message;
+        }
+    });
+
+    // ---------------------------------------------------------------------
+    // 4) Voltar: tela anterior quando ela é do sistema.
+    // ---------------------------------------------------------------------
+    document.getElementById('btnVoltar').addEventListener('click', function (evento) {
+        if (document.referrer && document.referrer.indexOf(location.origin) === 0) {
+            evento.preventDefault();
+            history.back();
+        }
+    });
+
+    // ---------------------------------------------------------------------
+    // 5) Ligando tudo: socket (instantâneo) + polling de segurança.
+    // ---------------------------------------------------------------------
+    let socket = null;
+    if (typeof io === 'function') {
+        socket = SOCKET_URL ? io(SOCKET_URL) : io();
+        socket.on('presenca_confirmada', function (dados) {
+            if (Number(dados.atividade_id) === ATIVIDADE) carregar();
+        });
+        socket.on('connect_error', function () { painelAviso.textContent = 'Sem socket nesta rede: atualizando a cada 10 segundos.'; });
+    }
+
     renovar();
+    carregar();
+    setInterval(carregar, 10000);
 </script>
 {% endblock scripts %}

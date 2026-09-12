@@ -66,5 +66,18 @@ async def notify_atividade_inicio(sid,data):
     await sio.emit('atividade_inicio_alert', data)
 
 
+@sio.event
+async def presenca_confirmada(sid, data):
+    """Repassa o sinal de presença confirmada para quem está com a tela do QR aberta.
+
+    O dado é anônimo de propósito (id da atividade, do evento e da presença):
+    este servidor não tem autenticação nem salas, então nome de pessoa não
+    trafega por aqui. Quem busca os detalhes é a tela do organizador, que está
+    autenticada, pela API de presenças.
+    """
+    print(f"[🔔] Presença confirmada recebida de {sid}: {data}")
+    await sio.emit('presenca_confirmada', data)
+
+
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=8500)
