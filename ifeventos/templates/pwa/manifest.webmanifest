@@ -1,0 +1,55 @@
+{% load static %}{
+  "name": "Nossos Eventos — IFMG Campus Ponte Nova",
+  "short_name": "Nossos Eventos",
+  "description": "Eventos, inscrições, presença por QR code e certificados do campus Ponte Nova.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "{% url 'eventos:eventos' %}",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#2f9e41",
+  "icons": [
+    {
+      "src": "{% static 'img/pwa/icon-192.png' %}",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "{% static 'img/pwa/icon-512.png' %}",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "{% static 'img/pwa/icon-maskable-512.png' %}",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agenda de eventos",
+      "short_name": "Agenda",
+      "url": "{% url 'eventos:eventos' %}",
+      "icons": [{ "src": "{% static 'img/pwa/icon-192.png' %}", "sizes": "192x192" }]
+    },
+    {
+      "name": "Meu painel",
+      "short_name": "Painel",
+      "url": "{% url 'participante:dashboard' %}",
+      "icons": [{ "src": "{% static 'img/pwa/icon-192.png' %}", "sizes": "192x192" }]
+    },
+    {
+      "name": "Meus certificados",
+      "short_name": "Certificados",
+      "url": "{% url 'participante:meus_certificados' %}",
+      "icons": [{ "src": "{% static 'img/pwa/icon-192.png' %}", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Nossos Eventos | IFMG Campus Ponte Nova</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,6 +12,7 @@
     {# Sem Bootstrap: a landing é página própria, feita sob medida do design system #}
     <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v={{ ASSET_VERSION }}">
     <link rel="stylesheet" href="{% static 'css/eventos/landing.css' %}?v={{ ASSET_VERSION }}">
+    {% include 'includes/pwa_head.html' %}
 </head>
 <body class="landing-body">
     <!-- ===================== HEADER ===================== -->
@@ -57,6 +58,7 @@
                 <a class="btn-land btn-primary-land" href="{% url 'account_login' %}"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
                 {% endif %}
             </nav>
+            {% include 'includes/pwa_install_button.html' %}
         </div>
     </header>
 
@@ -302,5 +304,6 @@
         aplicar();
     })();
     </script>
+    {% include 'includes/pwa_ios_help.html' %}
 </body>
 </html>

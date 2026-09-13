@@ -3,7 +3,7 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}Dashboard | Minha Conta{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v={{ ASSET_VERSION }}">
     <link rel="stylesheet" href="{% static 'css/organizador/style.css' %}?v={{ ASSET_VERSION }}">
     <link rel="stylesheet" href="{% static 'css/app/main.css' %}?v={{ ASSET_VERSION }}">
+    {% include 'includes/pwa_head.html' %}
     {# Folhas específicas de uma tela (ex.: o crachá). Vazio por padrão. #}
     {% block extra_css %}{% endblock extra_css %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
@@ -26,6 +27,7 @@
         <nav class="app-nav-desktop" aria-label="Navegação principal">
             {% include 'includes/app_nav_items.html' %}
         </nav>
+        {% include 'includes/pwa_install_button.html' %}
         <a class="app-avatar" href="#" data-bs-toggle="modal" data-bs-target="#editProfileModal" title="{{ request.user.first_name }}">
             <img src="{{ request.user.get_foto_url }}" alt="{{ request.user.first_name }}">
         </a>
@@ -69,5 +71,6 @@
     {% endif %}
 
     {% block scripts %}{% endblock %}
+    {% include 'includes/pwa_ios_help.html' %}
 </body>
 </html>

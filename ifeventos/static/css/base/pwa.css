@@ -1,0 +1,117 @@
+/* ============================================================
+   Nossos Eventos — PWA (instalável como aplicativo)
+   ------------------------------------------------------------
+   Duas responsabilidades:
+
+   1) UI do botão "Instalar app" e do passo a passo do iOS.
+      Não depende de Bootstrap: a landing (eventos.html) também usa
+      este arquivo e não carrega o framework.
+
+   2) Ajustes de "modo aplicativo" (display-mode: standalone):
+      o navegador sai de cena e o conteúdo encosta na status bar e
+      na barra de gestos do aparelho.
+   ============================================================ */
+
+/* ---------- Botão "Instalar app" ---------- */
+.pwa-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pwa-install i { font-size: 14px; }
+.pwa-install:hover { border-color: var(--accent); }
+.pwa-install:active { transform: translateY(1px); }
+.pwa-install[hidden] { display: none; }
+
+/* ---------- Passo a passo do iOS (sheet) ---------- */
+.pwa-sheet[hidden] { display: none; }
+.pwa-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.pwa-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+.pwa-sheet-panel {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 22px 20px calc(22px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+}
+.pwa-sheet-panel h2 {
+  margin: 0 0 14px;
+  font-family: var(--font-display);
+  font-size: 19px;
+}
+.pwa-sheet-panel ol {
+  margin: 0 0 20px;
+  padding-left: 20px;
+  color: var(--fg);
+  line-height: 1.7;
+}
+.pwa-sheet-panel ol b { color: var(--accent-ink); }
+.pwa-sheet-close {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-bottom: 4px solid var(--accent-press);
+  border-radius: var(--radius-md);
+  background: var(--accent-ink);
+  color: var(--accent-on);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ---------- Modo aplicativo (instalado) ---------- */
+@media (display-mode: standalone), (display-mode: minimal-ui) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Status bar / notch: empurra as barras para baixo do recorte. */
+  .app-topbar {
+    padding-top: calc(12px + env(safe-area-inset-top));
+  }
+  .landing-header {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Barra de gestos: garante o respiro extra abaixo da bottom nav. */
+  body {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Em telas estreitas o rótulo some e fica só o ícone, para não competir
+   com o nome longo da marca nem empurrar o avatar para fora. */
+@media (max-width: 420px) {
+  .pwa-install { padding: 0 10px; }
+  .pwa-install span { display: none; }
+}

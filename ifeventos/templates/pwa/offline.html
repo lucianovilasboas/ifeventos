@@ -1,0 +1,55 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2f9e41">
+    <title>Sem conexão | Nossos Eventos</title>
+    <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v={{ ASSET_VERSION }}">
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: var(--app-bg, #f6faf6);
+            color: var(--fg, #3c3c3c);
+            font-family: var(--font-body, system-ui, sans-serif);
+            text-align: center;
+            -webkit-font-smoothing: antialiased;
+        }
+        .offline-card { max-width: 420px; }
+        .offline-ico {
+            width: 84px; height: 84px; margin: 0 auto 20px;
+            display: grid; place-items: center;
+            border-radius: 50%;
+            background: var(--accent-soft, #e8f5ea);
+            color: var(--accent, #2f9e41);
+            font-size: 38px;
+        }
+        h1 {
+            font-family: var(--font-display, system-ui, sans-serif);
+            font-size: 24px; margin: 0 0 10px;
+        }
+        p { margin: 0 0 24px; color: var(--muted, #6b6b6b); line-height: 1.5; }
+        button {
+            min-height: 44px; padding: 0 24px;
+            border: 0; border-radius: var(--radius-md, 10px);
+            background: var(--accent-ink, #23792f); color: #fff;
+            font-family: inherit; font-size: 15px; font-weight: 700;
+            cursor: pointer;
+        }
+        button:active { background: var(--accent-press, #175520); }
+    </style>
+</head>
+<body>
+    <main class="offline-card">
+        <div class="offline-ico" aria-hidden="true">📡</div>
+        <h1>Sem conexão</h1>
+        <p>Você está offline. Assim que a internet voltar, é só tentar de novo — seus eventos continuam aqui.</p>
+        <button type="button" onclick="window.location.reload()">Tentar de novo</button>
+    </main>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{% load static %}
+{# Cabeçalho comum do PWA. Incluir no <head> de todo HTML de nível superior. #}
+<link rel="manifest" href="{% url 'pwa_manifest' %}">
+<meta name="theme-color" content="#2f9e41">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Nossos Eventos">
+<link rel="apple-touch-icon" href="{% static 'img/pwa/apple-touch-icon.png' %}">
+<link rel="icon" href="{% static 'img/pwa/favicon.ico' %}" sizes="any">
+<link rel="stylesheet" href="{% static 'css/base/pwa.css' %}?v={{ ASSET_VERSION }}">
+<script src="{% static 'js/pwa.js' %}?v={{ ASSET_VERSION }}" defer data-pwa-sw="{% url 'pwa_sw' %}"></script>

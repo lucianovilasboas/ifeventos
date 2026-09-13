@@ -1,0 +1,8 @@
+{% comment %}
+Botão "Instalar app": aparece quando o navegador oferecer instalação
+(beforeinstallprompt) ou, no iOS Safari, abre o passo a passo. Fica oculto
+por padrão — o pwa.js decide quando mostrar.
+{% endcomment %}
+<button type="button" class="pwa-install" data-pwa-install hidden aria-label="Instalar aplicativo">
+    <i class="fa-solid fa-download" aria-hidden="true"></i><span>Instalar app</span>
+</button>

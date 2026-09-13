@@ -19,12 +19,19 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.static import serve
 from eventos.views import confirmar_presenca_pelo_qr, eventos_view, verificar_cracha
+from eventos.pwa import manifest_view, offline_view, service_worker_view
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
 
     path("", eventos_view, name="home"), 
+
+    # -- PWA (instalavel como aplicativo) --
+    # O service worker PRECISA estar na raiz para ter escopo em todo o site.
+    path("manifest.webmanifest", manifest_view, name="pwa_manifest"),
+    path("sw.js", service_worker_view, name="pwa_sw"),
+    path("offline/", offline_view, name="pwa_offline"),
 
     path("admin/", admin.site.urls),
     # -- Eventos --
