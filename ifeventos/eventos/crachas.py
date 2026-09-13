@@ -18,8 +18,8 @@ import asyncio
 import base64
 import hashlib
 import io
+from datetime import date, datetime, timedelta
 import threading
-from datetime import timedelta
 
 import qrcode
 from django.conf import settings
@@ -58,34 +58,49 @@ class CrachaInvalido(Exception):
 # Papel e listagem
 # --------------------------------------------------------------------------
 
-def papel_no_evento(usuario, evento):
-    """Papel do usuário NAQUELE evento: organizador, palestrante ou participante.
+# Ordem em que os papéis aparecem: do mais alto para o mais baixo. A MESMA
+# pessoa pode organizar, palestrar e estar inscrita no MESMO evento — e o crachá
+# é um só por evento, então ele mostra todos os papéis que ela tem ali, com o
+# primeiro em destaque.
+PAPEIS_ORDEM = ("organizador", "palestrante", "participante")
+
+
+def papeis_no_evento(usuario, evento):
+    """TODOS os papéis do usuário NAQUELE evento, do mais alto para o mais baixo.
 
     Os campos `is_organizador`/`is_palestrante`/`is_participante` do Participante
     são globais, mas o papel do crachá é do evento: quem organiza o evento A
-    costuma ser apenas participante no evento B. Por isso derivamos do contexto,
-    nesta ordem de precedência (a primeira que casa vence):
+    costuma ser apenas participante no evento B. Por isso derivamos do contexto:
 
         organizador  -> é o organizador cadastrado no evento;
         palestrante  -> está entre os palestrantes de alguma atividade do evento;
         participante -> tem inscrição em alguma atividade do evento.
 
-    Devolve None quando a pessoa não tem papel nenhum no evento — e nesse caso
-    não recebe crachá.
+    Devolve lista vazia quando a pessoa não tem papel nenhum (e aí não recebe
+    crachá). Lista, e não um papel só, porque quem organiza e também se inscreveu
+    perdia a inscrição no crachá pela precedência.
     """
     if not evento or not usuario or not getattr(usuario, "is_authenticated", False):
-        return None
+        return []
 
+    papeis = []
     if evento.organizador_id == usuario.id:
-        return "organizador"
-
+        papeis.append("organizador")
     if evento.atividades.filter(palestrantes=usuario).exists():
-        return "palestrante"
-
+        papeis.append("palestrante")
     if Inscricao.objects.filter(participante=usuario, atividade__evento=evento).exists():
-        return "participante"
+        papeis.append("participante")
+    return papeis
 
-    return None
+
+def papel_no_evento(usuario, evento):
+    """Papel PRINCIPAL do usuário no evento (None se não tem nenhum).
+
+    É o papel usado onde um só resolve: registro de presença e verificação. Para
+    desenhar o crachá use `papeis_no_evento`, que devolve todos.
+    """
+    papeis = papeis_no_evento(usuario, evento)
+    return papeis[0] if papeis else None
 
 
 def eventos_com_papel(usuario):
@@ -245,10 +260,19 @@ def qr_como_data_url(conteudo, caixa=8, borda=1):
 
 
 def montar_cracha(usuario, evento, papel=None):
-    """Todos os dados que a tela e o PDF precisam para desenhar um crachá."""
-    papel = papel or papel_no_evento(usuario, evento)
-    if not papel:
+    """Todos os dados que a tela e o PDF precisam para desenhar um crachá.
+
+    `papeis`/`papeis_rotulos` são a lista completa (o crachá é um por evento);
+    `papel`/`papel_rotulo` continuam sendo o principal, para quem só quer um.
+    """
+    papeis = papeis_no_evento(usuario, evento)
+    if papel and papel not in papeis:
+        # Quem chamou informou um papel (ex.: fluxo de presença): ele vira o
+        # principal, sem apagar os outros papéis que a pessoa tem no evento.
+        papeis.insert(0, papel)
+    if not papeis:
         return None
+    principal = papeis[0]
     token = gerar_token(usuario.id, evento.id, tipo="cracha")
     url = url_verificacao(token)
     return {
@@ -256,8 +280,10 @@ def montar_cracha(usuario, evento, papel=None):
         "evento": evento,
         "nome": nome_completo(usuario),
         "periodo": periodo_legivel(evento),
-        "papel": papel,
-        "papel_rotulo": ROTULOS_PAPEL.get(papel, papel),
+        "papel": principal,
+        "papel_rotulo": ROTULOS_PAPEL.get(principal, principal),
+        "papeis": papeis,
+        "papeis_rotulos": [ROTULOS_PAPEL.get(p, p) for p in papeis],
         "token": token,
         "url": url,
         "codigo": codigo_curto(usuario.id, evento.id),
@@ -275,15 +301,32 @@ def crachas_do_usuario(usuario):
     return crachas
 
 
-def url_da_logo():
-    """URL da logo institucional, quando o arquivo existe.
+# A marca do crachá tem arquivo próprio, e não o do certificado (`logo_ifmg.png`):
+# assim dá para trocar a cara do crachá sem mexer no certificado. Sem o arquivo
+# novo, o crachá cai na logo antiga — nunca fica sem marca.
+LOGO_CRACHA = "logo_cracha.png"
+LOGO_CRACHA_ANTERIOR = "logo_ifmg.png"
 
-    A logo vive em `media/` (é a mesma que o certificado usa), não em `static/`.
+
+def arquivo_logo_cracha():
+    """Caminho da logo do crachá dentro de `media/` (None se não houver nenhuma)."""
+    for nome in (LOGO_CRACHA, LOGO_CRACHA_ANTERIOR):
+        caminho = settings.MEDIA_ROOT / nome
+        if caminho.exists():
+            return caminho
+    return None
+
+
+def url_da_logo():
+    """URL pública da logo do crachá, quando o arquivo existe.
+
+    As logos vivem em `media/` (não em `static/`), como a do certificado.
     Devolver None sem o arquivo faz o crachá seguir válido, apenas sem a marca.
     """
-    if (settings.MEDIA_ROOT / "logo_ifmg.png").exists():
-        return f"{settings.MEDIA_URL.rstrip('/')}/logo_ifmg.png"
-    return None
+    caminho = arquivo_logo_cracha()
+    if caminho is None:
+        return None
+    return f"{settings.MEDIA_URL.rstrip('/')}/{caminho.name}"
 
 
 def nome_completo(usuario):
@@ -294,24 +337,182 @@ def nome_completo(usuario):
 
 def periodo_legivel(evento):
     """Data do evento em texto curto: `10/09/2026` ou `10 a 11/09/2026`."""
-    if not evento.data_inicio:
+    inicio = _como_data(evento.data_inicio)
+    fim = _como_data(evento.data_fim)
+    if not inicio:
         return ""
-    if not evento.data_fim or evento.data_fim == evento.data_inicio:
-        return evento.data_inicio.strftime("%d/%m/%Y")
-    if (evento.data_inicio.year, evento.data_inicio.month) == (
-        evento.data_fim.year,
-        evento.data_fim.month,
-    ):
-        return f"{evento.data_inicio.day:02d} a {evento.data_fim.strftime('%d/%m/%Y')}"
-    return f"{evento.data_inicio.strftime('%d/%m/%Y')} a {evento.data_fim.strftime('%d/%m/%Y')}"
+    if not fim or fim == inicio:
+        return inicio.strftime("%d/%m/%Y")
+    if (inicio.year, inicio.month) == (fim.year, fim.month):
+        return f"{inicio.day:02d} a {fim.strftime('%d/%m/%Y')}"
+    return f"{inicio.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}"
+
+
+def _como_data(valor):
+    """Devolve a data, aceitando também texto ISO.
+
+    O campo é DateField, então o valor vem como `date` quando o objeto sai do
+    banco — mas um evento montado na mão (teste, importação, API) pode chegar com
+    a data em texto, e aí `.year` estourava com AttributeError ao gerar o crachá.
+    """
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    if isinstance(valor, str):
+        try:
+            return datetime.fromisoformat(valor).date()
+        except ValueError:
+            return None
+    return None
 
 
 # --------------------------------------------------------------------------
-# PDF em lote (10x7 cm, um crachá por página)
+# PDF em lote: 4 crachás por folha A4 (2 x 2 de 105 x 148,5 mm)
+#
+# 105 x 148,5 mm é a MAIOR medida que fecha 2x2 no A4: 210 mm de largura por
+# 297 mm de altura, exatos. Com 105 x 150 mm a folha pediria 300 mm e a última
+# fileira sairia cortada pela impressora — daí 1,5 mm a menos no comprimento,
+# que não se percebe na mão e salva a fileira de baixo.
+#
+# Dois modelos, escolhidos na hora de gerar: "etiqueta" (fundo colorido com a
+# foto do evento, círculo branco da logo e etiqueta branca do nome — o modelo
+# do crachá de cordão) e "classico" (tarja verde, faixa do evento e nome no
+# corpo, como o crachá que aparece na tela).
 # --------------------------------------------------------------------------
 
-LARGURA_MM = 100
-ALTURA_MM = 70
+LARGURA_CARTAO_MM = 105
+ALTURA_CARTAO_MM = 148.5
+A4_LARGURA_MM = 210
+A4_ALTURA_MM = 297
+COLUNAS_POR_FOLHA = 2
+LINHAS_POR_FOLHA = 2
+CARTOES_POR_FOLHA = COLUNAS_POR_FOLHA * LINHAS_POR_FOLHA
+
+MODELOS_CRACHA = {
+    "etiqueta": "Etiqueta (fundo colorido e etiqueta branca do nome)",
+    "classico": "Clássico (tarja verde e faixa do evento)",
+}
+MODELO_PADRAO = "etiqueta"
+
+
+def modelo_de_cracha(modelo):
+    """Aceita apenas modelo conhecido — `?modelo=` inválido não pode virar 500."""
+    return modelo if modelo in MODELOS_CRACHA else MODELO_PADRAO
+
+
+def _paleta():
+    """Cores do crachá em um lugar só (tela e papel contam a mesma história)."""
+    from reportlab.lib.colors import HexColor
+
+    return {
+        "verde": HexColor("#2f9e41"),
+        "verde_escuro": HexColor("#1d7a2f"),
+        "verde_ink": HexColor("#23792f"),
+        "verde_soft": HexColor("#e8f5ea"),
+        "azul": HexColor("#1f5fa8"),
+        "texto": HexColor("#3c3c3c"),
+        "cinza": HexColor("#6b6b6b"),
+        "borda": HexColor("#e5e5e5"),
+        "branco": HexColor("#ffffff"),
+        "veu": HexColor("#0b2e18"),
+        "corte": HexColor("#b9b9b9"),
+    }
+
+
+def _quebrar_texto(texto, fonte, tamanho, largura_max, max_linhas=2):
+    """Quebra o texto em linhas que caibam na largura.
+
+    `drawString` do reportlab não quebra linha sozinho: nome comprido sairia
+    vazando para fora do crachá. Quando sobra texto, a última linha recebe "…"
+    — melhor avisar que cortou do que sumir com o fim do nome.
+    """
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    # Palavra sozinha mais larga que a caixa (nome sem espaço — acontece quando a
+    # pessoa não cadastrou nome e o e-mail vira o nome do crachá) é fatiada antes
+    # da quebra normal; sem isto a linha vazaria para fora do crachá.
+    palavras = []
+    for palavra in (texto or "").split():
+        while stringWidth(palavra, fonte, tamanho) > largura_max and len(palavra) > 1:
+            corte = len(palavra)
+            while corte > 1 and stringWidth(palavra[:corte], fonte, tamanho) > largura_max:
+                corte -= 1
+            palavras.append(palavra[:corte])
+            palavra = palavra[corte:]
+        palavras.append(palavra)
+
+    linhas, atual, i = [], "", 0
+    while i < len(palavras):
+        proposta = f"{atual} {palavras[i]}".strip()
+        if not atual or stringWidth(proposta, fonte, tamanho) <= largura_max:
+            atual = proposta
+            i += 1
+        else:
+            linhas.append(atual)
+            atual = ""
+            if len(linhas) == max_linhas:
+                break
+    if atual and len(linhas) < max_linhas:
+        linhas.append(atual)
+    if not linhas:
+        return [""]
+    if i < len(palavras):  # sobrou texto além do que cabe
+        ultima = linhas[-1]
+        while ultima and stringWidth(ultima + "…", fonte, tamanho) > largura_max:
+            ultima = ultima[:-1]
+        linhas[-1] = ultima + "…"
+    return linhas
+
+
+def _desenhar_linhas(c, linhas, fonte, tamanho, x, y, entrelinha, largura=None,
+                     alinhamento="left", cor=None):
+    """Desenha as linhas empilhadas a partir de `y` (a primeira é a mais alta)."""
+    if cor is not None:
+        c.setFillColor(cor)
+    c.setFont(fonte, tamanho)
+    for indice, linha in enumerate(linhas):
+        linha_y = y - indice * entrelinha
+        if alinhamento == "center" and largura is not None:
+            c.drawCentredString(x + largura / 2.0, linha_y, linha)
+        elif alinhamento == "right" and largura is not None:
+            c.drawRightString(x + largura, linha_y, linha)
+        else:
+            c.drawString(x, linha_y, linha)
+
+
+def _desenhar_logo(c, caminho, x, y, largura, altura):
+    """Logo institucional no espaço dado. Sem o arquivo, o crachá segue válido."""
+    from reportlab.lib.utils import ImageReader
+
+    if not caminho or not caminho.exists():
+        return False
+    try:
+        c.drawImage(ImageReader(str(caminho)), x, y, width=largura, height=altura,
+                    preserveAspectRatio=True, anchor="c", mask="auto")
+        return True
+    except Exception:
+        return False
+
+
+def _linhas_de_corte(c, largura_folha, altura_folha, largura_cartao, altura_cartao):
+    """Guias da guilhotina: só as linhas de dentro (as bordas a tesoura acerta sozinha).
+
+    Crachá de 105 x 148,5 mm encosta na borda da folha, então não há margem para
+    marca de corte por fora. As linhas internas somem no corte e evitam o corte
+    torto de quem imprime em casa.
+    """
+    cor = _paleta()
+    c.saveState()
+    c.setStrokeColor(cor["corte"])
+    c.setLineWidth(0.3)
+    for coluna in range(1, COLUNAS_POR_FOLHA):
+        x = coluna * largura_cartao
+        c.line(x, 0, x, altura_folha)
+    for linha in range(1, LINHAS_POR_FOLHA):
+        y = linha * altura_cartao
+        c.line(0, y, largura_folha, y)
+    c.restoreState()
 
 
 def imagem_para_faixa(evento, largura_alvo, altura_alvo):
@@ -342,137 +543,285 @@ def imagem_para_faixa(evento, largura_alvo, altura_alvo):
     return imagem
 
 
-def gerar_pdf_crachas_evento(evento):
-    """PDF com os crachás de todas as pessoas com papel no evento.
+def _desenhar_papeis(c, rotulos, x, y, cor, altura=None, tamanho=9, tamanho_outros=7):
+    """Tarjas de papel em linha: a PRINCIPAL cheia e as outras menores ao lado.
 
-    Uma página de 10x7 cm por pessoa — o tamanho padrão de crachá com cordão.
-    Devolve (nome_do_arquivo, ContentFile).
+    O crachá é um por evento e mostra todos os papéis da pessoa nele — quem
+    organiza e também se inscreveu aparece com ORGANIZADOR e PARTICIPANTE, em vez
+    de perder a inscrição pela precedência. Devolve a largura total usada.
     """
-    from reportlab.lib.colors import HexColor, white
+    from reportlab.lib.units import mm
+
+    altura = altura or 8 * mm
+    cursor = x
+    for indice, rotulo in enumerate(rotulos):
+        principal = indice == 0
+        fonte = tamanho if principal else tamanho_outros
+        alto = altura if principal else altura * 0.78
+        recuo = 4 * mm if principal else 3 * mm
+        largura = c.stringWidth(rotulo, "Helvetica-Bold", fonte) + recuo * 2
+        if principal:
+            c.setFillColor(cor["verde_soft"])
+            c.roundRect(cursor, y, largura, alto, alto / 2.0, fill=True, stroke=False)
+        else:
+            # Secundárias vazadas, como no CSS: a principal é a cheia.
+            c.setStrokeColor(cor["verde_ink"])
+            c.setLineWidth(0.3 * mm)
+            c.roundRect(cursor, y, largura, alto, alto / 2.0, fill=False, stroke=True)
+        c.setFillColor(cor["verde_ink"])
+        c.setFont("Helvetica-Bold", fonte)
+        c.drawString(cursor + recuo, y + alto / 2.0 - fonte * 0.18 * mm, rotulo)
+        cursor += largura + 2 * mm
+    return cursor - x - 1 * mm
+
+
+def _cracha_etiqueta(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, logo_caminho):
+    """Modelo do crachá de cordão: fundo colorido, círculo da logo, etiqueta do nome.
+
+    A etiqueta branca embaixo é o lugar do nome (é o que se lê de longe e o que
+    a caneta preenche no crachá de papel); o QR fica dentro dela, no rodapé.
+    """
     from reportlab.lib.units import mm
     from reportlab.lib.utils import ImageReader
+
+    cor = _paleta()
+    nome = nome_completo(pessoa)
+    rotulos = [rotulo.upper() for rotulo in papeis_rotulos]
+
+    # 1) fundo: a foto do evento (com véu, senão o texto branco some) ou o
+    #    gradiente institucional, que é o que a foto de referência tem.
+    c.saveState()
+    recorte = c.beginPath()
+    recorte.rect(x, y, largura, altura)
+    c.clipPath(recorte, stroke=0, fill=0)
+    fundo = imagem_para_faixa(evento, largura, altura)
+    if fundo is not None:
+        c.drawImage(ImageReader(fundo), x, y, width=largura, height=altura,
+                    preserveAspectRatio=False, mask="auto")
+        c.setFillColor(cor["veu"])
+        c.setFillAlpha(0.55)
+        c.rect(x, y, largura, altura, fill=True, stroke=False)
+        c.setFillAlpha(1)
+    else:
+        c.linearGradient(x, y, x, y + altura, [cor["azul"], cor["verde"]])
+    c.restoreState()
+
+    # 2) círculo branco com a logo, no alto e centralizado
+    #    Caixa QUADRADA (e não larga e baixa) porque dentro de círculo a marca
+    #    rendonda/vertical é que manda. 26 mm num círculo de 34 mm: a logo fica
+    #    com 76% do diâmetro sem que os cantos encostem na borda do círculo.
+    centro_x = x + largura / 2.0
+    raio = 17 * mm
+    centro_y = y + altura - 30 * mm
+    c.setFillColor(cor["branco"])
+    c.circle(centro_x, centro_y, raio, fill=True, stroke=False)
+    _desenhar_logo(c, logo_caminho, centro_x - 13 * mm, centro_y - 13 * mm, 26 * mm, 26 * mm)
+
+    # 3) instituição e evento, em branco sobre o fundo
+    c.setFillColor(cor["branco"])
+    c.setFont("Helvetica-Bold", 10)
+    c.drawCentredString(centro_x, centro_y - raio - 6 * mm, "IFMG · Campus Ponte Nova")
+
+    _desenhar_linhas(
+        c,
+        _quebrar_texto(evento.title, "Helvetica-Bold", 14, largura - 20 * mm, 2),
+        "Helvetica-Bold", 14, x + 10 * mm, centro_y - raio - 15 * mm, 6.6 * mm,
+        largura=largura - 20 * mm, alinhamento="center", cor=cor["branco"],
+    )
+
+    subtitulo = " · ".join(p for p in [periodo_legivel(evento), (evento.local or "").strip()] if p)
+    _desenhar_linhas(
+        c, _quebrar_texto(subtitulo, "Helvetica", 9, largura - 24 * mm, 1),
+        "Helvetica", 9, x + 12 * mm, centro_y - raio - 24 * mm, 4.6 * mm,
+        largura=largura - 24 * mm, alinhamento="center", cor=cor["branco"],
+    )
+
+    # 4) a etiqueta branca do nome (com o QR dentro, no rodapé dela)
+    #
+    # Três faixas, de cima para baixo: nome (até duas linhas), tarja do papel e
+    # rodapé com QR e código. As posições são fixas para que nome comprido — que
+    # ocupa duas linhas — não encoste na tarja nem no QR.
+    etiqueta_x = x + 8 * mm
+    etiqueta_y = y + 8 * mm
+    etiqueta_largura = largura - 16 * mm
+    etiqueta_altura = 62 * mm
+    c.setFillColor(cor["branco"])
+    c.roundRect(etiqueta_x, etiqueta_y, etiqueta_largura, etiqueta_altura, 4 * mm,
+                fill=True, stroke=False)
+
+    corpo_nome = 21 if len(nome) <= 24 else (18 if len(nome) <= 34 else 15.5)
+    _desenhar_linhas(
+        c,
+        _quebrar_texto(nome, "Helvetica-Bold", corpo_nome, etiqueta_largura - 8 * mm, 2),
+        "Helvetica-Bold", corpo_nome, etiqueta_x + 4 * mm,
+        etiqueta_y + etiqueta_altura - 9 * mm, corpo_nome * 0.44 * mm, cor=cor["texto"],
+    )
+
+    # Tarja(s) do papel em posição fixa: cae uma ou duas linhas de nome acima
+    # delas (a segunda linha do nome termina ~7 mm acima).
+    _desenhar_papeis(c, rotulos, etiqueta_x + 4 * mm, etiqueta_y + 36 * mm, cor,
+                     altura=7 * mm, tamanho=9, tamanho_outros=7.5)
+
+    # 28 mm: com ~45 módulos, cada módulo fica em ~0,62 mm — a folga que o
+    # celular precisa para ler de perto sem brigar com o foco.
+    lado_qr = 28 * mm
+    qr = imagem_qr(url_verificacao(gerar_token(pessoa.id, evento.id, tipo="cracha")))
+    c.drawImage(ImageReader(qr), etiqueta_x + 4 * mm, etiqueta_y + 6 * mm,
+                width=lado_qr, height=lado_qr, mask="auto")
+
+    direita = etiqueta_x + etiqueta_largura - 4 * mm
+    c.setFillColor(cor["texto"])
+    c.setFont("Helvetica-Bold", 11)
+    c.drawRightString(direita, etiqueta_y + 28 * mm, codigo_curto(pessoa.id, evento.id))
+    c.setFillColor(cor["cinza"])
+    c.setFont("Helvetica", 6.4)
+    c.drawRightString(direita, etiqueta_y + 22 * mm, "Aponte a câmera para")
+    c.drawRightString(direita, etiqueta_y + 18 * mm, "confirmar sua presença")
+    c.drawRightString(direita, etiqueta_y + 13 * mm, "ou informe este código")
+
+
+def _cracha_classico(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, logo_caminho):
+    """Modelo da tela: tarja verde no topo, faixa do evento, nome no corpo e QR no pé."""
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+
+    cor = _paleta()
+    nome = nome_completo(pessoa)
+    rotulos = [rotulo.upper() for rotulo in papeis_rotulos]
+    margem = 8 * mm
+
+    # --- tarja de identificação institucional ---
+    # A caixa da logo é QUADRADA e ocupa a altura da tarja: a marca do crachá é
+    # vertical (517x765) e, numa caixa larga e baixa, saía com 4 mm de largura —
+    # o texto de dentro dela não se lia.
+    altura_topo = 20 * mm
+    c.setFillColor(cor["verde"])
+    c.rect(x, y + altura - altura_topo, largura, altura_topo, fill=True, stroke=False)
+
+    caixa_logo = 16 * mm
+    caixa_x = x + 6 * mm
+    caixa_y = y + altura - altura_topo + (altura_topo - caixa_logo) / 2.0
+    c.setFillColor(cor["branco"])
+    c.roundRect(caixa_x, caixa_y, caixa_logo, caixa_logo, 2 * mm, fill=True, stroke=False)
+    if not _desenhar_logo(c, logo_caminho, caixa_x + 1.5 * mm, caixa_y + 1.5 * mm,
+                          caixa_logo - 3 * mm, caixa_logo - 3 * mm):
+        c.setFillColor(cor["verde_ink"])
+        c.setFont("Helvetica-Bold", 9)
+        c.drawCentredString(caixa_x + caixa_logo / 2.0, caixa_y + 6.5 * mm, "IFMG")
+
+    c.setFillColor(cor["branco"])
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(caixa_x + caixa_logo + 5 * mm, y + altura - altura_topo + 8.5 * mm,
+                 "IFMG · Campus Ponte Nova")
+
+    # --- faixa com a foto do evento (ou o gradiente oliva de reserva) ---
+    # 34 mm (era 45): a foto do evento cede o espaço que o nome precisa.
+    altura_faixa = 34 * mm
+    y_faixa = y + altura - altura_topo - altura_faixa
+    imagem_faixa = imagem_para_faixa(evento, largura, altura_faixa)
+    if imagem_faixa is not None:
+        c.drawImage(ImageReader(imagem_faixa), x, y_faixa, width=largura, height=altura_faixa,
+                    preserveAspectRatio=False, mask="auto")
+    else:
+        c.saveState()
+        caminho = c.beginPath()
+        caminho.rect(x, y_faixa, largura, altura_faixa)
+        c.clipPath(caminho, stroke=0, fill=0)
+        c.linearGradient(x, y_faixa, x, y_faixa + altura_faixa,
+                         [cor["verde_escuro"], cor["verde"]])
+        c.restoreState()
+
+    # --- evento e período ---
+    _desenhar_linhas(
+        c, _quebrar_texto(evento.title, "Helvetica-Bold", 14, largura - 2 * margem, 2),
+        "Helvetica-Bold", 14, x + margem, y + 84 * mm, 5.6 * mm, cor=cor["texto"],
+    )
+    subtitulo = " · ".join(p for p in [periodo_legivel(evento), (evento.local or "").strip()] if p)
+    _desenhar_linhas(
+        c, _quebrar_texto(subtitulo, "Helvetica", 9, largura - 2 * margem, 1),
+        "Helvetica", 9, x + margem, y + 74 * mm, 4.6 * mm, cor=cor["cinza"],
+    )
+    c.setStrokeColor(cor["borda"])
+    c.setLineWidth(0.6)
+    c.line(x + margem, y + 68 * mm, x + largura - margem, y + 68 * mm)
+
+    # --- nome em destaque + papel ---
+    # Medidas ancoradas no PÉ do crachá (e não no topo da faixa): assim o nome
+    # tem duas linhas inteiras garantidas e a tarja do papel fica sempre 2,5 mm
+    # abaixo dele. Antes o corpo encolhia e o nome saía cortado na base.
+    corpo_nome = 19 if len(nome) <= 24 else (17 if len(nome) <= 34 else 15)
+    _desenhar_linhas(
+        c, _quebrar_texto(nome, "Helvetica-Bold", corpo_nome, largura - 2 * margem, 2),
+        "Helvetica-Bold", corpo_nome, x + margem, y + 60 * mm,
+        corpo_nome * 0.5 * mm, cor=cor["texto"],
+    )
+    _desenhar_papeis(c, rotulos, x + margem, y + 38 * mm, cor, altura=8 * mm)
+
+    # --- rodapé: QR + código curto ---
+    # 26 mm: módulo em ~0,58 mm, o mínimo confortável para leitura por celular.
+    lado_qr = 26 * mm
+    qr = imagem_qr(url_verificacao(gerar_token(pessoa.id, evento.id, tipo="cracha")))
+    c.drawImage(ImageReader(qr), x + margem, y + 8 * mm, width=lado_qr, height=lado_qr,
+                mask="auto")
+
+    direita = x + largura - margem
+    c.setFillColor(cor["texto"])
+    c.setFont("Helvetica-Bold", 11)
+    c.drawRightString(direita, y + 25 * mm, codigo_curto(pessoa.id, evento.id))
+    c.setFillColor(cor["cinza"])
+    c.setFont("Helvetica", 6.4)
+    c.drawRightString(direita, y + 19.5 * mm, "Aponte a câmera para")
+    c.drawRightString(direita, y + 15.5 * mm, "confirmar sua presença")
+    c.drawRightString(direita, y + 11 * mm, "ou informe este código")
+
+
+def gerar_pdf_crachas_evento(evento, modelo=MODELO_PADRAO):
+    """PDF com os crachás de todas as pessoas com papel no evento.
+
+    Quatro por folha A4 (2 x 2 de 105 x 148,5 mm), no modelo escolhido, com as
+    linhas de corte para a guilhotina. Devolve (nome_do_arquivo, ContentFile).
+    """
+    from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas as canvas_pdf
 
     pessoas = pessoas_do_evento(evento)
+    modelo = modelo_de_cracha(modelo)
+    desenhar = _cracha_etiqueta if modelo == "etiqueta" else _cracha_classico
+
     buffer = io.BytesIO()
-    largura = LARGURA_MM * mm
-    altura = ALTURA_MM * mm
-    c = canvas_pdf.Canvas(buffer, pagesize=(largura, altura))
+    largura_folha = A4_LARGURA_MM * mm
+    altura_folha = A4_ALTURA_MM * mm
+    largura_cartao = LARGURA_CARTAO_MM * mm
+    altura_cartao = ALTURA_CARTAO_MM * mm
 
-    verde = HexColor("#2f9e41")
-    verde_ink = HexColor("#23792f")
-    verde_soft = HexColor("#e8f5ea")
-    texto = HexColor("#3c3c3c")
-    cinza = HexColor("#6b6b6b")
-    borda = HexColor("#e5e5e5")
-    oliva_escuro = HexColor("#3f4d1e")
-    oliva_claro = HexColor("#7d9440")
+    c = canvas_pdf.Canvas(buffer, pagesize=(largura_folha, altura_folha))
+    logo_caminho = arquivo_logo_cracha()
 
-    faixa_altura = 20 * mm
-    topo_altura = 9 * mm
-    margem = 6 * mm
+    for indice, (pessoa, _papel_principal) in enumerate(pessoas):
+        posicao = indice % CARTOES_POR_FOLHA
+        if posicao == 0:
+            if indice > 0:
+                c.showPage()
+            _linhas_de_corte(c, largura_folha, altura_folha, largura_cartao, altura_cartao)
 
-    logo_caminho = settings.MEDIA_ROOT / "logo_ifmg.png"
-
-    for pessoa, papel in pessoas:
-        # --- tarja superior de identificação ---
-        c.setFillColor(verde)
-        c.rect(0, altura - topo_altura, largura, topo_altura, fill=True, stroke=False)
-        if logo_caminho.exists():
-            try:
-                c.setFillColor(white)
-                c.roundRect(margem / 2, altura - topo_altura + 1.4 * mm,
-                            topo_altura / mm * mm * 0.75, topo_altura - 2.8 * mm, 1 * mm,
-                            fill=True, stroke=False)
-                c.drawImage(
-                    ImageReader(str(logo_caminho)),
-                    margem / 2 + 1 * mm, altura - topo_altura + 2 * mm,
-                    width=12 * mm, height=topo_altura - 4 * mm,
-                    preserveAspectRatio=True, anchor="c", mask="auto",
-                )
-            except Exception:
-                pass
-        c.setFillColor(white)
-        c.setFont("Helvetica-Bold", 7.5)
-        c.drawString(margem / 2 + 15 * mm, altura - topo_altura + 3.4 * mm, "IFMG · Campus Ponte Nova")
-
-        # --- faixa com a imagem do evento (ou o gradiente oliva de reserva) ---
-        y_faixa = altura - topo_altura - faixa_altura
-        imagem_faixa = imagem_para_faixa(evento, largura, faixa_altura)
-        if imagem_faixa is not None:
-            c.drawImage(
-                ImageReader(imagem_faixa), 0, y_faixa,
-                width=largura, height=faixa_altura,
-                preserveAspectRatio=False, mask="auto",
-            )
-        else:
-            c.saveState()
-            caminho = c.beginPath()
-            caminho.rect(0, y_faixa, largura, faixa_altura)
-            c.clipPath(caminho, stroke=0, fill=0)
-            c.linearGradient(0, y_faixa, largura, y_faixa + faixa_altura,
-                             [oliva_escuro, oliva_claro])
-            c.restoreState()
-
-        # --- título e período do evento ---
-        c.setFillColor(texto)
-        c.setFont("Helvetica-Bold", 9.5)
-        titulo = (evento.title or "").strip()
-        if len(titulo) > 58:
-            titulo = titulo[:57].rstrip() + "…"
-        c.drawString(margem, y_faixa - 6.2 * mm, titulo)
-        c.setFont("Helvetica", 7)
-        c.setFillColor(cinza)
-        subtitulo = " · ".join(p for p in [periodo_legivel(evento), (evento.local or "").strip()] if p)
-        if len(subtitulo) > 74:
-            subtitulo = subtitulo[:73].rstrip() + "…"
-        c.drawString(margem, y_faixa - 10.4 * mm, subtitulo)
-
-        # --- nome em destaque + papel ---
-        c.setStrokeColor(borda)
-        c.setLineWidth(0.6)
-        c.line(margem, y_faixa - 13.4 * mm, largura - margem, y_faixa - 13.4 * mm)
-
-        nome = nome_completo(pessoa)
-        corpo_nome = 15 if len(nome) <= 26 else (12.5 if len(nome) <= 34 else 10.5)
-        c.setFillColor(texto)
-        c.setFont("Helvetica-Bold", corpo_nome)
-        c.drawString(margem, y_faixa - 21 * mm, nome)
-
-        rotulo = ROTULOS_PAPEL.get(papel, papel).upper()
-        c.setFont("Helvetica-Bold", 8)
-        largura_rotulo = c.stringWidth(rotulo, "Helvetica-Bold", 8) + 8 * mm
-        c.setFillColor(verde_soft)
-        c.roundRect(margem, y_faixa - 29 * mm, largura_rotulo, 6 * mm, 3 * mm,
-                    fill=True, stroke=False)
-        c.setFillColor(verde_ink)
-        c.drawString(margem + 4 * mm, y_faixa - 27.4 * mm, rotulo)
-
-        # --- QR + código curto (canto inferior direito) ---
-        lado_qr = 22 * mm
-        x_qr = largura - margem - lado_qr
-        y_qr = margem - 1 * mm
-        qr = imagem_qr(url_verificacao(gerar_token(pessoa.id, evento.id, tipo="cracha")))
-        c.drawImage(ImageReader(qr), x_qr, y_qr, width=lado_qr, height=lado_qr, mask="auto")
-
-        c.setFont("Helvetica-Bold", 8.5)
-        c.setFillColor(texto)
-        codigo = codigo_curto(pessoa.id, evento.id)
-        c.drawRightString(largura - margem, y_qr + lado_qr + 1.6 * mm, codigo)
-        c.setFont("Helvetica", 5.6)
-        c.setFillColor(cinza)
-        c.drawRightString(largura - margem, y_qr + lado_qr + 4.6 * mm,
-                          "Aponte a câmera para confirmar presença")
-        c.drawRightString(largura - margem, margem - 3.4 * mm, "código para digitação manual")
-
-        c.showPage()
+        coluna = posicao % COLUNAS_POR_FOLHA
+        linha = posicao // COLUNAS_POR_FOLHA
+        # A linha 0 é a de CIMA: o reportlab conta a partir da base da folha.
+        cartao_x = coluna * largura_cartao
+        cartao_y = altura_folha - (linha + 1) * altura_cartao
+        # Um crachá por evento com TODOS os papéis da pessoa nele.
+        rotulos = [ROTULOS_PAPEL.get(p, p) for p in papeis_no_evento(pessoa, evento)]
+        desenhar(c, pessoa, rotulos, evento, cartao_x, cartao_y,
+                 largura_cartao, altura_cartao, logo_caminho)
 
     c.save()
     buffer.seek(0)
     apelido = "evento"
     if evento.title:
-        apelido = "".join(c if c.isalnum() else "-" for c in evento.title.lower())[:40].strip("-")
-    return f"crachas-{apelido}.pdf", ContentFile(buffer.read())
+        apelido = "".join(caractere if caractere.isalnum() else "-"
+                          for caractere in evento.title.lower())[:40].strip("-")
+    sufixo = "" if modelo == MODELO_PADRAO else f"-{modelo}"
+    return f"crachas-{apelido}{sufixo}.pdf", ContentFile(buffer.read())
 
 
 # ---------------------------------------------------------------------------
@@ -576,6 +925,7 @@ def verificar_token(token):
             "evento": evento,
             "papel": None,
             "papel_rotulo": "Certificado",
+            "papeis_rotulos": ["Certificado"],
             "periodo": periodo_legivel(evento) if evento else "",
         })
         return resultado
@@ -599,6 +949,9 @@ def verificar_token(token):
         "evento": evento,
         "papel": papel,
         "papel_rotulo": ROTULOS_PAPEL.get(papel, papel),
+        # A verificação mostra os MESMOS papéis que o crachá: um crachá por
+        # evento, com todos os papéis da pessoa nele.
+        "papeis_rotulos": [ROTULOS_PAPEL.get(p, p) for p in papeis_no_evento(pessoa, evento)],
         "periodo": periodo_legivel(evento),
     })
     return resultado

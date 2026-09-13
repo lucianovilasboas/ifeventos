@@ -22,7 +22,7 @@
         <h1>Crachá válido</h1>
 
         <p class="nome">{{ nome }}</p>
-        <span class="papel">{{ papel_rotulo }}</span>
+        <span class="papeis">{% for rotulo in papeis_rotulos %}<span class="papel{% if not forloop.first %} papel--menor{% endif %}">{{ rotulo }}</span>{% endfor %}</span>
 
         <dl>
             <div>

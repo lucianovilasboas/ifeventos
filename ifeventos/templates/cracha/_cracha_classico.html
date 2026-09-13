@@ -1,0 +1,41 @@
+{% comment %}
+Modelo CLÁSSICO: tarja verde no topo, faixa do evento e nome no corpo.
+Espelha o desenho que o PDF em lote faz em `eventos/crachas.py` (_cracha_classico)
+— os dois precisam contar a mesma história.
+{% endcomment %}
+<article class="cracha cracha--classico">
+    <header class="cracha-topo">
+        {% if logo_url %}<img class="cracha-logo" src="{{ logo_url }}" alt="IFMG">{% endif %}
+        <span class="cracha-inst">IFMG · Campus Ponte Nova</span>
+    </header>
+
+    {# Foto do evento na faixa; sem foto, o CSS aplica o gradiente #}
+    <div class="cracha-faixa"
+         {% if cracha.evento.imagem %}style="background-image:url('{{ cracha.evento.imagem.url }}')"{% endif %}></div>
+
+    <div class="cracha-corpo">
+        <h3 class="cracha-evento">{{ cracha.evento.title }}</h3>
+        <p class="cracha-meta">
+            {{ cracha.periodo }}{% if cracha.evento.local %} · {{ cracha.evento.local }}{% endif %}
+        </p>
+        {% comment %}
+        Mesma régua de corpo do PDF em lote: nome comprido desce de tamanho em vez
+        de sair cortado com reticências.
+        {% endcomment %}
+        <p class="cracha-nome{% if cracha.nome|length > 34 %} cracha-nome--longo{% elif cracha.nome|length > 24 %} cracha-nome--medio{% endif %}">{{ cracha.nome }}</p>
+        <div class="cracha-papeis">
+            {% for rotulo in cracha.papeis_rotulos %}
+            <span class="cracha-papel{% if not forloop.first %} cracha-papel--menor{% endif %}">{{ rotulo }}</span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <footer class="cracha-pe">
+        <img class="cracha-qr" src="{{ cracha.qr }}"
+             alt="QR de verificação do crachá de {{ cracha.nome }}">
+        <div class="cracha-codigo">
+            <strong>{{ cracha.codigo }}</strong>
+            <small>Aponte a câmera para confirmar presença ou informe este código.</small>
+        </div>
+    </footer>
+</article>

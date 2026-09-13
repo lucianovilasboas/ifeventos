@@ -378,6 +378,8 @@ def verificar_cracha(request, token):
         "valido": True,
         "nome": resultado["nome"],
         "papel_rotulo": resultado["papel_rotulo"],
+        # Todos os papéis da pessoa no evento (o crachá mostra o mesmo)
+        "papeis_rotulos": resultado.get("papeis_rotulos") or [resultado["papel_rotulo"]],
         "evento": evento,
         "atividade": resultado.get("atividade"),
         "periodo": resultado.get("periodo", ""),

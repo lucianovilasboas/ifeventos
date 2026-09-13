@@ -19,6 +19,8 @@ from django.http import HttpResponse
 from eventos.crachas import (
     atividade_aceita_presenca_agora,
     gerar_pdf_crachas_evento,
+    modelo_de_cracha,
+    pessoas_do_evento,
     pode_exibir_qr_atividade,
     pode_gerenciar_evento,
 )
@@ -445,8 +447,10 @@ class EmitirCertificadosEventoView(View):
 class CrachasEventoView(LoginRequiredMixin, View):
     """PDF com os crachás de todas as pessoas com papel no evento.
 
-    Um crachá de 10 x 7 cm por página — o formato serve para imprimir em lote e
-    entregar no credenciamento, sem montar crachá por crachá.
+    Quatro crachás por folha A4 (105 x 148,5 mm cada), no modelo que o
+    organizador escolhe na hora de gerar: "etiqueta" (fundo colorido com a foto
+    do evento) ou "classico" (tarja verde e faixa do evento). Serve para
+    imprimir em lote e entregar no credenciamento, sem montar crachá por crachá.
     """
 
     def get(self, request, evento_id):
@@ -456,7 +460,18 @@ class CrachasEventoView(LoginRequiredMixin, View):
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
 
-        nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento)
+        # Sem ninguém com papel, sairia um PDF sem página: melhor avisar.
+        if not pessoas_do_evento(evento):
+            messages.warning(
+                request,
+                "Ainda não há ninguém com crachá neste evento. Quem se inscrever, "
+                "palestrar ou organizar aparece aqui.",
+            )
+            return redirect("organizador:atividades_evento", evento.id)
+
+        # O modelo vem da tela; valor estranho na URL cai no padrão.
+        modelo = modelo_de_cracha(request.GET.get("modelo"))
+        nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento, modelo)
         resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'
         return resposta

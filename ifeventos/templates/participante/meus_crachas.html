@@ -5,6 +5,8 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v={{ ASSET_VERSION }}">
+{# Depois do cracha.css de propósito: aqui estão os crachás grandes (4 por A4) #}
+<link rel="stylesheet" href="{% static 'css/eventos/cracha_impressao.css' %}?v={{ ASSET_VERSION }}">
 {% endblock extra_css %}
 
 {% block action %}
@@ -16,46 +18,43 @@
 {% if crachas %}
 
 <div class="crachas-toolbar">
-    <button type="button" class="btn btn-success btn-icon" id="botaoImprimir">
+    {% comment %} `btn-app` é o botão primário do design system (com texto). O `btn-icon`,
+       que estava aqui, é de botão SÓ-ÍCONE: 38x38 px fixos, e o texto saía cortado. {% endcomment %}
+    <button type="button" class="btn btn-app" id="botaoImprimir">
         <i class="fa-solid fa-print"></i> Imprimir meus crachás
     </button>
-    <p>Cada crachá sai em uma página de 10 × 7 cm, no tamanho de crachá com cordão.</p>
+
+    <div class="crachas-modelo" role="group" aria-label="Modelo do crachá">
+        <span class="crachas-modelo-rotulo">Modelo:</span>
+        <button type="button" class="btn btn-sm btn-outline-success is-ativo"
+                data-modelo="etiqueta" aria-pressed="true">
+            <i class="fa-solid fa-id-badge"></i> Etiqueta
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-success"
+                data-modelo="classico" aria-pressed="false">
+            <i class="fa-solid fa-ticket"></i> Clássico
+        </button>
+    </div>
+
+    <p class="crachas-dica">Saem <b>4 crachás por folha A4</b> (10,5 &times; 14,85 cm cada),
+       com guia de corte. Escolha o modelo e imprima: o que você vê é o que sai no papel.</p>
 </div>
 
-<div class="crachas-lista">
+<div class="crachas-lista" id="crachasLista" data-modelo="etiqueta">
     {% for cracha in crachas %}
     <div class="cracha-bloco">
-        <article class="cracha">
-            <header class="cracha-topo">
-                {% if logo_url %}<img class="cracha-logo" src="{{ logo_url }}" alt="IFMG">{% endif %}
-                <span class="cracha-inst">IFMG · Campus Ponte Nova</span>
-            </header>
-
-            {# Foto do evento na faixa; sem foto, o CSS aplica o gradiente oliva #}
-            <div class="cracha-faixa"
-                 {% if cracha.evento.imagem %}style="background-image:url('{{ cracha.evento.imagem.url }}')"{% endif %}></div>
-
-            <div class="cracha-corpo">
-                <h3 class="cracha-evento">{{ cracha.evento.title }}</h3>
-                <p class="cracha-meta">{{ cracha.periodo }}{% if cracha.evento.local %} · {{ cracha.evento.local }}{% endif %}</p>
-                <p class="cracha-nome">{{ cracha.nome }}</p>
-                <span class="cracha-papel">{{ cracha.papel_rotulo }}</span>
-            </div>
-
-            <footer class="cracha-pe">
-                <img class="cracha-qr" src="{{ cracha.qr }}"
-                     alt="QR de verificação do crachá de {{ cracha.nome }}">
-                <div class="cracha-codigo">
-                    <strong>{{ cracha.codigo }}</strong>
-                    <small>Aponte a câmera para confirmar presença ou informe este código.</small>
-                </div>
-            </footer>
-        </article>
+        {% comment %}
+        Os dois modelos vão no HTML e o CSS mostra o escolhido: trocar de modelo
+        não faz nova requisição nem novo QR.
+        {% endcomment %}
+        {% include 'cracha/_cracha_etiqueta.html' %}
+        {% include 'cracha/_cracha_classico.html' %}
 
         {% if cracha.papel == 'organizador' %}
         <div class="cracha-acoes">
             <a class="btn btn-sm btn-outline-success"
-               href="{% url 'organizador:crachas_evento' cracha.evento.id %}">
+               href="{% url 'organizador:crachas_evento' cracha.evento.id %}?modelo=etiqueta"
+               target="_blank" rel="noopener">
                 <i class="fa-solid fa-file-pdf"></i> Crachás de todo o evento (PDF)
             </a>
         </div>
@@ -80,9 +79,41 @@
 
 {% block scripts %}
 <script>
-    // A impressão usa a folha de estilo de impressão do cracha.css: o mesmo
-    // navegador que mostra o crachá na tela é o que o manda para o papel, em
-    // 10 x 7 cm, um por página.
+    // Escolha do modelo: vale para a tela e para o papel. É preferência de quem
+    // imprime, não dado do evento — por isso fica no navegador, e não no banco.
+    const CHAVE_MODELO = 'ifeventos.modelo-cracha';
+    const listaCrachas = document.getElementById('crachasLista');
+    const botoesModelo = document.querySelectorAll('.crachas-modelo [data-modelo]');
+
+    function aplicarModelo(modelo) {
+        if (!listaCrachas) return;
+        listaCrachas.dataset.modelo = modelo;
+        botoesModelo.forEach(function (botao) {
+            const ativo = botao.dataset.modelo === modelo;
+            botao.classList.toggle('is-ativo', ativo);
+            botao.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+        });
+        try {
+            localStorage.setItem(CHAVE_MODELO, modelo);
+        } catch (erro) {
+            // Navegação privada pode recusar o armazenamento: seguir sem lembrar.
+        }
+    }
+
+    let modeloGuardado = 'etiqueta';
+    try {
+        modeloGuardado = localStorage.getItem(CHAVE_MODELO) || 'etiqueta';
+    } catch (erro) {
+        modeloGuardado = 'etiqueta';
+    }
+    aplicarModelo(modeloGuardado);
+
+    botoesModelo.forEach(function (botao) {
+        botao.addEventListener('click', function () {
+            aplicarModelo(botao.dataset.modelo);
+        });
+    });
+
     const botaoImprimir = document.getElementById('botaoImprimir');
     if (botaoImprimir) {
         botaoImprimir.addEventListener('click', () => window.print());

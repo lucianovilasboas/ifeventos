@@ -11,15 +11,33 @@ então o primeiro cadastro gravava `cpf=""` e TODOS os seguintes quebravam com
 """
 
 import re
+import shutil
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from allauth.account.models import EmailAddress
 from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
+from django.conf import settings
 from django.core import mail
-from django.test import TestCase
+from django.template.loader import render_to_string
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import Atividade, Certificado, Evento, Inscricao, Presenca, PresencaCancelada, TipoAtividade
+from .crachas import (
+    MODELO_PADRAO,
+    arquivo_logo_cracha,
+    crachas_do_usuario,
+    gerar_pdf_crachas_evento,
+    gerar_token,
+    modelo_de_cracha,
+    montar_cracha,
+    papel_no_evento,
+    papeis_no_evento,
+    url_da_logo,
+)
 from .inscricoes import InscricaoBloqueada, cancelar_inscricao
 from .validators import apenas_digitos, cpf_e_valido, formatar_cpf, validar_cpf
 
@@ -608,3 +626,347 @@ class DesfazerPresencaPelaApiTests(_BasePresencaTests):
 
         self.assertIn(resposta.status_code, (403, 404))
         self.assertTrue(Presenca.objects.filter(pk=presenca.pk).exists())
+
+
+class CrachasParaImpressaoTests(_BasePresencaTests):
+    """Crachás para impressão: 4 por folha A4, dois modelos, PDF em lote.
+
+    O que estes testes travam:
+
+      * o PDF em lote sai em A4 (e não no cartão de 10 x 7 cm de antes);
+      * quatro crachás por folha — a folha antiga de um por página é o que
+        cortava o QR fora do papel;
+      * modelo desconhecido na URL cai no padrão, nunca em erro;
+      * quem não organiza o evento não baixa os crachás dos outros;
+      * evento sem ninguém com papel avisa em vez de devolver PDF sem página;
+      * a folha de impressão é carregada DEPOIS do cracha.css (senão a regra
+        antiga de "um crachá por página" volta a valer);
+      * nome comprido ganha a classe que reduz o corpo, para não sair cortado.
+    """
+
+    PAGINAS_A4 = b"/MediaBox [ 0 0 595.2756 841.8898 ]"
+
+    def _mais_pessoas(self, quantidade):
+        """Inscreve mais gente para passar de uma folha (4 por folha)."""
+        for indice in range(quantidade):
+            pessoa = U.objects.create_user(
+                email=f"crachas{indice}@example.com", password=SENHA, cpf="12345678909",
+                first_name=f"Pessoa{indice}", last_name="de Teste",
+            )
+            Inscricao.objects.create(participante=pessoa, atividade=self.atividade)
+
+    def _paginas(self, dados):
+        # Sem biblioteca de PDF: no arquivo, cada página tem um objeto /Type /Page
+        # (o /Type /Pages é a árvore de páginas, não uma página).
+        return dados.count(b"/Type /Page") - dados.count(b"/Type /Pages")
+
+    def test_pdf_em_lote_sai_em_a4_com_quatro_por_folha(self):
+        self._mais_pessoas(5)  # organizador + participante + 5 = 7 pessoas
+
+        _, conteudo = gerar_pdf_crachas_evento(self.evento, "etiqueta")
+        dados = conteudo.read()
+
+        self.assertTrue(dados.startswith(b"%PDF"))
+        self.assertIn(self.PAGINAS_A4, dados)
+        # 7 pessoas / 4 por folha = 2 folhas
+        self.assertEqual(self._paginas(dados), 2)
+
+    def test_modelos_diferentes_geram_arquivos_diferentes(self):
+        nome_etiqueta, etiqueta = gerar_pdf_crachas_evento(self.evento, "etiqueta")
+        nome_classico, classico = gerar_pdf_crachas_evento(self.evento, "classico")
+
+        # O modelo padrão sai sem sufixo (arquivo limpo); o outro se identifica,
+        # senão os dois PDFs viram o mesmo nome na pasta de downloads.
+        padrao, _ = gerar_pdf_crachas_evento(self.evento, MODELO_PADRAO)
+        self.assertEqual(nome_etiqueta, padrao)
+        self.assertNotEqual(nome_etiqueta, nome_classico)
+        self.assertIn("classico", nome_classico)
+        self.assertTrue(etiqueta.read().startswith(b"%PDF"))
+        self.assertTrue(classico.read().startswith(b"%PDF"))
+
+    def test_modelo_desconhecido_cai_no_padrao(self):
+        self.assertEqual(modelo_de_cracha("inventado"), MODELO_PADRAO)
+        self.assertEqual(modelo_de_cracha(None), MODELO_PADRAO)
+        self.assertEqual(modelo_de_cracha("classico"), "classico")
+
+        padrao, _ = gerar_pdf_crachas_evento(self.evento, MODELO_PADRAO)
+        invalido, _ = gerar_pdf_crachas_evento(self.evento, "inventado")
+        self.assertEqual(padrao, invalido)
+
+    def test_organizador_baixa_o_pdf(self):
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:crachas_evento", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "application/pdf")
+        self.assertTrue(resposta.content.startswith(b"%PDF"))
+
+    def test_terceiro_nao_baixa_os_crachas(self):
+        intruso = U.objects.create_user(
+            email="intruso@example.com", password=SENHA, cpf="12345678909",
+        )
+        self.client.force_login(intruso)
+
+        resposta = self.client.get(
+            reverse("organizador:crachas_evento", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_evento_sem_ninguem_avisa_em_vez_de_pdf_vazio(self):
+        Inscricao.objects.all().delete()
+        self.evento.organizador = None
+        self.evento.save()
+        self.client.force_login(self.organizador)  # não organiza mais este evento
+        chefe = U.objects.create_user(
+            email="chefe@example.com", password=SENHA, cpf="12345678909", is_staff=True,
+        )
+        self.client.force_login(chefe)
+
+        resposta = self.client.get(
+            reverse("organizador:crachas_evento", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 302)  # volta para a página do evento
+        avisos = [str(m) for m in get_messages(resposta.wsgi_request)]
+        self.assertTrue(any("Ainda não há ninguém com crachá" in aviso for aviso in avisos), avisos)
+
+    def test_api_tambem_aceita_o_modelo(self):
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("crachas-evento-pdf", args=[self.evento.id]) + "?modelo=classico"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta.content.startswith(b"%PDF"))
+
+    def test_folha_de_impressao_vem_depois_do_cracha_css(self):
+        """A ordem importa: o cracha.css tem a regra antiga de um crachá por página."""
+        pagina = (settings.BASE_DIR / "templates" / "participante" / "meus_crachas.html").read_text()
+        posicao_cracha = pagina.index("cracha.css")
+        posicao_impressao = pagina.index("cracha_impressao.css")
+        self.assertLess(posicao_cracha, posicao_impressao)
+
+        folha = (settings.BASE_DIR / "static" / "css" / "eventos" / "cracha_impressao.css").read_text()
+        # A4 com 2 x 2 de 105 x 148,5 mm e a quebra de página do cracha.css desfeita
+        self.assertIn("size: A4", folha)
+        self.assertIn("repeat(2, 105mm)", folha)
+        self.assertIn("grid-auto-rows: 148.5mm", folha)
+        self.assertIn("page-break-after: auto", folha)
+        self.assertIn("print-color-adjust: exact", folha)
+
+    def test_nome_comprido_nao_sai_cortado(self):
+        """Nome longo recebe a classe que reduz o corpo — a mesma régua do PDF."""
+        html = render_to_string("cracha/_cracha_etiqueta.html", {
+            "cracha": {
+                "nome": "Maria Fernanda de Albuquerque Nascimento",
+                "periodo": "12 a 14/09/2026", "papel_rotulo": "Participante",
+                "codigo": "ABC-123", "qr": "data:image/png;base64,xyz",
+                "evento": {"title": "Evento", "local": "Campus", "imagem": None},
+            },
+            "logo_url": None,
+        })
+        self.assertIn("etq-pessoa--longo", html)
+
+        curto = render_to_string("cracha/_cracha_etiqueta.html", {
+            "cracha": {
+                "nome": "Ana Souza",
+                "periodo": "12/09/2026", "papel_rotulo": "Participante",
+                "codigo": "ABC-123", "qr": "data:image/png;base64,xyz",
+                "evento": {"title": "Evento", "local": "Campus", "imagem": None},
+            },
+            "logo_url": None,
+        })
+        self.assertNotIn("etq-pessoa--longo", curto)
+        self.assertNotIn("etq-pessoa--medio", curto)
+
+    def test_impressao_nao_esconde_o_rodape_do_cracha(self):
+        """Regressão: a regra antiga de impressão escondia TODO `<footer>`.
+
+        O crachá clássico usa `<footer class="cracha-pe">` justamente para o
+        rodapé onde vivem o QR e o código — e ele sumia no papel (a tela mostrava
+        e a folha saía sem o QR). O rodapé da PÁGINA continua fora da impressão.
+        """
+        folha = (settings.BASE_DIR / "static" / "css" / "eventos" / "cracha_impressao.css").read_text()
+        self.assertIn("footer:not(.cracha-pe)", folha)
+        self.assertIn(".crachas-lista .cracha-pe", folha)
+
+        classico = (settings.BASE_DIR / "templates" / "cracha" / "_cracha_classico.html").read_text()
+        self.assertIn('<footer class="cracha-pe">', classico)
+        # O rodapé tem de continuar sendo flex (a caixa do QR fica encostada à direita)
+        etiqueta = (settings.BASE_DIR / "templates" / "cracha" / "_cracha_etiqueta.html").read_text()
+        self.assertNotIn('class="cracha-pe"', etiqueta)  # o etiqueta usa div, não footer
+
+    def test_botao_de_imprimir_nao_usa_classe_de_botao_so_icone(self):
+        """`btn-icon` é 38x38 px FIXOS (botão só-ícone): com texto, ele sai cortado.
+
+        Foi o que aconteceu no botão "Imprimir meus crachás" — só aparecia "meu"
+        dentro de um quadradinho verde. O botão com texto usa `btn-app` (o
+        primário do design system).
+        """
+        pagina = (settings.BASE_DIR / "templates" / "participante" / "meus_crachas.html").read_text()
+        # Só a linha do botão importa: o comentário do template cita a classe
+        # problemática de propósito, para explicar por que ela não está aqui.
+        linha_do_botao = next(
+            linha for linha in pagina.splitlines()
+            if "botaoImprimir" in linha and "<button" in linha
+        )
+        self.assertNotIn("btn-icon", linha_do_botao)
+        self.assertIn("btn-app", linha_do_botao)
+        self.assertIn("Imprimir meus crachás", pagina)
+
+
+class LogoDoCrachaTests(TestCase):
+    """A logo do crachá tem arquivo próprio, com a antiga como reserva.
+
+    Dois motivos: trocar a cara do crachá sem mexer no certificado (que usa
+    `logo_ifmg.png`) e o crachá nunca sair sem marca se o arquivo novo faltar —
+    o que acontece de verdade, porque `media/` fica fora do git e o arquivo
+    precisa ser copiado em cada ambiente.
+    """
+
+    def setUp(self):
+        self.media = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.media, ignore_errors=True)
+
+    def _escrever(self, nome):
+        (self.media / nome).write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    def test_prefere_a_logo_do_cracha(self):
+        self._escrever("logo_cracha.png")
+        self._escrever("logo_ifmg.png")
+
+        with override_settings(MEDIA_ROOT=self.media):
+            self.assertEqual(arquivo_logo_cracha().name, "logo_cracha.png")
+            self.assertEqual(url_da_logo(), "/media/logo_cracha.png")
+
+    def test_cai_na_logo_antiga_quando_a_nova_falta(self):
+        self._escrever("logo_ifmg.png")
+
+        with override_settings(MEDIA_ROOT=self.media):
+            self.assertEqual(arquivo_logo_cracha().name, "logo_ifmg.png")
+            self.assertEqual(url_da_logo(), "/media/logo_ifmg.png")
+
+    def test_sem_logo_nenhuma_o_cracha_segue_valido(self):
+        with override_settings(MEDIA_ROOT=self.media):
+            self.assertIsNone(arquivo_logo_cracha())
+            self.assertIsNone(url_da_logo())
+
+
+class PapeisNoCrachaTests(_BasePresencaTests):
+    """Um crachá por evento, mostrando TODOS os papéis da pessoa nele.
+
+    Antes, `papel_no_evento` devolvia UM papel por precedência (organizador >
+    palestrante > participante) e o crachá mostrava só ele: quem organizava o
+    evento e também se inscrevia numa atividade perdia a inscrição no crachá —
+    e como já existia UM crachá daquele evento, não aparecia nenhum crachá de
+    participante. A matriz abaixo trava cada combinação.
+    """
+
+    def _papel(self, pessoa):
+        return papeis_no_evento(pessoa, self.evento)
+
+    def _rotulos(self, pessoa):
+        return montar_cracha(pessoa, self.evento)["papeis_rotulos"]
+
+    def test_so_participante_mostra_participante(self):
+        self.assertEqual(self._papel(self.participante), ["participante"])
+        self.assertEqual(self._rotulos(self.participante), ["Participante"])
+
+    def test_so_organizador_mostra_organizador(self):
+        self.assertEqual(self._papel(self.organizador), ["organizador"])
+        self.assertEqual(self._rotulos(self.organizador), ["Organizador"])
+
+    def test_organizador_inscrito_mostra_OS_DOIS(self):
+        """O caso relatado: ser organizador escondia a inscrição."""
+        Inscricao.objects.create(participante=self.organizador, atividade=self.atividade)
+
+        self.assertEqual(self._papel(self.organizador), ["organizador", "participante"])
+        self.assertEqual(self._rotulos(self.organizador), ["Organizador", "Participante"])
+
+    def test_palestrante_inscrito_mostra_os_dois(self):
+        self.atividade.palestrantes.add(self.participante)
+
+        self.assertEqual(self._papel(self.participante), ["palestrante", "participante"])
+        self.assertEqual(self._rotulos(self.participante), ["Palestrante", "Participante"])
+
+    def test_os_tres_papeis_na_ordem_do_mais_alto_para_o_mais_baixo(self):
+        self.evento.organizador = self.participante
+        self.evento.save()
+        self.atividade.palestrantes.add(self.participante)
+
+        self.assertEqual(
+            self._papel(self.participante),
+            ["organizador", "palestrante", "participante"],
+        )
+        self.assertEqual(
+            self._rotulos(self.participante),
+            ["Organizador", "Palestrante", "Participante"],
+        )
+
+    def test_continua_UM_cracha_por_evento(self):
+        """Três papéis e duas atividades no evento: ainda é um crachá só."""
+        self.evento.organizador = self.participante
+        self.evento.save()
+        self.atividade.palestrantes.add(self.participante)
+        outra = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 9, 10, 10, 0, tzinfo=timezone.utc),
+            data_hora_fim=datetime(2026, 9, 10, 11, 0, tzinfo=timezone.utc), n_vagas=10,
+        )
+        Inscricao.objects.create(participante=self.participante, atividade=outra)
+
+        crachas = crachas_do_usuario(self.participante)
+        self.assertEqual(len(crachas), 1)
+        self.assertEqual(len(crachas[0]["papeis"]), 3)
+
+    def test_sem_papel_nenhum_continua_sem_cracha(self):
+        fora = U.objects.create_user(
+            email="fora@example.com", password=SENHA, cpf="12345678909",
+        )
+        self.assertEqual(self._papel(fora), [])
+        self.assertIsNone(montar_cracha(fora, self.evento))
+
+    def test_papel_principal_continua_sendo_o_primeiro(self):
+        """Presença e verificação usam um papel só: o mais alto continua sendo ele."""
+        self.evento.organizador = self.participante
+        self.evento.save()
+
+        self.assertEqual(papel_no_evento(self.participante, self.evento), "organizador")
+
+    def test_a_tela_mostra_as_duas_tarjas(self):
+        """Na tela: tarja principal e a menor, com os dois papéis."""
+        Inscricao.objects.create(participante=self.organizador, atividade=self.atividade)
+        self.client.force_login(self.organizador)
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+
+        # O texto vem com a caixa normal (o CSS é que põe a tarja em maiúsculas)
+        self.assertIn(">Organizador<", html)
+        self.assertIn(">Participante<", html)
+        self.assertIn("cracha-papel--menor", html)
+
+    def test_a_verificacao_publica_mostra_os_mesmos_papeis(self):
+        """O QR do crachá leva para uma página que conta a mesma história."""
+        Inscricao.objects.create(participante=self.organizador, atividade=self.atividade)
+        token = gerar_token(self.organizador.id, self.evento.id, tipo="cracha")
+
+        html = self.client.get(reverse("verificar_cracha", args=[token])).content.decode()
+
+        self.assertIn("Organizador", html)
+        self.assertIn("Participante", html)
+        self.assertIn("papel--menor", html)
+
+    def test_o_pdf_em_lote_sai_com_os_papeis_sem_estourar(self):
+        Inscricao.objects.create(participante=self.organizador, atividade=self.atividade)
+        self.atividade.palestrantes.add(self.organizador)
+
+        nome, conteudo = gerar_pdf_crachas_evento(self.evento, "etiqueta")
+        dados = conteudo.read()
+
+        self.assertTrue(dados.startswith(b"%PDF"))
+        self.assertEqual(dados.count(b"/Type /Page") - dados.count(b"/Type /Pages"), 1)

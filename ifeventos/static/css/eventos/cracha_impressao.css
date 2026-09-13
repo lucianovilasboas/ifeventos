@@ -1,0 +1,483 @@
+/* =========================================================================
+   Crachás para impressão — 4 por folha A4 (105 x 148,5 mm cada)
+   -------------------------------------------------------------------------
+   Por que 148,5 mm e não 150: 2 fileiras de 150 mm pedem 300 mm de altura e o
+   A4 tem 297 mm — a última fileira sairia cortada pela impressora. Com 148,5 mm
+   o encaixe é exato (210 x 297 mm), com 1,5 mm a menos no comprimento.
+
+   Por que este arquivo existe separado: o crachá.css define o crachá de cordão
+   de 100 x 70 mm usado nas OUTRAS telas (verificação de crachá, confirmação).
+   Aqui ficam os dois modelos deste crachá grande, sem mexer naquelas telas —
+   por isso este arquivo é carregado DEPOIS do cracha.css, só na tela de crachás.
+
+   Dois modelos, escolhidos na tela:
+     .cracha--etiqueta  fundo colorido + círculo da logo + etiqueta branca
+     .cracha--classico  tarja verde + faixa do evento + nome no corpo
+   ========================================================================= */
+
+.cracha--etiqueta,
+.cracha--classico {
+    width: 105mm;
+    height: 148.5mm;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
+    background: #ffffff;
+    position: relative;
+    /* Sem isto o navegador descarta o fundo colorido na hora de imprimir */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* Em telas pequenas a lista empilha; no papel vira a grade 2 x 2 */
+.crachas-lista {
+    align-items: flex-start;
+}
+
+/* -------------------------------------------------------------------------
+   Modelo ETIQUETA (fundo colorido, círculo da logo, etiqueta branca do nome)
+   ------------------------------------------------------------------------- */
+
+.cracha--etiqueta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #ffffff;
+    font-family: "Mona Sans", "Nunito", system-ui, sans-serif;
+}
+
+/* Fundo: a foto do evento quando existe, senão o gradiente institucional */
+.cracha--etiqueta .cracha-fundo {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image: linear-gradient(to top, #1f5fa8 0%, #2f9e41 100%);
+    background-size: cover;
+    background-position: center;
+}
+
+/* Véu sobre a foto: sem ele o texto branco some num fundo claro */
+.cracha--etiqueta .cracha-veu {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: rgba(11, 46, 24, 0.55);
+}
+
+.cracha--etiqueta .etq-selo {
+    position: relative;
+    z-index: 2;
+    width: 34mm;
+    height: 34mm;
+    margin-top: 13mm;
+    border-radius: 50%;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.cracha--etiqueta .etq-selo img {
+    /* Círculo: a logo usa a altura disponível (selo redondo/vertical) e, sendo
+       horizontal, se ajusta pela largura sem estourar a borda. 78% de 34 mm é a
+       mesma medida do PDF (26 mm), para a tela e o papel contarem igual. */
+    max-width: 78%;
+    max-height: 78%;
+    width: auto;
+    height: auto;
+}
+
+.cracha--etiqueta .etq-inst {
+    position: relative;
+    z-index: 2;
+    margin: 5mm 0 0;
+    font-size: 10pt;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.cracha--etiqueta .etq-evento {
+    position: relative;
+    z-index: 2;
+    margin: 5mm 10mm 0;
+    font-size: 14pt;
+    font-weight: 800;
+    line-height: 1.15;
+    text-align: center;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cracha--etiqueta .etq-meta {
+    position: relative;
+    z-index: 2;
+    margin: 2.5mm 0 0;
+    font-size: 9pt;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90mm;
+}
+
+/* A etiqueta branca: nome, papel e o rodapé com QR e código.
+   `margin-top: auto` a encosta no rodapé do crachá, como no PDF. */
+.cracha--etiqueta .etq-nome {
+    position: relative;
+    z-index: 2;
+    margin: auto 8mm 8mm;
+    width: 89mm;
+    height: 62mm;
+    padding: 5mm 2mm 4mm;
+    border-radius: 4mm;
+    background: #ffffff;
+    color: #3c3c3c;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+}
+
+.cracha--etiqueta .etq-pessoa {
+    margin: 0;
+    font-size: 21pt;
+    font-weight: 900;
+    line-height: 1.06;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /* Nome sem espaço (e-mail no lugar do nome) precisa poder quebrar também
+       dentro da palavra, senão a linha é cortada na borda. */
+    overflow-wrap: anywhere;
+}
+
+/* Mesma régua do PDF em lote: nome maior, corpo menor. Sem isto o nome comprido
+   era cortado com reticências e o crachá perdia o sobrenome. */
+.cracha--etiqueta .etq-pessoa--medio {
+    font-size: 18pt;
+}
+
+.cracha--etiqueta .etq-pessoa--longo {
+    font-size: 15.5pt;
+}
+
+.cracha--etiqueta .etq-pe {
+    margin-top: auto;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 3mm;
+}
+
+.cracha--etiqueta .cracha-qr {
+    width: 28mm;
+    height: 28mm;
+    display: block;
+    flex: 0 0 auto;
+    background: #ffffff;
+}
+
+/* -------------------------------------------------------------------------
+   Modelo CLÁSSICO (tarja verde, faixa do evento, nome no corpo)
+   ------------------------------------------------------------------------- */
+
+.cracha--classico {
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    color: #3c3c3c;
+    font-family: "Mona Sans", "Nunito", system-ui, sans-serif;
+}
+
+.cracha--classico .cracha-topo {
+    height: 20mm;
+    flex: 0 0 auto;
+    padding: 0 8mm;
+    gap: 5mm;
+    background: #2f9e41;
+    color: #ffffff;
+}
+
+.cracha--classico .cracha-logo {
+    /* Caixa quadrada do tamanho da tarja: a marca do crachá é vertical e, numa
+       caixa baixa, ficava com 4 mm de largura (a mesma medida do PDF). */
+    height: 16mm;
+    width: auto;
+    padding: 1.5mm;
+    border-radius: 2mm;
+    background: #ffffff;
+    box-sizing: content-box;
+}
+
+.cracha--classico .cracha-inst {
+    font-size: 11pt;
+}
+
+.cracha--classico .cracha-faixa {
+    /* 34 mm (era 40): a foto do evento cede o espaço que o nome precisa */
+    height: 34mm;
+    flex: 0 0 auto;
+}
+
+.cracha--classico .cracha-corpo {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 5mm 8mm 0;
+}
+
+/* Fontes um pouco menores e respiro entre os blocos: com o texto grande, o
+   corpo ficava comprimido, os itens encolhiam e o nome perdia a segunda linha
+   (o `line-clamp` cortava) — parecia que a tarja do papel cobria o nome.
+   `flex: 0 0 auto` impede qualquer um deles de encolher. */
+.cracha--classico .cracha-evento {
+    font-size: 14pt;
+    margin: 0 0 3mm;
+    flex: 0 0 auto;
+}
+
+.cracha--classico .cracha-meta {
+    font-size: 9pt;
+    margin: 0 0 8mm;
+    flex: 0 0 auto;
+}
+
+.cracha--classico .cracha-nome {
+    font-size: 19pt;
+    line-height: 1.15;
+    margin: 0 0 6mm;
+    flex: 0 0 auto;
+}
+
+.cracha--classico .cracha-nome--medio {
+    font-size: 17pt;
+}
+
+.cracha--classico .cracha-nome--longo {
+    font-size: 15pt;
+}
+
+.cracha--classico .cracha-papel {
+    flex: 0 0 auto;
+}
+
+.cracha--classico .cracha-pe {
+    padding: 0 8mm 8mm;
+    flex: 0 0 auto;
+}
+
+.cracha--classico .cracha-qr {
+    width: 26mm;
+    height: 26mm;
+    background: #ffffff;
+}
+
+.cracha--classico .cracha-codigo strong {
+    font-size: 11pt;
+}
+
+.cracha--classico .cracha-codigo small {
+    font-size: 6.4pt;
+    max-width: 44mm;
+}
+
+/* -------------------------------------------------------------------------
+   Qual modelo aparece
+   ------------------------------------------------------------------------- */
+
+.crachas-lista[data-modelo="etiqueta"] .cracha--classico,
+.crachas-lista[data-modelo="classico"] .cracha--etiqueta {
+    display: none;
+}
+
+/* -------------------------------------------------------------------------
+   PRÉ-VISUALIZAÇÃO NA TELA
+   O crachá é desenhado no tamanho real de impressão (mm), então na tela ele
+   aparece reduzido: o que se vê é o que sai no papel, sem segunda versão de
+   tamanhos para manter.
+   ------------------------------------------------------------------------- */
+
+@media screen {
+    .crachas-lista {
+        gap: 18px;
+    }
+
+    .crachas-lista .cracha {
+        zoom: 0.62;
+    }
+
+    .cracha-bloco {
+        width: auto;
+    }
+}
+
+/* -------------------------------------------------------------------------
+   IMPRESSÃO: grade 2 x 2 no A4, uma folha por bloco de quatro
+   ------------------------------------------------------------------------- */
+
+@media print {
+    /* Sobrescreve a página de 100 x 70 mm do cracha.css (usada nas outras telas) */
+    @page {
+        size: A4;
+        margin: 0;
+    }
+
+    /* A folha é do crachá: o respiro do layout (margem do conteúdo, respiro do
+       título, padding do container) empurrava a grade para baixo — e duas
+       fileiras de 148,5 mm já ocupam os 297 mm do A4, então a segunda fileira
+       caía em outra página. Zerado, o 2 x 2 encaixa na folha. */
+    html,
+    body,
+    .app-content-top,
+    .app-sec,
+    .container-fluid,
+    .crachas-lista,
+    .cracha-bloco {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .app-topbar,
+    .app-nav-desktop,
+    .app-bottomnav,
+    .crachas-toolbar,
+    .cracha-acoes,
+    .crachas-modelo,
+    .app-page-head,
+    .app-sec,
+    .crachas-aviso {
+        display: none !important;
+    }
+
+    /* O crachá CLÁSSICO usa <footer> para o rodapé onde vive o QR — e tanto o
+       cracha.css quanto a regra acima escondiam TODO <footer> no papel. O QR (e
+       o nome acima dele) simplesmente não saíam na impressão. Aqui o rodapé do
+       crachá volta a aparecer; só o rodapé da PÁGINA fica de fora. */
+    .crachas-lista .cracha-pe {
+        display: flex !important;
+    }
+
+    footer:not(.cracha-pe) {
+        display: none !important;
+    }
+
+    body {
+        background: #ffffff;
+    }
+
+    .crachas-lista {
+        display: grid;
+        grid-template-columns: repeat(2, 105mm);
+        grid-auto-rows: 148.5mm;
+        gap: 0;
+        margin: 0;
+        padding: 0;
+    }
+
+    .cracha-bloco {
+        width: 105mm;
+        height: 148.5mm;
+        margin: 0;
+        padding: 0;
+        /* Nenhuma linha pode quebrar entre duas folhas */
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .crachas-lista .cracha {
+        zoom: 1;
+        /* O cracha.css força quebra de página DEPOIS de cada crachá — regra do
+           formato antigo, um por página. Aqui os quatro da folha precisam ficar
+           juntos: quem manda na paginação é a grade, não o crachá. */
+        page-break-after: auto;
+        break-after: auto;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        /* A guia de corte é a própria borda do crachá: `outline` não ocupa
+           espaço na grade, então não empurra o 2 x 2 para fora do A4. */
+        outline: 0.2mm solid #cfcfcf;
+        outline-offset: 0;
+    }
+}
+
+/* -------------------------------------------------------------------------
+   Seletor de modelo (só na tela: na impressão ele some)
+   ------------------------------------------------------------------------- */
+
+.crachas-modelo {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+}
+
+.crachas-modelo-rotulo {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-right: 2px;
+}
+
+/* O botão do modelo escolhido fica preenchido — a mesma cor verde do crachá */
+.crachas-modelo .btn.is-ativo {
+    background: #2f9e41;
+    border-color: #2f9e41;
+    color: #ffffff;
+}
+
+.crachas-modelo .btn.is-ativo:hover {
+    background: #26823a;
+    border-color: #26823a;
+}
+
+/* -------------------------------------------------------------------------
+   Barra da tela (só na tela: some na impressão)
+   Ação e escolha do modelo na mesma linha; a dica ocupa a linha de baixo.
+   ------------------------------------------------------------------------- */
+
+.crachas-toolbar .crachas-dica {
+    flex-basis: 100%;
+    margin: 2px 0 0;
+}
+
+/* -------------------------------------------------------------------------
+   Tarjas de papel: a PRINCIPAL maior e as outras menores ao lado
+   O crachá é um por evento e mostra todos os papéis da pessoa nele — quem
+   organiza e também se inscreveu aparece com ORGANIZADOR e PARTICIPANTE.
+   ------------------------------------------------------------------------- */
+
+.cracha-papeis {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1mm;
+    flex: 0 0 auto;
+}
+
+.cracha--etiqueta .cracha-papeis { justify-content: center; }
+.cracha--classico .cracha-papeis { justify-content: flex-start; }
+
+.cracha--etiqueta .cracha-papel,
+.cracha--classico .cracha-papel {
+    font-size: 9pt;
+    padding: 1.2mm 3.5mm;
+}
+
+/* Secundárias: MENORES e vazadas (a principal é a cheia). A hierarquia precisa
+   ler de longe; só diminuir a fonte não bastava. O seletor carrega a mesma
+   especificidade do bloco acima (modelo + tarja), senão ele não pega. A regra
+   vale igual no PDF, para a tela não prometer o que o papel não entrega. */
+.cracha--etiqueta .cracha-papel--menor,
+.cracha--classico .cracha-papel--menor {
+    font-size: 7pt;
+    padding: 0.9mm 2mm;
+    background: transparent;
+    border: 0.3mm solid var(--accent-ink);
+    opacity: 0.9;
+}

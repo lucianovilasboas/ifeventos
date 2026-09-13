@@ -1,0 +1,42 @@
+{% comment %}
+Modelo ETIQUETA: fundo colorido, círculo branco da logo e etiqueta branca do nome.
+Espelha o desenho que o PDF em lote faz em `eventos/crachas.py` (_cracha_etiqueta)
+— os dois precisam contar a mesma história.
+{% endcomment %}
+<article class="cracha cracha--etiqueta">
+    <div class="cracha-fundo"
+         {% if cracha.evento.imagem %}style="background-image:url('{{ cracha.evento.imagem.url }}')"{% endif %}></div>
+    {% if cracha.evento.imagem %}<div class="cracha-veu"></div>{% endif %}
+
+    <div class="etq-selo">
+        {% if logo_url %}<img src="{{ logo_url }}" alt="IFMG">{% endif %}
+    </div>
+
+    <p class="etq-inst">IFMG · Campus Ponte Nova</p>
+    <h3 class="etq-evento">{{ cracha.evento.title }}</h3>
+    <p class="etq-meta">
+        {{ cracha.periodo }}{% if cracha.evento.local %} · {{ cracha.evento.local }}{% endif %}
+    </p>
+
+    <div class="etq-nome">
+        {% comment %}
+        A fonte cai conforme o nome cresce — a mesma régua do PDF em lote
+        (eventos/crachas.py). Sem isso, nome comprido sai com reticências.
+        {% endcomment %}
+        <p class="etq-pessoa{% if cracha.nome|length > 34 %} etq-pessoa--longo{% elif cracha.nome|length > 24 %} etq-pessoa--medio{% endif %}">{{ cracha.nome }}</p>
+        <div class="cracha-papeis">
+            {% for rotulo in cracha.papeis_rotulos %}
+            <span class="cracha-papel{% if not forloop.first %} cracha-papel--menor{% endif %}">{{ rotulo }}</span>
+            {% endfor %}
+        </div>
+
+        <div class="etq-pe">
+            <img class="cracha-qr" src="{{ cracha.qr }}"
+                 alt="QR de verificação do crachá de {{ cracha.nome }}">
+            <div class="cracha-codigo">
+                <strong>{{ cracha.codigo }}</strong>
+                <small>Aponte a câmera para confirmar sua presença ou informe este código</small>
+            </div>
+        </div>
+    </div>
+</article>

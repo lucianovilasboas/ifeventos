@@ -845,3 +845,12 @@
     border-color: var(--danger);
     color: #fff;
 }
+
+/* A verificação lista os mesmos papéis do crachá: o principal cheio e os outros
+   menores ao lado (é o mesmo crachá, então tem de contar a mesma história). */
+.verificacao .papeis { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.verificacao .papel--menor {
+    padding: 3px 9px;
+    font-size: 0.72rem;
+    opacity: 0.85;
+}
