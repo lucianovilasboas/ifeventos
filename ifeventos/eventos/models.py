@@ -262,6 +262,36 @@ class Atividade(models.Model):
 
     emite_certificado = models.BooleanField(default=False)
 
+    @property
+    def quando_legivel(self):
+        """Data e hora curtinhas para a lista: `20/09 · 19h30`.
+
+        USE_TZ está ligado: sem localtime() a lista mostraria o horário de
+        Greenwich e uma atividade das 19h30 sairia como 22h30.
+        """
+        def local(valor):
+            if not valor:
+                return None
+            # Aceita data em texto: um objeto montado à mão (teste, importação,
+            # API) pode chegar com a data em ISO, como já acontece no crachá.
+            if isinstance(valor, str):
+                try:
+                    valor = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+                except ValueError:
+                    return None
+            if timezone.is_naive(valor):
+                valor = timezone.make_aware(valor, timezone.get_current_timezone())
+            return timezone.localtime(valor)
+
+        inicio = local(self.data_hora_inicio)
+        if not inicio:
+            return ""
+        fim = local(self.data_hora_fim)
+        dia = inicio.strftime("%d/%m")
+        if fim and fim.date() != inicio.date():
+            dia = "%s a %s" % (dia, fim.strftime("%d/%m"))
+        return "%s · %sh%s" % (dia, inicio.strftime("%H"), inicio.strftime("%M"))
+
     #campo para armazenar a confirmação da presença
     codigo_confirmacao = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)  # Código único por atividade
 

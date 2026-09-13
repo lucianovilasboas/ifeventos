@@ -85,6 +85,14 @@
         }[c]));
     }
 
+    // Para valor de ATRIBUTO (data-valor): aspas e & viram entidade, senão um
+    // título com aspas quebraria o atributo.
+    function escAttr(texto) {
+        return String(texto == null ? "" : texto)
+            .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
     // Atualiza contadores (vagas/inscritos) em cards e na tabela ao mesmo tempo
     function refreshCounts(id, vagas, inscritos) {
         document.querySelectorAll(`.js-vagas[data-id="${id}"]`).forEach(el => el.textContent = vagas);
@@ -114,8 +122,17 @@
             refreshCounts(id, data.n_vagas, data.n_inscricoes);
         }
         if (data.titulo) {
-            document.querySelectorAll(`[data-atividade-id="${id}"] .atividade-titulo`)
-                .forEach(el => el.textContent = data.titulo);
+            // Só o nome: a célula tem também a data, e textContent nela apagaria.
+            const celulas = document.querySelectorAll(`[data-atividade-id="${id}"] .atividade-titulo`);
+            celulas.forEach(celula => {
+                const nome = celula.querySelector(".atividade-nome");
+                (nome || celula).textContent = data.titulo;
+                if (celula.dataset.valor != null) celula.dataset.valor = data.titulo;
+            });
+        }
+        if (data.quando) {
+            document.querySelectorAll(`[data-atividade-id="${id}"] .atividade-quando`)
+                .forEach(el => el.textContent = data.quando);
         }
     });
 
@@ -132,7 +149,10 @@
         const tipo = data.tipo || "";
         const vagas = data.n_vagas != null ? data.n_vagas : 0;
         const inscritos = data.n_inscricoes != null ? data.n_inscricoes : 0;
+        const quando = data.quando || "";
+        const certificado = !!data.emite_certificado;
         const t = esc(titulo), ty = esc(tipo);
+        const tAttr = escAttr(titulo), q = esc(quando);
 
         // Adiciona a linha na tabela (desktop)
         const tableBody = document.querySelector(".table-wrap table tbody");
@@ -142,7 +162,7 @@
             newRow.setAttribute("data-atividade-id", id);
             newRow.innerHTML = `
                 <td></td>
-                <td class="atividade-titulo">${t}</td>
+                <td class="atividade-titulo" data-valor="${tAttr}"><span class="atividade-nome">${t}</span>${q ? `<small class="atividade-quando">${q}</small>` : ""}</td>
                 <td>${ty}</td>
                 <td class="js-vagas" data-id="${id}">${vagas}</td>
                 <td class="js-inscritos" data-id="${id}">${inscritos}</td>
@@ -153,7 +173,7 @@
                     <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" title="Lista de Presença" class="btn btn-success btn-sm"><i class="fa-solid fa-list-check"></i></a>
                     <a href="/eventos/gerar-qr-code-atividade/${id}/" title="QR Code de Confirmação de Presença" class="btn btn-dark btn-sm" target="_blank"><i class="fa-solid fa-qrcode"></i></a>
                     <span><i class="fa-solid fa-circle"></i></span>
-                    <button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="${id}">🎓</button>
+                    ${certificado ? `<button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
                 </td>`;
             tableBody.appendChild(newRow);
             reordenarTabela();   // a nova linha entra na posição certa
@@ -168,7 +188,8 @@
             card.innerHTML = `
                 <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))"><i class="fa-solid fa-bullhorn"></i></div>
                 <div class="info">
-                    <h5 class="atividade-titulo">${t}</h5>
+                    <h5 class="atividade-titulo"><span class="atividade-nome">${t}</span></h5>
+                    ${q ? `<p class="atividade-quando mb-0">${q}</p>` : ""}
                     <p><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> ${ty}</span></p>
                     <p class="mb-0" style="font-size:12px;color:var(--app-muted)"><i class="fa-solid fa-users"></i> <span class="js-inscritos" data-id="${id}">${inscritos}</span>/<span class="js-vagas" data-id="${id}">${vagas}</span> inscritos</p>
                     <div class="card-actions">
@@ -176,7 +197,7 @@
                         <a href="/organizador/excluir_atividade/${id}/" class="btn btn-sm btn-danger btn-icon" title="Excluir Atividade" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');"><i class="fa-solid fa-trash-can"></i></a>
                         <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" class="btn btn-sm btn-success btn-icon" title="Lista de Presença"><i class="fa-solid fa-list-check"></i></a>
                         <a href="/eventos/gerar-qr-code-atividade/${id}/" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de Confirmação de Presença"><i class="fa-solid fa-qrcode"></i></a>
-                        <button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="${id}">🎓</button>
+                        ${certificado ? `<button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
                     </div>
                 </div>`;
             cardList.appendChild(card);

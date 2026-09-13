@@ -52,6 +52,11 @@ def atividade_salva(sender, instance, created, **kwargs):
         "n_inscricoes": instance.n_inscricoes,
         "data_hora_inicio": _iso(instance.data_hora_inicio),
         "data_hora_fim": _iso(instance.data_hora_fim),
+        # A lista aberta monta a linha com isto: a data já vai formatada (o
+        # navegador não repetiria a conversão de fuso) e a flag decide se o
+        # botão de certificado aparece naquela atividade.
+        "quando": instance.quando_legivel,
+        "emite_certificado": instance.emite_certificado,
         "acao": "atividade",
     }
 

@@ -1319,3 +1319,86 @@ class ModeloDoCrachaDoEventoTests(_BasePresencaTests):
         html = self.client.get(reverse("participante:meus_crachas")).content.decode()
         self.assertIn("cracha--classico", html)
         self.assertNotIn("cracha--etiqueta", html)
+
+
+class CertificadoEDataNaListaTests(_BasePresencaTests):
+    """Botão de certificado só onde a atividade emite, e a data/hora na lista."""
+
+    def _html_da_lista(self):
+        self.client.force_login(self.organizador)
+        return self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        ).content.decode()
+
+    def test_sem_emissao_nao_tem_botao_de_certificado(self):
+        self.atividade.emite_certificado = False
+        self.atividade.save(update_fields=["emite_certificado"])
+
+        html = self._html_da_lista()
+
+        # Pelo botão renderizado, não pelo texto: "Emitir Certificados" também
+        # aparece no JS que monta a linha ao vivo, e isso não é botão nenhum.
+        self.assertEqual(
+            html.count('data-atividade="%d"' % self.atividade.id), 0,
+            "sem emissão, nenhum botão de certificado (nem no card, nem na tabela)",
+        )
+
+    def test_com_emissao_o_botao_aparece_nos_dois_layouts(self):
+        self.atividade.emite_certificado = True
+        self.atividade.save(update_fields=["emite_certificado"])
+
+        html = self._html_da_lista()
+
+        self.assertEqual(
+            html.count('data-atividade="%d"' % self.atividade.id), 2,
+            "um botão no card (mobile) e um na tabela (desktop)",
+        )
+
+    def test_data_e_hora_no_fuso_do_brasil(self):
+        self.atividade.data_hora_inicio = datetime(2026, 9, 20, 19, 30)
+        self.atividade.data_hora_fim = datetime(2026, 9, 20, 21, 0)
+        self.atividade.save()
+
+        self.assertEqual(self.atividade.quando_legivel, "20/09 · 19h30")
+
+        self.atividade.refresh_from_db()
+        self.assertEqual(
+            self.atividade.quando_legivel, "20/09 · 19h30",
+            "lido do banco (UTC) tem que voltar para 19h30, não 22h30",
+        )
+
+    def test_atividade_de_dois_dias_mostra_o_intervalo(self):
+        self.atividade.data_hora_inicio = datetime(2026, 9, 20, 19, 30)
+        self.atividade.data_hora_fim = datetime(2026, 9, 21, 12, 0)
+        self.atividade.save()
+
+        self.assertEqual(self.atividade.quando_legivel, "20/09 a 21/09 · 19h30")
+
+    def test_a_lista_mostra_a_data_e_ordena_pelo_titulo(self):
+        self.atividade.data_hora_inicio = datetime(2026, 9, 20, 19, 30)
+        self.atividade.data_hora_fim = datetime(2026, 9, 20, 21, 0)
+        self.atividade.save()
+
+        html = self._html_da_lista()
+
+        self.assertIn("20/09 · 19h30", html, "a data tem que aparecer na lista")
+        valores = re.findall(r'data-valor="([^"]*)"', html)
+        self.assertIn(self.atividade.titulo, valores)
+        for valor in valores:
+            self.assertNotIn("20/09", valor, "a data não pode entrar na ordenação")
+
+    def test_o_payload_ao_vivo_leva_data_e_flag(self):
+        capturado = {}
+
+        def espiao(tipo, dados):
+            capturado["tipo"] = tipo
+            capturado["dados"] = dados
+
+        with mock.patch("eventos.signals.notify_socketio", espiao):
+            self.atividade.emite_certificado = True
+            self.atividade.save()
+
+        dados = capturado["dados"]
+        self.assertTrue(dados["emite_certificado"])
+        self.assertEqual(dados["quando"], self.atividade.quando_legivel)
+        self.assertIn("emite_certificado", dados)
