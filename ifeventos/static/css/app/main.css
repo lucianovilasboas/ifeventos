@@ -888,3 +888,18 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
   .ativ-info-nota { margin-left: 0; }
   .ativ-acoes { flex-direction: column-reverse; align-items: stretch; }
 }
+
+
+/* -------------------------------------------------------------------------
+   Data/hora da atividade, pequena, junto do título
+   Fica na mesma célula do título, em corpo menor e cor apagada: informa sem
+   competir com o nome e sem apertar a tabela. A ordenação da coluna usa o
+   `data-valor` da célula, então esta data não entra no critério.
+   ------------------------------------------------------------------------- */
+.atividade-quando {
+    display: block;
+    font-size: 12px;
+    line-height: 1.2;
+    color: var(--app-muted, #6b7280);
+}
+.cards-mobile .atividade-quando { margin-top: 2px; }

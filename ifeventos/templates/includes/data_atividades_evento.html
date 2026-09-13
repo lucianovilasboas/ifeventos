@@ -8,7 +8,10 @@
             <i class="fa-solid fa-bullhorn"></i>
         </div>
         <div class="info">
-            <h5 class="atividade-titulo">{{ atividade.titulo }}</h5>
+            <h5 class="atividade-titulo"><span class="atividade-nome">{{ atividade.titulo }}</span></h5>
+            {% if atividade.quando_legivel %}
+            <p class="atividade-quando mb-0"><i class="fa-regular fa-clock"></i> {{ atividade.quando_legivel }}</p>
+            {% endif %}
             <p><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> {{ atividade.tipo }}</span></p>
             <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
                 <i class="fa-solid fa-users"></i>
@@ -31,9 +34,11 @@
                 <a href="{% url 'organizador:checkin_atividade' atividade.id %}" class="btn btn-sm btn-outline-success btn-icon" title="Check-in lendo os crachás pela câmera">
                     <i class="fa-solid fa-camera"></i>
                 </a>
+                {% if atividade.emite_certificado %}
                 <button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="{{ atividade.id }}">
                     🎓
                 </button>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -60,7 +65,14 @@
                     {% for atividade in atividades %}
                     <tr class="atividade-item" data-atividade-id="{{ atividade.id }}">
                         <td>{{ forloop.counter }}</td>
-                        <td class="atividade-titulo">{{ atividade.titulo }}</td>
+                        {% comment %} data-valor: a coluna ordena pelo título, não pelo
+                           texto da data que aparece embaixo. {% endcomment %}
+                        <td class="atividade-titulo" data-valor="{{ atividade.titulo }}">
+                            <span class="atividade-nome">{{ atividade.titulo }}</span>
+                            {% if atividade.quando_legivel %}
+                            <small class="atividade-quando"><i class="fa-regular fa-clock"></i> {{ atividade.quando_legivel }}</small>
+                            {% endif %}
+                        </td>
                         <td>{{ atividade.tipo }}</td>
                         <td class="js-vagas" data-id="{{ atividade.id }}">{{ atividade.n_vagas }}</td>
                         <td class="js-inscritos" data-id="{{ atividade.id }}">{{ atividade.n_inscricoes }}</td>
@@ -82,9 +94,11 @@
                                 <i class="fa-solid fa-camera"></i>
                             </a>
                             <span><i class="fa-solid fa-circle"></i></span>
+                            {% if atividade.emite_certificado %}
                             <button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="{{ atividade.id }}">
                                 🎓
                             </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
