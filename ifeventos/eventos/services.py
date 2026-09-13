@@ -1,5 +1,6 @@
 import json
 import re
+import threading
 import openai
 import datetime
 from django.conf import settings
@@ -361,25 +362,45 @@ async def sugerir_categoria_ajax(request):
 
 
 # -- Função para notificar eventos via SocketIO --
-async def notify_socketio(event_type, data):
-    """Notifica os clientes conectados pelo servidor Socket.IO.
+# --------------------------------------------------------------------------
+# Aviso aos clientes conectados (Socket.IO)
+# --------------------------------------------------------------------------
+# UM cliente persistente por processo. Antes, cada aviso abria conexão nova
+# (`AsyncClient` + connect + call + disconnect): medido, ~44 ms de handshake e
+# ~42 ms de ida e volta do ack POR NOTIFICAÇÃO — e, com o servidor de socket
+# fora do ar, esse `connect` rodava DENTRO da requisição do usuário antes de cair
+# no plano B em thread. A conexão agora é reaproveitada e o aviso é um `emit`
+# (o protocolo do Socket.IO já garante a entrega enquanto a conexão vive, que
+# era o motivo do `call` com confirmação). Sai em milissegundos.
+_cliente_socket = None
+_trava_socket = threading.Lock()
 
-    Usa `call` em vez de `emit` de propósito: o servidor precisa **confirmar o
-    recebimento** antes de a conexão ser fechada. Com `emit` e `disconnect`
-    imediato o pacote era descartado no caminho — medido: o mesmo evento chegou
-    com `call` (ack recebido) e sumiu com `emit`. Isso valia para todas as
-    notificações do sistema, não só a de presença.
 
-    A confirmação é esperada por poucos segundos: avisar é acessório e nunca
-    pode segurar nem derrubar o fluxo principal, que já foi gravado.
+def _cliente_de_socket():
+    """Cliente Socket.IO deste processo, conectado sob demanda."""
+    global _cliente_socket
+    if _cliente_socket is None:
+        _cliente_socket = socketio.Client(reconnection=True)
+    if not _cliente_socket.connected:
+        _cliente_socket.connect(settings.SOCKET_INTERNAL_URL, wait_timeout=2)
+    return _cliente_socket
+
+
+def notify_socketio(event_type, data):
+    """Avisa as telas abertas que algo mudou. Devolve True quando o aviso saiu.
+
+    Nunca levanta exceção e nunca segura o fluxo principal: avisar é acessório,
+    o dado já está gravado e as telas têm o polling de segurança. Falhando, o
+    cliente é descartado e o próximo aviso tenta conectar de novo.
     """
-    sio = socketio.AsyncClient()
+    global _cliente_socket
     try:
-        await sio.connect(settings.SOCKET_INTERNAL_URL)
-        await sio.call(event_type, data, timeout=5)
-        print(f"[SocketIO] Notificação enviada: {event_type} - {data}")
-        await sio.disconnect()
-    except Exception as e:
-        print(f"[SocketIO] Não consegui notificar ({event_type}): {e}")
+        with _trava_socket:
+            _cliente_de_socket().emit(event_type, data)
+        return True
+    except Exception as erro:
+        _cliente_socket = None
+        print(f"[SocketIO] Não consegui notificar ({event_type}): {erro}")
+        return False
 
 

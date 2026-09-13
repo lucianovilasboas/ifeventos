@@ -4,7 +4,6 @@ from .models import Inscricao
 from .models import Atividade
 from .models import Presenca
 from .services import notify_socketio
-import asyncio
 
 
 # Atualiza o número de inscrições sempre que uma nova inscrição é criada ou removida
@@ -16,20 +15,11 @@ def atualizar_inscricoes(sender, instance, **kwargs):
 
     atividade.save()  
 
-    # Executa notificação com asyncio ou se falhar, em thread separada
-    # para evitar problemas de loop de evento
-    try:
-        data = {
-            "atividade_id": atividade.id,
-            "n_inscricoes": atividade.inscricoes,
-            "acao": "inscricao"
-        }
-        asyncio.run( notify_socketio("update_inscricao", data) )
-        print(f"> try [SocketIO] Notificação enviada: update_inscricao - {atividade.id} - {atividade.inscricoes}")
-    except RuntimeError:
-        import threading
-        threading.Thread( target=lambda: asyncio.run(notify_socketio("update_inscricao", data))).start()
-        print(f"> except [SocketIO] Notificação enviada em thread: update_inscricao - {atividade.id} - {atividade.inscricoes}") 
+    notify_socketio("update_inscricao", {
+        "atividade_id": atividade.id,
+        "n_inscricoes": atividade.inscricoes,
+        "acao": "inscricao",
+    })
 
 
 
@@ -71,15 +61,7 @@ def atividade_salva(sender, instance, created, **kwargs):
     print(f"Tipo: {tipo}")
     print(f"Data: {data}")
 
-    # Executa notificação com asyncio
-    try:
-        asyncio.run(notify_socketio(tipo, data))
-        print(f"> try [SocketIO] Notificação enviada: {tipo} - {data}")
-    except RuntimeError:
-        # fallback em thread separada (caso use em contextos assíncronos)
-        import threading
-        threading.Thread(target=lambda: asyncio.run(notify_socketio(tipo, data))).start()
-        print(f"> except [SocketIO] Notificação enviada em thread: {tipo} - {data}")
+    notify_socketio(tipo, data)
 
 
 
@@ -91,15 +73,7 @@ def atividade_deletada(sender, instance, **kwargs):
         "acao": "atividade",
     }
 
-    # Executa notificação com asyncio
-    try:
-        asyncio.run(notify_socketio("delete_activity", data))
-        print(f"> try [SocketIO] Notificação enviada: delete_activity - {data}")
-    except RuntimeError:
-        # fallback em thread separada (caso use em contextos assíncronos)
-        import threading
-        threading.Thread(target=lambda: asyncio.run(notify_socketio("delete_activity", data))).start()
-        print(f"> except [SocketIO] Notificação enviada em thread: delete_activity - {data}")
+    notify_socketio("delete_activity", data)
 
 
 @receiver(post_delete, sender=Inscricao)
@@ -136,12 +110,4 @@ def presenca_removida(sender, instance, **kwargs):
         "atividade_id": instance.atividade_id,
         "acao": "presenca",
     }
-    try:
-        asyncio.run(notify_socketio("presenca_cancelada", data))
-        print(f"> try [SocketIO] Notificação enviada: presenca_cancelada - {data}")
-    except RuntimeError:
-        import threading
-        threading.Thread(
-            target=lambda: asyncio.run(notify_socketio("presenca_cancelada", data))
-        ).start()
-        print(f"> except [SocketIO] Notificação enviada em thread: presenca_cancelada - {data}")
+    notify_socketio("presenca_cancelada", data)

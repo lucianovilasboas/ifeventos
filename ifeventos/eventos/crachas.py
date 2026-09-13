@@ -1035,17 +1035,7 @@ def notificar_presenca_confirmada(atividade, presenca_id):
         "presenca_id": presenca_id,
     }
 
-    try:
-        asyncio.run(notify_socketio("presenca_confirmada", dados))
-    except RuntimeError:
-        # Já existe um laço de eventos em execução (contexto async): o projeto
-        # usa este mesmo desvio em eventos/signals.py.
-        threading.Thread(
-            target=lambda: asyncio.run(notify_socketio("presenca_confirmada", dados)),
-            daemon=True,
-        ).start()
-    except Exception as erro:
-        print(f"[SocketIO] presença não notificada: {erro}")
+    notify_socketio("presenca_confirmada", dados)
 
 
 def registrar_presenca(atividade, pessoa, registrada_por=None, origem="qr"):

@@ -22,6 +22,8 @@ from django.contrib.messages import get_messages
 from django.conf import settings
 from django.core import mail
 from django.template.loader import render_to_string
+from unittest import mock
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -1060,3 +1062,116 @@ class QrGrandeECentralizadoTests(_BasePresencaTests):
                     (x + largura / 2.0) / mm, self.CENTRO_DO_CARTAO_MM, places=1,
                     msg=f"{modelo}: o QR saiu fora do centro do cartão",
                 )
+
+
+class NotificacaoSocketTests(TestCase):
+    """O aviso às telas usa UMA conexão por processo, não uma por evento.
+
+    Antes: cada aviso abria conexão nova (medido: ~44 ms de handshake + ~42 ms de
+    ack). Com o servidor de socket fora do ar, esse connect rodava dentro da
+    requisição do usuário antes de cair no plano B em thread.
+    """
+
+    def setUp(self):
+        from eventos import services
+
+        self.services = services
+        self.cliente_original = services._cliente_socket
+        services._cliente_socket = None
+
+    def tearDown(self):
+        self.services._cliente_socket = self.cliente_original
+
+    def _cliente_falso(self, falhar_no_emit=False):
+        class ClienteFalso:
+            def __init__(self, *args, **kwargs):
+                self.connected = False
+                self.conexoes = 0
+                self.envios = []
+
+            def connect(self, url, **kwargs):
+                self.conexoes += 1
+                self.connected = True
+
+            def emit(self, evento, dados, **kwargs):
+                if falhar_no_emit:
+                    raise OSError("servidor de socket fora do ar")
+                self.envios.append((evento, dados))
+
+        return ClienteFalso
+
+    def test_uma_conexao_para_varios_avisos(self):
+        fabrica = self._cliente_falso()
+        with mock.patch.object(self.services.socketio, "Client", fabrica):
+            for _ in range(3):
+                self.assertTrue(
+                    self.services.notify_socketio("presenca_confirmada", {"atividade_id": 1})
+                )
+            cliente = self.services._cliente_socket
+
+        self.assertEqual(cliente.conexoes, 1, "abriu mais de uma conexão no mesmo processo")
+        self.assertEqual(len(cliente.envios), 3)
+        self.assertEqual(cliente.envios[0][0], "presenca_confirmada")
+
+    def test_falha_nao_derruba_quem_chamou_e_descarta_o_cliente(self):
+        fabrica = self._cliente_falso(falhar_no_emit=True)
+        with mock.patch.object(self.services.socketio, "Client", fabrica):
+            self.assertFalse(self.services.notify_socketio("update_inscricao", {}))
+
+        self.assertIsNone(self.services._cliente_socket, "devia descartar o cliente que falhou")
+
+    def test_reconecta_depois_de_cair(self):
+        fabrica = self._cliente_falso()
+        with mock.patch.object(self.services.socketio, "Client", fabrica):
+            self.services.notify_socketio("update_inscricao", {})
+            cliente = self.services._cliente_socket
+            cliente.connected = False
+            self.services.notify_socketio("update_inscricao", {})
+
+        self.assertEqual(cliente.conexoes, 2, "não reconectou depois de cair")
+
+
+class AvisoDePresencaTests(_BasePresencaTests):
+    """O aviso de presença leva só o sinal — nenhum dado pessoal."""
+
+    def test_o_aviso_nao_carrega_dado_pessoal(self):
+        from .crachas import notificar_presenca_confirmada
+
+        with mock.patch("eventos.crachas.asyncio") as _asyncio_falso, \
+                mock.patch("eventos.services.notify_socketio") as aviso:
+            notificar_presenca_confirmada(self.atividade, presenca_id=7)
+
+        self.assertTrue(aviso.called, "não avisou ninguém")
+        evento, dados = aviso.call_args.args
+        self.assertEqual(evento, "presenca_confirmada")
+        self.assertEqual(
+            set(dados), {"atividade_id", "evento_id", "presenca_id"},
+            "o aviso passou a carregar campos além do sinal (o socket não é autenticado)",
+        )
+        self.assertNotIn(self.participante.email, str(dados))
+
+
+class CheckinAoLocoTests(_BasePresencaTests):
+    """A tela de check-in se atualiza sozinha: socket + ciclo de segurança."""
+
+    def _html(self):
+        self.client.force_login(self.organizador)
+        return self.client.get(
+            reverse("organizador:checkin_atividade", args=[self.atividade.id])
+        ).content.decode()
+
+    def test_a_tela_tem_socket_e_ciclo_de_seguranca(self):
+        html = self._html()
+
+        self.assertIn("socket.io.min.js", html)
+        self.assertIn("const SOCKET_URL", html)
+        self.assertIn("'presenca_confirmada'", html)
+        self.assertIn("'presenca_cancelada'", html)
+        self.assertIn("setInterval(carregarLista, INTERVALO_SEGURANCA)", html)
+
+    def test_o_socket_nao_e_obrigatorio_para_a_lista(self):
+        """O ciclo de segurança tem de existir FORA do bloco do socket."""
+        html = self._html()
+
+        trecho = html.split("setInterval(carregarLista, INTERVALO_SEGURANCA)")
+        self.assertEqual(len(trecho), 2, "sumiu o ciclo de segurança da lista")

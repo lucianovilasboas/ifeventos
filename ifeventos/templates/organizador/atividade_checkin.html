@@ -72,12 +72,14 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <script>
     // Fluxo A1: a câmera lê o QR do crachá e a presença é gravada sozinha. A
     // organização aponta o celular; não existe clique por pessoa.
     const ATIVIDADE = {{ atividade.id }};
     const CSRF = '{{ csrf_token }}';
     const URL_PRESENCAS = "{% url 'presenca-list' %}";
+    const SOCKET_URL = "{{ SOCKET_URL }}";
 
     const video = document.getElementById('video');
     const avisoCamera = document.getElementById('aviso-camera');
@@ -293,6 +295,29 @@
         }
     });
 
+    // ---------------------------------------------------------------------
+    // Socket (instantâneo) + polling de segurança: mesmo desenho da tela do
+    // QR. Sem socket — rede que bloqueia, CDN fora do ar — a lista continua
+    // correta, só espera o próximo ciclo.
+    // ---------------------------------------------------------------------
+    const INTERVALO_SEGURANCA = 15000;
+    let socket = null;
+    if (typeof io === 'function') {
+        socket = SOCKET_URL ? io(SOCKET_URL) : io();
+        const daMesmaAtividade = function (dados) {
+            return !dados || Number(dados.atividade_id) === ATIVIDADE;
+        };
+        socket.on('presenca_confirmada', function (dados) {
+            if (daMesmaAtividade(dados)) carregarLista();
+        });
+        // Presença desfeita em outra tela (QR da atividade, verificação do
+        // crachá) sai da lista aqui na hora, sem esperar o ciclo.
+        socket.on('presenca_cancelada', function (dados) {
+            if (daMesmaAtividade(dados)) carregarLista();
+        });
+    }
+
     carregarLista();
+    setInterval(carregarLista, INTERVALO_SEGURANCA);
 </script>
 {% endblock scripts %}
