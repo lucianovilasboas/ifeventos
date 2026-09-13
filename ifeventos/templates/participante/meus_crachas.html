@@ -40,17 +40,42 @@
         {% include parcial %}
         {% endwith %}
 
-        {% if cracha.papel == 'organizador' %}
         <div class="cracha-acoes">
+            <button type="button" class="btn btn-sm btn-app" data-visualizar>
+                <i class="fa-solid fa-mobile-screen-button"></i> Visualizar crachá
+            </button>
+            {% if cracha.papel == 'organizador' %}
             <a class="btn btn-sm btn-outline-success"
                href="{% url 'organizador:crachas_evento' cracha.evento.id %}"
                target="_blank" rel="noopener">
                 <i class="fa-solid fa-file-pdf"></i> Crachás de todo o evento (PDF)
             </a>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
     {% endfor %}
+</div>
+
+{% comment %}
+Visualizador em tela cheia, para o celular servir de crachá sem imprimir.
+Fundo BRANCO de propósito (tela mais luminosa = leitor pega o QR mais fácil) e
+a tela fica acesa enquanto está aberto. O QR é o mesmo da página: funciona sem
+internet depois de carregada.
+{% endcomment %}
+<div class="cracha-viewer" id="crachaViewer" role="dialog" aria-modal="true"
+     aria-label="Crachá para apresentar na tela" hidden>
+    <div class="cracha-viewer-topo">
+        <button type="button" class="btn btn-sm btn-outline-success" id="crachaViewerSoQr"
+                aria-pressed="false">
+            <i class="fa-solid fa-qrcode"></i> Só o QR
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="crachaViewerFechar"
+                aria-label="Fechar o crachá">
+            <i class="fa-solid fa-xmark"></i> Fechar
+        </button>
+    </div>
+    <div class="cracha-viewer-palco" id="crachaViewerPalco"></div>
+    <p class="cracha-viewer-dica">Aumente o brilho da tela para o leitor pegar o QR mais fácil.</p>
 </div>
 
 {% else %}
@@ -73,5 +98,143 @@
     if (botaoImprimir) {
         botaoImprimir.addEventListener('click', () => window.print());
     }
+
+    // ---------------------------------------------------------------------
+    // Crachá em tela cheia: para o celular servir de crachá na porta, sem
+    // imprimir. O crachá é desenhado no tamanho de impressão (mm), então aqui
+    // ele é reduzido por transform para caber na tela; a visão "só o QR" troca
+    // tudo por um QR grande, que é o que o leitor precisa enxergar.
+    // ---------------------------------------------------------------------
+    (() => {
+        const viewer = document.getElementById('crachaViewer');
+        if (!viewer) return;
+
+        const palco = document.getElementById('crachaViewerPalco');
+        const botaoSoQr = document.getElementById('crachaViewerSoQr');
+        const botaoFechar = document.getElementById('crachaViewerFechar');
+        const dica = viewer.querySelector('.cracha-viewer-dica');
+        const LARGURA_MM = 105, ALTURA_MM = 148.5, MM_EM_PX = 96 / 25.4;
+        const DICA_CRACHA = 'Aumente o brilho da tela para o leitor pegar o QR mais fácil.';
+        const DICA_QR = 'Aumente o brilho da tela e aponte o leitor para o QR.';
+        let blocoAtual = null, soQr = false, trava = null;
+
+        async function manterTelaAcesa() {
+            try {
+                if (!('wakeLock' in navigator) || trava) return;
+                trava = await navigator.wakeLock.request('screen');
+                trava.addEventListener('release', () => { trava = null; });
+            } catch (erro) {
+                trava = null;   // navegador sem suporte ou permissão negada: segue sem
+            }
+        }
+
+        function liberarTela() {
+            try { if (trava) trava.release(); } catch (erro) { /* já solta */ }
+            trava = null;
+        }
+
+        function montarSoQr() {
+            const caixa = document.createElement('div');
+            caixa.className = 'cracha-so-qr';
+            const origem = blocoAtual.querySelector('.cracha-qr');
+            if (origem) {
+                const img = document.createElement('img');
+                img.src = origem.getAttribute('src');
+                img.alt = 'QR de verificação do crachá';
+                caixa.appendChild(img);
+            }
+            const codigo = blocoAtual.querySelector('.cracha-codigo strong');
+            if (codigo) {
+                const linha = document.createElement('p');
+                linha.className = 'cracha-so-qr-codigo';
+                linha.textContent = codigo.textContent.trim();
+                caixa.appendChild(linha);
+            }
+            // Os dois modelos nomeiam o nome de um jeito: etiqueta usa .etq-pessoa,
+            // clássico usa .cracha-nome (conferido nos dois partials).
+            const nome = blocoAtual.querySelector('.etq-pessoa, .cracha-nome');
+            if (nome) {
+                const quem = document.createElement('p');
+                quem.className = 'cracha-so-qr-nome';
+                quem.textContent = nome.textContent.trim();
+                caixa.appendChild(quem);
+            }
+            palco.appendChild(caixa);
+            dica.textContent = DICA_QR;
+        }
+
+        function montarCracha() {
+            const cracha = blocoAtual.querySelector('.cracha');
+            if (!cracha) return;
+
+            const caixa = document.createElement('div');
+            caixa.className = 'cracha-viewer-caixa';
+            const copia = cracha.cloneNode(true);
+            copia.removeAttribute('id');
+            caixa.appendChild(copia);
+            palco.appendChild(caixa);
+
+            const largura = LARGURA_MM * MM_EM_PX;
+            const altura = ALTURA_MM * MM_EM_PX;
+            const area = palco.getBoundingClientRect();
+            const escala = Math.max(0.2, Math.min(
+                (area.width - 8) / largura, (area.height - 8) / altura));
+            copia.style.zoom = 1;                 // o CSS da tela reduz (.62): aqui manda o visualizador
+            copia.style.transformOrigin = 'top left';
+            copia.style.transform = 'scale(' + escala + ')';
+            caixa.style.width = Math.round(largura * escala) + 'px';
+            caixa.style.height = Math.round(altura * escala) + 'px';
+            dica.textContent = DICA_CRACHA;
+        }
+
+        function pintar() {
+            if (!blocoAtual) return;
+            palco.innerHTML = '';
+            if (soQr) montarSoQr(); else montarCracha();
+        }
+
+        function abrir(bloco) {
+            blocoAtual = bloco;
+            soQr = false;
+            botaoSoQr.setAttribute('aria-pressed', 'false');
+            viewer.hidden = false;
+            document.body.classList.add('cracha-viewer-aberto');
+            pintar();
+            manterTelaAcesa();
+            botaoFechar.focus();
+        }
+
+        function fechar() {
+            viewer.hidden = true;
+            palco.innerHTML = '';
+            blocoAtual = null;
+            document.body.classList.remove('cracha-viewer-aberto');
+            liberarTela();
+        }
+
+        document.querySelectorAll('[data-visualizar]').forEach((botao) => {
+            botao.addEventListener('click', () => {
+                const bloco = botao.closest('.cracha-bloco');
+                if (bloco) abrir(bloco);
+            });
+        });
+        botaoFechar.addEventListener('click', fechar);
+        botaoSoQr.addEventListener('click', () => {
+            soQr = !soQr;
+            botaoSoQr.setAttribute('aria-pressed', soQr ? 'true' : 'false');
+            pintar();
+        });
+        viewer.addEventListener('click', (evento) => {
+            if (evento.target === viewer) fechar();       // toque fora do crachá
+        });
+        document.addEventListener('keydown', (evento) => {
+            if (evento.key === 'Escape' && !viewer.hidden) fechar();
+        });
+        window.addEventListener('resize', () => { if (!viewer.hidden) pintar(); });
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) liberarTela();
+            else if (!viewer.hidden) manterTelaAcesa();
+        });
+    })();
 </script>
 {% endblock scripts %}

@@ -1319,3 +1319,44 @@ class ModeloDoCrachaDoEventoTests(_BasePresencaTests):
         html = self.client.get(reverse("participante:meus_crachas")).content.decode()
         self.assertIn("cracha--classico", html)
         self.assertNotIn("cracha--etiqueta", html)
+
+
+class VisualizarCrachaTests(_BasePresencaTests):
+    """Crachá em tela cheia no celular, com a visão "só o QR".
+
+    É o que permite usar o próprio celular como crachá na porta, sem imprimir.
+    """
+
+    def test_a_tela_traz_o_visualizador_e_um_botao_por_cracha(self):
+        self.client.force_login(self.organizador)
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+
+        self.assertIn('id="crachaViewer"', html, "o visualizador tem que existir na tela")
+        self.assertEqual(
+            html.count("data-visualizar"), html.count("cracha-bloco"),
+            "um botão de visualizar para cada crachá",
+        )
+        self.assertIn("Só o QR", html)
+        self.assertIn("brilho", html.lower(), "a dica do brilho é o que faz o leitor pegar o QR")
+
+    def test_o_visualizador_abre_fechado(self):
+        self.client.force_login(self.organizador)
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+
+        trecho = html[html.index('id="crachaViewer"'):][:300]
+        self.assertIn("hidden", trecho, "não pode cobrir a tela antes de ser aberto")
+
+    def test_quem_nao_tem_cracha_nao_recebe_visualizador(self):
+        from .models import Participante
+
+        pessoa = Participante.objects.create_user(
+            email="sem.cracha@exemplo.com", password=SENHA, cpf="12345678909",
+        )
+        self.client.force_login(pessoa)
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+
+        self.assertNotIn('id="crachaViewer"', html)
+        self.assertIn("Você ainda não tem crachá", html)

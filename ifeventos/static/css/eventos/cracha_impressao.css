@@ -538,3 +538,93 @@
 .cracha--classico .cracha-corpo { padding-top: 3mm; }
 .cracha--classico .cracha-pe { padding-bottom: 6mm; }
 .cracha--classico .cracha-codigo small { max-width: 86mm; }
+
+
+/* -------------------------------------------------------------------------
+   VISUALIZADOR DE CRACHÁ (celular)
+   O participante abre o crachá em tela cheia para apresentar na porta, sem
+   imprimir. Fundo BRANCO de propósito: tela mais luminosa, leitor pega o QR
+   mais fácil. O crachá entra reduzido por transform (o zoom da prévia da tela
+   não vale aqui) e a visão "só o QR" mostra o QR grande.
+   ------------------------------------------------------------------------- */
+
+.cracha-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 1080;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+}
+
+.cracha-viewer[hidden] { display: none; }
+
+body.cracha-viewer-aberto { overflow: hidden; }
+
+.cracha-viewer-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem .75rem;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.cracha-viewer-palco {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 4px;
+}
+
+.cracha-viewer-caixa { position: relative; }
+
+.cracha-viewer-caixa .cracha {
+    zoom: 1 !important;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+}
+
+.cracha-viewer-dica {
+    margin: 0;
+    padding: 0 .75rem .75rem;
+    text-align: center;
+    font-size: .78rem;
+    color: #666;
+}
+
+.cracha-so-qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    text-align: center;
+    padding: 0 8px;
+}
+
+.cracha-so-qr img {
+    width: min(74vw, 62vh);
+    height: auto;
+    image-rendering: pixelated;   /* ampliação do QR: módulo quadrado e nítido */
+}
+
+.cracha-so-qr-codigo {
+    margin: 0;
+    font-family: var(--fonte-mono, monospace);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: .18em;
+    color: #111;
+}
+
+.cracha-so-qr-nome {
+    margin: 0;
+    font-size: .95rem;
+    color: #444;
+}
+
+@media print {
+    .cracha-viewer { display: none !important; }
+}
