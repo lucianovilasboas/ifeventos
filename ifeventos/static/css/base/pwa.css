@@ -73,6 +73,18 @@
   line-height: 1.7;
 }
 .pwa-sheet-panel ol b { color: var(--accent-ink); }
+.pwa-sheet-note {
+  margin: -8px 0 18px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--warn-soft, #fff7d6);
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+.pwa-sheet-note[hidden] { display: none; }
+.pwa-sheet-note i { color: var(--warn-ink, #6b5200); margin-right: 4px; }
 .pwa-sheet-close {
   width: 100%;
   min-height: 46px;

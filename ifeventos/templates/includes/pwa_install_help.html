@@ -1,0 +1,42 @@
+{% comment %}
+Instruções de instalação, por sistema. O botão "Instalar app" abre o painel
+correspondente quando o navegador NÃO oferece o prompt automático
+(beforeinstallprompt):
+
+- iOS: o Safari nunca emite o evento; precisa do passo a passo no menu.
+- Android: o Chrome emite o evento quando o site está em HTTPS (contexto
+  seguro). Sem HTTPS (ou em webview de app), sobra o menu do navegador.
+{% endcomment %}
+
+{# ---------- iPhone / iPad ---------- #}
+<div class="pwa-sheet" id="pwa-ios-help" hidden>
+    <div class="pwa-sheet-backdrop" data-pwa-close></div>
+    <div class="pwa-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="pwa-ios-title">
+        <h2 id="pwa-ios-title">Instalar no iPhone/iPad</h2>
+        <ol>
+            <li>Toque em <b>Compartilhar</b> <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> na barra do Safari.</li>
+            <li>Escolha <b>Adicionar à Tela de Início</b>.</li>
+            <li>Confirme em <b>Adicionar</b>.</li>
+        </ol>
+        <button type="button" class="pwa-sheet-close" data-pwa-close>Entendi</button>
+    </div>
+</div>
+
+{# ---------- Android ---------- #}
+<div class="pwa-sheet" id="pwa-android-help" hidden>
+    <div class="pwa-sheet-backdrop" data-pwa-close></div>
+    <div class="pwa-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="pwa-android-title">
+        <h2 id="pwa-android-title">Instalar no Android</h2>
+        <ol>
+            <li>Abra este site no <b>Chrome</b>.</li>
+            <li>Toque no menu <b>⋮</b> (três pontos) no canto superior.</li>
+            <li>Escolha <b>Instalar aplicativo</b> (ou <b>Adicionar à tela inicial</b>).</li>
+        </ol>
+        <p class="pwa-sheet-note" id="pwa-https-aviso" hidden>
+            <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+            A instalação exige o site em <b>HTTPS</b>. Abra pela versão publicada
+            (endereço com <b>https://</b>), não pelo IP da máquina de desenvolvimento.
+        </p>
+        <button type="button" class="pwa-sheet-close" data-pwa-close>Entendi</button>
+    </div>
+</div>

@@ -3,9 +3,10 @@
  * 1) Registra o service worker (/sw.js), que dá instalabilidade e a tela
  *    offline.
  * 2) Cuida do botão "Instalar app":
- *    - Android/Chrome/Edge usam o `beforeinstallprompt`;
- *    - iPhone/iPad (Safari) não emitem esse evento, então o botão abre um
- *      passo a passo de "Adicionar à Tela de Início".
+ *    - Android/Chrome/Edge usam o `beforeinstallprompt` (só existe em HTTPS);
+ *    - iPhone/iPad (Safari), que nunca emitem o evento, recebem um passo a
+ *      passo de "Adicionar à Tela de Início";
+ *    - Android sem prompt (HTTP, webview, Firefox) recebe o caminho pelo menu.
  *
  * Sem dependência de Bootstrap: a landing também usa este arquivo.
  */
@@ -22,6 +23,22 @@
     var deferredPrompt = null;
     var botoes = [];
 
+    var ua = window.navigator.userAgent;
+
+    function ehIOS() {
+        return /iphone|ipad|ipod/i.test(ua);
+    }
+
+    // Safari de verdade no iOS (exclui Chrome/Firefox/Edge e apps embutidos,
+    // que não têm o menu de "Adicionar à Tela de Início").
+    function ehSafariIOS() {
+        return ehIOS() && /safari/i.test(ua) && !/(crios|fxios|edgios|gsa)/i.test(ua);
+    }
+
+    function ehAndroid() {
+        return /android/i.test(ua);
+    }
+
     function mostrarBotoes() {
         if (standalone) return;
         botoes.forEach(function (botao) { botao.hidden = false; });
@@ -31,25 +48,24 @@
         botoes.forEach(function (botao) { botao.hidden = true; });
     }
 
-    function ehIOS() {
-        return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+    function abrirPainel(id) {
+        var painel = document.getElementById(id);
+        if (!painel) return;
+
+        // No Android, sem HTTPS a instalação é impossível: avisa no próprio
+        // painel em vez de deixar o usuário procurando um menu que não aparece.
+        if (id === "pwa-android-help" && !window.isSecureContext) {
+            var aviso = document.getElementById("pwa-https-aviso");
+            if (aviso) aviso.hidden = false;
+        }
+        painel.hidden = false;
     }
 
-    // Safari de verdade no iOS (exclui Chrome/Firefox/Edge e apps embutidos,
-    // que não têm o menu de "Adicionar à Tela de Início").
-    function ehSafariIOS() {
-        var ua = window.navigator.userAgent;
-        return ehIOS() && /safari/i.test(ua) && !/(crios|fxios|edgios|gsa)/i.test(ua);
-    }
-
-    function abrirSheetIOS() {
-        var sheet = document.getElementById("pwa-ios-help");
-        if (sheet) sheet.hidden = false;
-    }
-
-    function fecharSheetIOS() {
-        var sheet = document.getElementById("pwa-ios-help");
-        if (sheet) sheet.hidden = true;
+    function fecharPaineis() {
+        ["pwa-ios-help", "pwa-android-help"].forEach(function (id) {
+            var painel = document.getElementById(id);
+            if (painel) painel.hidden = true;
+        });
     }
 
     function iniciarBotoes() {
@@ -66,23 +82,23 @@
                     });
                     return;
                 }
-                abrirSheetIOS();
+                abrirPainel(ehIOS() ? "pwa-ios-help" : "pwa-android-help");
             });
         });
 
-        // No iOS o botão abre as instruções; nos demais ele só aparece quando
-        // o navegador de fato oferecer a instalação.
-        if (ehSafariIOS() && !standalone) mostrarBotoes();
+        // iOS sempre precisa de instruções. No Android mostramos o botão mesmo
+        // sem prompt (HTTP, webview), para o usuário ao menos ter o caminho.
+        if (!standalone && (ehSafariIOS() || ehAndroid())) mostrarBotoes();
 
         document.addEventListener("click", function (evento) {
             var alvo = evento.target;
             if (alvo && alvo.hasAttribute && alvo.hasAttribute("data-pwa-close")) {
-                fecharSheetIOS();
+                fecharPaineis();
             }
         });
 
         document.addEventListener("keydown", function (evento) {
-            if (evento.key === "Escape") fecharSheetIOS();
+            if (evento.key === "Escape") fecharPaineis();
         });
     }
 
