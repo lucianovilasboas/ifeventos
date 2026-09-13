@@ -284,6 +284,9 @@ def montar_cracha(usuario, evento, papel=None):
         "papel_rotulo": ROTULOS_PAPEL.get(principal, principal),
         "papeis": papeis,
         "papeis_rotulos": [ROTULOS_PAPEL.get(p, p) for p in papeis],
+        # Modelo definido pelo organizador no evento: a tela do participante
+        # mostra só ele (o partial certo é escolhido com este campo).
+        "modelo": modelo_de_cracha(getattr(evento, "modelo_cracha", MODELO_PADRAO)),
         "token": token,
         "url": url,
         "codigo": codigo_curto(usuario.id, evento.id),

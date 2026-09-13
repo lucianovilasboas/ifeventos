@@ -213,7 +213,8 @@ def atividades_evento(request, evento_id):
     form = AtividadeForm(initial={'evento': evento})
 
     return render(request, 'organizador/atividades_evento.html', {
-        'form_ativ' : form, 'evento': evento, 'atividades': atividades
+        'form_ativ' : form, 'evento': evento, 'atividades': atividades,
+        'modelos_cracha': Evento.MODELO_CRACHA_CHOICES,
     }) 
 
 
@@ -420,6 +421,32 @@ class EmitirCertificadosAtividadeView(View):
 
 
 
+
+class ModeloCrachaEventoView(LoginRequiredMixin, View):
+    """Define o modelo dos crachás do evento (quem decide é o organizador).
+
+    O participante não escolhe: ele recebe o modelo do evento. Antes cada um
+    escolhia o seu, e o mesmo evento saía com crachás de dois desenhos.
+    """
+
+    def post(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+
+        modelo = modelo_de_cracha(request.POST.get("modelo"))
+        if evento.modelo_cracha != modelo:
+            evento.modelo_cracha = modelo
+            evento.save(update_fields=["modelo_cracha", "updated_at"])
+            messages.success(
+                request,
+                "Modelo dos crachás deste evento: "
+                + dict(Evento.MODELO_CRACHA_CHOICES).get(modelo, modelo)
+                + ". O participante passa a ver e imprimir este.",
+            )
+        return redirect("organizador:atividades_evento", evento.id)
+
+
 class EmitirCertificadosEventoView(View):
     def post(self, request, evento_id):
         evento = get_object_or_404(Evento, id=evento_id)
@@ -469,8 +496,9 @@ class CrachasEventoView(LoginRequiredMixin, View):
             )
             return redirect("organizador:atividades_evento", evento.id)
 
-        # O modelo vem da tela; valor estranho na URL cai no padrão.
-        modelo = modelo_de_cracha(request.GET.get("modelo"))
+        # O modelo é decisão do organizador, guardada no evento: o participante
+        # recebe exatamente esse e o evento não sai com dois desenhos.
+        modelo = modelo_de_cracha(evento.modelo_cracha)
         nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento, modelo)
         resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'

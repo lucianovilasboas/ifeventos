@@ -171,6 +171,23 @@ class Evento(models.Model):
 
     organizador = models.ForeignKey(Participante, on_delete=models.SET_NULL, null=True, blank=True, related_name='eventos') # Quando o organizador for deletado, os eventos não serão deletados
 
+    # ----------------------------------------------------------------------
+    # Modelo dos crachás DESTE evento (decisão do organizador).
+    # Antes cada pessoa escolhia o seu na tela, e o evento saía com crachás de
+    # dois desenhos. Agora o organizador define aqui e o participante recebe
+    # exatamente esse. As chaves são as mesmas de eventos.crachas.MODELOS_CRACHA
+    # (há teste travando isso).
+    # ----------------------------------------------------------------------
+    CRA_ETIQUETA = "etiqueta"
+    CRA_CLASSICO = "classico"
+    MODELO_CRACHA_CHOICES = [
+        (CRA_ETIQUETA, "Etiqueta"),
+        (CRA_CLASSICO, "Clássico"),
+    ]
+    modelo_cracha = models.CharField(
+        max_length=20, choices=MODELO_CRACHA_CHOICES, default=CRA_ETIQUETA
+    )
+
     def __str__(self):
         return self.title
 

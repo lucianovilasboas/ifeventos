@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path
 
 from organizador.views import adicionar_palestrante, adicionar_tipo_atividade
-from .views import dashboard, criar_evento, editar_evento, excluir_evento
+from .views import ModeloCrachaEventoView, dashboard, criar_evento, editar_evento, excluir_evento
 from .views import atividades_evento, criar_atividade, editar_atividade, excluir_atividade
 from .views import criar_editar_atividade
 from .views import profile
@@ -68,6 +68,7 @@ urlpatterns = [
     # -- Presença: QR da atividade (exibir na tela) e check-in pela câmera --
     path("atividade/<int:atividade_id>/qrcode/", QrAtividadeView.as_view(), name="qrcode_atividade"),
     path("atividade/<int:atividade_id>/checkin/", CheckinAtividadeView.as_view(), name="checkin_atividade"),
+    path("evento/<int:evento_id>/modelo-cracha/", ModeloCrachaEventoView.as_view(), name="modelo_cracha_evento"),
 
     # -- Rotas para a IA --
     path('ia_mensagem/', ia_mensagem_view, name='ia_mensagem'),

@@ -1237,3 +1237,85 @@ class BipeDasTelasTests(_BasePresencaTests):
         self.assertIn("Desligar o som", modulo)
         self.assertIn("ifeventos.som", modulo, "a preferência do som deixou de ser guardada")
         self.assertIn("localStorage", modulo)
+
+
+class ModeloDoCrachaDoEventoTests(_BasePresencaTests):
+    """Quem define o modelo do crachá é o organizador, no evento.
+
+    Antes cada pessoa escolhia na tela e o mesmo evento saía com crachás de dois
+    desenhos; agora o participante recebe exatamente o modelo do evento.
+    """
+
+    def test_evento_nasce_no_modelo_padrao(self):
+        from .crachas import MODELO_PADRAO
+
+        self.assertEqual(self.evento.modelo_cracha, MODELO_PADRAO)
+
+    def test_as_chaves_do_campo_sao_as_do_gerador_de_cracha(self):
+        from .crachas import MODELOS_CRACHA
+        from .models import Evento
+
+        self.assertEqual(
+            {chave for chave, _ in Evento.MODELO_CRACHA_CHOICES}, set(MODELOS_CRACHA),
+            "o campo do evento e o gerador de crachá precisam falar dos mesmos modelos",
+        )
+
+    def test_organizador_troca_o_modelo_do_evento(self):
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.post(
+            reverse("organizador:modelo_cracha_evento", args=[self.evento.id]),
+            {"modelo": "classico"},
+        )
+
+        self.assertEqual(resposta.status_code, 302)
+        self.evento.refresh_from_db()
+        self.assertEqual(self.evento.modelo_cracha, "classico")
+
+    def test_valor_invalido_nao_grava_lixo(self):
+        self.client.force_login(self.organizador)
+
+        self.client.post(
+            reverse("organizador:modelo_cracha_evento", args=[self.evento.id]),
+            {"modelo": "sei-la-o-que"},
+        )
+
+        self.evento.refresh_from_db()
+        self.assertIn(self.evento.modelo_cracha, {"etiqueta", "classico"})
+
+    def test_quem_nao_organiza_nao_troca_o_modelo(self):
+        self.client.force_login(self.participante)
+
+        resposta = self.client.post(
+            reverse("organizador:modelo_cracha_evento", args=[self.evento.id]),
+            {"modelo": "classico"},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.evento.refresh_from_db()
+        self.assertNotEqual(self.evento.modelo_cracha, "classico")
+
+    def test_o_lote_imprime_o_modelo_do_evento(self):
+        self.evento.modelo_cracha = "classico"
+        self.evento.save(update_fields=["modelo_cracha"])
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(reverse("organizador:crachas_evento", args=[self.evento.id]))
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("classico", resposta.headers.get("Content-Disposition", ""))
+
+    def test_a_tela_do_participante_mostra_so_o_modelo_do_evento(self):
+        self.client.force_login(self.organizador)
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+        self.assertNotIn("crachas-modelo", html, "o seletor de modelo saiu da tela do participante")
+        self.assertIn("cracha--etiqueta", html)
+        self.assertNotIn("cracha--classico", html)
+
+        self.evento.modelo_cracha = "classico"
+        self.evento.save(update_fields=["modelo_cracha"])
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+        self.assertIn("cracha--classico", html)
+        self.assertNotIn("cracha--etiqueta", html)

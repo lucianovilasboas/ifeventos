@@ -29,35 +29,25 @@
         </a>
 
         {% comment %}
-        Crachás do evento em PDF (4 por folha A4): o botão principal usa o modelo
-        padrão e a setinha deixa escolher o outro.
+        Crachás do evento em PDF (4 por folha A4), no modelo definido aqui ao
+        lado: é o mesmo que o participante vê e imprime no celular.
         {% endcomment %}
-        <div class="btn-group">
-            <a href="{% url 'organizador:crachas_evento' evento.id %}?modelo=etiqueta"
-               class="btn btn-outline-success" target="_blank" rel="noopener">
-                <i class="fa-solid fa-id-card"></i> Imprimir crachás (PDF)
-            </a>
-            <button type="button" class="btn btn-outline-success dropdown-toggle dropdown-toggle-split"
-                    data-bs-toggle="dropdown" aria-expanded="false"
-                    title="Escolher o modelo do crachá">
-                <span class="visually-hidden">Escolher o modelo do crachá</span>
-            </button>
-            <ul class="dropdown-menu">
-                <li><h6 class="dropdown-header">Modelo do crachá</h6></li>
-                <li>
-                    <a class="dropdown-item" target="_blank" rel="noopener"
-                       href="{% url 'organizador:crachas_evento' evento.id %}?modelo=etiqueta">
-                        <i class="fa-solid fa-id-badge"></i> Etiqueta (fundo colorido)
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" target="_blank" rel="noopener"
-                       href="{% url 'organizador:crachas_evento' evento.id %}?modelo=classico">
-                        <i class="fa-solid fa-ticket"></i> Clássico (tarja verde)
-                    </a>
-                </li>
-            </ul>
-        </div>
+        <a href="{% url 'organizador:crachas_evento' evento.id %}"
+           class="btn btn-outline-success" target="_blank" rel="noopener">
+            <i class="fa-solid fa-id-card"></i> Imprimir crachás (PDF)
+        </a>
+        <form method="post" action="{% url 'organizador:modelo_cracha_evento' evento.id %}"
+              class="d-inline-flex align-items-center gap-2 ms-2">
+            {% csrf_token %}
+            <label class="form-label mb-0 small text-muted" for="id_modelo_cracha">Modelo dos crachás:</label>
+            <select class="form-select form-select-sm w-auto" name="modelo" id="id_modelo_cracha"
+                    onchange="this.form.submit()">
+                {% for chave, rotulo in modelos_cracha %}
+                <option value="{{ chave }}" {% if chave == evento.modelo_cracha %}selected{% endif %}>{{ rotulo }}</option>
+                {% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-sm btn-outline-success">Salvar</button></noscript>
+        </form>
     </div>
     <p class="text-muted small mb-0 mt-2">
         <i class="fa-solid fa-print"></i>
