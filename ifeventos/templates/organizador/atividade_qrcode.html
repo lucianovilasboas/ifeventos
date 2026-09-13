@@ -62,7 +62,8 @@
                 <strong id="painel-total">0</strong>
                 <span>já confirmaram</span>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-success" id="botao-som">
+            <button type="button" class="btn btn-sm btn-outline-success" id="botao-som"
+                    aria-pressed="false">
                 <i class="fa-solid fa-volume-high"></i> Ligar o som
             </button>
         </div>
@@ -82,6 +83,7 @@
 
 {% block scripts %}
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script src="{% static 'js/bipe.js' %}?v={{ ASSET_VERSION }}"></script>
 <script>
     // ---------------------------------------------------------------------
     // 1) O QR rotativo: o código é gerado pela API e renovado aqui dentro.
@@ -150,7 +152,6 @@
     const painelAviso = document.getElementById('painel-aviso');
     const conhecidos = new Set();
     let primeiraCarga = true;
-    let audio = null;
 
     function hora(iso) {
         return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -236,7 +237,7 @@
         renderizar(itens);
 
         // Não apita na primeira carga (senão apitaria por toda a lista já existente)
-        if (!primeiraCarga && novos.length) bipe();
+        if (!primeiraCarga && novos.length) Bipe.sucesso();
         primeiraCarga = false;
     }
 
@@ -265,31 +266,12 @@
 
     // ---------------------------------------------------------------------
     // 3) Bipe: quem está na porta ouve a confirmação sem olhar a tela.
-    //    O navegador só libera áudio depois de um toque — daí o botão.
+    //    Os três sons (sucesso, aviso, erro) e a chave liga/desliga vivem em
+    //    static/js/bipe.js, compartilhados com a tela de check-in. O navegador
+    //    só libera áudio depois de um toque — daí a chave.
     // ---------------------------------------------------------------------
-    function bipe(volume) {
-        if (!audio) return;
-        const oscilador = audio.createOscillator();
-        const ganho = audio.createGain();
-        oscilador.type = 'sine';
-        oscilador.frequency.value = 880;
-        ganho.gain.value = volume || 0.25;
-        oscilador.connect(ganho);
-        ganho.connect(audio.destination);
-        oscilador.start();
-        ganho.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.35);
-        oscilador.stop(audio.currentTime + 0.36);
-    }
-
-    document.getElementById('botao-som').addEventListener('click', function () {
-        try {
-            audio = new (window.AudioContext || window.webkitAudioContext)();
-            this.innerHTML = '<i class="fa-solid fa-volume-high"></i> Som ligado';
-            this.disabled = true;
-            bipe(0.08);
-        } catch (erro) {
-            painelAviso.textContent = 'Este navegador não permitiu ligar o som: ' + erro.message;
-        }
+    Bipe.montarBotao(document.getElementById('botao-som'), function (mensagem) {
+        painelAviso.textContent = mensagem;
     });
 
     // ---------------------------------------------------------------------
@@ -314,7 +296,10 @@
         // Presença desfeita em outra tela (check-in, verificação de crachá) sai
         // da lista aqui na hora, sem esperar o polling de 10 segundos.
         socket.on('presenca_cancelada', function (dados) {
-            if (Number(dados.atividade_id) === ATIVIDADE) carregar();
+            if (Number(dados.atividade_id) === ATIVIDADE) {
+                Bipe.aviso();
+                carregar();
+            }
         });
         socket.on('connect_error', function () { painelAviso.textContent = 'Sem socket nesta rede: atualizando a cada 10 segundos.'; });
     }

@@ -854,3 +854,11 @@
     font-size: 0.72rem;
     opacity: 0.85;
 }
+
+
+/* Chave do som das telas de credenciamento: desligada fica apagada, para dar
+   para ver de longe se o bipe vai tocar ou não. */
+#botao-som[aria-pressed="false"] {
+    color: var(--muted);
+    border-color: var(--border);
+}

@@ -44,6 +44,10 @@
             <button type="button" class="btn btn-success btn-lg" id="ligar-camera">
                 <i class="fa-solid fa-camera"></i> Ligar a câmera
             </button>
+            <button type="button" class="btn btn-sm btn-outline-success" id="botao-som"
+                    aria-pressed="false">
+                <i class="fa-solid fa-volume-high"></i> Ligar o som
+            </button>
         </section>
 
         <section class="chk-lado">
@@ -73,6 +77,7 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script src="{% static 'js/bipe.js' %}?v={{ ASSET_VERSION }}"></script>
 <script>
     // Fluxo A1: a câmera lê o QR do crachá e a presença é gravada sozinha. A
     // organização aponta o celular; não existe clique por pessoa.
@@ -124,6 +129,7 @@
 
             if (!resposta.ok) {
                 mostrar('<strong>Não confirmou.</strong> ' + (dados.detail || 'Resposta inesperada.'), 'erro');
+                Bipe.erro();
                 return false;
             }
 
@@ -134,10 +140,18 @@
                 ' · ' + (dados.papel_rotulo || '') + ' · ' + (dados.origem_rotulo || ''),
                 dados.criada ? 'ok' : 'aviso'
             );
+            // Quem está na porta ouve o resultado sem olhar a tela: registro novo
+            // tem bipe próprio, e "já estava confirmada" tem o bipe de aviso.
+            if (dados.criada) {
+                Bipe.sucesso();
+            } else {
+                Bipe.aviso();
+            }
             carregarLista();
             return true;
         } catch (erro) {
             mostrar('<strong>Falha de rede.</strong> ' + erro.message, 'erro');
+            Bipe.erro();
             return false;
         }
     }
@@ -259,9 +273,11 @@
                     });
                     if (resposta.ok || resposta.status === 204) {
                         mostrar('Presença desfeita.', 'aviso');
+                        Bipe.aviso();
                         carregarLista();
                     } else {
                         mostrar('Não consegui desfazer esta presença.', 'erro');
+                        Bipe.erro();
                     }
                 });
             });
@@ -279,6 +295,9 @@
     });
 
     document.getElementById('ligar-camera').addEventListener('click', ligarCamera);
+    Bipe.montarBotao(document.getElementById('botao-som'), function (mensagem) {
+        mostrar(mensagem, 'aviso');
+    });
 
     document.getElementById('confirmar-codigo').addEventListener('click', async () => {
         const campo = document.getElementById('codigo');

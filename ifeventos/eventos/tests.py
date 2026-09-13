@@ -1175,3 +1175,65 @@ class CheckinAoLocoTests(_BasePresencaTests):
 
         trecho = html.split("setInterval(carregarLista, INTERVALO_SEGURANCA)")
         self.assertEqual(len(trecho), 2, "sumiu o ciclo de segurança da lista")
+
+
+class BipeDasTelasTests(_BasePresencaTests):
+    """As duas telas de credenciamento bipam, com chave de ligar/desligar.
+
+    Três sons distintos (sucesso, aviso, erro) e a preferência no navegador —
+    o som não pode começar sozinho, então a chave é obrigatória.
+    """
+
+    def _modulo(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        return (Path(settings.BASE_DIR) / "static/js/bipe.js").read_text(encoding="utf-8")
+
+    def _pagina(self, rota):
+        self.client.force_login(self.organizador)
+        return self.client.get(reverse(rota, args=[self.atividade.id])).content.decode()
+
+    def test_checkin_bipa_e_tem_a_chave_de_som(self):
+        html = self._pagina("organizador:checkin_atividade")
+
+        self.assertIn("js/bipe.js", html)
+        self.assertIn('id="botao-som"', html)
+        self.assertIn("Bipe.montarBotao", html)
+        self.assertIn("Bipe.sucesso()", html)
+        self.assertIn("Bipe.aviso()", html)
+        self.assertIn("Bipe.erro()", html)
+
+    def test_qrcode_bipa_e_tem_a_chave_de_som(self):
+        html = self._pagina("organizador:qrcode_atividade")
+
+        self.assertIn("js/bipe.js", html)
+        self.assertIn('id="botao-som"', html)
+        self.assertIn("Bipe.montarBotao", html)
+        self.assertIn("Bipe.sucesso()", html)
+        self.assertIn("Bipe.aviso()", html)
+        # o áudio passou a ser do módulo: a tela não cria mais o contexto na mão
+        self.assertNotIn("new (window.AudioContext", html)
+
+    def test_o_modulo_tem_os_tres_sons_com_frequencias_distintas(self):
+        modulo = self._modulo()
+
+        frequencias = {}
+        for som in ("sucesso", "aviso", "erro"):
+            encontrado = re.search(rf"{som}: \[\[(\d+)", modulo)
+            self.assertIsNotNone(encontrado, f"o som '{som}' sumiu do módulo")
+            frequencias[som] = int(encontrado.group(1))
+
+        self.assertEqual(
+            len(set(frequencias.values())), 3,
+            f"os três bipes precisam soar diferentes; achei {frequencias}",
+        )
+
+    def test_o_modulo_tem_os_dois_rotulos_da_chave(self):
+        modulo = self._modulo()
+
+        self.assertIn("Ligar o som", modulo)
+        self.assertIn("Desligar o som", modulo)
+        self.assertIn("ifeventos.som", modulo, "a preferência do som deixou de ser guardada")
+        self.assertIn("localStorage", modulo)
