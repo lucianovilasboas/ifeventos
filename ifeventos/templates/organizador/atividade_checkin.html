@@ -82,8 +82,20 @@
     const video = document.getElementById('video');
     const avisoCamera = document.getElementById('aviso-camera');
     const resultado = document.getElementById('resultado');
+    // Decodificar o quadro INTEIRO a cada 16 ms custa caro: medido nesta máquina,
+    // o jsQR leva ~15 ms num quadro de 640x480 e ~39 ms em 1280x720 — a 60
+    // leituras/s isso passa de um núcleo, e de dois na câmera do celular (720p).
+    // O QR do crachá ocupa ~45% do quadro e lê bem com 640 px de largura; e
+    // ninguém precisa de mais de ~8 leituras por segundo para apontar a câmera.
+    const LARGURA_LEITURA = 640;
+    const INTERVALO_LEITURA = 120;   // ms entre uma leitura e a seguinte
+
     const lona = document.createElement('canvas');
-    const ctx = lona.getContext('2d');
+    // willReadFrequently: o canvas é lido a cada leitura (getImageData). Sem isso
+    // o Chrome mantém a imagem na GPU e cada leitura vira uma cópia de ida e
+    // volta — é justamente o que segurava o laço.
+    const ctx = lona.getContext('2d', { willReadFrequently: true });
+    let tamanhoLona = '';
 
     let lendo = false;
     let bloqueado = false;
@@ -141,14 +153,30 @@
         setTimeout(() => { bloqueado = false; }, segundos * 1000);
     }
 
+    function agendar() {
+        // Aba escondida não lê: o laço para de verdade e o visibilitychange o
+        // retoma quando a pessoa volta — sem timer girando em segundo plano.
+        if (document.hidden || !lendo) return;
+        setTimeout(quadro, INTERVALO_LEITURA);
+    }
+
     function quadro() {
-        if (!lendo) return;
+        if (document.hidden || !lendo) return;
 
         if (!bloqueado && video.readyState === video.HAVE_ENOUGH_DATA && window.jsQR) {
-            lona.width = video.videoWidth;
-            lona.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, lona.width, lona.height);
-            const pixels = ctx.getImageData(0, 0, lona.width, lona.height);
+            // Reduz antes de ler: pixel que não é decodificado não custa.
+            const escala = Math.min(1, LARGURA_LEITURA / video.videoWidth);
+            const largura = Math.round(video.videoWidth * escala);
+            const altura = Math.round(video.videoHeight * escala);
+            const chave = largura + 'x' + altura;
+            if (chave !== tamanhoLona) {
+                // Trocar o tamanho do canvas o reinicia: só quando a câmera muda.
+                lona.width = largura;
+                lona.height = altura;
+                tamanhoLona = chave;
+            }
+            ctx.drawImage(video, 0, 0, largura, altura);
+            const pixels = ctx.getImageData(0, 0, largura, altura);
             const lido = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'dontInvert' });
 
             if (lido && lido.data) {
@@ -164,13 +192,20 @@
                 }
             }
         }
-        requestAnimationFrame(quadro);
+        agendar();
     }
+
+    // Voltou para a aba: retoma a leitura.
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && lendo) agendar();
+    });
 
     async function ligarCamera() {
         try {
             const fluxo = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'environment' } },
+                // 640 px de largura bastam para ler o QR de perto e reduzem o
+                // que a câmera entrega: menos decodificação de vídeo e memória.
+                video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 } },
                 audio: false,
             });
             video.srcObject = fluxo;
@@ -178,7 +213,7 @@
             document.getElementById('ligar-camera').style.display = 'none';
             avisoCamera.textContent = 'Lendo… aponte para o QR do crachá da pessoa.';
             lendo = true;
-            requestAnimationFrame(quadro);
+            agendar();
         } catch (erro) {
             avisoCamera.textContent =
                 'Não consegui abrir a câmera (' + erro.message + '). ' +
