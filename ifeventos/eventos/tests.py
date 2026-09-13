@@ -970,3 +970,93 @@ class PapeisNoCrachaTests(_BasePresencaTests):
 
         self.assertTrue(dados.startswith(b"%PDF"))
         self.assertEqual(dados.count(b"/Type /Page") - dados.count(b"/Type /Pages"), 1)
+
+
+class _Caneta:
+    """O que o desenho devolve em beginPath()/saveState(): engole as chamadas.
+
+    Sem isso, `recorte = c.beginPath()` recebe None e o teste quebra em
+    `recorte.rect(...)` — e não no que ele quer medir.
+    """
+
+    def __getattr__(self, nome):
+        return lambda *args, **kwargs: None
+
+
+class _LonaFalsa:
+    """Canvas falso: registra só as imagens desenhadas, para medir o QR."""
+
+    _caneta = _Caneta()
+
+    def __init__(self):
+        self.imagens = []
+
+    def drawImage(self, imagem, x, y, width=None, height=None, **kwargs):
+        self.imagens.append((x, y, width, height))
+
+    def stringWidth(self, texto, fonte, tamanho):
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+
+        return stringWidth(texto, fonte, tamanho)
+
+    def __getattr__(self, nome):
+        return lambda *args, **kwargs: _LonaFalsa._caneta
+
+
+class QrGrandeECentralizadoTests(_BasePresencaTests):
+    """O QR aprovado em 13/09/2026: 34 mm, centralizado, código abaixo.
+
+    Trava a decisão nos dois lugares: o CSS que a tela usa e a geometria que o
+    PDF desenha — se um dos dois voltar atrás, o teste cai.
+    """
+
+    TAMANHO_APROVADO_MM = 34
+    CENTRO_DO_CARTAO_MM = 52.5   # 105 mm de largura
+
+    def _css(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        return (Path(settings.BASE_DIR) / "static/css/eventos/cracha_impressao.css").read_text(
+            encoding="utf-8"
+        )
+
+    def test_css_declara_o_qr_de_34mm_nos_dois_modelos(self):
+        regra = re.search(
+            r"\.cracha--etiqueta \.cracha-qr,\s*\n?\.cracha--classico \.cracha-qr \{(.*?)\}",
+            self._css(), re.S,
+        )
+        self.assertIsNotNone(regra, "a regra do QR dos dois modelos sumiu do CSS")
+        self.assertIn(f"width: {self.TAMANHO_APROVADO_MM}mm", regra.group(1))
+        self.assertIn(f"height: {self.TAMANHO_APROVADO_MM}mm", regra.group(1))
+
+    def test_css_centraliza_o_rodape_nos_dois_modelos(self):
+        regra = re.search(
+            r"\.cracha--etiqueta \.etq-pe,\s*\n?\.cracha--classico \.cracha-pe \{(.*?)\}",
+            self._css(), re.S,
+        )
+        self.assertIsNotNone(regra, "a regra do rodapé centralizado sumiu do CSS")
+        self.assertIn("flex-direction: column", regra.group(1))
+        self.assertIn("align-items: center", regra.group(1))
+
+    def test_pdf_desenha_o_qr_de_34mm_no_centro_do_cartao(self):
+        from reportlab.lib.units import mm
+
+        from .crachas import _cracha_classico, _cracha_etiqueta
+
+        for modelo, desenhar in (("etiqueta", _cracha_etiqueta), ("classico", _cracha_classico)):
+            with self.subTest(modelo=modelo):
+                lona = _LonaFalsa()
+                desenhar(lona, self.participante, ["Participante"], self.evento,
+                         0, 0, 105 * mm, 148.5 * mm, None)
+
+                qrs = [i for i in lona.imagens if i[2] and abs(i[2] / mm - self.TAMANHO_APROVADO_MM) < 0.1]
+                self.assertEqual(len(qrs), 1, f"{modelo}: esperava exatamente um QR de 34 mm")
+                x, _y, largura, altura = qrs[0]
+                self.assertAlmostEqual(largura / mm, self.TAMANHO_APROVADO_MM, places=1)
+                self.assertAlmostEqual(altura / mm, self.TAMANHO_APROVADO_MM, places=1)
+                self.assertAlmostEqual(
+                    (x + largura / 2.0) / mm, self.CENTRO_DO_CARTAO_MM, places=1,
+                    msg=f"{modelo}: o QR saiu fora do centro do cartão",
+                )

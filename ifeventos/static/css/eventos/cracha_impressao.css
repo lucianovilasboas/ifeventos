@@ -481,3 +481,60 @@
     border: 0.3mm solid var(--accent-ink);
     opacity: 0.9;
 }
+
+
+/* ---------------------------------------------------------------------------
+   QR maior e centralizado (aprovado em 13/09/2026)
+
+   O QR vai de 26/28 mm para 34 mm e passa para o centro do crachá, com o código
+   e a instrução centralizados abaixo. O espaço NÃO sai do nome: sai do selo do
+   topo da etiqueta (34 -> 28 mm) e da faixa do evento no clássico (34 -> 27 mm).
+   Medido antes de subir: o nome continua com as duas linhas inteiras.
+   --------------------------------------------------------------------------- */
+
+/* Rodapé: QR em cima e código embaixo, tudo centralizado — nos dois modelos */
+.cracha--etiqueta .etq-pe,
+.cracha--classico .cracha-pe {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1.5mm;
+    text-align: center;
+    padding-left: 2mm;
+    padding-right: 2mm;
+}
+
+.cracha--etiqueta .cracha-qr,
+.cracha--classico .cracha-qr {
+    width: 34mm;
+    height: 34mm;
+}
+
+.cracha--etiqueta .cracha-codigo,
+.cracha--classico .cracha-codigo {
+    text-align: center;
+    align-items: center;
+    margin-left: 0;
+}
+
+.cracha--etiqueta .cracha-codigo small,
+.cracha--classico .cracha-codigo small {
+    max-width: 78mm;
+    font-size: 6.6pt;
+}
+
+/* Etiqueta: o selo e o texto do topo cedem o espaço que o QR ganhou */
+.cracha--etiqueta .etq-selo { width: 28mm; height: 28mm; margin-top: 9mm; }
+.cracha--etiqueta .etq-evento { font-size: 13.5pt; margin-top: 3.5mm; }
+.cracha--etiqueta .etq-meta { margin-top: 1.5mm; }
+.cracha--etiqueta .etq-nome { height: 71mm; padding: 3mm 2mm 3mm; }
+
+/* Clássico: o QR maior empurra o corpo para cima do rodapé (o corpo é
+   flex: 1 1 auto com min-height: 0, então ele ENCOLHE e transborda em vez de
+   avisar). Saem da faixa, do topo e do respiro do pé os ~10 mm que o QR ganhou
+   — medido: as tarjas voltam a ficar acima do QR, com folga. */
+.cracha--classico .cracha-faixa { height: 24mm; }
+.cracha--classico .cracha-topo { height: 19mm; padding: 0 8mm; }
+.cracha--classico .cracha-corpo { padding-top: 3mm; }
+.cracha--classico .cracha-pe { padding-bottom: 6mm; }
+.cracha--classico .cracha-codigo small { max-width: 86mm; }

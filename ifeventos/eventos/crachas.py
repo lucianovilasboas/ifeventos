@@ -543,6 +543,26 @@ def imagem_para_faixa(evento, largura_alvo, altura_alvo):
     return imagem
 
 
+def _largura_papeis(rotulos, tamanho=9, tamanho_outros=7):
+    """Largura que as tarjas de papel vão ocupar, SEM desenhar.
+
+    Existe porque `_desenhar_papeis` mede enquanto desenha: para centralizar o
+    conjunto antes do primeiro traço, a largura precisa ser calculável à parte —
+    e as duas têm de concordar (mesmos recuos e mesmo respiro), senão o crachá
+    impresso sai descentralizado em relação à tela.
+    """
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    total = 0
+    for indice, rotulo in enumerate(rotulos):
+        principal = indice == 0
+        fonte = tamanho if principal else tamanho_outros
+        recuo = 4 * mm if principal else 3 * mm
+        total += stringWidth(rotulo, "Helvetica-Bold", fonte) + recuo * 2 + 2 * mm
+    return total - 2 * mm
+
+
 def _desenhar_papeis(c, rotulos, x, y, cor, altura=None, tamanho=9, tamanho_outros=7):
     """Tarjas de papel em linha: a PRINCIPAL cheia e as outras menores ao lado.
 
@@ -644,7 +664,7 @@ def _cracha_etiqueta(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, l
     etiqueta_x = x + 8 * mm
     etiqueta_y = y + 8 * mm
     etiqueta_largura = largura - 16 * mm
-    etiqueta_altura = 62 * mm
+    etiqueta_altura = 71 * mm
     c.setFillColor(cor["branco"])
     c.roundRect(etiqueta_x, etiqueta_y, etiqueta_largura, etiqueta_altura, 4 * mm,
                 fill=True, stroke=False)
@@ -654,30 +674,32 @@ def _cracha_etiqueta(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, l
         c,
         _quebrar_texto(nome, "Helvetica-Bold", corpo_nome, etiqueta_largura - 8 * mm, 2),
         "Helvetica-Bold", corpo_nome, etiqueta_x + 4 * mm,
-        etiqueta_y + etiqueta_altura - 9 * mm, corpo_nome * 0.44 * mm, cor=cor["texto"],
+        etiqueta_y + etiqueta_altura - 7 * mm, corpo_nome * 0.44 * mm, cor=cor["texto"],
     )
 
     # Tarja(s) do papel em posição fixa: cae uma ou duas linhas de nome acima
     # delas (a segunda linha do nome termina ~7 mm acima).
-    _desenhar_papeis(c, rotulos, etiqueta_x + 4 * mm, etiqueta_y + 36 * mm, cor,
-                     altura=7 * mm, tamanho=9, tamanho_outros=7.5)
+    # Tarjas centralizadas, como na tela (o etiqueta é o modelo centralizado).
+    largura_chips = _largura_papeis(rotulos, tamanho=9, tamanho_outros=7.5)
+    _desenhar_papeis(c, rotulos, etiqueta_x + (etiqueta_largura - largura_chips) / 2.0,
+                     etiqueta_y + 48 * mm, cor, altura=7 * mm, tamanho=9, tamanho_outros=7.5)
 
-    # 28 mm: com ~45 módulos, cada módulo fica em ~0,62 mm — a folga que o
-    # celular precisa para ler de perto sem brigar com o foco.
-    lado_qr = 28 * mm
+    # 34 mm centralizado: com ~45 módulos dá ~0,75 mm por módulo, o dobro da
+    # folga de leitura que os 28 mm davam. Código e instrução vão centralizados
+    # ABAIXO do QR (aprovado em 13/09/2026) — mesma régua do modelo clássico.
+    lado_qr = 34 * mm
     qr = imagem_qr(url_verificacao(gerar_token(pessoa.id, evento.id, tipo="cracha")))
-    c.drawImage(ImageReader(qr), etiqueta_x + 4 * mm, etiqueta_y + 6 * mm,
+    centro_x = etiqueta_x + etiqueta_largura / 2.0
+    c.drawImage(ImageReader(qr), centro_x - lado_qr / 2.0, etiqueta_y + 12.5 * mm,
                 width=lado_qr, height=lado_qr, mask="auto")
 
-    direita = etiqueta_x + etiqueta_largura - 4 * mm
     c.setFillColor(cor["texto"])
-    c.setFont("Helvetica-Bold", 11)
-    c.drawRightString(direita, etiqueta_y + 28 * mm, codigo_curto(pessoa.id, evento.id))
+    c.setFont("Helvetica-Bold", 10)
+    c.drawCentredString(centro_x, etiqueta_y + 10 * mm, codigo_curto(pessoa.id, evento.id))
     c.setFillColor(cor["cinza"])
     c.setFont("Helvetica", 6.4)
-    c.drawRightString(direita, etiqueta_y + 22 * mm, "Aponte a câmera para")
-    c.drawRightString(direita, etiqueta_y + 18 * mm, "confirmar sua presença")
-    c.drawRightString(direita, etiqueta_y + 13 * mm, "ou informe este código")
+    c.drawCentredString(centro_x, etiqueta_y + 4.5 * mm,
+                        "Aponte a câmera para confirmar sua presença ou informe este código")
 
 
 def _cracha_classico(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, logo_caminho):
@@ -715,8 +737,8 @@ def _cracha_classico(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, l
                  "IFMG · Campus Ponte Nova")
 
     # --- faixa com a foto do evento (ou o gradiente oliva de reserva) ---
-    # 34 mm (era 45): a foto do evento cede o espaço que o nome precisa.
-    altura_faixa = 34 * mm
+    # 24 mm (era 45, depois 34): a foto do evento cede o espaço do QR maior.
+    altura_faixa = 24 * mm
     y_faixa = y + altura - altura_topo - altura_faixa
     imagem_faixa = imagem_para_faixa(evento, largura, altura_faixa)
     if imagem_faixa is not None:
@@ -734,16 +756,16 @@ def _cracha_classico(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, l
     # --- evento e período ---
     _desenhar_linhas(
         c, _quebrar_texto(evento.title, "Helvetica-Bold", 14, largura - 2 * margem, 2),
-        "Helvetica-Bold", 14, x + margem, y + 84 * mm, 5.6 * mm, cor=cor["texto"],
+        "Helvetica-Bold", 14, x + margem, y + 96 * mm, 5.6 * mm, cor=cor["texto"],
     )
     subtitulo = " · ".join(p for p in [periodo_legivel(evento), (evento.local or "").strip()] if p)
     _desenhar_linhas(
         c, _quebrar_texto(subtitulo, "Helvetica", 9, largura - 2 * margem, 1),
-        "Helvetica", 9, x + margem, y + 74 * mm, 4.6 * mm, cor=cor["cinza"],
+        "Helvetica", 9, x + margem, y + 86 * mm, 4.6 * mm, cor=cor["cinza"],
     )
     c.setStrokeColor(cor["borda"])
     c.setLineWidth(0.6)
-    c.line(x + margem, y + 68 * mm, x + largura - margem, y + 68 * mm)
+    c.line(x + margem, y + 80 * mm, x + largura - margem, y + 80 * mm)
 
     # --- nome em destaque + papel ---
     # Medidas ancoradas no PÉ do crachá (e não no topo da faixa): assim o nome
@@ -752,27 +774,26 @@ def _cracha_classico(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, l
     corpo_nome = 19 if len(nome) <= 24 else (17 if len(nome) <= 34 else 15)
     _desenhar_linhas(
         c, _quebrar_texto(nome, "Helvetica-Bold", corpo_nome, largura - 2 * margem, 2),
-        "Helvetica-Bold", corpo_nome, x + margem, y + 60 * mm,
+        "Helvetica-Bold", corpo_nome, x + margem, y + 72 * mm,
         corpo_nome * 0.5 * mm, cor=cor["texto"],
     )
-    _desenhar_papeis(c, rotulos, x + margem, y + 38 * mm, cor, altura=8 * mm)
+    _desenhar_papeis(c, rotulos, x + margem, y + 50 * mm, cor, altura=8 * mm)
 
     # --- rodapé: QR + código curto ---
-    # 26 mm: módulo em ~0,58 mm, o mínimo confortável para leitura por celular.
-    lado_qr = 26 * mm
+    # 34 mm centralizado, código e instrução abaixo — mesma régua do etiqueta.
+    lado_qr = 34 * mm
     qr = imagem_qr(url_verificacao(gerar_token(pessoa.id, evento.id, tipo="cracha")))
-    c.drawImage(ImageReader(qr), x + margem, y + 8 * mm, width=lado_qr, height=lado_qr,
-                mask="auto")
+    centro_x = x + largura / 2.0
+    c.drawImage(ImageReader(qr), centro_x - lado_qr / 2.0, y + 12.5 * mm,
+                width=lado_qr, height=lado_qr, mask="auto")
 
-    direita = x + largura - margem
     c.setFillColor(cor["texto"])
-    c.setFont("Helvetica-Bold", 11)
-    c.drawRightString(direita, y + 25 * mm, codigo_curto(pessoa.id, evento.id))
+    c.setFont("Helvetica-Bold", 10)
+    c.drawCentredString(centro_x, y + 10 * mm, codigo_curto(pessoa.id, evento.id))
     c.setFillColor(cor["cinza"])
     c.setFont("Helvetica", 6.4)
-    c.drawRightString(direita, y + 19.5 * mm, "Aponte a câmera para")
-    c.drawRightString(direita, y + 15.5 * mm, "confirmar sua presença")
-    c.drawRightString(direita, y + 11 * mm, "ou informe este código")
+    c.drawCentredString(centro_x, y + 4.5 * mm,
+                        "Aponte a câmera para confirmar sua presença ou informe este código")
 
 
 def gerar_pdf_crachas_evento(evento, modelo=MODELO_PADRAO):
