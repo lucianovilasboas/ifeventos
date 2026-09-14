@@ -866,6 +866,19 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
    (no formulário de atividade a caixa é 16:9; aqui ela acompanha o recorte). */
 .ativ-thumb.campo-thumb { aspect-ratio: 1 / 1; max-width: 260px; }
 
+/* Palco do recorte: a foto entra em tamanho natural antes de o Cropper existir
+   (~320 ms, no fade do modal) e o Cropper dimensiona o container a partir do
+   pai. Sem um teto de altura, o modal passa de 1200px numa tela de 757px e o
+   botão "Cortar e usar" sai da tela. O seletor não usa a ancestralidade
+   `.cropper-campo` de propósito: o modal de recorte pode ser movido para fora
+   do campo. */
+[data-cropper-modal] .modal-body {
+  max-height: 60vh;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+[data-cropper-modal] [data-cropper-alvo] { max-height: 60vh; width: auto; }
+
 .ativ-info {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   background: var(--surface);

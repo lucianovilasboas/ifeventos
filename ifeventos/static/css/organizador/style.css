@@ -255,35 +255,12 @@ body {
 
 
 /********************************
- * Cropper Modal Fixes
+ * Modal aberto
  ********************************/
 
-#cropperModal .modal-dialog {
-    max-width: 700px;
-    margin: auto;
-    transition: none !important; /* remove tremores de transição */
-}
-
-#cropperModal .modal-content {
-    box-shadow: none !important;
-    transition: none !important;
-    border-radius: var(--radius-sm);
-}
-
-#cropperModal .modal-body {
-    overflow: hidden;
-    padding: 0;
-    max-height: 80vh;
-}
-
-#image-to-crop {
-    display: block;
-    max-width: 100%;
-    max-height: 75vh;
-    margin: auto;
-}
-
-/* Evita que o modal balance com foco, clique ou redimensionamento */
+/* Evita que o modal balance com foco, clique ou redimensionamento. Também é
+   o que o cropper_campo.js reaplica quando o recorte fecha por cima de outro
+   modal (o Bootstrap não suporta modal aninhado). */
 body.modal-open {
     overflow: hidden;
     padding-right: 0 !important;

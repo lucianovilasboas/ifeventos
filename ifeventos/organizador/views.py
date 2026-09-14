@@ -27,8 +27,6 @@ from eventos.crachas import (
 from eventos.models import Inscricao, Certificado
 from eventos.utils import gerar_certificado
 
-import base64
-from django.core.files.base import ContentFile
 from eventos.imagens import imagem_cortada
 
 
@@ -96,17 +94,15 @@ def profile(request):
         
         if form.is_valid():
             usuario = form.save(commit=False)  # ⚠ Salvamos manualmente depois para capturar a imagem
-            if 'foto' in request.FILES:
+
+            # A foto recortada (modal de perfil) tem prioridade sobre o arquivo
+            # original enviado pelo input.
+            recorte = imagem_cortada(request, f'perfil_{usuario.id}')
+            if recorte:
+                usuario.foto = recorte
+            elif 'foto' in request.FILES:
                 usuario.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
 
-                cropped_image_data = request.POST.get('cropped_image')
-                if cropped_image_data:
-                    format, imgstr = cropped_image_data.split(';base64,')
-                    ext = format.split('/')[-1]
-                    data = ContentFile(base64.b64decode(imgstr), name=f'perfil_{usuario.id}.{ext}')
-                    usuario.foto = data  # ajuste conforme o campo do seu model
-
-            
             usuario.save()  # Agora salvamos no banco
             messages.success(request, "Perfil atualizado com sucesso!")
             return redirect("organizador:profile")
@@ -159,15 +155,14 @@ def editar_evento(request, evento_id):
         form = EventoForm(data=request.POST, files=request.FILES,  instance=evento)
         if form.is_valid():
             evento = form.save(commit=False)
-            if 'imagem' in request.FILES:
+
+            # A capa recortada tem prioridade sobre o arquivo original enviado
+            # pelo input.
+            recorte = imagem_cortada(request, 'evento')
+            if recorte:
+                evento.imagem = recorte
+            elif 'imagem' in request.FILES:
                 evento.imagem = request.FILES['imagem']  # Atribuímos a imagem manualmente
-            
-                cropped_image_data = request.POST.get('cropped_image')
-                if cropped_image_data:
-                    format, imgstr = cropped_image_data.split(';base64,')
-                    ext = format.split('/')[-1]
-                    data = ContentFile(base64.b64decode(imgstr), name=f'evento_{evento.id}.{ext}')
-                    evento.imagem = data  # ajuste conforme o campo do seu model
 
             evento.save()
             
@@ -273,15 +268,13 @@ def criar_editar_atividade(request, evento_id, atividade_id=None):
         form = AtividadeForm(data=request.POST, files=request.FILES, instance=atividade)
         if form.is_valid():
             atividade = form.save(commit=False)
-            if 'imagem' in request.FILES:
-                atividade.imagem = request.FILES['imagem']  # Atribuímos a imagem manualmente
 
-                cropped_image_data = request.POST.get('cropped_image')
-                if cropped_image_data:
-                    format, imgstr = cropped_image_data.split(';base64,')
-                    ext = format.split('/')[-1]
-                    data = ContentFile(base64.b64decode(imgstr), name=f'atividade_{atividade.id}.{ext}')
-                    atividade.imagem = data  # ajuste conforme o campo do seu model
+            # A imagem recortada tem prioridade sobre o arquivo original.
+            recorte = imagem_cortada(request, 'atividade')
+            if recorte:
+                atividade.imagem = recorte
+            elif 'imagem' in request.FILES:
+                atividade.imagem = request.FILES['imagem']  # Atribuímos a imagem manualmente
 
             atividade.evento = evento  # Garante que o evento está correto
             atividade.save()

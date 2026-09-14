@@ -91,6 +91,13 @@
                 cropper.destroy();
                 cropper = null;
             }
+            // Bootstrap não suporta modal aninhado: ao fechar o recorte ele
+            // remove `modal-open` mesmo com o modal de baixo aberto, e a
+            // rolagem da página atrás volta. Se ainda houver modal aberto,
+            // reaplica o travamento (body.modal-open cuida do resto).
+            if (document.querySelectorAll(".modal.show").length) {
+                document.body.classList.add("modal-open");
+            }
         });
 
         confirmar.addEventListener("click", function () {
