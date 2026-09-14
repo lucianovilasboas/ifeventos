@@ -131,7 +131,10 @@
                                     <strong>{{ ev.data_inicio|date:"d" }}</strong>
                                     <span>{{ ev.data_inicio|date:"M" }}</span>
                                 </div>
-                                <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                                <div class="lcard-meta">
+                                    <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                                    <span class="lcard-activ"><i class="fa-solid fa-list-check"></i> {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}</span>
+                                </div>
                             </div>
                             <h3>{{ ev.title }}</h3>
                             <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
@@ -169,7 +172,10 @@
                                     <strong>{{ ev.data_inicio|date:"d" }}</strong>
                                     <span>{{ ev.data_inicio|date:"M" }}</span>
                                 </div>
-                                <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                                <div class="lcard-meta">
+                                    <span class="lcard-type">{{ ev.get_categoria_display }}</span>
+                                    <span class="lcard-activ"><i class="fa-solid fa-list-check"></i> {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}</span>
+                                </div>
                             </div>
                             <h3>{{ ev.title }}</h3>
                             <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
@@ -231,6 +237,7 @@
                 <div class="lmodal-row"><span>Quando</span><strong id="modalData"></strong></div>
                 <div class="lmodal-row"><span>Onde</span><strong id="modalLocal"></strong></div>
                 <div class="lmodal-row"><span>Tema</span><strong id="modalTema"></strong></div>
+                <div class="lmodal-row"><span>Atividades</span><strong id="modalAtiv"></strong></div>
             </div>
             <div class="landing-modal-actions">
                 <a class="btn-land btn-primary-land" id="modalCta" href="#">Continuar para inscrição</a>
@@ -248,7 +255,8 @@
             desc: "{{ ev.description|escapejs }}",
             data: "{{ ev.data_inicio|date:'d/m' }} a {{ ev.data_fim|date:'d/m/Y' }}",
             local: "{{ ev.local|escapejs }}",
-            tema: "{{ ev.get_categoria_display }}"
+            tema: "{{ ev.get_categoria_display }}",
+            nAtiv: {{ ev.n_atividades }}
         };
         {% endfor %}
 
@@ -287,6 +295,8 @@
             document.querySelector('#modalData').textContent = e.data;
             document.querySelector('#modalLocal').textContent = e.local;
             document.querySelector('#modalTema').textContent = e.tema;
+            document.querySelector('#modalAtiv').textContent =
+                e.nAtiv + (e.nAtiv === 1 ? ' atividade' : ' atividades');
             document.querySelector('#modalCta').href = '/eventos/programacao/' + id;
             modal.hidden = false;
             document.body.classList.add('is-locked');

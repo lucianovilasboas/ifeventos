@@ -1,5 +1,6 @@
 from django.utils import timezone  # ✅ Correto
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Count
 from django.http import Http404
 from django.contrib.auth import logout
 from .models import Evento
@@ -24,8 +25,10 @@ from django.urls import reverse
 
 def eventos_view(request):
     hoje = timezone.localdate()
-    # Eventos atuais/futuros (a agenda mostra apenas os que não encerraram)
+    # Eventos atuais/futuros (a agenda mostra apenas os que não encerraram).
+    # `n_atividades` vem anotado para o card/modal não fazerem um COUNT por card.
     eventos = (Evento.objects.filter(data_fim__gte=hoje)
+               .annotate(n_atividades=Count('atividades'))
                .order_by('data_inicio'))
     # "Próximo na agenda": o evento mais próximo cujo término é hoje ou no futuro
     hoje = timezone.localdate()
@@ -62,7 +65,9 @@ def eventos_view(request):
         'categorias': categorias,
         # Últimos eventos realizados/encerrados (data_fim no passado),
         # do mais recente para o mais antigo.
-        'encerrados': Evento.objects.filter(data_fim__lt=hoje).order_by('-data_fim'),
+        'encerrados': Evento.objects.filter(data_fim__lt=hoje)
+                                  .annotate(n_atividades=Count('atividades'))
+                                  .order_by('-data_fim'),
     })
 
 

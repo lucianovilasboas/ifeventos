@@ -74,3 +74,32 @@ class TabelaAtividadesColunaDataTests(TestCase):
         self.assertIn('data-ordenar-inicial="5:desc"', html)
         # ISO localizado (ex.: 2026-10-10T07:00:00-03:00) — ordena como texto.
         self.assertIn('data-valor="2026-10-10T', html)
+
+
+class LandingTotalAtividadesTests(TestCase):
+    """O card e o modal da landing mostram o total de atividades do evento."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_land@example.com", password=SENHA, cpf="12345678909"
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.evento = Evento.objects.create(
+            title="Evento Land", description="d", local="l",
+            data_inicio=date(2030, 1, 1), data_fim=date(2030, 1, 2),
+            categoria="formacao", organizador=self.org,
+        )
+        for titulo in ("Abertura", "Encerramento"):
+            Atividade.objects.create(
+                evento=self.evento, titulo=titulo, descricao="d", tipo=self.tipo,
+                data_hora_inicio=datetime(2030, 1, 1, 10, 0, tzinfo=tz.utc),
+                data_hora_fim=datetime(2030, 1, 1, 11, 0, tzinfo=tz.utc),
+                n_vagas=10,
+            )
+
+    def test_card_e_modal_tem_o_total(self):
+        resposta = self.client.get(reverse("eventos:eventos"))
+        self.assertEqual(resposta.status_code, 200)
+        html = resposta.content.decode()
+        self.assertIn("2 atividades", html)   # card
+        self.assertIn("nAtiv: 2", html)       # dados do modal (JS)
