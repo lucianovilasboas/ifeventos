@@ -345,6 +345,14 @@
   outline: none;
 }
 .landing-card[hidden] { display: none; }
+
+@media (min-width: 768px) {
+  .landing-grid > .landing-card--full-width {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+
 .lcard-top {
   display: flex;
   align-items: start;

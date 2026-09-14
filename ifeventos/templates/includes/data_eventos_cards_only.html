@@ -1,6 +1,6 @@
 <div class="row g-3 mx-0">
     {% for evento in eventos %}
-    <div class="col-md-6 col-lg-4">
+    <div class="col-md-6 col-lg-4 {% if forloop.first %}col-12{% endif %}">
         <div class="event-card-app">
             <div class="cover">
                 {% if evento.imagem %}<img src="{{ evento.get_url_imagem }}" alt="{{ evento.title }}">{% endif %}
