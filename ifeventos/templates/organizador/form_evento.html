@@ -320,7 +320,7 @@
                 cropper.destroy();
             }
             cropper = new Cropper(imageToCrop, {
-                aspectRatio: 16 / 9,
+                aspectRatio: 1,
                 viewMode: 1,
                 dragMode: 'move',
                 autoCropArea: 1,
@@ -342,8 +342,8 @@
             if (!cropper) return;
 
             const canvas = cropper.getCroppedCanvas({
-                width: 1200,
-                height: 675,
+                width: 500,
+                height: 500,
             });
 
             if (canvas) {
