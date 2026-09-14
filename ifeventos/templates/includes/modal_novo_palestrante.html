@@ -11,8 +11,8 @@
                     {% csrf_token %}
                     <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label" for="id_foto">Foto</label>
-                            <input type="file" class="form-control" id="id_foto" name="foto">
+                            <label class="form-label">Foto</label>
+                            {% include 'includes/campo_imagem.html' with nome="foto" preview_url="/media/usuarios/default.jpeg" aspect="1" largura=200 altura=200 input_visivel=1 alt="Pré-visualização da foto do palestrante" %}
                         </div>
                         <div class="col-md-6">
                             <label class="form-label" for="id_first_name">Nome</label>

@@ -29,6 +29,7 @@ from eventos.utils import gerar_certificado
 
 import base64
 from django.core.files.base import ContentFile
+from eventos.imagens import imagem_cortada
 
 
 # -- Dashboard do Organizador --
@@ -58,7 +59,13 @@ def dashboard(request):
                                        instance=organizador)
         if form.is_valid():
             organizador = form.save(commit=False)  # ⚠ Salvamos manualmente depois para capturar a imagem
-            if 'foto' in request.FILES:
+
+            # A foto recortada (modal de perfil) tem prioridade sobre o arquivo
+            # original enviado pelo input.
+            recorte = imagem_cortada(request, f'perfil_{organizador.id}')
+            if recorte:
+                organizador.foto = recorte
+            elif 'foto' in request.FILES:
                 organizador.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
 
             organizador.save()  # Agora salvamos no banco
@@ -122,6 +129,10 @@ def criar_evento(request):
         if form.is_valid():
             evento = form.save(commit=False)
             evento.organizador = organizador
+            # Capa recortada no modal de criação (16:9) tem prioridade.
+            recorte = imagem_cortada(request, 'evento')
+            if recorte:
+                evento.imagem = recorte
             evento.save()
             messages.success(request, "Evento criado com sucesso!")
             return JsonResponse({"success": True, "message": "Evento criado com sucesso!"})
@@ -337,7 +348,12 @@ def adicionar_palestrante(request):
         form = PalestranteForm(request.POST, request.FILES) # request.FILES é necessário para arquivos
         if form.is_valid():
             palestrante = form.save(commit=False)  # ⚠ Salvamos manualmente depois para capturar a imagem
-            if 'foto' in request.FILES:
+
+            # Foto recortada no modal tem prioridade sobre o arquivo original.
+            recorte = imagem_cortada(request, 'palestrante')
+            if recorte:
+                palestrante.foto = recorte
+            elif 'foto' in request.FILES:
                 palestrante.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
 
             palestrante.is_palestrante = True  # Garantimos que é palestrante    

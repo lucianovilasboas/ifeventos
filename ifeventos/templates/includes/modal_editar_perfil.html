@@ -34,14 +34,10 @@
                         </div>
                         {% endif %}
 
-                        <!-- Foto de Perfil -->
+                        <!-- Foto de Perfil (com recorte) -->
                         <div class="text-center mb-4">
                             <label class="form-label d-block"><i class="fa-solid fa-camera"></i> Foto de Perfil</label>
-                            <div class="profile-avatar-wrap mx-auto" onclick="document.getElementById('profile_foto').click()" title="Trocar a foto" role="button">
-                                <img id="profile-preview" src="{{ request.user.get_foto_url }}" alt="Foto de perfil">
-                                <span class="profile-avatar-overlay"><i class="fa-solid fa-camera"></i></span>
-                            </div>
-                            <input type="file" id="profile_foto" name="foto" class="d-none" accept="image/*" onchange="previewProfilePhoto(event)">
+                            {% include 'includes/campo_imagem.html' with nome="foto" preview_url=request.user.get_foto_url aspect="1" largura=200 altura=200 classe_preview="profile-avatar-wrap mx-auto" overlay=1 alt="Foto de perfil" %}
                             <div class="form-text mt-1">
                                 <span class="d-none d-md-inline">Clique na foto para selecionar uma nova imagem.</span>
                                 <span class="d-md-none">Toque na foto para selecionar uma nova imagem.</span>
@@ -141,16 +137,3 @@
             </div>
         </div>
     </div>
-
-    <script>
-        function previewProfilePhoto(event) {
-            var file = event.target.files[0];
-            if (!file || !/^image\/\w+/.test(file.type)) return;
-            var reader = new FileReader();
-            reader.onload = function () {
-                var output = document.getElementById('profile-preview');
-                if (output) output.src = reader.result;
-            };
-            reader.readAsDataURL(file);
-        }
-    </script>

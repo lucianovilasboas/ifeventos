@@ -1,0 +1,58 @@
+{% comment %}
+Campo de imagem com recorte (Cropper). Parametros do {% include %}:
+
+  nome            (obrigatorio) atributo name do input de arquivo
+  preview_url     (obrigatorio) imagem inicial da pre-visualizacao
+  aspect          proporcao do corte (ex.: "1", "16/9") - padrao "1"
+  largura/altura  tamanho do canvas gerado - padrao 500/500
+  input_visivel   se presente, mostra o input de arquivo (senao fica oculto)
+  classe_preview  classes extras do container da pre-visualizacao
+  alt             texto alternativo da imagem
+  overlay         se presente, mostra o icone de camera sobre a imagem
+
+O markup nao usa IDs: cada campo busca os proprios elementos pelo escopo
+([data-cropper-campo]). Assim varios campos podem coexistir na mesma pagina
+(ex.: perfil + novo evento + novo palestrante) sem colidir.
+
+O JS que liga tudo esta em static/js/cropper_campo.js.
+{% endcomment %}
+<div class="cropper-campo"
+     data-cropper-campo
+     data-cropper-aspect="{{ aspect|default:'1' }}"
+     data-cropper-largura="{{ largura|default:'500' }}"
+     data-cropper-altura="{{ altura|default:'500' }}">
+
+    <div class="cropper-preview {{ classe_preview }}"
+         data-cropper-escolher role="button" tabindex="0" title="Escolher imagem">
+        <img src="{{ preview_url }}" alt="{{ alt|default:'Pré-visualização da imagem' }}" data-cropper-preview>
+        {% if overlay %}<span class="profile-avatar-overlay"><i class="fa-solid fa-camera" aria-hidden="true"></i></span>{% endif %}
+    </div>
+
+    {% if input_visivel %}
+    <input type="file" name="{{ nome }}" accept="image/*" class="form-control mt-2" data-cropper-input>
+    {% else %}
+    <input type="file" name="{{ nome }}" accept="image/*" class="d-none"
+           tabindex="-1" aria-hidden="true" data-cropper-input>
+    {% endif %}
+
+    {# O recorte (data URL base64) viaja aqui; a view troca o arquivo por ele. #}
+    <input type="hidden" name="cropped_image" data-cropper-saida>
+
+    <div class="modal fade" data-cropper-modal tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cortar imagem</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img data-cropper-alvo style="max-width: 100%;">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-app" data-cropper-confirmar>Cortar e usar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

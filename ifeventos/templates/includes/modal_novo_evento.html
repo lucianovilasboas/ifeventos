@@ -51,8 +51,8 @@
                             <small class="text-muted d-block mt-2" id="sugestaoCategoria"></small>
                         </div>
                         <div class="col-12">
-                            <label class="form-label" for="id_imagem">{{ form_evt.imagem.label }}</label>
-                            {{ form_evt.imagem }}
+                            <label class="form-label">{{ form_evt.imagem.label }} (capa)</label>
+                            {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" aspect="16/9" largura=1200 altura=675 input_visivel=1 alt="Pré-visualização da capa do evento" %}
                         </div>
                     </div>
 

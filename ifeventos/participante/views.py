@@ -13,6 +13,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, TemplateView
 from eventos.models import Certificado
 from eventos.crachas import crachas_do_usuario, url_da_logo
+from eventos.imagens import imagem_cortada
 
 
 @login_required(login_url='/accounts/login/')
@@ -30,7 +31,13 @@ def dashboard(request):
         if form.is_valid():
 
             participante = form.save(commit=False)  # ⚠ Salvamos manualmente depois para capturar a imagem
-            if 'foto' in request.FILES:
+
+            # A foto recortada (modal de perfil) tem prioridade sobre o arquivo
+            # original enviado pelo input.
+            recorte = imagem_cortada(request, f'perfil_{participante.id}')
+            if recorte:
+                participante.foto = recorte
+            elif 'foto' in request.FILES:
                 participante.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
             participante.save()  # Agora salvamos no banco
 
