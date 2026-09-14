@@ -250,6 +250,8 @@ class Atividade(models.Model):
     evento = models.ForeignKey(Evento, on_delete=models.CASCADE, related_name="atividades")
     titulo = models.CharField(max_length=255)
     descricao = models.TextField()
+    # Local próprio da atividade (sala, auditório). Vazio = usa o local do evento.
+    local = models.CharField(max_length=255, blank=True, default="")
     tipo = models.ForeignKey(TipoAtividade, on_delete=models.SET_NULL, null=True, blank=True, related_name="atividades") 
 
     palestrantes = models.ManyToManyField(Participante, related_name="atividades")

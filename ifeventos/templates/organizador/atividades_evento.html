@@ -153,6 +153,7 @@
         const certificado = !!data.emite_certificado;
         const t = esc(titulo), ty = esc(tipo);
         const tAttr = escAttr(titulo), q = esc(quando);
+        const loc = esc(data.local || "");
 
         // Adiciona a linha na tabela (desktop)
         const tableBody = document.querySelector(".table-wrap table tbody");
@@ -195,6 +196,7 @@
                     <h5 class="atividade-titulo"><span class="atividade-nome">${t}</span></h5>
                     ${q ? `<p class="atividade-quando mb-0">${q}</p>` : ""}
                     <p><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> ${ty}</span></p>
+                    ${loc ? `<p class="mb-0" style="font-size:12px;color:var(--app-muted)"><i class="fa-solid fa-location-dot"></i> ${loc}</p>` : ""}
                     <p class="mb-0" style="font-size:12px;color:var(--app-muted)"><i class="fa-solid fa-users"></i> <span class="js-inscritos" data-id="${id}">${inscritos}</span>/<span class="js-vagas" data-id="${id}">${vagas}</span> inscritos</p>
                     <div class="card-actions">
                         <a href="${atividadeUrlEdit(id)}" class="btn btn-sm btn-warning btn-icon" title="Editar Atividade"><i class="fa-solid fa-pen"></i></a>

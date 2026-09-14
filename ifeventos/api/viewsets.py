@@ -25,9 +25,15 @@ from eventos.crachas import (
     url_presenca_atividade,
     verificar_token,
 )
-from eventos.models import Atividade, Certificado, Evento, Inscricao, Presenca, TipoAtividade
+from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca, TipoAtividade
 
-from .permissions import IsDonoEvento, IsDonoInscricao, IsDonoOuOrganizador, IsOrganizador
+from .permissions import (
+    IsDonoEvento,
+    IsDonoInscricao,
+    IsDonoOuOrganizador,
+    IsOrganizador,
+    IsOrganizadorEstrito,
+)
 from .serializers import (
     AtividadeSerializer,
     AtividadeWriteSerializer,
@@ -37,6 +43,8 @@ from .serializers import (
     EventoWriteSerializer,
     InscricaoCreateSerializer,
     InscricaoSerializer,
+    PalestranteSerializer,
+    PalestranteWriteSerializer,
     PresencaCreateSerializer,
     PresencaSerializer,
     QrAtividadeSerializer,
@@ -154,6 +162,66 @@ class TipoAtividadeViewSet(viewsets.ModelViewSet):
         if self.action in ("list", "retrieve"):
             return [AllowAny()]
         return [IsOrganizador()]
+
+
+class PalestranteViewSet(viewsets.ModelViewSet):
+    """Palestrantes = Participante com `is_palestrante=True`.
+
+    Dados pessoais (cpf, telefone, endereço): leitura E escrita exigem
+    organizador (`IsOrganizadorEstrito`), inclusive a listagem — não é catálogo
+    público. Sem DELETE de propósito: apagar a conta quebra atividades e
+    inscrições; o papel se remove mexendo na pessoa, não por aqui.
+    """
+
+    queryset = Participante.objects.filter(is_palestrante=True).order_by(
+        "first_name", "last_name"
+    )
+    search_fields = ["first_name", "last_name", "email"]
+    permission_classes = [IsOrganizadorEstrito]
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
+
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return PalestranteWriteSerializer
+        return PalestranteSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Cria o palestrante; se o e-mail já existir, atualiza e garante o papel.
+
+        O POST repetido (reimportação, LLM reenviando) não deve virar 400: a
+        conta existente é reaproveitada e recebe `is_palestrante=True`.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        dados = serializer.validated_data
+
+        existente = Participante.objects.filter(email__iexact=dados["email"]).first()
+        if existente:
+            for campo, valor in dados.items():
+                setattr(existente, campo, valor)
+            existente.is_participante = True
+            existente.is_palestrante = True
+            existente.save()
+            return Response(
+                PalestranteSerializer(existente).data, status=status.HTTP_200_OK
+            )
+
+        novo = Participante.objects.create_user(
+            email=dados["email"],
+            first_name=dados.get("first_name", ""),
+            last_name=dados.get("last_name", ""),
+            cpf=dados.get("cpf", ""),
+            telefone=dados.get("telefone", ""),
+            endereco=dados.get("endereco", ""),
+            is_participante=True,
+            is_palestrante=True,
+        )
+        # Palestrante não faz login: sem senha utilizável.
+        novo.set_unusable_password()
+        novo.save(update_fields=["password"])
+        return Response(
+            PalestranteSerializer(novo).data, status=status.HTTP_201_CREATED
+        )
 
 
 class MinhasInscricoesViewSet(viewsets.ModelViewSet):

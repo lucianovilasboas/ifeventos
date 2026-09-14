@@ -14,6 +14,7 @@ from .viewsets import (
     MeusCertificadosViewSet,
     MeusCrachasViewSet,
     MinhasInscricoesViewSet,
+    PalestranteViewSet,
     PresencaViewSet,
     QrAtividadePngView,
     QrCrachaPngView,
@@ -25,6 +26,7 @@ router = DefaultRouter()
 router.register("eventos", EventoViewSet, basename="evento")
 router.register("atividades", AtividadeViewSet, basename="atividade")
 router.register("tipos-atividade", TipoAtividadeViewSet, basename="tipo-atividade")
+router.register("palestrantes", PalestranteViewSet, basename="palestrante")
 router.register("minhas-inscricoes", MinhasInscricoesViewSet, basename="minha-inscricao")
 router.register("meus-certificados", MeusCertificadosViewSet, basename="meu-certificado")
 router.register("meus-crachas", MeusCrachasViewSet, basename="meu-cracha")

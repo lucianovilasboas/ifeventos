@@ -17,6 +17,9 @@
             <p class="atividade-quando mb-0"><i class="fa-regular fa-clock"></i> {{ atividade.quando_legivel }}</p>
             {% endif %}
             <p><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> {{ atividade.tipo }}</span></p>
+            {% if atividade.local %}
+            <p class="mb-0" style="font-size:12px;color:var(--app-muted)"><i class="fa-solid fa-location-dot"></i> {{ atividade.local }}</p>
+            {% endif %}
             <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
                 <i class="fa-solid fa-users"></i>
                 <span class="js-inscritos" data-id="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/

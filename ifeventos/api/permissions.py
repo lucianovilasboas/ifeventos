@@ -21,6 +21,21 @@ class IsOrganizador(BasePermission):
         return bool(getattr(user, "is_organizador", False))
 
 
+class IsOrganizadorEstrito(BasePermission):
+    """Exige a flag is_organizador em QUALQUER método, inclusive leitura.
+
+    `IsOrganizador` libera métodos seguros para qualquer autenticado (é a regra
+    dos catálogos públicos). Aqui não: estes dados trazem PII (cpf, telefone,
+    endereço), então nem a listagem pode ser lida por participante comum.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user.is_authenticated:
+            return False
+        return bool(getattr(user, "is_organizador", False))
+
+
 class IsDonoOuOrganizador(BasePermission):
     """Permite edição apenas pelos donos do objeto ou por organizadores.
 

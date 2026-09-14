@@ -43,6 +43,7 @@ def _iso(valor):
 def atividade_salva(sender, instance, created, **kwargs):
     data = {
         "titulo": instance.titulo,
+        "local": instance.local,
         "evento": instance.evento.title if instance.evento_id else None,
         # `tipo` é opcional no model: sem o guarda, criar atividade sem tipo
         # estourava AttributeError ('NoneType' has no attribute 'nome') -> 500.

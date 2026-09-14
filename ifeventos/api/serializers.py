@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca, TipoAtividade
+from eventos.validators import apenas_digitos
 
 
 class ParticipanteResumoSerializer(serializers.ModelSerializer):
@@ -28,6 +29,74 @@ class ParticipanteResumoSerializer(serializers.ModelSerializer):
         return obj.get_foto_url() if hasattr(obj, "get_foto_url") else None
 
 
+class PalestranteSerializer(serializers.ModelSerializer):
+    """Leitura de palestrante para gestão — inclui dados pessoais (PII).
+
+    Só é servido sob `IsOrganizadorEstrito`; não é catálogo público.
+    """
+
+    nome_completo = serializers.SerializerMethodField()
+    foto_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Participante
+        fields = [
+            "id",
+            "nome_completo",
+            "email",
+            "cpf",
+            "telefone",
+            "endereco",
+            "foto_url",
+            "is_participante",
+            "is_palestrante",
+            "is_organizador",
+        ]
+
+    def get_nome_completo(self, obj):
+        name = (obj.first_name or "") + " " + (obj.last_name or "")
+        return name.strip() or obj.username or obj.email
+
+    def get_foto_url(self, obj):
+        return obj.get_foto_url() if hasattr(obj, "get_foto_url") else None
+
+
+class PalestranteWriteSerializer(serializers.ModelSerializer):
+    """Criação/atualização de palestrante (Participante com is_palestrante=True).
+
+    Sem `foto`: a API fala JSON e arquivo exige multipart (o MCP também é JSON).
+    O e-mail não tem UniqueValidator automático de propósito — o viewset trata
+    "e-mail já existente" como atualização idempotente; a unicidade só é cobrada
+    no update, quando o e-mail muda para um já usado por OUTRA conta.
+    """
+
+    email = serializers.EmailField()
+    cpf = serializers.CharField(max_length=14, required=False, allow_blank=True)
+    telefone = serializers.CharField(
+        max_length=15, required=False, allow_blank=True, allow_null=True
+    )
+    endereco = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    class Meta:
+        model = Participante
+        fields = ["id", "first_name", "last_name", "email", "cpf", "telefone", "endereco"]
+
+    def validate_email(self, value):
+        if self.instance is None:
+            return value
+        if (
+            Participante.objects.filter(email__iexact=value)
+            .exclude(pk=self.instance.pk)
+            .exists()
+        ):
+            raise serializers.ValidationError("E-mail já cadastrado.", code="unique")
+        return value
+
+    def validate_cpf(self, value):
+        # Guarda só os dígitos — mesma regra do model (Participante.save).
+        return apenas_digitos(value)
+
+
 class TipoAtividadeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TipoAtividade
@@ -46,6 +115,7 @@ class AtividadeSerializer(serializers.ModelSerializer):
             "id",
             "titulo",
             "descricao",
+            "local",
             "tipo",
             "palestrantes",
             "data_hora_inicio",
@@ -192,7 +262,8 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
     palestrantes = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Participante.objects.filter(is_palestrante=True),
-        required=True,
+        # Exposições/feira de livros podem não ter palestrante formal.
+        required=False,
     )
 
     class Meta:
@@ -201,6 +272,7 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
             "evento",
             "titulo",
             "descricao",
+            "local",
             "tipo",
             "palestrantes",
             "data_hora_inicio",

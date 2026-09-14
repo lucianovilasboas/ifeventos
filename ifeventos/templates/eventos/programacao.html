@@ -64,6 +64,11 @@
                     &nbsp;·&nbsp;
                     <strong>Fim:</strong> {{ atividade.data_hora_fim|date:"d/m/Y H:i" }}
                 </p>
+                {% if atividade.local %}
+                <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
+                    <i class="fa-solid fa-location-dot"></i> <strong>Local:</strong> {{ atividade.local }}
+                </p>
+                {% endif %}
                 {% if atividade.palestrantes.all %}
                 <p class="mt-1 mb-0" style="font-size:12px;color:var(--app-muted)">
                     <i class="fa-solid fa-user-tie"></i> <strong>Palestrantes:</strong>
