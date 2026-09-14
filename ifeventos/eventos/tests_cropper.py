@@ -42,11 +42,15 @@ TAMANHO_RECORTE = (200, 200)
 TAMANHO_CRU = (60, 40)
 
 
-def _png(tamanho, cor):
-    """Bytes de um PNG real, pequeno, para servir de recorte ou de foto crua."""
+def _bytes_imagem(tamanho, cor, formato="PNG"):
+    """Bytes de uma imagem real, pequena, para servir de recorte ou de foto crua."""
     buffer = io.BytesIO()
-    Image.new("RGB", tamanho, cor).save(buffer, format="PNG")
+    Image.new("RGB", tamanho, cor).save(buffer, format=formato)
     return buffer.getvalue()
+
+
+def _png(tamanho, cor):
+    return _bytes_imagem(tamanho, cor, "PNG")
 
 
 def _data_url(bytes_png):
@@ -74,15 +78,41 @@ class ImagemCortadaHelperTests(TestCase):
             imagem_cortada(self._request(cropped_image="sem-o-separador"), "x")
         )
 
-    def test_valido_devolve_contentfile_com_prefixo_e_extensao(self):
-        pedido = self._request(
-            cropped_image=_data_url(_png((12, 12), "green"))
-        )
-        arquivo = imagem_cortada(pedido, "atividade")
+    def _arquivo(self, corpo_base64, prefixo="atividade"):
+        return imagem_cortada(self._request(cropped_image=corpo_base64), prefixo)
+
+    def test_png_valido_devolve_contentfile(self):
+        arquivo = self._arquivo(_data_url(_png((12, 12), "green")))
         assert arquivo is not None
         self.assertTrue(arquivo.name.startswith("atividade_"))
         self.assertTrue(arquivo.name.endswith(".png"))
         self.assertEqual(_dimensoes(arquivo.read()), (12, 12))
+
+    def test_jpeg_vira_extensao_jpg(self):
+        arquivo = self._arquivo(
+            _data_url(_bytes_imagem((12, 12), "red", "JPEG"))
+        )
+        assert arquivo is not None
+        self.assertTrue(arquivo.name.endswith(".jpg"))
+
+    def test_webp_e_aceito(self):
+        arquivo = self._arquivo(
+            _data_url(_bytes_imagem((12, 12), "blue", "WEBP"))
+        )
+        assert arquivo is not None
+        self.assertTrue(arquivo.name.endswith(".webp"))
+
+    def test_extensao_vem_do_conteudo_e_nao_da_mime(self):
+        # Data URL diz PNG, mas os bytes são JPEG: a whitelist confia no Pillow.
+        arquivo = self._arquivo(
+            _data_url(_bytes_imagem((12, 12), "black", "JPEG"))
+        )
+        assert arquivo is not None
+        self.assertTrue(arquivo.name.endswith(".jpg"))
+
+    def test_conteudo_que_nao_e_imagem_devolve_none(self):
+        lixo = base64.b64encode(b"isto-nao-e-imagem").decode()
+        self.assertIsNone(self._arquivo("data:image/png;base64," + lixo))
 
 
 class _BaseCropperTests(TestCase):

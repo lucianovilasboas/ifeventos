@@ -252,6 +252,9 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
+/* Quando a atividade tem imagem, o mesmo slot vira a miniatura 1:1. */
+.app-item .dot.dot-foto { overflow: hidden; padding: 0; background: var(--surface-2, #eef0f2); }
+.app-item .dot.dot-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .app-item .info { flex: 1; min-width: 0; }
 .app-item .info h5 { font-size: var(--text-lg); font-weight: 800; margin: 0; }
 .app-item .info p { color: var(--muted); font-size: var(--text-sm); margin: 4px 0 0; }
@@ -862,9 +865,10 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 }
 .ativ-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
-/* Variante do componente de imagem: prévia quadrada, casando com o corte 1:1
-   (no formulário de atividade a caixa é 16:9; aqui ela acompanha o recorte). */
-.ativ-thumb.campo-thumb { aspect-ratio: 1 / 1; max-width: 260px; }
+/* Prévia do recorte: a caixa acompanha a proporção do campo (--cropper-aspect,
+   definida no include), então capa de evento (3:1) e imagem de atividade (1:1)
+   mostram o enquadramento real antes de cortar. */
+.ativ-thumb.campo-thumb { aspect-ratio: var(--cropper-aspect, 1); max-width: min(100%, 360px); }
 
 /* Palco do recorte: a foto entra em tamanho natural antes de o Cropper existir
    (~320 ms, no fade do modal) e o Cropper dimensiona o container a partir do
@@ -873,11 +877,21 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
    `.cropper-campo` de propósito: o modal de recorte pode ser movido para fora
    do campo. */
 [data-cropper-modal] .modal-body {
-  max-height: 60vh;
+  height: min(60vh, 460px);
   overflow: hidden;
   display: flex; align-items: center; justify-content: center;
 }
-[data-cropper-modal] [data-cropper-alvo] { max-height: 60vh; width: auto; }
+[data-cropper-modal] [data-cropper-alvo] { max-width: 100%; max-height: 100%; }
+
+/* Aviso de imagem pequena (o corte não amplia; mostra o tamanho que sai). */
+.cropper-aviso {
+  padding: 8px var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  background: var(--surface-2, #f6f7f8);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
 
 .ativ-info {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

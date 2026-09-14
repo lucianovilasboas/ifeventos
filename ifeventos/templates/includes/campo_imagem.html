@@ -22,7 +22,8 @@ O JS que liga tudo está em static/js/cropper_campo.js.
      data-cropper-campo
      data-cropper-aspect="{{ aspect|default:'1' }}"
      data-cropper-largura="{{ largura|default:'500' }}"
-     data-cropper-altura="{{ altura|default:'500' }}">
+     data-cropper-altura="{{ altura|default:'500' }}"
+     style="--cropper-aspect: {{ aspect|default:'1' }};">
 
     {% if variante == 'avatar' %}
     {# Avatar redondo: clicar na foto abre o seletor. #}
@@ -67,6 +68,7 @@ O JS que liga tudo está em static/js/cropper_campo.js.
                 <div class="modal-body text-center">
                     <img data-cropper-alvo style="max-width: 100%;">
                 </div>
+                <div class="cropper-aviso" data-cropper-aviso hidden></div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-app" data-cropper-confirmar>Cortar e usar</button>

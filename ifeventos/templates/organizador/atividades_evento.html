@@ -185,8 +185,12 @@
             const card = document.createElement("div");
             card.className = "app-item atividade-item";
             card.setAttribute("data-atividade-id", id);
+            const imagemUrl = data.imagem_url || "";
+            const dot = imagemUrl
+                ? `<div class="dot dot-foto"><img src="${escAttr(imagemUrl)}" alt="" loading="lazy" decoding="async"></div>`
+                : `<div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))"><i class="fa-solid fa-bullhorn"></i></div>`;
             card.innerHTML = `
-                <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))"><i class="fa-solid fa-bullhorn"></i></div>
+                ${dot}
                 <div class="info">
                     <h5 class="atividade-titulo"><span class="atividade-nome">${t}</span></h5>
                     ${q ? `<p class="atividade-quando mb-0">${q}</p>` : ""}

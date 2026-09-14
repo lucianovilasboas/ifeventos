@@ -90,9 +90,9 @@
                     <div class="col-md-12 text-center">
                         <label class="form-label"><i class="fa-solid fa-camera"></i> Imagem</label>
                         {% if form.instance.imagem %}
-                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form.instance.imagem.url variante="capa" tem_imagem=1 aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form.instance.imagem.url variante="capa" tem_imagem=1 aspect="3/1" largura=1024 altura=342 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                         {% else %}
-                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="3/1" largura=1024 altura=342 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                         {% endif %}
                     </div>
                 </div>

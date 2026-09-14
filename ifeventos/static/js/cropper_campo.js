@@ -9,12 +9,22 @@
  * getElementById: assim vários campos funcionam na mesma página (ex.: o modal
  * de perfil, o de novo evento e o de novo palestrante convivem em /dashboard/).
  *
+ * Cuidados com foto GRANDE e PEQUENA:
+ *  - a imagem é reduzida antes de cortar quando passa de ~2400 px / 6 MP, para
+ *    o Cropper não engasgar no celular;
+ *  - `checkOrientation` respeita o EXIF (foto de celular não sai girada);
+ *  - o palco tem altura fixa (CSS), então a janela de recorte é a mesma para
+ *    os dois extremos;
+ *  - a saída nunca é ampliada: vira `min(pedido, pixels reais do recorte)`.
+ *
  * Depende de: bootstrap (modal) e Cropper, ambos carregados no dashboard_base.
  */
 (function () {
     "use strict";
 
     var ATTR_INICIADO = "data-cropper-init";
+    var LADO_MAXIMO = 2400;                 // maior lado aceito antes do corte
+    var PIXELS_MAXIMOS = 6 * 1024 * 1024;    // ~6 MP
 
     // Aceita "1", "0.75" ou fração "16/9". parseFloat("16/9") daria 16
     // (para no "/"), então a fração precisa ser dividida na mão.
@@ -27,6 +37,76 @@
             if (larguraAsp && alturaAsp) return larguraAsp / alturaAsp;
         }
         return parseFloat(valor) || 1;
+    }
+
+    // Reduz só quando compensa; devolve um data URL novo ou null se não precisa.
+    function reduzirSeGigante(imagem) {
+        var w = imagem.naturalWidth;
+        var h = imagem.naturalHeight;
+        if (!w || !h) return null;
+        var maior = Math.max(w, h);
+        if (maior <= LADO_MAXIMO && w * h <= PIXELS_MAXIMOS) return null;
+
+        var escala = Math.min(
+            LADO_MAXIMO / maior,
+            Math.sqrt(PIXELS_MAXIMOS / (w * h))
+        );
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(w * escala));
+        canvas.height = Math.max(1, Math.round(h * escala));
+        canvas.getContext("2d").drawImage(imagem, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", 0.92);
+    }
+
+    // Saída com a MAIOR escala que caiba no pedido sem ampliar (preserva a
+    // proporção real do recorte e nunca inventa pixel).
+    function calcularSaida(recorte, largura, altura) {
+        var escala = Math.min(1, largura / recorte.width, altura / recorte.height);
+        return {
+            largura: Math.max(1, Math.round(recorte.width * escala)),
+            altura: Math.max(1, Math.round(recorte.height * escala)),
+        };
+    }
+
+    // Desenha num canvas branco (JPEG não tem transparência) e devolve o data URL.
+    function paraJpeg(recorte, largura, altura) {
+        var canvas = document.createElement("canvas");
+        canvas.width = largura;
+        canvas.height = altura;
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, largura, altura);
+        ctx.drawImage(recorte, 0, 0, largura, altura);
+        return canvas.toDataURL("image/jpeg", 0.9);
+    }
+
+    function ajustarMinimoCaixa(cropper, alvo, largura, altura) {
+        var rect = alvo.getBoundingClientRect();
+        if (!rect.width || !rect.height || !alvo.naturalWidth) return;
+        // Quantos pixels naturais cada pixel exibido representa.
+        var densidade = alvo.naturalWidth / rect.width;
+        if (!densidade) return;
+        cropper.setOptions({
+            minCropBoxWidth: Math.min(rect.width, largura / densidade),
+            minCropBoxHeight: Math.min(rect.height, altura / densidade),
+        });
+    }
+
+    function mostrarAviso(raiz, imagem, largura, altura) {
+        var aviso = raiz.querySelector("[data-cropper-aviso]");
+        if (!aviso) return;
+        var w = imagem.naturalWidth;
+        var h = imagem.naturalHeight;
+        if (w && h && (w < largura || h < altura)) {
+            aviso.textContent =
+                "Imagem de " + w + "×" + h + " px: o corte vai sair com no " +
+                "máximo " + Math.min(w, largura) + "×" + Math.min(h, altura) +
+                " px (sem ampliar).";
+            aviso.hidden = false;
+        } else {
+            aviso.hidden = true;
+            aviso.textContent = "";
+        }
     }
 
     function iniciarCampo(raiz) {
@@ -66,8 +146,14 @@
             if (!file || !/^image\//.test(file.type)) return;
             var leitor = new FileReader();
             leitor.onload = function () {
-                alvo.src = leitor.result;
-                modal.show();
+                var imagem = new Image();
+                imagem.onload = function () {
+                    var reduzida = reduzirSeGigante(imagem);
+                    alvo.src = reduzida || leitor.result;
+                    mostrarAviso(raiz, imagem, largura, altura);
+                    modal.show();
+                };
+                imagem.src = leitor.result;
             };
             leitor.readAsDataURL(file);
         });
@@ -83,7 +169,9 @@
                 responsive: true,
                 background: false,
                 modal: true,
+                checkOrientation: true,
             });
+            ajustarMinimoCaixa(cropper, alvo, largura, altura);
         });
 
         modalEl.addEventListener("hidden.bs.modal", function () {
@@ -102,9 +190,11 @@
 
         confirmar.addEventListener("click", function () {
             if (!cropper) return;
-            var canvas = cropper.getCroppedCanvas({ width: largura, height: altura });
-            if (!canvas) return;
-            var dataUrl = canvas.toDataURL("image/png");
+            // Resolução real do recorte (sem ampliar; considera o zoom do usuário).
+            var recorte = cropper.getCroppedCanvas();
+            if (!recorte || !recorte.width || !recorte.height) return;
+            var saidaTam = calcularSaida(recorte, largura, altura);
+            var dataUrl = paraJpeg(recorte, saidaTam.largura, saidaTam.altura);
             if (preview) preview.src = dataUrl;
             if (saida) saida.value = dataUrl;
             // Depois do primeiro corte o botão vira "Trocar imagem" (só na capa;

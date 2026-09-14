@@ -4,9 +4,13 @@
 <div class="cards-mobile d-md-none app-list">
     {% for atividade in atividades %}
     <div class="app-item atividade-item" data-atividade-id="{{ atividade.id }}">
+        {% if atividade.imagem %}
+        <div class="dot dot-foto"><img src="{{ atividade.imagem.url }}" alt="Imagem da atividade {{ atividade.titulo }}" loading="lazy" decoding="async"></div>
+        {% else %}
         <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
             <i class="fa-solid fa-bullhorn"></i>
         </div>
+        {% endif %}
         <div class="info">
             <h5 class="atividade-titulo"><span class="atividade-nome">{{ atividade.titulo }}</span></h5>
             {% if atividade.quando_legivel %}

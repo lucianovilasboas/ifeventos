@@ -155,13 +155,13 @@
                 <section class="ativ-sec">
                     <div class="ativ-sec-head">
                         <h3>Imagem</h3>
-                        <span>opcional · aparece no card do evento</span>
+                        <span>opcional · miniatura no card da atividade</span>
                     </div>
 
                     {% if form_ativ.instance.imagem %}
-                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form_ativ.instance.imagem.url variante="capa" tem_imagem=1 aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form_ativ.instance.imagem.url variante="capa" tem_imagem=1 aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                     {% else %}
-                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                     {% endif %}
                 </section>
 

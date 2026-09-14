@@ -32,9 +32,13 @@
     <div class="app-list">
         {% for atividade in evento.atividades.all %}
         <div class="app-item" style="align-items:stretch">
+            {% if atividade.imagem %}
+            <div class="dot dot-foto"><img src="{{ atividade.imagem.url }}" alt="Imagem da atividade {{ atividade.titulo }}" loading="lazy" decoding="async"></div>
+            {% else %}
             <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
                 <i class="fa-solid fa-bullhorn"></i>
             </div>
+            {% endif %}
             <div class="info" style="overflow:hidden">
                 <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
                     <h5>{{ atividade.titulo }}</h5>

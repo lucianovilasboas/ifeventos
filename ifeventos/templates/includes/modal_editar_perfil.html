@@ -37,7 +37,7 @@
                         <!-- Foto de Perfil (com recorte) -->
                         <div class="text-center mb-4">
                             <label class="form-label d-block"><i class="fa-solid fa-camera"></i> Foto de Perfil</label>
-                            {% include 'includes/campo_imagem.html' with nome="foto" preview_url=request.user.get_foto_url variante="avatar" tem_imagem=1 aspect="1" largura=200 altura=200 alt="Foto de perfil" dica="Clique na foto para selecionar uma nova imagem." %}
+                            {% include 'includes/campo_imagem.html' with nome="foto" preview_url=request.user.get_foto_url variante="avatar" tem_imagem=1 aspect="1" largura=300 altura=300 alt="Foto de perfil" dica="Clique na foto para selecionar uma nova imagem." %}
                         </div>
 
                         <!-- Nome -->
