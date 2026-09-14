@@ -37,11 +37,7 @@
                         <!-- Foto de Perfil (com recorte) -->
                         <div class="text-center mb-4">
                             <label class="form-label d-block"><i class="fa-solid fa-camera"></i> Foto de Perfil</label>
-                            {% include 'includes/campo_imagem.html' with nome="foto" preview_url=request.user.get_foto_url aspect="1" largura=200 altura=200 classe_preview="profile-avatar-wrap mx-auto" overlay=1 alt="Foto de perfil" %}
-                            <div class="form-text mt-1">
-                                <span class="d-none d-md-inline">Clique na foto para selecionar uma nova imagem.</span>
-                                <span class="d-md-none">Toque na foto para selecionar uma nova imagem.</span>
-                            </div>
+                            {% include 'includes/campo_imagem.html' with nome="foto" preview_url=request.user.get_foto_url variante="avatar" tem_imagem=1 aspect="1" largura=200 altura=200 alt="Foto de perfil" dica="Clique na foto para selecionar uma nova imagem." %}
                         </div>
 
                         <!-- Nome -->

@@ -862,6 +862,10 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 }
 .ativ-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
+/* Variante do componente de imagem: prévia quadrada, casando com o corte 1:1
+   (no formulário de atividade a caixa é 16:9; aqui ela acompanha o recorte). */
+.ativ-thumb.campo-thumb { aspect-ratio: 1 / 1; max-width: 260px; }
+
 .ativ-info {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   background: var(--surface);

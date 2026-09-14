@@ -100,6 +100,10 @@
             var dataUrl = canvas.toDataURL("image/png");
             if (preview) preview.src = dataUrl;
             if (saida) saida.value = dataUrl;
+            // Depois do primeiro corte o botão vira "Trocar imagem" (só na capa;
+            // no avatar não existe rótulo).
+            var rotulo = raiz.querySelector("[data-cropper-rotulo]");
+            if (rotulo) rotulo.textContent = "Trocar imagem";
             modal.hide();
         });
     }

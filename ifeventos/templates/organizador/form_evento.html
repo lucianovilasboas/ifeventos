@@ -89,37 +89,11 @@
                 <div class="row mb-3">
                     <div class="col-md-12 text-center">
                         <label class="form-label"><i class="fa-solid fa-camera"></i> Imagem</label>
-                        <div class="mb-3">
-                            {% if form.instance.imagem %}
-                            <img id="preview-image" src="{{ form.instance.imagem.url }}" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
-                            {% else %}
-                            <img id="preview-image" src="/media/campus-ponte-nova.jpg" class="img-thumbnail rounded" alt="Preview" style="width: 200px; height: 200px; object-fit: cover;">
-                            {% endif %}
-                        </div>
-                        <input type="file" id="id_imagem" name="imagem" class="form-control mt-2" accept="image/*">
-                        <!-- Campo escondido para imagem cortada -->
-                        <input type="hidden" name="cropped_image" id="cropped-image-input">
-                        
-                        <!-- Modal para Cropper -->
-                        <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true">
-                            <div class="modal-dialog modal-lg modal-dialog-centered">
-                            <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="cropperModalLabel">Cortar Imagem</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                            </div>
-                            <div class="modal-body text-center">
-                                <div>
-                                    <img id="image-to-crop" style="max-width: 100%;">
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="button" class="btn btn-app" id="crop-button">Cortar e Usar</button>
-                            </div>
-                            </div>
-                        </div>
-                        </div>
+                        {% if form.instance.imagem %}
+                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form.instance.imagem.url variante="capa" tem_imagem=1 aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                        {% else %}
+                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                        {% endif %}
                     </div>
                 </div>
 
@@ -287,74 +261,6 @@
                 });
             });
         })();
-
-       // Permite clicar na imagem para selecionar o arquivo
-       document.getElementById('preview-image').addEventListener('click', function () {
-            document.getElementById('id_imagem').click();
-        });
-
-
-        let cropper;
-        const inputImage = document.getElementById('id_imagem');
-        const imageToCrop = document.getElementById('image-to-crop');
-        const previewImage = document.getElementById('preview-image');
-        const croppedImageInput = document.getElementById('cropped-image-input');
-        const cropperModalEl = document.getElementById('cropperModal');
-        const cropperModal = new bootstrap.Modal(cropperModalEl);
-
-        inputImage.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file && /^image\/\w+/.test(file.type)) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    imageToCrop.src = reader.result;
-                    cropperModal.show();
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        // Inicializa o Cropper após o modal estar completamente visível
-        cropperModalEl.addEventListener('shown.bs.modal', () => {
-            if (cropper) {
-                cropper.destroy();
-            }
-            cropper = new Cropper(imageToCrop, {
-                aspectRatio: 1,
-                viewMode: 1,
-                dragMode: 'move',
-                autoCropArea: 1,
-                responsive: true,
-                background: false,
-                modal: true,
-            });
-        });
-
-        // Destroi o Cropper ao fechar o modal
-        cropperModalEl.addEventListener('hidden.bs.modal', () => {
-            if (cropper) {
-                cropper.destroy();
-                cropper = null;
-            }
-        });
-
-        document.getElementById('crop-button').addEventListener('click', () => {
-            if (!cropper) return;
-
-            const canvas = cropper.getCroppedCanvas({
-                width: 500,
-                height: 500,
-            });
-
-            if (canvas) {
-                previewImage.src = canvas.toDataURL();
-                croppedImageInput.value = canvas.toDataURL();
-                cropperModal.hide();
-            }
-        });
-
-
-
 
     });
 

@@ -158,52 +158,11 @@
                         <span>opcional · aparece no card do evento</span>
                     </div>
 
-                    <div class="ativ-imagem">
-                        <div class="ativ-thumb">
-                            {% if form_ativ.instance.imagem %}
-                            <img id="preview-image" src="{{ form_ativ.instance.imagem.url }}" alt="Pré-visualização da imagem da atividade">
-                            {% else %}
-                            <img id="preview-image" src="/media/campus-ponte-nova.jpg" alt="Pré-visualização da imagem da atividade">
-                            {% endif %}
-                        </div>
-
-                        <div class="ativ-imagem-acoes">
-                            <button type="button" class="btn btn-outline-secondary" id="escolherImagem">
-                                <i class="fa-solid fa-image"></i>
-                                {% if form_ativ.instance.imagem %}Trocar imagem{% else %}Escolher imagem{% endif %}
-                            </button>
-                        </div>
-
-                        <!-- O campo de arquivo fica oculto: quem o abre é o botão acima.
-                             Continua no formulário para enviar o arquivo no POST. -->
-                        <input type="file" id="id_imagem" name="imagem" class="ativ-file-oculto" accept="image/*"
-                               tabindex="-1" aria-hidden="true">
-                        <!-- Campo escondido para imagem cortada -->
-                        <input type="hidden" name="cropped_image" id="cropped-image-input">
-
-                        <small class="text-muted">A pré-visualização mostra a imagem inteira (16:9), sem cortar.</small>
-                    </div>
-
-                    <!-- Modal para Cropper -->
-                    <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-lg modal-dialog-centered">
-                        <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="cropperModalLabel">Cortar Imagem</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                        </div>
-                        <div class="modal-body text-center">
-                            <div>
-                                <img id="image-to-crop" style="max-width: 100%;">
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-app" id="crop-button">Cortar e Usar</button>
-                        </div>
-                        </div>
-                    </div>
-                    </div>
+                    {% if form_ativ.instance.imagem %}
+                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form_ativ.instance.imagem.url variante="capa" tem_imagem=1 aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                    {% else %}
+                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="1" largura=500 altura=500 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                    {% endif %}
                 </section>
 
                 <!-- ===================== AÇÕES ===================== -->
@@ -407,78 +366,6 @@
                     //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
                 }
             });
-        });
-
-
-
-
-       // Um único alvo para escolher o arquivo: o botão (antes a própria
-       // pré-visualização também abria o seletor, duplicando a ação).
-       let botaoEscolherImagem = document.getElementById('escolherImagem');
-        if (botaoEscolherImagem) {
-            botaoEscolherImagem.addEventListener('click', function () {
-                document.getElementById('id_imagem').click();
-            });
-        }
-
-
-        let cropper;
-        const inputImage = document.getElementById('id_imagem');
-        const imageToCrop = document.getElementById('image-to-crop');
-        const previewImage = document.getElementById('preview-image');
-        const croppedImageInput = document.getElementById('cropped-image-input');
-        const cropperModalEl = document.getElementById('cropperModal');
-        const cropperModal = new bootstrap.Modal(cropperModalEl);
-
-        inputImage.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file && /^image\/\w+/.test(file.type)) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    imageToCrop.src = reader.result;
-                    cropperModal.show();
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        // Inicializa o Cropper após o modal estar completamente visível
-        cropperModalEl.addEventListener('shown.bs.modal', () => {
-            if (cropper) {
-                cropper.destroy();
-            }
-            cropper = new Cropper(imageToCrop, {
-                aspectRatio: 1,
-                viewMode: 1,
-                dragMode: 'move',
-                autoCropArea: 1,
-                responsive: true,
-                background: false,
-                modal: true,
-            });
-        });
-
-        // Destroi o Cropper ao fechar o modal
-        cropperModalEl.addEventListener('hidden.bs.modal', () => {
-            if (cropper) {
-                cropper.destroy();
-                cropper = null;
-            }
-        });
-
-        document.getElementById('crop-button').addEventListener('click', () => {
-            if (!cropper) return;
-
-            const canvas = cropper.getCroppedCanvas({
-                width: 500,
-                height: 500,
-            });
-
-            if (canvas) {
-                previewImage.src = canvas.toDataURL();
-                croppedImageInput.value = canvas.toDataURL();
-                cropperModal.hide();
-            }
         });
 
 

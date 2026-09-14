@@ -1,42 +1,61 @@
 {% comment %}
-Campo de imagem com recorte (Cropper). Parametros do {% include %}:
+Campo de imagem com recorte (Cropper), espelhado no formulário de atividade.
 
-  nome            (obrigatorio) atributo name do input de arquivo
-  preview_url     (obrigatorio) imagem inicial da pre-visualizacao
-  aspect          proporcao do corte (ex.: "1", "16/9") - padrao "1"
-  largura/altura  tamanho do canvas gerado - padrao 500/500
-  input_visivel   se presente, mostra o input de arquivo (senao fica oculto)
-  classe_preview  classes extras do container da pre-visualizacao
+Parâmetros do {% include %}:
+
+  nome            (obrigatório) atributo name do input de arquivo
+  preview_url     (obrigatório) imagem inicial da pré-visualização
+  variante        "capa" (padrão) ou "avatar"
+  tem_imagem      se presente, o botão diz "Trocar imagem" em vez de "Escolher"
+  aspect          proporção do corte (ex.: "1", "16/9") — padrão "1"
+  largura/altura  tamanho do canvas gerado — padrão 500/500
+  dica            texto auxiliar abaixo do campo
   alt             texto alternativo da imagem
-  overlay         se presente, mostra o icone de camera sobre a imagem
 
-O markup nao usa IDs: cada campo busca os proprios elementos pelo escopo
-([data-cropper-campo]). Assim varios campos podem coexistir na mesma pagina
-(ex.: perfil + novo evento + novo palestrante) sem colidir.
+Não usa IDs: cada campo resolve os próprios elementos por escopo
+([data-cropper-campo]). Assim vários campos convivem na mesma página
+(dashboard = perfil + novo evento; atividade = 3 campos) sem colidir.
 
-O JS que liga tudo esta em static/js/cropper_campo.js.
+O JS que liga tudo está em static/js/cropper_campo.js.
 {% endcomment %}
-<div class="cropper-campo"
+<div class="cropper-campo{% if variante == 'avatar' %} text-center{% else %} ativ-imagem{% endif %}"
      data-cropper-campo
      data-cropper-aspect="{{ aspect|default:'1' }}"
      data-cropper-largura="{{ largura|default:'500' }}"
      data-cropper-altura="{{ altura|default:'500' }}">
 
-    <div class="cropper-preview {{ classe_preview }}"
-         data-cropper-escolher role="button" tabindex="0" title="Escolher imagem">
-        <img src="{{ preview_url }}" alt="{{ alt|default:'Pré-visualização da imagem' }}" data-cropper-preview>
-        {% if overlay %}<span class="profile-avatar-overlay"><i class="fa-solid fa-camera" aria-hidden="true"></i></span>{% endif %}
+    {% if variante == 'avatar' %}
+    {# Avatar redondo: clicar na foto abre o seletor. #}
+    <div class="profile-avatar-wrap mx-auto" data-cropper-escolher role="button" tabindex="0" title="Trocar a foto">
+        <img src="{{ preview_url }}" alt="{{ alt|default:'Foto' }}" data-cropper-preview>
+        <span class="profile-avatar-overlay"><i class="fa-solid fa-camera" aria-hidden="true"></i></span>
     </div>
-
-    {% if input_visivel %}
-    <input type="file" name="{{ nome }}" accept="image/*" class="form-control mt-2" data-cropper-input>
-    {% else %}
     <input type="file" name="{{ nome }}" accept="image/*" class="d-none"
+           tabindex="-1" aria-hidden="true" data-cropper-input>
+
+    {% else %}
+    {# Capa: prévia quadrada (imagem inteira) + botão "Escolher imagem". #}
+    <div class="ativ-thumb campo-thumb" data-cropper-escolher role="button" tabindex="0" title="Escolher imagem">
+        <img src="{{ preview_url }}" alt="{{ alt|default:'Pré-visualização da imagem' }}" data-cropper-preview>
+    </div>
+    <button type="button" class="btn btn-outline-secondary" data-cropper-escolher>
+        <i class="fa-solid fa-image" aria-hidden="true"></i>
+        <span data-cropper-rotulo>{% if tem_imagem %}Trocar imagem{% else %}Escolher imagem{% endif %}</span>
+    </button>
+    <input type="file" name="{{ nome }}" accept="image/*" class="ativ-file-oculto"
            tabindex="-1" aria-hidden="true" data-cropper-input>
     {% endif %}
 
     {# O recorte (data URL base64) viaja aqui; a view troca o arquivo por ele. #}
     <input type="hidden" name="cropped_image" data-cropper-saida>
+
+    {% if dica %}
+        {% if variante == 'avatar' %}
+        <div class="form-text mt-1">{{ dica }}</div>
+        {% else %}
+        <small class="text-muted">{{ dica }}</small>
+        {% endif %}
+    {% endif %}
 
     <div class="modal fade" data-cropper-modal tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
