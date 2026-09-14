@@ -71,8 +71,13 @@ def evento_programacao_view(request, evento_id):
         evento  = get_object_or_404(Evento, id=evento_id)
     except Http404 as e:
         return redirect('eventos:eventos')
-    
-    return render(request, 'eventos/programacao.html', {'evento': evento})
+
+    # Ordem cronológica: a atividade que acontece antes aparece primeiro.
+    atividades = evento.atividades.order_by("data_hora_inicio", "id")
+    return render(request, 'eventos/programacao.html', {
+        'evento': evento,
+        'atividades': atividades,
+    })
 
 
 

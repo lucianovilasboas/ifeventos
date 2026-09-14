@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}Programação | {{ evento.title }}{% endblock %}
 
 {% block content %}
@@ -28,10 +29,14 @@
     </div>
 
     <!-- Lista de Atividades -->
-    <div class="app-sec"><h2><i class="fa-solid fa-list-check"></i> Programação do Evento</h2><span style="color:var(--app-muted);font-size:12px">{{ evento.atividades.all|length }} atividade(s)</span></div>
-    <div class="app-list">
-        {% for atividade in evento.atividades.all %}
-        <div class="app-item" style="align-items:stretch">
+    <div class="app-sec"><h2><i class="fa-solid fa-list-check"></i> Programação do Evento</h2><span style="color:var(--app-muted);font-size:12px">{{ atividades|length }} atividade(s)</span></div>
+    <div data-busca-lista>
+        <div class="busca-lista">
+            <input type="search" data-busca placeholder="Buscar atividade pelo nome" aria-label="Buscar atividade pelo nome">
+        </div>
+        <div class="app-list">
+        {% for atividade in atividades %}
+        <div class="app-item" style="align-items:stretch" data-titulo="{{ atividade.titulo }}">
             {% if atividade.imagem %}
             <div class="dot dot-foto"><img src="{{ atividade.imagem.url }}" alt="Imagem da atividade {{ atividade.titulo }}" loading="lazy" decoding="async"></div>
             {% else %}
@@ -98,6 +103,12 @@
             </div>
         </div>
         {% endfor %}
+            <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma atividade encontrada com esse termo.</p>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/lista_busca.js' %}?v={{ ASSET_VERSION }}"></script>
 {% endblock %}

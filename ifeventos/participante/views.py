@@ -22,7 +22,10 @@ def dashboard(request):
     participante = get_object_or_404(Participante, id=request.user.id)
 
     inscricoes = Inscricao.objects.filter(participante=participante)
-    atividades = Atividade.objects.exclude(inscritos__participante=participante)  # Atividades não inscritas
+    # Atividades não inscritas, da que acontece antes para a que acontece depois.
+    atividades = Atividade.objects.exclude(inscritos__participante=participante).order_by(
+        "data_hora_inicio", "id"
+    )
 
     form = ParticipanteUpdateForm(instance=participante)
 

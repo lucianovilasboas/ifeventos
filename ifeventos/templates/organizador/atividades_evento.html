@@ -122,7 +122,7 @@
             refreshCounts(id, data.n_vagas, data.n_inscricoes);
         }
         if (data.titulo) {
-            // Só o nome: a célula tem também a data, e textContent nela apagaria.
+            // Só o nome: a célula do título carrega o data-valor da ordenação.
             const celulas = document.querySelectorAll(`[data-atividade-id="${id}"] .atividade-titulo`);
             celulas.forEach(celula => {
                 const nome = celula.querySelector(".atividade-nome");
@@ -161,9 +161,11 @@
             const newRow = document.createElement("tr");
             newRow.className = "atividade-item";
             newRow.setAttribute("data-atividade-id", id);
+            const dataIso = escAttr(data.data_hora_inicio || "");
             newRow.innerHTML = `
                 <td></td>
-                <td class="atividade-titulo" data-valor="${tAttr}"><span class="atividade-nome">${t}</span>${q ? `<small class="atividade-quando">${q}</small>` : ""}</td>
+                <td class="atividade-titulo" data-valor="${tAttr}"><span class="atividade-nome">${t}</span></td>
+                <td data-valor="${dataIso}">${q ? `<small class="atividade-quando">${q}</small>` : ""}</td>
                 <td>${ty}</td>
                 <td class="js-vagas" data-id="${id}">${vagas}</td>
                 <td class="js-inscritos" data-id="${id}">${inscritos}</td>

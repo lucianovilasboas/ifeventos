@@ -49,9 +49,13 @@
             <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">{{ atividades|length }}</span>
         </div>
         {% if atividades %}
-        <div class="app-list px-1">
+        <div data-busca-lista>
+            <div class="busca-lista px-1">
+                <input type="search" data-busca placeholder="Buscar atividade pelo nome" aria-label="Buscar atividade pelo nome">
+            </div>
+            <div class="app-list px-1">
             {% for atividade in atividades %}
-            <div class="app-item">
+            <div class="app-item" data-titulo="{{ atividade.titulo }}">
                 <div class="dot" style="background:linear-gradient(135deg,var(--app-green),var(--app-green-d))">
                     <i class="fa-solid fa-calendar-plus"></i>
                 </div>
@@ -70,6 +74,8 @@
                 </div>
             </div>
             {% endfor %}
+            <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma atividade encontrada com esse termo.</p>
+            </div>
         </div>
         {% else %}
         <div class="app-item">

@@ -12,6 +12,7 @@
 {% endblock content %}
 
 {% block scripts %}
+<script src="{% static 'js/lista_busca.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {

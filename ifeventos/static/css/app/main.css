@@ -233,6 +233,31 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 
 /* ---------- Lista vertical / itens ---------- */
 .app-list { padding: 0 var(--gutter-phone); }
+
+/* Busca dentro de uma lista de atividades (filtro no cliente, sem paginação). */
+.busca-lista { margin-bottom: var(--space-3); }
+.busca-lista input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: var(--text-sm);
+}
+.busca-lista input::placeholder { color: var(--muted); }
+.busca-lista input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.busca-vazio {
+  margin: var(--space-3) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
 .app-item {
   display: flex; align-items: center; gap: var(--space-3);
   background: var(--app-card);
@@ -346,6 +371,8 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 .table thead th.th-ordenavel.is-ordenado { color: var(--fg); }
 .table thead th.th-ordenavel[aria-sort="ascending"]::after { content: "▲"; opacity: 1; color: var(--accent); }
 .table thead th.th-ordenavel[aria-sort="descending"]::after { content: "▼"; opacity: 1; color: var(--accent); }
+/* Ordenação no servidor (relatórios): o cabeçalho inteiro é um link. */
+.table thead th.th-ordenavel a { display: block; color: inherit; text-decoration: none; }
 
 /* ---------- Bottom nav (estilo app) ---------- */
 .app-bottomnav {

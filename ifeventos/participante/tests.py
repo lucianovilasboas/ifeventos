@@ -1,3 +1,45 @@
-from django.test import TestCase
+"""Testes do painel do participante."""
 
-# Create your tests here.
+from datetime import date, datetime, timezone as tz
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.urls import reverse
+
+from eventos.models import Atividade, Evento, TipoAtividade
+
+U = get_user_model()
+SENHA = "SenhaForte123!"
+
+
+class DashboardOrdemAtividadesTests(TestCase):
+    """As atividades disponíveis saem na ordem em que vão acontecer."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_pd@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.participante = U.objects.create_user(
+            email="pd@example.com", password=SENHA, cpf="11144477735"
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.evento = Evento.objects.create(
+            title="Evento", description="d", local="l",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
+            categoria="formacao", organizador=self.org,
+        )
+        for titulo, dia in (("Terceiro", 12), ("Primeiro", 10), ("Segundo", 11)):
+            Atividade.objects.create(
+                evento=self.evento, titulo=titulo, descricao="d", tipo=self.tipo,
+                data_hora_inicio=datetime(2026, 10, dia, 10, 0, tzinfo=tz.utc),
+                data_hora_fim=datetime(2026, 10, dia, 11, 0, tzinfo=tz.utc),
+                n_vagas=10,
+            )
+        self.client.force_login(self.participante)
+
+    def test_atividades_em_ordem_de_data(self):
+        resposta = self.client.get(reverse("participante:dashboard"))
+        self.assertEqual(resposta.status_code, 200)
+        titulos = [a.titulo for a in resposta.context["atividades"]]
+        self.assertEqual(titulos, ["Primeiro", "Segundo", "Terceiro"])

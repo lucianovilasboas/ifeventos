@@ -1,3 +1,89 @@
-from django.test import TestCase
+"""Testes do relatório de inscrições: escopo, filtros e ordenação (server-side)."""
 
-# Create your tests here.
+from datetime import date, datetime, timezone as tz
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.urls import reverse
+
+from eventos.models import Atividade, Evento, Inscricao, TipoAtividade
+
+U = get_user_model()
+SENHA = "SenhaForte123!"
+
+
+class RelatorioInscricoesTests(TestCase):
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_rel@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+
+        def evento(titulo, dia):
+            return Evento.objects.create(
+                title=titulo, description="d", local="l",
+                data_inicio=date(2026, 10, dia), data_fim=date(2026, 10, dia + 1),
+                categoria="formacao", organizador=self.org,
+            )
+
+        def atividade(evento, titulo, dia):
+            return Atividade.objects.create(
+                evento=evento, titulo=titulo, descricao="d", tipo=self.tipo,
+                data_hora_inicio=datetime(2026, 10, dia, 10, 0, tzinfo=tz.utc),
+                data_hora_fim=datetime(2026, 10, dia, 11, 0, tzinfo=tz.utc),
+                n_vagas=10,
+            )
+
+        self.evento_a = evento("Evento A", 1)
+        self.evento_b = evento("Evento B", 5)
+        self.atv_a1 = atividade(self.evento_a, "Abertura", 1)
+        self.atv_a2 = atividade(self.evento_a, "Encerramento", 2)
+        self.atv_b1 = atividade(self.evento_b, "Workshop", 5)
+
+        self.p1 = U.objects.create_user(
+            email="p1@example.com", password=SENHA, cpf="11144477735"
+        )
+        self.p2 = U.objects.create_user(
+            email="p2@example.com", password=SENHA, cpf="12345678909"
+        )
+        Inscricao.objects.create(participante=self.p1, atividade=self.atv_a1, confirmada=True)
+        Inscricao.objects.create(participante=self.p2, atividade=self.atv_a2, confirmada=False)
+        Inscricao.objects.create(participante=self.p1, atividade=self.atv_b1, confirmada=True)
+
+        self.client.force_login(self.org)
+
+    def _url(self, evento=None):
+        return reverse(
+            "organizador:relatorio_inscricoes",
+            kwargs={"evento_id": (evento or self.evento_a).id},
+        )
+
+    def test_escopo_pelo_evento_da_url(self):
+        resposta = self.client.get(self._url())
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.context["total_inscricoes"], 2)
+
+    def test_filtro_por_atividade(self):
+        resposta = self.client.get(self._url(), {"atividade": self.atv_a1.id})
+        self.assertEqual(resposta.context["total_inscricoes"], 1)
+        self.assertEqual(resposta.context["inscricoes"][0].atividade_id, self.atv_a1.id)
+
+    def test_troca_de_evento_por_query(self):
+        resposta = self.client.get(self._url(), {"evento": self.evento_b.id})
+        self.assertEqual(resposta.context["total_inscricoes"], 1)
+        self.assertEqual(resposta.context["evento_selecionado"], self.evento_b.id)
+
+    def test_ordenacao_server_side_por_atividade(self):
+        crescente = self.client.get(self._url(), {"ordenar": "atividade", "dir": "asc"})
+        titulos = [i.atividade.titulo for i in crescente.context["inscricoes"]]
+        self.assertEqual(titulos, ["Abertura", "Encerramento"])
+
+        decrescente = self.client.get(self._url(), {"ordenar": "atividade", "dir": "desc"})
+        titulos = [i.atividade.titulo for i in decrescente.context["inscricoes"]]
+        self.assertEqual(titulos, ["Encerramento", "Abertura"])
+
+    def test_atividades_do_filtro_sao_do_evento_selecionado(self):
+        resposta = self.client.get(self._url())
+        ids = {a.id for a in resposta.context["atividades"]}
+        self.assertEqual(ids, {self.atv_a1.id, self.atv_a2.id})
