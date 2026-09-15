@@ -8,9 +8,13 @@
             <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">{{ inscricoes|length }}</span>
         </div>
         {% if inscricoes %}
-        <div class="app-list px-1">
+        <div data-busca-lista>
+            <div class="busca-lista px-1">
+                <input type="search" data-busca placeholder="Buscar atividade pelo nome" aria-label="Buscar atividade pelo nome">
+            </div>
+            <div class="app-list px-1">
             {% for inscricao in inscricoes %}
-            <div class="app-item">
+            <div class="app-item" data-titulo="{{ inscricao.atividade.titulo }}">
                 <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
                     <i class="fa-solid fa-bookmark"></i>
                 </div>
@@ -29,6 +33,8 @@
                 </div>
             </div>
             {% endfor %}
+            <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma inscrição encontrada com esse termo.</p>
+            </div>
         </div>
         {% else %}
         <div class="app-item">
