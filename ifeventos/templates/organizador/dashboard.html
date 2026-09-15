@@ -5,9 +5,14 @@
 
 {% block action %}
 <h2><i class="fa-solid fa-bookmark"></i> Meus Eventos</h2>
-<button type="button" class="btn btn-app" data-bs-toggle="modal" data-bs-target="#criarEventoModal">
-    <i class="fa-solid fa-plus"></i> Criar
-</button>
+<div class="d-flex gap-2">
+    <a href="{% url 'organizador:importar_metadados' %}" class="btn btn-outline-secondary">
+        <i class="fa-solid fa-file-import"></i> Importar metadados
+    </a>
+    <button type="button" class="btn btn-app" data-bs-toggle="modal" data-bs-target="#criarEventoModal">
+        <i class="fa-solid fa-plus"></i> Criar
+    </button>
+</div>
 {% endblock action %}
 
 {% block content %}

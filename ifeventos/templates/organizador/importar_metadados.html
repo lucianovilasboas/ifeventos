@@ -1,0 +1,87 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}Importar metadados{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="fw-semibold">Importar metadados dos participantes (CSV)</span>
+    <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="container mt-2">
+    <div class="app-panel p-3 mb-3">
+        <p class="mb-2">
+            A coluna-chave é <code>email</code> — a pessoa já precisa existir no sistema.
+            As colunas de metadados são:
+            {% for c in cabecalhos %}<code>{{ c }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.
+        </p>
+        <p class="text-muted small mb-3">
+            Células vazias mantêm o valor atual. Campo que não se aplica ao vínculo da
+            pessoa é ignorado e aparece como aviso. O resultado é validado antes de gravar
+            (obrigatórios, opções do curso etc.).
+        </p>
+        <a href="{% url 'organizador:modelo_metadados_csv' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa-solid fa-download"></i> Baixar modelo CSV
+        </a>
+        <hr>
+        <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-12 col-md-8">
+                <label class="form-label" for="id_arquivo">Arquivo CSV</label>
+                <input type="file" name="arquivo" id="id_arquivo" accept=".csv,text/csv"
+                       class="form-control" required>
+            </div>
+            <div class="col-12 col-md-4 d-grid">
+                <button type="submit" class="btn btn-app">
+                    <i class="fa-solid fa-upload"></i> Importar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if relatorio %}
+        {% if relatorio.erro_geral %}
+        <div class="alert alert-danger">{{ relatorio.erro_geral }}</div>
+        {% else %}
+        <div class="alert alert-info">
+            Total: <b>{{ relatorio.total }}</b> ·
+            Atualizados: <b>{{ relatorio.atualizados }}</b> ·
+            Erros: <b>{{ relatorio.erros }}</b>
+        </div>
+        <div class="table-wrap">
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead class="table-dark">
+                            <tr><th>#</th><th>E-mail</th><th>Status</th><th>Detalhes</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for linha in relatorio.linhas %}
+                            <tr>
+                                <td>{{ linha.indice }}</td>
+                                <td>{{ linha.email }}</td>
+                                <td>
+                                    {% if linha.status == 'atualizado' %}
+                                    <span class="badge bg-success">atualizado</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">erro</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% for erro in linha.erros %}<div class="text-danger small">{{ erro }}</div>{% endfor %}
+                                    {% for aviso in linha.avisos %}<div class="text-warning-emphasis small">{{ aviso }}</div>{% endfor %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock content %}

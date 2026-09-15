@@ -110,6 +110,50 @@ def profile(request):
             return redirect("organizador:profile")
         
     return render(request, 'organizador/form_profile.html', {'form': form })
+
+
+@login_required(login_url='/accounts/login/')
+def importar_metadados(request):
+    """Importa metadados do participante por CSV (organizador/superuser).
+
+    O arquivo atualiza quem já existe (chave = e-mail); campo que não se aplica
+    ao vínculo é ignorado com aviso. Ver `eventos/importacao.py`.
+    """
+    from eventos import importacao
+
+    if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
+        messages.warning(request, "Apenas organizadores podem importar metadados.")
+        return redirect("organizador:dashboard")
+
+    relatorio = None
+    if request.method == "POST":
+        arquivo = request.FILES.get("arquivo")
+        if not arquivo:
+            messages.warning(request, "Selecione um arquivo CSV.")
+        else:
+            relatorio = importacao.importar(arquivo)
+
+    return render(request, "organizador/importar_metadados.html", {
+        "cabecalhos": importacao.cabecalhos(),
+        "relatorio": relatorio,
+    })
+
+
+@login_required(login_url='/accounts/login/')
+def modelo_metadados_csv(request):
+    """Baixa o CSV-modelo (só o cabeçalho) com as colunas configuradas."""
+    import csv
+
+    from django.http import HttpResponse
+
+    from eventos import importacao
+
+    resposta = HttpResponse(content_type="text/csv; charset=utf-8")
+    resposta["Content-Disposition"] = 'attachment; filename="modelo_metadados.csv"'
+    resposta.write("\ufeff")  # BOM: Excel abre os acentos corretamente
+    escritor = csv.writer(resposta)
+    escritor.writerow(importacao.cabecalhos())
+    return resposta
     
 
 

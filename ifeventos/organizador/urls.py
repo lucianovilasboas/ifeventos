@@ -6,6 +6,7 @@ from .views import ModeloCrachaEventoView, dashboard, criar_evento, editar_event
 from .views import atividades_evento, criar_atividade, editar_atividade, excluir_atividade
 from .views import criar_editar_atividade
 from .views import profile
+from .views import importar_metadados, modelo_metadados_csv
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
 
@@ -48,6 +49,10 @@ urlpatterns = [
 
     #-- Profile --
     path('profile/', profile, name='profile'), 
+
+    #-- Metadados do participante (por escola) --
+    path('importar_metadados/', importar_metadados, name='importar_metadados'),
+    path('metadados/modelo.csv', modelo_metadados_csv, name='modelo_metadados_csv'),
 
 
     # -- Relatórios -- 
