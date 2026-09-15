@@ -33,6 +33,15 @@
     </div>
     {% endif %}
 
+    {% if export_urls %}
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3 no-print">
+        <span class="text-muted small">Exportar:</span>
+        {% for e in export_urls %}
+        <a href="{{ e.url }}" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-download"></i> {{ e.rotulo }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Cards (mobile) -->
     <div class="cards-mobile d-md-none app-list mt-3">
         {% for inscrito in inscricoes %}

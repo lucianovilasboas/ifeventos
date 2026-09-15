@@ -22,8 +22,26 @@ class _ColunasMetadadosMixin:
     preservando os demais parâmetros da query (`evento`, `atividade`, `ordenar`…).
     """
 
+    def _selecionadas(self):
+        """Colunas de metadados escolhidas na URL (na ordem da configuração)."""
+        return colunas_selecionadas(self.request.GET)
+
+    @staticmethod
+    def _dados_metadados(participante):
+        obj = getattr(participante, "metadados", None)
+        return dict(obj.dados) if obj else {}
+
+    def _urls_exportacao(self):
+        """Links de exportação preservando a query atual (filtros + colunas)."""
+        urls = []
+        for formato, rotulo in (("csv", "CSV"), ("xlsx", "Excel"), ("pdf", "PDF")):
+            params = self.request.GET.copy()
+            params["export"] = formato
+            urls.append({"rotulo": rotulo, "url": "?" + params.urlencode()})
+        return urls
+
     def metadados_colunas(self):
-        selecionadas = colunas_selecionadas(self.request.GET)
+        selecionadas = self._selecionadas()
         chaves = [c["chave"] for c in selecionadas]
         ordem = [c["chave"] for c in campos_metadados()]
 
@@ -51,6 +69,7 @@ class _ColunasMetadadosMixin:
             "colunas_metadados": selecionadas,
             "colunas_disponiveis": disponiveis,
             "campos_selecionados_str": ",".join(chaves),
+            "export_urls": self._urls_exportacao(),
         }
 
 
@@ -132,6 +151,34 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
             })
         return colunas
 
+    def get(self, request, *args, **kwargs):
+        # Exportação reaproveita os filtros/ordem/colunas da própria URL.
+        formato = request.GET.get("export")
+        if formato in ("csv", "xlsx", "pdf"):
+            return self._exportar(formato)
+        return super().get(request, *args, **kwargs)
+
+    def _exportar(self, formato):
+        from eventos.exportacao import exportar
+
+        colunas = self._selecionadas()
+        cabecalhos = ["Participante", "Atividade", "Evento",
+                      "Confirmada", "Certificado Emitido"] + [c["rotulo"] for c in colunas]
+        linhas = []
+        for inscricao in self.get_queryset():
+            dados = self._dados_metadados(inscricao.participante)
+            nome = f"{inscricao.participante.first_name} {inscricao.participante.last_name}".strip()
+            linhas.append(
+                [nome, inscricao.atividade.titulo, inscricao.atividade.evento.title,
+                 "Sim" if inscricao.confirmada else "Não",
+                 "Sim" if inscricao.certificado_emitido else "Não"]
+                + [dados.get(c["chave"], "") for c in colunas]
+            )
+        return exportar(
+            formato, f"inscricoes_{self._evento_id() or 'todas'}",
+            cabecalhos, linhas, titulo="Relatório de Inscrições",
+        )
+
     def get_context_data(self, **kwargs):
         """
         Adiciona totais (já filtrados), as opções dos filtros e os cabeçalhos.
@@ -179,6 +226,36 @@ class ListaPresencaView(_ColunasMetadadosMixin, LoginRequiredMixin, ListView):
         ).filter(atividade_id=atividade_id)
         return queryset
 
+    def get(self, request, *args, **kwargs):
+        formato = request.GET.get("export")
+        if formato in ("csv", "xlsx", "pdf"):
+            return self._exportar(formato)
+        return super().get(request, *args, **kwargs)
+
+    def _exportar(self, formato):
+        from eventos.exportacao import exportar
+
+        atividade = get_object_or_404(Atividade, id=self.kwargs.get("atividade_id"))
+        colunas = self._selecionadas()
+        cabecalhos = (
+            ["#", "Participante", "Email"]
+            + [c["rotulo"] for c in colunas]
+            + ["Presença Confirmada", "Certificado Emitido"]
+        )
+        linhas = []
+        for indice, inscricao in enumerate(self.get_queryset(), start=1):
+            dados = self._dados_metadados(inscricao.participante)
+            nome = f"{inscricao.participante.first_name} {inscricao.participante.last_name}".strip()
+            linhas.append(
+                [indice, nome, inscricao.participante.email]
+                + [dados.get(c["chave"], "") for c in colunas]
+                + ["Sim" if inscricao.confirmada else "Não",
+                   "Sim" if inscricao.certificado_emitido else "Não"]
+            )
+        return exportar(
+            formato, f"lista_presenca_{atividade.id}",
+            cabecalhos, linhas, titulo=f"Lista de Presença — {atividade.titulo}",
+        )
 
     def get_context_data(self, **kwargs):
         """

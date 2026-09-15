@@ -156,3 +156,83 @@ class MetadadosNosRelatoriosTests(TestCase):
         html = resposta.content.decode()
         self.assertIn("Matrícula", html)
         self.assertIn("2026001", html)
+
+
+class ExportacaoRelatoriosTests(TestCase):
+    """Exportação CSV/XLSX/PDF respeitando a seleção de colunas."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_exp@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.evento = Evento.objects.create(
+            title="Evento Exp", description="d", local="l",
+            data_inicio=date(2026, 10, 1), data_fim=date(2026, 10, 2),
+            categoria="formacao", organizador=self.org,
+        )
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Abertura", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 1, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 1, 11, 0, tzinfo=tz.utc),
+            n_vagas=10,
+        )
+        self.aluno = U.objects.create_user(
+            email="aluno@example.com", password=SENHA, cpf="11144477735",
+            first_name="Aluna", last_name="Teste",
+        )
+        ParticipanteMetadados.objects.create(
+            participante=self.aluno,
+            dados={"vinculo": "Aluno", "matricula": "2026001", "curso": "Informática"},
+        )
+        Inscricao.objects.create(
+            participante=self.aluno, atividade=self.atividade, confirmada=True
+        )
+        self.client.force_login(self.org)
+
+    def _inscricoes(self, **params):
+        return self.client.get(
+            reverse("organizador:relatorio_inscricoes", kwargs={"evento_id": self.evento.id}),
+            params,
+        )
+
+    def _lista_presenca(self, **params):
+        return self.client.get(
+            reverse("organizador:relatorio_lista_presenca",
+                    kwargs={"atividade_id": self.atividade.id}),
+            params,
+        )
+
+    def test_csv(self):
+        resposta = self._inscricoes(export="csv")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("text/csv", resposta["Content-Type"])
+        texto = resposta.content.decode("utf-8-sig")
+        self.assertIn("Matrícula", texto)
+        self.assertIn("2026001", texto)
+
+    def test_xlsx(self):
+        resposta = self._inscricoes(export="xlsx")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("spreadsheetml", resposta["Content-Type"])
+        self.assertEqual(resposta.content[:2], b"PK")  # assinatura de zip/xlsx
+
+    def test_pdf(self):
+        resposta = self._inscricoes(export="pdf")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "application/pdf")
+        self.assertEqual(resposta.content[:4], b"%PDF")
+
+    def test_export_respeita_selecao_de_colunas(self):
+        resposta = self._inscricoes(export="csv", campos="matricula")
+        cabecalho = resposta.content.decode("utf-8-sig").splitlines()[0]
+        self.assertIn("Matrícula", cabecalho)
+        self.assertNotIn("Curso", cabecalho)
+
+    def test_lista_presenca_csv(self):
+        resposta = self._lista_presenca(export="csv")
+        self.assertEqual(resposta.status_code, 200)
+        texto = resposta.content.decode("utf-8-sig")
+        self.assertIn("Matrícula", texto)
+        self.assertIn("2026001", texto)
