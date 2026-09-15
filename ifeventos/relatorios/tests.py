@@ -1,4 +1,4 @@
-"""Testes do relatório de inscrições: escopo, filtros e ordenação (server-side)."""
+"""Testes do relatório de inscrições: escopo, busca livre e ordenação."""
 
 from datetime import date, datetime, timezone as tz
 
@@ -48,10 +48,16 @@ class RelatorioInscricoesTests(TestCase):
         self.atv_b1 = atividade(self.evento_b, "Workshop", 5)
 
         self.p1 = U.objects.create_user(
-            email="p1@example.com", password=SENHA, cpf="11144477735"
+            email="ana@example.com", password=SENHA, cpf="11144477735",
+            first_name="Ana", last_name="Souza",
         )
         self.p2 = U.objects.create_user(
-            email="p2@example.com", password=SENHA, cpf="12345678909"
+            email="bruno@example.com", password=SENHA, cpf="12345678909",
+            first_name="Bruno", last_name="Lima",
+        )
+        ParticipanteMetadados.objects.create(
+            participante=self.p2,
+            dados={"vinculo": "Aluno", "matricula": "2026001", "curso": "TPG"},
         )
         Inscricao.objects.create(participante=self.p1, atividade=self.atv_a1, confirmada=True)
         Inscricao.objects.create(participante=self.p2, atividade=self.atv_a2, confirmada=False)
@@ -65,20 +71,50 @@ class RelatorioInscricoesTests(TestCase):
             kwargs={"evento_id": (evento or self.evento_a).id},
         )
 
+    def _buscar(self, termo):
+        return self.client.get(self._url(), {"q": termo})
+
     def test_escopo_pelo_evento_da_url(self):
         resposta = self.client.get(self._url())
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta.context["total_inscricoes"], 2)
 
-    def test_filtro_por_atividade(self):
-        resposta = self.client.get(self._url(), {"atividade": self.atv_a1.id})
+    def test_busca_por_nome(self):
+        resposta = self._buscar("Ana")
+        self.assertEqual(resposta.context["total_inscricoes"], 1)
+        self.assertEqual(resposta.context["inscricoes"][0].participante_id, self.p1.id)
+
+    def test_busca_por_email(self):
+        resposta = self._buscar("bruno@")
+        self.assertEqual(resposta.context["total_inscricoes"], 1)
+        self.assertEqual(resposta.context["inscricoes"][0].participante_id, self.p2.id)
+
+    def test_busca_por_atividade(self):
+        resposta = self._buscar("Abertura")
         self.assertEqual(resposta.context["total_inscricoes"], 1)
         self.assertEqual(resposta.context["inscricoes"][0].atividade_id, self.atv_a1.id)
 
-    def test_troca_de_evento_por_query(self):
-        resposta = self.client.get(self._url(), {"evento": self.evento_b.id})
+    def test_busca_por_metadado(self):
+        resposta = self._buscar("2026001")
         self.assertEqual(resposta.context["total_inscricoes"], 1)
-        self.assertEqual(resposta.context["evento_selecionado"], self.evento_b.id)
+        self.assertEqual(resposta.context["inscricoes"][0].participante_id, self.p2.id)
+
+    def test_busca_com_multiplos_termos_e_and(self):
+        # "Ana Souza" casa na mesma linha; "Bruno Abertura" exigiria uma única
+        # inscrição com os dois termos (Bruno só está em "Encerramento").
+        self.assertEqual(self._buscar("Ana Souza").context["total_inscricoes"], 1)
+        self.assertEqual(self._buscar("Bruno Abertura").context["total_inscricoes"], 0)
+
+    def test_sem_busca_traz_tudo(self):
+        self.assertEqual(self._buscar("").context["total_inscricoes"], 2)
+        self.assertEqual(self.client.get(self._url()).context["total_inscricoes"], 2)
+
+    def test_sugestoes_do_autocomplete(self):
+        sugestoes = self.client.get(self._url()).context["sugestoes"]
+        self.assertIn("Ana Souza", sugestoes)      # nome
+        self.assertIn("Abertura", sugestoes)       # atividade
+        self.assertIn("2026001", sugestoes)        # metadado
+        self.assertNotIn("Workshop", sugestoes)    # é de outro evento
 
     def test_ordenacao_server_side_por_atividade(self):
         crescente = self.client.get(self._url(), {"ordenar": "atividade", "dir": "asc"})
@@ -89,10 +125,24 @@ class RelatorioInscricoesTests(TestCase):
         titulos = [i.atividade.titulo for i in decrescente.context["inscricoes"]]
         self.assertEqual(titulos, ["Encerramento", "Abertura"])
 
-    def test_atividades_do_filtro_sao_do_evento_selecionado(self):
-        resposta = self.client.get(self._url())
-        ids = {a.id for a in resposta.context["atividades"]}
-        self.assertEqual(ids, {self.atv_a1.id, self.atv_a2.id})
+    def test_links_de_coluna_e_exportacao_preservam_a_busca(self):
+        resposta = self._buscar("Ana")
+        urls_colunas = [c["url"] for c in resposta.context["colunas_disponiveis"]]
+        self.assertTrue(urls_colunas)
+        self.assertTrue(all("q=Ana" in url for url in urls_colunas))
+        urls_export = [e["url"] for e in resposta.context["export_urls"]]
+        self.assertTrue(all("q=Ana" in url for url in urls_export))
+
+    def test_limpar_busca_preserva_colunas_e_ordem(self):
+        resposta = self.client.get(
+            self._url(),
+            {"q": "Ana", "campos": "matricula", "ordenar": "atividade", "dir": "asc"},
+        )
+        limpar = resposta.context["limpar_url"]
+        self.assertNotIn("q=", limpar)
+        self.assertIn("campos=matricula", limpar)
+        self.assertIn("ordenar=atividade", limpar)
+        self.assertIn("dir=asc", limpar)
 
 
 class MetadadosNosRelatoriosTests(TestCase):
@@ -211,6 +261,12 @@ class ExportacaoRelatoriosTests(TestCase):
         texto = resposta.content.decode("utf-8-sig")
         self.assertIn("Matrícula", texto)
         self.assertIn("2026001", texto)
+
+    def test_export_respeita_a_busca(self):
+        com = self._inscricoes(export="csv", q="2026001").content.decode("utf-8-sig")
+        self.assertIn("Aluna", com)
+        sem = self._inscricoes(export="csv", q="nao-existe-xyz").content.decode("utf-8-sig")
+        self.assertNotIn("Aluna Teste", sem)
 
     def test_xlsx(self):
         resposta = self._inscricoes(export="xlsx")

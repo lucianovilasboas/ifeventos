@@ -1,5 +1,6 @@
 {% extends 'dashboard_base.html' %}
 {% load metadados_extras %}
+{% load static %}
 {% block title %}Relatório de Inscrições{% endblock %}
 
 {% block content %}
@@ -14,29 +15,28 @@
 
     <p><strong>Total de Inscrições:</strong> {{ total_inscricoes }} · <strong>Total de Confirmadas:</strong> {{ total_confirmadas }}</p>
 
-    <!-- Filtros -->
-    <form method="get" class="row g-2 align-items-end mb-3">
-        <div class="col-12 col-md-5">
-            <label class="form-label" for="f-evento">Evento</label>
-            <select class="form-select" name="evento" id="f-evento" onchange="this.form.submit()">
-                {% for ev in eventos %}
-                <option value="{{ ev.id }}" {% if ev.id == evento_selecionado %}selected{% endif %}>{{ ev.title }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-12 col-md-5">
-            <label class="form-label" for="f-atividade">Atividade</label>
-            <select class="form-select" name="atividade" id="f-atividade">
-                <option value="">Todas as atividades</option>
-                {% for atv in atividades %}
-                <option value="{{ atv.id }}" {% if atv.id == atividade_selecionada %}selected{% endif %}>{{ atv.titulo }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-12 col-md-2 d-grid">
-            <button type="submit" class="btn btn-app"><i class="fa-solid fa-filter"></i> Filtrar</button>
+    <!-- Busca livre (com autocomplete): filtra sozinha a partir de 4 caracteres -->
+    <form method="get" class="row g-2 mb-3" data-busca-auto data-min="4">
+        {# Preserva colunas e ordenação atuais ao buscar #}
+        {% for col in colunas_metadados %}<input type="hidden" name="campos" value="{{ col.chave }}">{% endfor %}
+        {% if request.GET.ordenar %}<input type="hidden" name="ordenar" value="{{ request.GET.ordenar }}">{% endif %}
+        {% if request.GET.dir %}<input type="hidden" name="dir" value="{{ request.GET.dir }}">{% endif %}
+        <div class="col-12">
+            <label class="form-label" for="f-q">Buscar</label>
+            <input type="search" class="form-control" id="f-q" name="q" value="{{ q }}"
+                   data-busca list="sugestoes-inscricoes" autocomplete="off"
+                   placeholder="Nome, e-mail, atividade, matrícula, curso, turma…">
+            <datalist id="sugestoes-inscricoes">
+                {% for s in sugestoes %}<option value="{{ s }}"></option>{% endfor %}
+            </datalist>
+            <div class="form-text" data-busca-dica hidden>Digite ao menos 4 caracteres para filtrar.</div>
         </div>
     </form>
+    {% if q %}
+    <p class="text-muted small">
+        Buscando por “<strong>{{ q }}</strong>”. <a href="{{ limpar_url }}">Limpar busca</a>
+    </p>
+    {% endif %}
 
     {% if colunas_disponiveis %}
     <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -223,4 +223,8 @@
     });
 </script>
 
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/busca_auto.js' %}?v={{ ASSET_VERSION }}" defer></script>
 {% endblock %}

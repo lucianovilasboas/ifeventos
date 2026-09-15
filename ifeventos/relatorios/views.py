@@ -1,8 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from django.views.generic import ListView
 from django.shortcuts import get_object_or_404
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas
-from eventos.models import Evento, Inscricao, Atividade
+from eventos.models import Inscricao, Atividade
 
 
 # Campos ordenáveis do relatório: chave do cabeçalho -> campos do ORM.
@@ -19,7 +20,7 @@ class _ColunasMetadadosMixin:
     """Contexto das colunas extras (metadados configuráveis) dos relatórios.
 
     `colunas_disponiveis` traz, por campo, um link que liga/desliga a coluna
-    preservando os demais parâmetros da query (`evento`, `atividade`, `ordenar`…).
+    preservando os demais parâmetros da query (`q`, `ordenar`, `dir`…).
     """
 
     def _selecionadas(self):
@@ -82,24 +83,39 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
     # -- filtros (query string) ------------------------------------------------
 
     def _evento_id(self):
-        """Evento selecionado: o da query (?evento=) ou o da URL."""
-        return self.request.GET.get("evento") or self.kwargs.get("evento_id")
+        """Evento do relatório — vem sempre da URL (/relatorio_inscricoes/<id>/)."""
+        return self.kwargs.get("evento_id")
 
-    def _atividade_id(self):
-        return self.request.GET.get("atividade") or None
+    def _busca(self):
+        """Texto livre digitado na busca (`?q=`)."""
+        return (self.request.GET.get("q") or "").strip()
 
-    def _eventos_do_usuario(self):
-        """Eventos que o usuário pode relatar (todos, se superuser)."""
-        user = self.request.user
-        if user.is_superuser:
-            return Evento.objects.all().order_by("data_inicio")
-        return Evento.objects.filter(organizador=user).order_by("data_inicio")
+    def _aplicar_busca(self, queryset, termo):
+        """Busca livre no servidor: cada palavra precisa casar em algum campo.
+
+        Campos: nome/sobrenome, e-mail, título da atividade e os metadados
+        configurados (ex.: matrícula, curso, turma). No servidor porque a lista
+        pagina (20/página) — filtrar no cliente mentiria.
+        """
+        if not termo:
+            return queryset
+        chaves = [c["chave"] for c in campos_metadados()]
+        for palavra in termo.split():
+            condicao = (
+                Q(participante__first_name__icontains=palavra)
+                | Q(participante__last_name__icontains=palavra)
+                | Q(participante__email__icontains=palavra)
+                | Q(atividade__titulo__icontains=palavra)
+            )
+            for chave in chaves:
+                condicao |= Q(
+                    **{f"participante__metadados__dados__{chave}__icontains": palavra}
+                )
+            queryset = queryset.filter(condicao)
+        return queryset
 
     def get_queryset(self):
-        """
-        Inscrições do evento selecionado, opcionalmente de uma atividade, e na
-        ordem pedida pelos cabeçalhos (`?ordenar=&dir=`).
-        """
+        """Inscrições do evento, já com a busca (`?q=`) e a ordem (`?ordenar=`)."""
         queryset = Inscricao.objects.select_related(
             "participante", "participante__metadados", "atividade", "atividade__evento"
         )
@@ -108,9 +124,7 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
         if evento_id:
             queryset = queryset.filter(atividade__evento_id=evento_id)
 
-        atividade_id = self._atividade_id()
-        if atividade_id:
-            queryset = queryset.filter(atividade_id=atividade_id)
+        queryset = self._aplicar_busca(queryset, self._busca())
 
         campos = ORDENACAO.get(self.request.GET.get("ordenar"))
         if campos:
@@ -120,6 +134,34 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
             queryset = queryset.order_by("id")
 
         return queryset
+
+    def _sugestoes(self, evento_id):
+        """Valores distintos do evento para o autocomplete (<datalist>).
+
+        Nomes completos, e-mails, títulos das atividades e valores dos
+        metadados — os mesmos campos que a busca cobre.
+        """
+        if not evento_id:
+            return []
+        inscricoes = Inscricao.objects.filter(atividade__evento_id=evento_id)
+
+        nomes = {
+            f"{(primeiro or '').strip()} {(sobrenome or '').strip()}".strip()
+            for primeiro, sobrenome in inscricoes.values_list(
+                "participante__first_name", "participante__last_name"
+            )
+        }
+        emails = set(inscricoes.values_list("participante__email", flat=True))
+        atividades = set(
+            Atividade.objects.filter(evento_id=evento_id).values_list("titulo", flat=True)
+        )
+        metadados = set()
+        for dados in inscricoes.values_list("participante__metadados__dados", flat=True):
+            if isinstance(dados, dict):
+                metadados.update(str(valor) for valor in dados.values() if valor)
+
+        valores = nomes | emails | atividades | metadados
+        return sorted(v for v in valores if v)
 
     def _colunas(self):
         """Cabeçalhos ordenáveis: rótulo, link que alterna a direção e aria-sort."""
@@ -131,7 +173,7 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
             ("atividade", "Atividade"),
             ("evento", "Evento"),
             ("confirmada", "Confirmada"),
-            ("certificado", "Certificado Emitido"),
+            ("certificado", "Certificado"),
         ):
             if chave == atual:
                 proxima = "desc" if direcao_atual != "desc" else "asc"
@@ -180,26 +222,15 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
         )
 
     def get_context_data(self, **kwargs):
-        """
-        Adiciona totais (já filtrados), as opções dos filtros e os cabeçalhos.
-        """
+        """Totais (já filtrados), busca atual, sugestões e cabeçalhos."""
         context = super().get_context_data(**kwargs)
         evento_id = self._evento_id()
-        atividade_id = self._atividade_id()
         queryset = self.get_queryset()
 
         context["total_inscricoes"] = queryset.count()
         context["total_confirmadas"] = queryset.filter(confirmada=True).count()
-
-        context["eventos"] = self._eventos_do_usuario()
-        context["evento_selecionado"] = int(evento_id) if evento_id else None
-        if evento_id:
-            context["atividades"] = Atividade.objects.filter(
-                evento_id=evento_id
-            ).order_by("data_hora_inicio", "id")
-        else:
-            context["atividades"] = Atividade.objects.none()
-        context["atividade_selecionada"] = int(atividade_id) if atividade_id else None
+        context["q"] = self._busca()
+        context["sugestoes"] = self._sugestoes(evento_id)
 
         context["colunas"] = self._colunas()
         context.update(self.metadados_colunas())
@@ -208,6 +239,12 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
         params = self.request.GET.copy()
         params.pop("page", None)
         context["querystring"] = params.urlencode()
+
+        # "Limpar busca" tira só o `q` (colunas e ordem continuam).
+        limpar = self.request.GET.copy()
+        limpar.pop("q", None)
+        limpar.pop("page", None)
+        context["limpar_url"] = "?" + limpar.urlencode() if limpar else "?"
         return context
 
 
