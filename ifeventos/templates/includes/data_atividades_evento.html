@@ -1,9 +1,14 @@
 
 {% if atividades %}
+<div data-busca-lista>
+<div class="busca-lista">
+    <input type="search" data-busca placeholder="Buscar atividade pelo nome, tipo ou local" aria-label="Buscar atividade pelo nome, tipo ou local">
+</div>
+
 <!-- Cards (mobile) -->
 <div class="cards-mobile d-md-none app-list">
     {% for atividade in atividades %}
-    <div class="app-item atividade-item" data-atividade-id="{{ atividade.id }}">
+    <div class="app-item atividade-item" data-busca-item data-atividade-id="{{ atividade.id }}">
         {% if atividade.imagem %}
         <div class="dot dot-foto"><img src="{{ atividade.imagem.url }}" alt="Imagem da atividade {{ atividade.titulo }}" loading="lazy" decoding="async"></div>
         {% else %}
@@ -71,7 +76,7 @@
                     </thead>
                 <tbody>
                     {% for atividade in atividades %}
-                    <tr class="atividade-item" data-atividade-id="{{ atividade.id }}">
+                    <tr class="atividade-item" data-busca-item data-atividade-id="{{ atividade.id }}">
                         <td>{{ forloop.counter }}</td>
                         {% comment %} data-valor: a coluna ordena pelo título, não pelo
                            texto da data que aparece embaixo. {% endcomment %}
@@ -116,6 +121,9 @@
             </table>
         </div>
     </div>
+</div>
+
+<p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma atividade encontrada com esse termo.</p>
 </div>
 {% else %}
 <div class="app-list">

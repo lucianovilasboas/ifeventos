@@ -76,6 +76,54 @@ class TabelaAtividadesColunaDataTests(TestCase):
         self.assertIn('data-valor="2026-10-10T', html)
 
 
+class BuscaNasAtividadesTests(TestCase):
+    """A lista de atividades do evento tem busca (filtro no cliente)."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_busca_ativ@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        self.evento = Evento.objects.create(
+            title="Evento Busca", description="d", local="l",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
+            categoria="formacao", organizador=self.org,
+        )
+        for titulo, local in (("Abertura", "Auditório"), ("Robótica", "Laboratório")):
+            Atividade.objects.create(
+                evento=self.evento, titulo=titulo, descricao="d", tipo=self.tipo,
+                local=local,
+                data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+                data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+                n_vagas=10,
+            )
+        self.client.force_login(self.org)
+
+    def _html(self):
+        resposta = self.client.get(
+            reverse("organizador:atividades_evento", kwargs={"evento_id": self.evento.id})
+        )
+        self.assertEqual(resposta.status_code, 200)
+        return resposta.content.decode()
+
+    def test_lista_tem_campo_de_busca(self):
+        html = self._html()
+        self.assertIn("data-busca-lista", html)
+        self.assertIn(
+            'data-busca placeholder="Buscar atividade pelo nome, tipo ou local"', html
+        )
+        self.assertIn("data-busca-vazio", html)
+
+    def test_cada_atividade_entra_na_busca(self):
+        # 2 atividades × (card mobile + linha da tabela). O par de atributos
+        # evita contar as chamadas setAttribute do script da página.
+        self.assertEqual(self._html().count("data-busca-item data-atividade-id"), 4)
+
+    def test_script_da_busca_carregado(self):
+        self.assertIn("js/lista_busca.js", self._html())
+
+
 class LandingTotalAtividadesTests(TestCase):
     """O card e o modal da landing mostram o total de atividades do evento."""
 

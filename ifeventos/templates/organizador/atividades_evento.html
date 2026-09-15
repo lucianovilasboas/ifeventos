@@ -65,6 +65,7 @@
 
 {% block scripts %}
 <script src="{% static 'js/tabela_ordenavel.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/lista_busca.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <script>
     // SOCKET_URL vazio = mesma origem da página (produção, atrás do Traefik).
@@ -108,9 +109,16 @@
         if (window.TabelaOrdenavel) window.TabelaOrdenavel.reaplicarTodas();
     }
 
+    // Reaplica a busca ativa depois de a lista mudar (item criado/excluído),
+    // senão o item novo apareceria mesmo sem casar com o termo digitado.
+    function refiltrarAtividades() {
+        if (window.listaBusca) window.listaBusca.atualizar();
+    }
+
     function removeAtividade(id) {
         document.querySelectorAll(`[data-atividade-id="${id}"]`).forEach(el => el.remove());
         reordenarTabela();   // renumera a coluna "#" depois da remoção
+        refiltrarAtividades();
     }
 
     socket.on("atividate_update", (data) => {
@@ -160,6 +168,7 @@
         if (tableBody) {
             const newRow = document.createElement("tr");
             newRow.className = "atividade-item";
+            newRow.setAttribute("data-busca-item", "");
             newRow.setAttribute("data-atividade-id", id);
             const dataIso = escAttr(data.data_hora_inicio || "");
             newRow.innerHTML = `
@@ -180,6 +189,7 @@
                 </td>`;
             tableBody.appendChild(newRow);
             reordenarTabela();   // a nova linha entra na posição certa
+            refiltrarAtividades();
         }
 
         // Adiciona o card (mobile)
@@ -187,6 +197,7 @@
         if (cardList) {
             const card = document.createElement("div");
             card.className = "app-item atividade-item";
+            card.setAttribute("data-busca-item", "");
             card.setAttribute("data-atividade-id", id);
             const imagemUrl = data.imagem_url || "";
             const dot = imagemUrl
@@ -209,6 +220,7 @@
                     </div>
                 </div>`;
             cardList.appendChild(card);
+            refiltrarAtividades();
         }
     });
 
