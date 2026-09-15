@@ -31,7 +31,7 @@
     <!-- Lista de Atividades -->
     <div class="app-sec"><h2><i class="fa-solid fa-list-check"></i> Programação do Evento</h2><span style="color:var(--app-muted);font-size:12px">{{ atividades|length }} atividade(s)</span></div>
     <div data-busca-lista>
-        <div class="busca-lista">
+        <div class="app-list busca-lista">
             <input type="search" data-busca placeholder="Buscar atividade pelo nome" aria-label="Buscar atividade pelo nome">
         </div>
         <div class="app-list">
@@ -44,7 +44,7 @@
                 <i class="fa-solid fa-bullhorn"></i>
             </div>
             {% endif %}
-            <div class="info" style="overflow:hidden">
+            <div class="info">
                 <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
                     <h5>{{ atividade.titulo }}</h5>
                     {% if atividade.n_vagas > atividade.n_inscricoes %}

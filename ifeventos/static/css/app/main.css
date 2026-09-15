@@ -280,9 +280,16 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 /* Quando a atividade tem imagem, o mesmo slot vira a miniatura 1:1. */
 .app-item .dot.dot-foto { overflow: hidden; padding: 0; background: var(--surface-2, #eef0f2); }
 .app-item .dot.dot-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.app-item .info { flex: 1; min-width: 0; }
+.app-item .info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .app-item .info h5 { font-size: var(--text-lg); font-weight: 800; margin: 0; }
 .app-item .info p { color: var(--muted); font-size: var(--text-sm); margin: 4px 0 0; }
+/* Em card, texto longo não pode esticar a página. O caso real: o tipo
+   "Audiência de Instrução e Julgamento Simulada" (317px) num .badge-app, que é
+   nowrap por padrão — empurrava o documento 17px além da tela em 390px (87px
+   em 320px) e, com a página mais larga que a tela, a topbar (sticky) e a
+   bottom nav (fixa) ficavam desalinhadas ao rolar de lado. Quebrar a linha é
+   melhor do que recortar o texto, que é o que o overflow:hidden fazia. */
+.app-item .info .badge-app { white-space: normal; }
 
 .badge-app {
   display: inline-flex; align-items: center; gap: 6px;
