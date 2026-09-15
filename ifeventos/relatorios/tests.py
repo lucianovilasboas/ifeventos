@@ -109,12 +109,23 @@ class RelatorioInscricoesTests(TestCase):
         self.assertEqual(self._buscar("").context["total_inscricoes"], 2)
         self.assertEqual(self.client.get(self._url()).context["total_inscricoes"], 2)
 
-    def test_sugestoes_do_autocomplete(self):
-        sugestoes = self.client.get(self._url()).context["sugestoes"]
-        self.assertIn("Ana Souza", sugestoes)      # nome
-        self.assertIn("Abertura", sugestoes)       # atividade
-        self.assertIn("2026001", sugestoes)        # metadado
-        self.assertNotIn("Workshop", sugestoes)    # é de outro evento
+    def test_ajax_devolve_apenas_o_trecho(self):
+        resposta = self.client.get(
+            self._url(), {"q": "Ana"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+        )
+        self.assertTemplateUsed(resposta, "relatorios/_resultado_inscricoes.html")
+        self.assertEqual(resposta.context["total_inscricoes"], 1)
+        html = resposta.content.decode()
+        # Sem o formulário (o input fica vivo na página) nem a página inteira.
+        self.assertNotIn("<form", html)
+        self.assertNotIn("<html", html)
+        self.assertIn("Total de Inscrições", html)
+
+    def test_pagina_inteira_traz_formulario_e_alvo_do_ajax(self):
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn("data-busca-ajax", html)
+        self.assertIn('id="resultado-inscricoes"', html)
+        self.assertNotIn("<datalist", html)
 
     def test_ordenacao_server_side_por_atividade(self):
         crescente = self.client.get(self._url(), {"ordenar": "atividade", "dir": "asc"})

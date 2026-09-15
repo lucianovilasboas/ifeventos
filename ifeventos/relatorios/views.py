@@ -80,6 +80,14 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
     context_object_name = "inscricoes"
     paginate_by = 20  # Paginação: Exibe 20 inscrições por página
 
+    # -- template --------------------------------------------------------------
+
+    def get_template_names(self):
+        """A busca (AJAX) troca só o trecho de resultados, não a página inteira."""
+        if self.request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return ["relatorios/_resultado_inscricoes.html"]
+        return [self.template_name]
+
     # -- filtros (query string) ------------------------------------------------
 
     def _evento_id(self):
@@ -134,34 +142,6 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
             queryset = queryset.order_by("id")
 
         return queryset
-
-    def _sugestoes(self, evento_id):
-        """Valores distintos do evento para o autocomplete (<datalist>).
-
-        Nomes completos, e-mails, títulos das atividades e valores dos
-        metadados — os mesmos campos que a busca cobre.
-        """
-        if not evento_id:
-            return []
-        inscricoes = Inscricao.objects.filter(atividade__evento_id=evento_id)
-
-        nomes = {
-            f"{(primeiro or '').strip()} {(sobrenome or '').strip()}".strip()
-            for primeiro, sobrenome in inscricoes.values_list(
-                "participante__first_name", "participante__last_name"
-            )
-        }
-        emails = set(inscricoes.values_list("participante__email", flat=True))
-        atividades = set(
-            Atividade.objects.filter(evento_id=evento_id).values_list("titulo", flat=True)
-        )
-        metadados = set()
-        for dados in inscricoes.values_list("participante__metadados__dados", flat=True):
-            if isinstance(dados, dict):
-                metadados.update(str(valor) for valor in dados.values() if valor)
-
-        valores = nomes | emails | atividades | metadados
-        return sorted(v for v in valores if v)
 
     def _colunas(self):
         """Cabeçalhos ordenáveis: rótulo, link que alterna a direção e aria-sort."""
@@ -222,15 +202,13 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
         )
 
     def get_context_data(self, **kwargs):
-        """Totais (já filtrados), busca atual, sugestões e cabeçalhos."""
+        """Totais (já filtrados), busca atual e cabeçalhos."""
         context = super().get_context_data(**kwargs)
-        evento_id = self._evento_id()
         queryset = self.get_queryset()
 
         context["total_inscricoes"] = queryset.count()
         context["total_confirmadas"] = queryset.filter(confirmada=True).count()
         context["q"] = self._busca()
-        context["sugestoes"] = self._sugestoes(evento_id)
 
         context["colunas"] = self._colunas()
         context.update(self.metadados_colunas())

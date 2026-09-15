@@ -13,212 +13,60 @@
 
     <div id="mensagem" class="mt-3"></div>
 
-    <p><strong>Total de Inscrições:</strong> {{ total_inscricoes }} · <strong>Total de Confirmadas:</strong> {{ total_confirmadas }}</p>
-
-    <!-- Busca livre (com autocomplete): filtra sozinha a partir de 4 caracteres -->
-    <form method="get" class="row g-2 mb-3" data-busca-auto data-min="4">
+    <!-- Busca livre: filtra enquanto digita (ver static/js/busca_auto.js).
+         Fica fora do #resultado-inscricoes para o input nunca ser recriado. -->
+    <form method="get" class="mb-3" data-busca-ajax>
         {# Preserva colunas e ordenação atuais ao buscar #}
         {% for col in colunas_metadados %}<input type="hidden" name="campos" value="{{ col.chave }}">{% endfor %}
         {% if request.GET.ordenar %}<input type="hidden" name="ordenar" value="{{ request.GET.ordenar }}">{% endif %}
         {% if request.GET.dir %}<input type="hidden" name="dir" value="{{ request.GET.dir }}">{% endif %}
-        <div class="col-12">
-            <label class="form-label" for="f-q">Buscar</label>
-            <input type="search" class="form-control" id="f-q" name="q" value="{{ q }}"
-                   data-busca list="sugestoes-inscricoes" autocomplete="off"
+        <div class="busca-lista mb-0">
+            <input type="search" id="f-q" name="q" value="{{ q }}" data-busca
+                   autocomplete="off" aria-label="Buscar inscrições"
                    placeholder="Nome, e-mail, atividade, matrícula, curso, turma…">
-            <datalist id="sugestoes-inscricoes">
-                {% for s in sugestoes %}<option value="{{ s }}"></option>{% endfor %}
-            </datalist>
-            <div class="form-text" data-busca-dica hidden>Digite ao menos 4 caracteres para filtrar.</div>
         </div>
     </form>
-    {% if q %}
-    <p class="text-muted small">
-        Buscando por “<strong>{{ q }}</strong>”. <a href="{{ limpar_url }}">Limpar busca</a>
-    </p>
-    {% endif %}
 
-    {% if colunas_disponiveis %}
-    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-        <span class="text-muted small">Colunas:</span>
-        {% for col in colunas_disponiveis %}
-        <a href="{{ col.url }}" class="btn btn-sm {% if col.ativo %}btn-app{% else %}btn-outline-secondary{% endif %}">{{ col.rotulo }}</a>
-        {% endfor %}
+    <div id="resultado-inscricoes" aria-live="polite">
+        {% include "relatorios/_resultado_inscricoes.html" %}
     </div>
-    {% endif %}
-
-    {% if export_urls %}
-    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-        <span class="text-muted small">Exportar:</span>
-        {% for e in export_urls %}
-        <a href="{{ e.url }}" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-download"></i> {{ e.rotulo }}</a>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Cards (mobile) -->
-    <div class="cards-mobile d-md-none app-list">
-        {% for inscricao in inscricoes %}
-        <div class="app-item">
-            <div class="dot" style="background:{% if inscricao.confirmada %}linear-gradient(135deg,var(--app-green),var(--app-green-d)){% else %}linear-gradient(135deg,#f59e0b,#d97706){% endif %}">
-                <i class="fa-solid fa-user-check"></i>
-            </div>
-            <div class="info">
-                <h5>{{ inscricao.participante.first_name }} {{ inscricao.participante.last_name }}</h5>
-                <p class="mb-1"><i class="fa-solid fa-bullhorn"></i> {{ inscricao.atividade.titulo }}</p>
-                <p class="mb-0"><i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>
-                <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
-                    <span class="badge-app" style="background:{% if inscricao.confirmada %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
-                        {% if inscricao.confirmada %}<i class="fa-solid fa-circle-check"></i> Presença confirmada{% else %}<i class="fa-solid fa-clock"></i> Não confirmada{% endif %}
-                    </span>
-                    <span class="js-cert-status badge-app" data-id="{{ inscricao.id }}" style="background:{% if inscricao.certificado_emitido %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
-                        {% if inscricao.certificado_emitido %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
-                    </span>
-                </div>
-                <div class="card-actions">
-                    <a href="{% url 'eventos:gerar_qr_code' inscricao.id %}" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de confirmação">
-                        <i class="fa fa-qrcode"></i>
-                    </a>
-                    {% if inscricao.confirmada and not inscricao.certificado_emitido %}
-                    <button class="btn btn-sm btn-app btn-icon gerar-inscricao" data-inscricao="{{ inscricao.id }}" title="Emitir Certificado">
-                        🎓
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        {% empty %}
-        <div class="app-item">
-            <div class="info text-center" style="flex:1">
-                <h5 style="color:var(--app-muted)">Nenhuma inscrição encontrada.</h5>
-                <p class="mb-0">As inscrições deste evento aparecerão aqui.</p>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    <!-- Tabela (desktop) -->
-    <div class="table-wrap d-none d-md-block">
-        <div class="table-container">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle">
-                    <thead class="table-dark">
-                        <tr>
-                            {% for col in colunas %}
-                            <th class="th-ordenavel{% if col.ativa %} is-ordenado{% endif %}" aria-sort="{{ col.aria }}">
-                                <a href="{{ col.url }}">{{ col.rotulo }}</a>
-                            </th>
-                            {% endfor %}
-                            {% for col in colunas_metadados %}<th>{{ col.rotulo }}</th>{% endfor %}
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for inscricao in inscricoes %}
-                        <tr>
-                            <td>{{ inscricao.participante.first_name }} {{ inscricao.participante.last_name }}</td>
-                            <td>{{ inscricao.atividade.titulo }}</td>
-                            <td>{{ inscricao.atividade.evento.title }}</td>
-                            <td>{% if inscricao.confirmada %}✅ Sim{% else %}❌ Não{% endif %}</td>
-                            <td class="js-cert-status" data-id="{{ inscricao.id }}">{% if inscricao.certificado_emitido %}✅ Sim{% else %}❌ Não{% endif %}</td>
-                            {% for col in colunas_metadados %}<td>{{ inscricao.participante.metadados.dados|meta:col.chave }}</td>{% endfor %}
-                            <td>
-                                <a href="{% url 'eventos:gerar_qr_code' inscricao.id %}" target="_blank" class="btn btn-sm btn-dark" title="QR Code de confirmação">
-                                    <i class="fa fa-qrcode"></i>
-                                </a>
-                                {% if inscricao.confirmada and not inscricao.certificado_emitido %}
-                                <button class="btn btn-sm btn-app gerar-inscricao" data-inscricao="{{ inscricao.id }}" title="Emitir Certificado">
-                                    🎓 Emitir Certificado
-                                </button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="{{ colunas_metadados|length|add:6 }}" class="text-center text-muted">Nenhuma inscrição encontrada.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Paginação -->
-    {% if is_paginated %}
-    <nav>
-        <ul class="pagination justify-content-center">
-            {% if page_obj.has_previous %}
-            <li class="page-item">
-                <a class="page-link" href="?page=1{% if querystring %}&{{ querystring }}{% endif %}">⏮️ Primeira</a>
-            </li>
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">◀️ Anterior</a>
-            </li>
-            {% endif %}
-
-            <li class="page-item disabled">
-                <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-            </li>
-
-            {% if page_obj.has_next %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">Próxima ▶️</a>
-            </li>
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if querystring %}&{{ querystring }}{% endif %}">Última ⏭️</a>
-            </li>
-            {% endif %}
-        </ul>
-    </nav>
-    {% endif %}
 
 </div>
 
 
-<!-- Script para chamar a View via AJAX para emitir certificado -->
+<!-- Emitir certificado via AJAX (delegação: os botões são recriados pela busca) -->
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
+    function setCertStatus(inscricaoId, html) {
+        document.querySelectorAll(`.js-cert-status[data-id="${inscricaoId}"]`).forEach(el => el.innerHTML = html);
+    }
 
-        console.log("Script carregado via inscricoes.html!");
-        let mensagem = document.getElementById("mensagem");
+    document.addEventListener("click", function (e) {
+        const botao = e.target.closest(".gerar-inscricao");
+        if (!botao) return;
+        e.preventDefault();
 
-        function setCertStatus(inscricaoId, html) {
-            document.querySelectorAll(`.js-cert-status[data-id="${inscricaoId}"]`).forEach(el => el.innerHTML = html);
-        }
+        const inscricaoId = botao.getAttribute("data-inscricao");
+        if (!confirm("Tem certeza que deseja emitir o certificado desta inscrição?")) return;
 
-        document.querySelectorAll(".gerar-inscricao").forEach(button => {
-            button.addEventListener("click", function(e) {
-                e.preventDefault();
+        const mensagem = document.getElementById("mensagem");
+        mensagem.innerHTML = `<div class='alert alert-success'>Gerando certificado... </div>`;
+        setCertStatus(inscricaoId, "🔄 Aguarde...");
 
-                let inscricaoId = this.getAttribute("data-inscricao");
-
-                if (confirm("Tem certeza que deseja emitir o certificado desta inscrição?")) {
-                    mensagem.innerHTML = `<div class='alert alert-success'>Gerando certificado... </div>`;
-                    setCertStatus(inscricaoId, "🔄 Aguarde...");
-
-                    fetch(`/organizador/emitir-certificado/inscricao/${inscricaoId}/`, {
-                        method: "POST",
-                        headers: {
-                            "X-CSRFToken": "{{ csrf_token }}",
-                            "Content-Type": "application/json"
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.certificado) {
-                            mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${data.message}</div>`;
-                            setCertStatus(inscricaoId, "✅ Sim");
-                        } else {
-                            mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${data.message}</div>`;
-                        }
-                        document.querySelectorAll(`.gerar-inscricao[data-inscricao="${inscricaoId}"]`).forEach(b => b.remove());
-                    })
-                    .catch(error => {
-                        console.error("Erro ao emitir certificado:", error);
-                    });
-                }
-            });
+        fetch(`/organizador/emitir-certificado/inscricao/${inscricaoId}/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}",
+                "Content-Type": "application/json"
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${data.message}</div>`;
+            setCertStatus(inscricaoId, "✅ Sim");
+            document.querySelectorAll(`.gerar-inscricao[data-inscricao="${inscricaoId}"]`).forEach(b => b.remove());
+        })
+        .catch(error => {
+            console.error("Erro ao emitir certificado:", error);
         });
     });
 </script>
