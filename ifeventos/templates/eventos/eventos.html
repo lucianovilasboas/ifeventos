@@ -121,7 +121,7 @@
 
                 <div class="landing-grid" id="grades">
                     {% for ev in eventos %}
-                    <article class="landing-card {% if forloop.first %}landing-card--full-width{% endif %}" data-cat="{{ ev.categoria }}" data-titulo="{{ ev.title|lower }}" tabindex="0" data-evento="{{ ev.id }}">
+                    <article class="landing-card" data-cat="{{ ev.categoria }}" data-titulo="{{ ev.title|lower }}" tabindex="0" data-evento="{{ ev.id }}">
                         <div class="lcard-cover{% if not ev.imagem %} lcard-cover--fallback{% endif %}">
                             {% if ev.imagem %}<img src="{{ ev.imagem.url }}" alt="Imagem do evento {{ ev.title }}" loading="lazy" decoding="async">{% endif %}
                         </div>
@@ -155,11 +155,11 @@
         <!-- ===================== EVENTOS REALIZADOS ===================== -->
         <section class="landing-proposal">
             {# Últimos eventos realizados e encerrados (data_fim no passado) #}
-            {% if encerrados %}
             <div class="landing-container">
                 <h2 style="font-family:var(--font-display);font-size:var(--text-2xl);font-weight:800;color:var(--fg-strong);max-width:none;">Eventos realizados</h2>
                 <p style="max-width:52ch;margin-top:8px;color:var(--muted);">Registro dos eventos que já passaram. Acompanhe o histórico da programação.</p>
 
+                {% if encerrados %}
                 <div class="landing-grid" style="margin-top:24px;">
                     {% for ev in encerrados %}
                     <article class="landing-card">
@@ -187,8 +187,10 @@
                     </article>
                     {% endfor %}
                 </div>
+                {% else %}
+                <p class="landing-empty">Nenhum evento realizado por enquanto.</p>
+                {% endif %}
             </div>
-            {% endif %}
         </section>
     </main>
 

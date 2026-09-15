@@ -346,12 +346,13 @@
 }
 .landing-card[hidden] { display: none; }
 
-@media (min-width: 768px) {
-  .landing-grid > .landing-card--full-width {
-    flex: 0 0 100%;
-    max-width: 100%;
-  }
-}
+/* Um único card ocupa as duas colunas do grid (1 evento por linha); com dois
+   ou mais o grid segue com 2 colunas. Vale para qualquer .landing-grid. */
+.landing-grid > .landing-card:only-child { grid-column: 1 / -1; }
+
+/* No card de largura total a capa acompanha a proporção 3:1 do recorte — em
+   120px fixos ela virava ~8:1 e o object-fit cortava o topo da imagem. */
+.landing-card:only-child .lcard-cover { height: auto; aspect-ratio: 3 / 1; }
 
 .lcard-top {
   display: flex;

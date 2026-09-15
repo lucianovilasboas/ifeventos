@@ -1,7 +1,7 @@
 <div class="row g-3 mx-0">
     {% for evento in eventos %}
-    <div class="col-md-6 col-lg-4 {% if forloop.first %}col-12{% endif %}">
-        <div class="event-card-app">
+    <div class="{% if eventos|length == 1 %}col-12{% else %}col-md-6{% endif %}">
+        <div class="event-card-app{% if eventos|length == 1 %} event-card-app--full{% endif %}">
             <div class="cover">
                 {% if evento.imagem %}<img src="{{ evento.get_url_imagem }}" alt="{{ evento.title }}">{% endif %}
                 <span class="cover-tag"><i class="fa-solid fa-users"></i> {{ evento.get_n_inscricoes }} inscrito(s)</span>
