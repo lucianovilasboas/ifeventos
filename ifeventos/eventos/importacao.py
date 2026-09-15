@@ -15,12 +15,10 @@ obrigatório) — o mesmo contrato do formulário. Regras:
 
 import csv
 import io
-import re
 
 from eventos import metadados
 
 CABECALHO_EMAIL = "email"
-_NUMERO = re.compile(r"^\d+([.,]\d+)?$")
 
 
 def cabecalhos():
@@ -54,42 +52,51 @@ def ler_linhas(arquivo):
 
 
 def _validar(valores):
-    """Valida o resultado (já com a visibilidade aplicada) e devolve os erros."""
+    """Erros do resultado (rótulo na frente), reusando `metadados.validar`."""
+    rotulos = {c["chave"]: c["rotulo"] for c in metadados.campos()}
     erros = []
-    for campo in metadados.campos():
-        if not metadados.visivel(campo, valores):
-            continue
-        valor = valores.get(campo["chave"], "")
-        if campo["obrigatorio"] and not valor:
-            erros.append(f"'{campo['rotulo']}' é obrigatório.")
-            continue
-        if not valor:
-            continue
-        if campo["tipo"] == "escolha":
-            pai = valores.get(campo["depende_de"]) if campo["depende_de"] else None
-            if valor not in metadados.opcoes_do_campo(campo, pai):
-                erros.append(f"'{campo['rotulo']}': '{valor}' não é um valor válido.")
-        elif campo["tipo"] == "numero" and not _NUMERO.match(valor):
-            erros.append(f"'{campo['rotulo']}': '{valor}' não é um número.")
+    for chave, mensagens in metadados.validar(valores).items():
+        for mensagem in mensagens:
+            erros.append(f"'{rotulos.get(chave, chave)}': {mensagem}")
     return erros
 
 
-def importar(arquivo):
-    """Processa o CSV e devolve o relatório por linha."""
-    from eventos.models import Participante
+def _normalizar_linha(linha):
+    """Chaves minúsculas/sem espaços; valores como texto."""
+    normalizada = {}
+    for chave, valor in (linha or {}).items():
+        chave = (chave or "").strip().lower()
+        if not chave:
+            continue
+        normalizada[chave] = "" if valor is None else str(valor).strip()
+    return normalizada
 
+
+def importar(arquivo):
+    """Lê o CSV e delega o processamento para `importar_linhas`."""
     cabecalho, linhas = ler_linhas(arquivo)
     if CABECALHO_EMAIL not in cabecalho:
         return {
             "erro_geral": "O CSV precisa ter a coluna 'email'.",
             "total": 0, "atualizados": 0, "erros": 0, "linhas": [],
         }
+    return importar_linhas(linhas)
 
+
+def importar_linhas(linhas):
+    """Núcleo: lista de {email, chave: valor} -> relatório por linha.
+
+    Usado pelo CSV (tela do organizador) e pela API/MCP (JSON), para as duas
+    portas contarem a mesma história.
+    """
+    from eventos.models import Participante
+
+    linhas = [_normalizar_linha(linha) for linha in (linhas or [])]
     chaves = [c["chave"] for c in metadados.campos()]
     relatorio = {"total": len(linhas), "atualizados": 0, "erros": 0, "linhas": []}
 
     for indice, linha in enumerate(linhas, start=1):
-        email = (linha.get(CABECALHO_EMAIL) or "").strip()
+        email = linha.get(CABECALHO_EMAIL, "")
         item = {"indice": indice, "email": email, "status": None,
                 "erros": [], "avisos": []}
 

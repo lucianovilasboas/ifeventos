@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -25,6 +26,7 @@ from eventos.crachas import (
     url_presenca_atividade,
     verificar_token,
 )
+from eventos import metadados as metadados_config
 from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca, TipoAtividade
 
 from .permissions import (
@@ -41,8 +43,10 @@ from .serializers import (
     CrachaSerializer,
     EventoSerializer,
     EventoWriteSerializer,
+    ImportarMetadadosSerializer,
     InscricaoCreateSerializer,
     InscricaoSerializer,
+    MeuPerfilSerializer,
     PalestranteSerializer,
     PalestranteWriteSerializer,
     PresencaCreateSerializer,
@@ -61,6 +65,13 @@ class EventoViewSet(viewsets.ModelViewSet):
     queryset = Evento.objects.all().order_by("-data_inicio")
     search_fields = ["title", "description", "local"]
     permission_classes = [AllowAny, IsOrganizador]
+
+    def get_queryset(self):
+        # `n_atividades` anotado evita um COUNT por evento nas listagens.
+        return (
+            Evento.objects.annotate(n_atividades=Count("atividades"))
+            .order_by("-data_inicio")
+        )
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
@@ -194,6 +205,7 @@ class PalestranteViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         dados = serializer.validated_data
+        metadados_novos = dados.pop("metadados", None)
 
         existente = Participante.objects.filter(email__iexact=dados["email"]).first()
         if existente:
@@ -202,6 +214,8 @@ class PalestranteViewSet(viewsets.ModelViewSet):
             existente.is_participante = True
             existente.is_palestrante = True
             existente.save()
+            if metadados_novos is not None:
+                metadados_config.salvar(existente, metadados_novos)
             return Response(
                 PalestranteSerializer(existente).data, status=status.HTTP_200_OK
             )
@@ -219,9 +233,18 @@ class PalestranteViewSet(viewsets.ModelViewSet):
         # Palestrante não faz login: sem senha utilizável.
         novo.set_unusable_password()
         novo.save(update_fields=["password"])
+        if metadados_novos is not None:
+            metadados_config.salvar(novo, metadados_novos)
         return Response(
             PalestranteSerializer(novo).data, status=status.HTTP_201_CREATED
         )
+
+    def perform_update(self, serializer):
+        # `metadados` não é campo do model: grava no JSON após salvar a pessoa.
+        metadados_novos = serializer.validated_data.pop("metadados", None)
+        instance = serializer.save()
+        if metadados_novos is not None:
+            metadados_config.salvar(instance, metadados_novos)
 
 
 class MinhasInscricoesViewSet(viewsets.ModelViewSet):
@@ -565,3 +588,67 @@ class QrCrachaPngView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         return HttpResponse(png_qr(cracha["url"], caixa=10, borda=2), content_type="image/png")
+
+
+class MeuPerfilView(APIView):
+    """GET/PATCH /api/v1/meu-perfil/ — o próprio usuário (token) e seus metadados.
+
+    PATCH parcial edita nome, sobrenome, telefone, endereço e `metadados`.
+    E-mail e CPF são somente-leitura (identidade da conta).
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = MeuPerfilSerializer
+
+    @extend_schema(responses=MeuPerfilSerializer)
+    def get(self, request):
+        return Response(MeuPerfilSerializer(request.user).data)
+
+    @extend_schema(request=MeuPerfilSerializer, responses=MeuPerfilSerializer)
+    def patch(self, request):
+        serializer = MeuPerfilSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class MetadadosConfigView(APIView):
+    """GET /api/v1/metadados/ — o schema dos metadados configurados por escola.
+
+    Exige organizador: é a referência que o MCP/LLM usa para saber as chaves,
+    opções, dependências (`depende_de`) e condicionais (`visivel_quando`).
+    """
+
+    permission_classes = [IsOrganizadorEstrito]
+
+    @extend_schema(
+        responses=OpenApiResponse(description="Schema dos metadados (campos, opções e condicionais).")
+    )
+    def get(self, request):
+        from eventos import metadados
+
+        return Response({"campos": metadados.campos()})
+
+
+class ImportarMetadadosView(APIView):
+    """POST /api/v1/participantes/importar-metadados/ — upsert por e-mail (organizador).
+
+    Mesmo contrato do CSV da tela do organizador, em JSON: cada linha é
+    `{email, <chave>: valor}`. Devolve o relatório por linha
+    (atualizado/erro/avisos).
+    """
+
+    permission_classes = [IsOrganizadorEstrito]
+    serializer_class = ImportarMetadadosSerializer
+
+    @extend_schema(
+        request=ImportarMetadadosSerializer,
+        responses=OpenApiResponse(description="Relatório por linha (atualizado/erro/avisos)."),
+    )
+    def post(self, request):
+        from eventos import importacao
+
+        entrada = ImportarMetadadosSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        relatorio = importacao.importar_linhas(entrada.validated_data["linhas"])
+        return Response(relatorio)

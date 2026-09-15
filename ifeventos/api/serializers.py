@@ -1,7 +1,34 @@
 from rest_framework import serializers
 
+from eventos import metadados as metadados_config
 from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca, TipoAtividade
 from eventos.validators import apenas_digitos
+
+
+class MetadadosField(serializers.DictField):
+    """Campo dos metadados configuráveis do participante (dict chave → valor).
+
+    Leitura: devolve o dicionário salvo. Escrita: valida pela MESMA regra do
+    formulário e da importação (`eventos/metadados.py`) — obrigatório só quando
+    visível, opções do curso, dependência — e descarta campos ocultos.
+    """
+
+    def get_attribute(self, instance):
+        # Ignora o atributo do model (relação reversa) e lê o JSON de uma vez.
+        return metadados_config.dados_de(instance)
+
+    def to_representation(self, value):
+        return dict(value) if value else {}
+
+    def to_internal_value(self, data):
+        if data in (None, ""):
+            return {}
+        if not isinstance(data, dict):
+            raise serializers.ValidationError("Envie um objeto {chave: valor}.")
+        dados, erros = metadados_config.limpar(data)
+        if erros:
+            raise serializers.ValidationError(erros)
+        return dados
 
 
 class ParticipanteResumoSerializer(serializers.ModelSerializer):
@@ -21,11 +48,11 @@ class ParticipanteResumoSerializer(serializers.ModelSerializer):
             "is_palestrante",
         ]
 
-    def get_nome_completo(self, obj):
+    def get_nome_completo(self, obj) -> str:
         name = (obj.first_name or "") + " " + (obj.last_name or "")
         return name.strip() or obj.username or obj.email
 
-    def get_foto_url(self, obj):
+    def get_foto_url(self, obj) -> str | None:
         return obj.get_foto_url() if hasattr(obj, "get_foto_url") else None
 
 
@@ -37,6 +64,7 @@ class PalestranteSerializer(serializers.ModelSerializer):
 
     nome_completo = serializers.SerializerMethodField()
     foto_url = serializers.SerializerMethodField()
+    metadados = MetadadosField(required=False)
 
     class Meta:
         model = Participante
@@ -51,13 +79,14 @@ class PalestranteSerializer(serializers.ModelSerializer):
             "is_participante",
             "is_palestrante",
             "is_organizador",
+            "metadados",
         ]
 
-    def get_nome_completo(self, obj):
+    def get_nome_completo(self, obj) -> str:
         name = (obj.first_name or "") + " " + (obj.last_name or "")
         return name.strip() or obj.username or obj.email
 
-    def get_foto_url(self, obj):
+    def get_foto_url(self, obj) -> str | None:
         return obj.get_foto_url() if hasattr(obj, "get_foto_url") else None
 
 
@@ -76,10 +105,12 @@ class PalestranteWriteSerializer(serializers.ModelSerializer):
         max_length=15, required=False, allow_blank=True, allow_null=True
     )
     endereco = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    metadados = MetadadosField(required=False)
 
     class Meta:
         model = Participante
-        fields = ["id", "first_name", "last_name", "email", "cpf", "telefone", "endereco"]
+        fields = ["id", "first_name", "last_name", "email", "cpf", "telefone",
+                  "endereco", "metadados"]
 
     def validate_email(self, value):
         if self.instance is None:
@@ -127,7 +158,7 @@ class AtividadeSerializer(serializers.ModelSerializer):
             "imagem_url",
         ]
 
-    def get_imagem_url(self, obj):
+    def get_imagem_url(self, obj) -> str | None:
         if hasattr(obj, "get_url_imagem"):
             return obj.get_url_imagem() if not obj.pk else obj.imagem.url if obj.imagem else None
         return None
@@ -138,6 +169,7 @@ class EventoSerializer(serializers.ModelSerializer):
     atividades = AtividadeSerializer(many=True, read_only=True)
     imagem_url = serializers.SerializerMethodField()
     n_inscricoes = serializers.SerializerMethodField()
+    n_atividades = serializers.SerializerMethodField()
     categoria_display = serializers.CharField(
         source="get_categoria_display", read_only=True
     )
@@ -157,18 +189,24 @@ class EventoSerializer(serializers.ModelSerializer):
             "organizador",
             "atividades",
             "n_inscricoes",
+            "n_atividades",
             "created_at",
             "updated_at",
         ]
 
-    def get_imagem_url(self, obj):
+    def get_imagem_url(self, obj) -> str | None:
         # Sem imagem, devolve null. O antigo get_url_imagem() apontava para
         # /media/eventos/default.jpg, arquivo que não existe no projeto: quem
         # consumia a API recebia uma URL que sempre respondia 404.
         return obj.imagem.url if obj.imagem else None
 
-    def get_n_inscricoes(self, obj):
+    def get_n_inscricoes(self, obj) -> int:
         return obj.get_n_inscricoes()
+
+    def get_n_atividades(self, obj) -> int:
+        # O viewset já anota `n_atividades`; o fallback cobre usos avulsos.
+        anotado = getattr(obj, "n_atividades", None)
+        return anotado if anotado is not None else obj.atividades.count()
 
 
 class InscricaoSerializer(serializers.ModelSerializer):
@@ -208,7 +246,7 @@ class CertificadoSerializer(serializers.ModelSerializer):
             "pdf_url",
         ]
 
-    def get_pdf_url(self, obj):
+    def get_pdf_url(self, obj) -> str | None:
         if obj.pdf:
             return obj.pdf.url
         return None
@@ -459,3 +497,71 @@ class QrAtividadeSerializer(serializers.Serializer):
     validade_segundos = serializers.IntegerField(help_text="Quanto tempo este código vale.")
     renovar_em_segundos = serializers.IntegerField(help_text="De quanto em quanto tempo renovar.")
     janela = serializers.DictField(help_text="Abre em, fecha em, se está aberta agora e por quê.")
+
+
+class MeuPerfilSerializer(serializers.ModelSerializer):
+    """Perfil do usuário autenticado (GET/PATCH em /meu-perfil/).
+
+    Edita nome, sobrenome, telefone, endereço e metadados. E-mail e CPF ficam
+    somente-leitura — são a identidade (única) da conta.
+    """
+
+    nome_completo = serializers.SerializerMethodField()
+    foto_url = serializers.SerializerMethodField()
+    metadados = MetadadosField(required=False)
+
+    class Meta:
+        model = Participante
+        fields = [
+            "id",
+            "nome_completo",
+            "first_name",
+            "last_name",
+            "email",
+            "cpf",
+            "telefone",
+            "endereco",
+            "foto_url",
+            "is_participante",
+            "is_palestrante",
+            "is_organizador",
+            "metadados",
+        ]
+        read_only_fields = [
+            "id",
+            "nome_completo",
+            "email",
+            "cpf",
+            "foto_url",
+            "is_participante",
+            "is_palestrante",
+            "is_organizador",
+        ]
+
+    def get_nome_completo(self, obj) -> str:
+        name = (obj.first_name or "") + " " + (obj.last_name or "")
+        return name.strip() or obj.username or obj.email
+
+    def get_foto_url(self, obj) -> str | None:
+        return obj.get_foto_url() if hasattr(obj, "get_foto_url") else None
+
+    def update(self, instance, validated_data):
+        novos = validated_data.pop("metadados", None)
+        instance = super().update(instance, validated_data)
+        if novos is not None:
+            metadados_config.salvar(instance, novos)
+        return instance
+
+
+class ImportarMetadadosSerializer(serializers.Serializer):
+    """Corpo do POST /participantes/importar-metadados/ (mesmo contrato do CSV).
+
+    Cada linha é um dicionário `{email, <chave>: valor}`; a pessoa precisa
+    existir (chave = e-mail). O processamento usa `eventos/importacao.py`.
+    """
+
+    linhas = serializers.ListField(
+        child=serializers.DictField(),
+        allow_empty=False,
+        help_text="Lista de {email, <chave>: valor}, igual às linhas do CSV.",
+    )

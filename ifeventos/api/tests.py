@@ -158,3 +158,83 @@ class AtividadeLocalApiTests(_BaseApiTests):
         atividade.refresh_from_db()
         self.assertEqual(atividade.local, "Sala 5")
         self.assertEqual(list(atividade.palestrantes.values_list("id", flat=True)), [palestrante.id])
+
+
+class MetadadosApiTests(_BaseApiTests):
+    """Metadados na API: palestrante, /meu-perfil/, /metadados/ e import."""
+
+    def test_palestrante_traz_metadados(self):
+        self._autenticar(self.organizador)
+        resposta = self._criar_palestrante(
+            metadados={"vinculo": "Servidor", "funcao": "Professor"}
+        )
+        self.assertEqual(resposta.status_code, 201, resposta.content)
+        self.assertEqual(
+            resposta.data["metadados"], {"vinculo": "Servidor", "funcao": "Professor"}
+        )
+
+    def test_meu_perfil_get_e_patch(self):
+        self._autenticar(self.participante)
+        inicial = self.client.get("/api/v1/meu-perfil/")
+        self.assertEqual(inicial.status_code, 200)
+        self.assertEqual(inicial.data["metadados"], {})
+
+        resposta = self.client.patch(
+            "/api/v1/meu-perfil/",
+            {"metadados": {"vinculo": "Aluno", "matricula": "1", "curso": "TPG",
+                           "ano": "Primeiro período"}},
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        self.assertEqual(resposta.data["metadados"]["curso"], "TPG")
+
+    def test_meu_perfil_recusa_dependencia_invalida(self):
+        self._autenticar(self.participante)
+        resposta = self.client.patch(
+            "/api/v1/meu-perfil/",
+            {"metadados": {"vinculo": "Aluno", "matricula": "1", "curso": "TPG",
+                           "ano": "Primeiro ano"}},
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_meu_perfil_descarta_campos_ocultos(self):
+        self._autenticar(self.participante)
+        resposta = self.client.patch(
+            "/api/v1/meu-perfil/",
+            {"metadados": {"vinculo": "Comunidade externa", "matricula": "1"}},
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        self.assertEqual(resposta.data["metadados"], {"vinculo": "Comunidade externa"})
+
+    def test_metadados_config_exige_organizador(self):
+        self._autenticar(self.participante)
+        self.assertEqual(self.client.get("/api/v1/metadados/").status_code, 403)
+
+        self._autenticar(self.organizador)
+        resposta = self.client.get("/api/v1/metadados/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("vinculo", [c["chave"] for c in resposta.data["campos"]])
+
+    def test_importar_metadados_em_lote(self):
+        self._autenticar(self.organizador)
+        resposta = self.client.post(
+            "/api/v1/participantes/importar-metadados/",
+            {"linhas": [{
+                "email": self.participante.email, "vinculo": "Aluno",
+                "matricula": "1", "curso": "TPG",
+            }]},
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, 200, resposta.content)
+        self.assertEqual(resposta.data["atualizados"], 1)
+        self.participante.refresh_from_db()
+        self.assertEqual(self.participante.metadados.dados["curso"], "TPG")
+
+    def test_evento_traz_n_atividades(self):
+        self._autenticar(self.organizador)
+        self.client.post("/api/v1/atividades/", self._dados_atividade(), format="json")
+        resposta = self.client.get(f"/api/v1/eventos/{self.evento.id}/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.data["n_atividades"], 1)

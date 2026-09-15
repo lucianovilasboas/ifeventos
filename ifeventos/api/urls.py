@@ -11,6 +11,9 @@ from .viewsets import (
     AtividadeViewSet,
     CrachasEventoPDFView,
     EventoViewSet,
+    ImportarMetadadosView,
+    MetadadosConfigView,
+    MeuPerfilView,
     MeusCertificadosViewSet,
     MeusCrachasViewSet,
     MinhasInscricoesViewSet,
@@ -42,6 +45,10 @@ urlpatterns = [
     # Imagens dos QR: rota literal (ver comentário em viewsets.py sobre o porquê)
     path("atividades/<int:atividade_id>/qrcode.png", QrAtividadePngView.as_view(), name="atividade-qrcode-png"),
     path("meus-crachas/<int:evento_id>/qr.png", QrCrachaPngView.as_view(), name="cracha-qr-png"),
+    # Metadados do participante (definições, perfil próprio e importação em lote)
+    path("metadados/", MetadadosConfigView.as_view(), name="metadados-config"),
+    path("meu-perfil/", MeuPerfilView.as_view(), name="meu-perfil"),
+    path("participantes/importar-metadados/", ImportarMetadadosView.as_view(), name="importar-metadados"),
     path("", include(router.urls)),
     # Docs OpenAPI / Swagger
     path("schema/", SpectacularAPIView.as_view(), name="schema"),

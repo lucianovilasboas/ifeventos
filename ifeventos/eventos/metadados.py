@@ -7,10 +7,13 @@ configuração e a montagem/validação dos campos, para que formulários,
 relatórios e exportações contem a mesma história.
 """
 
+import re
+
 from django import forms
 from django.conf import settings
 
 TIPOS_VALIDOS = {"texto", "numero", "escolha"}
+_NUMERO = re.compile(r"^\d+([.,]\d+)?$")
 
 
 def _normalizar(item):
@@ -126,6 +129,63 @@ def coletar(cleaned_data):
         if valor:
             dados[campo["chave"]] = valor
     return dados
+
+
+def _normalizar_valores(valores):
+    """Só as chaves configuradas, como texto sem espaços nas pontas."""
+    return {
+        campo["chave"]: ("" if valores.get(campo["chave"]) is None
+                          else str(valores.get(campo["chave"])).strip())
+        for campo in campos()
+    }
+
+
+def _erros_do_campo(campo, valor, valores):
+    if campo["obrigatorio"] and not valor:
+        return ["Este campo é obrigatório."]
+    if not valor:
+        return []
+    if campo["tipo"] == "escolha":
+        pai = valores.get(campo["depende_de"]) if campo["depende_de"] else None
+        if valor not in opcoes_do_campo(campo, pai):
+            return [f"'{valor}' não é um valor válido."]
+    elif campo["tipo"] == "numero" and not _NUMERO.match(valor):
+        return [f"'{valor}' não é um número."]
+    return []
+
+
+def validar(valores):
+    """Valida os metadados e devolve `{chave: [mensagens]}` (só campos visíveis).
+
+    Fonte única da verdade: o formulário, a importação por CSV e a API usam
+    esta mesma validação.
+    """
+    valores = _normalizar_valores(valores)
+    erros = {}
+    for campo in campos():
+        if not visivel(campo, valores):
+            continue
+        mensagens = _erros_do_campo(campo, valores[campo["chave"]], valores)
+        if mensagens:
+            erros[campo["chave"]] = mensagens
+    return erros
+
+
+def limpar(valores):
+    """Devolve `(dados_visiveis, erros)`: o que gravar e o que está errado.
+
+    Campos ocultos (fora da condição de visibilidade) são descartados; campos
+    visíveis e vazios não entram.
+    """
+    valores = _normalizar_valores(valores)
+    erros = validar(valores)
+    dados = {}
+    for campo in campos():
+        if not visivel(campo, valores):
+            continue
+        if valores[campo["chave"]]:
+            dados[campo["chave"]] = valores[campo["chave"]]
+    return dados, erros
 
 
 def colunas_selecionadas(query_params):

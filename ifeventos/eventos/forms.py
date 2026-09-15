@@ -251,28 +251,12 @@ class MetadadosFormMixin:
 
     def clean(self):
         """Obrigatório só quando visível + valida a dependência entre campos."""
-        from .metadados import (
-            campos,
-            nome_do_campo,
-            opcoes_do_campo,
-            valores_meta,
-            visivel,
-        )
+        from .metadados import nome_do_campo, validar, valores_meta
 
         dados = super().clean()
-        valores = valores_meta(dados)
-        for campo in campos():
-            if not visivel(campo, valores):
-                continue
-            nome = nome_do_campo(campo["chave"])
-            valor = valores.get(campo["chave"])
-            if campo["obrigatorio"] and not valor:
-                self.add_error(nome, "Este campo é obrigatório.")
-                continue
-            if campo["depende_de"] and valor:
-                opcoes = opcoes_do_campo(campo, valores.get(campo["depende_de"]))
-                if valor not in opcoes:
-                    self.add_error(nome, "Escolha uma opção válida para o valor anterior.")
+        for chave, mensagens in validar(valores_meta(dados)).items():
+            for mensagem in mensagens:
+                self.add_error(nome_do_campo(chave), mensagem)
         return dados
 
     def save_metadados(self, participante):
