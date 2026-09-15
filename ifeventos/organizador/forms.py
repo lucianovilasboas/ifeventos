@@ -1,12 +1,12 @@
 from django import forms
-from eventos.forms import PalestranteForm, TipoAtividadeForm
+from eventos.forms import MetadadosFormMixin, PalestranteForm, TipoAtividadeForm
 from eventos.models import Participante
 from django.contrib.auth.forms import UserChangeForm
 from django.http import JsonResponse
  
 
 
-class ParticipanteUpdateForm(UserChangeForm):  # Herdando de UserChangeForm para edição de User
+class ParticipanteUpdateForm(MetadadosFormMixin, UserChangeForm):  # UserChangeForm p/ edição de User
     class Meta:
         model = Participante
         fields = [ 'first_name', 'last_name', 'username', 'email', 'cpf', 'telefone', 'endereco', 'foto']

@@ -1,6 +1,7 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView
 from django.shortcuts import get_object_or_404
+from eventos.metadados import campos as campos_metadados, colunas_selecionadas
 from eventos.models import Evento, Inscricao, Atividade
 
 
@@ -14,7 +15,46 @@ ORDENACAO = {
 }
 
 
-class RelatorioInscricoesView(LoginRequiredMixin, ListView):
+class _ColunasMetadadosMixin:
+    """Contexto das colunas extras (metadados configuráveis) dos relatórios.
+
+    `colunas_disponiveis` traz, por campo, um link que liga/desliga a coluna
+    preservando os demais parâmetros da query (`evento`, `atividade`, `ordenar`…).
+    """
+
+    def metadados_colunas(self):
+        selecionadas = colunas_selecionadas(self.request.GET)
+        chaves = [c["chave"] for c in selecionadas]
+        ordem = [c["chave"] for c in campos_metadados()]
+
+        disponiveis = []
+        for campo in campos_metadados():
+            novas = list(chaves)
+            if campo["chave"] in novas:
+                novas.remove(campo["chave"])
+            else:
+                novas.append(campo["chave"])
+            novas = [k for k in ordem if k in set(novas)]
+
+            params = self.request.GET.copy()
+            params.pop("page", None)
+            params.setlist("campos", novas)
+            disponiveis.append({
+                "chave": campo["chave"],
+                "rotulo": campo["rotulo"],
+                "ativo": campo["chave"] in chaves,
+                "url": "?" + params.urlencode(),
+            })
+
+        return {
+            "campos_metadados": campos_metadados(),
+            "colunas_metadados": selecionadas,
+            "colunas_disponiveis": disponiveis,
+            "campos_selecionados_str": ",".join(chaves),
+        }
+
+
+class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListView):
     model = Inscricao
     template_name = "relatorios/inscricoes.html"
     context_object_name = "inscricoes"
@@ -42,7 +82,7 @@ class RelatorioInscricoesView(LoginRequiredMixin, ListView):
         ordem pedida pelos cabeçalhos (`?ordenar=&dir=`).
         """
         queryset = Inscricao.objects.select_related(
-            "participante", "atividade", "atividade__evento"
+            "participante", "participante__metadados", "atividade", "atividade__evento"
         )
 
         evento_id = self._evento_id()
@@ -115,6 +155,7 @@ class RelatorioInscricoesView(LoginRequiredMixin, ListView):
         context["atividade_selecionada"] = int(atividade_id) if atividade_id else None
 
         context["colunas"] = self._colunas()
+        context.update(self.metadados_colunas())
 
         # Querystring dos filtros (sem `page`) para os links de paginação.
         params = self.request.GET.copy()
@@ -123,7 +164,7 @@ class RelatorioInscricoesView(LoginRequiredMixin, ListView):
         return context
 
 
-class ListaPresencaView(LoginRequiredMixin, ListView):
+class ListaPresencaView(_ColunasMetadadosMixin, LoginRequiredMixin, ListView):
     model = Inscricao
     template_name = "relatorios/lista_presenca.html"
     context_object_name = "inscricoes"
@@ -133,9 +174,9 @@ class ListaPresencaView(LoginRequiredMixin, ListView):
         Retorna todas as inscrições confirmadas para a atividade especificada.
         """
         atividade_id = self.kwargs.get("atividade_id")
-        queryset = Inscricao.objects.select_related("participante", "atividade").filter(
-            atividade_id=atividade_id
-        )
+        queryset = Inscricao.objects.select_related(
+            "participante", "participante__metadados", "atividade"
+        ).filter(atividade_id=atividade_id)
         return queryset
 
 
@@ -147,5 +188,6 @@ class ListaPresencaView(LoginRequiredMixin, ListView):
         atividade_id = self.kwargs.get("atividade_id")
         context["atividade"] = get_object_or_404(Atividade, id=atividade_id)
         context["total_inscricoes"] = self.get_queryset().count()
-        context["total_confirmadas"] = self.get_queryset().filter(confirmada=True).count()        
+        context["total_confirmadas"] = self.get_queryset().filter(confirmada=True).count()
+        context.update(self.metadados_colunas())
         return context

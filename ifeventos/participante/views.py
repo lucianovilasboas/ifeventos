@@ -43,6 +43,7 @@ def dashboard(request):
             elif 'foto' in request.FILES:
                 participante.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
             participante.save()  # Agora salvamos no banco
+            form.save_metadados(participante)  # Campos extra do perfil (config)
 
             return redirect("participante:dashboard")
 

@@ -6,7 +6,13 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from eventos.models import Atividade, Evento, Inscricao, TipoAtividade
+from eventos.models import (
+    Atividade,
+    Evento,
+    Inscricao,
+    ParticipanteMetadados,
+    TipoAtividade,
+)
 
 U = get_user_model()
 SENHA = "SenhaForte123!"
@@ -87,3 +93,66 @@ class RelatorioInscricoesTests(TestCase):
         resposta = self.client.get(self._url())
         ids = {a.id for a in resposta.context["atividades"]}
         self.assertEqual(ids, {self.atv_a1.id, self.atv_a2.id})
+
+
+class MetadadosNosRelatoriosTests(TestCase):
+    """As colunas de metadados configurados aparecem (e podem ser escondidas)."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_meta@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.evento = Evento.objects.create(
+            title="Evento Meta", description="d", local="l",
+            data_inicio=date(2026, 10, 1), data_fim=date(2026, 10, 2),
+            categoria="formacao", organizador=self.org,
+        )
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Abertura", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 1, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 1, 11, 0, tzinfo=tz.utc),
+            n_vagas=10,
+        )
+        self.aluno = U.objects.create_user(
+            email="aluno@example.com", password=SENHA, cpf="11144477735",
+            first_name="Aluna", last_name="Teste",
+        )
+        ParticipanteMetadados.objects.create(
+            participante=self.aluno,
+            dados={"matricula": "2026001", "curso": "Informática", "turma": "B"},
+        )
+        Inscricao.objects.create(
+            participante=self.aluno, atividade=self.atividade, confirmada=True
+        )
+        self.client.force_login(self.org)
+
+    def _lista_presenca(self, **params):
+        return self.client.get(
+            reverse(
+                "organizador:relatorio_lista_presenca",
+                kwargs={"atividade_id": self.atividade.id},
+            ),
+            params,
+        )
+
+    def test_lista_presenca_mostra_colunas_configuradas(self):
+        html = self._lista_presenca().content.decode()
+        self.assertIn("Matrícula", html)
+        self.assertIn("2026001", html)
+        self.assertIn("Informática", html)
+
+    def test_lista_presenca_respeita_selecao_de_colunas(self):
+        html = self._lista_presenca(campos="matricula").content.decode()
+        # "Curso" ainda aparece no seletor de colunas, mas não como coluna.
+        self.assertIn("<th>Matrícula</th>", html)
+        self.assertNotIn("<th>Curso</th>", html)
+
+    def test_relatorio_inscricoes_mostra_metadados(self):
+        resposta = self.client.get(
+            reverse("organizador:relatorio_inscricoes", kwargs={"evento_id": self.evento.id})
+        )
+        html = resposta.content.decode()
+        self.assertIn("Matrícula", html)
+        self.assertIn("2026001", html)

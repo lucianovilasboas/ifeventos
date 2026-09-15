@@ -450,6 +450,18 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 .login-container form input:focus { border-color: var(--accent); outline: none; box-shadow: var(--focus-ring); }
 .form-group { margin-bottom: 0; }
 .form-group i { color: var(--accent); }   /* era #6c63ff */
+
+/* Campos extras do participante (metadados configuráveis por escola). */
+.login-container .meta-campo { margin-bottom: 14px; }
+.login-container .meta-campo label {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: var(--text-sm); color: var(--fg); display: block; margin-bottom: 6px;
+}
+.login-container form select.form-control {
+  width: 100%; padding: 12px 15px;
+  border: 2px solid var(--border-ui); border-radius: var(--radius-sm);
+  font-size: var(--text-base); color: var(--fg); background: var(--bg); box-shadow: none;
+}
 .extra-links { text-align: center; margin-top: 16px; }
 .extra-links a { text-decoration: none; color: var(--accent-ink); font-weight: 700; }
 .extra-links a:hover { color: var(--accent-press); text-decoration: underline; }

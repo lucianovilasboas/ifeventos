@@ -67,6 +67,7 @@ def dashboard(request):
                 organizador.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
 
             organizador.save()  # Agora salvamos no banco
+            form.save_metadados(organizador)  # Campos extra do perfil (config)
             # form.save()
 
             return redirect("organizador:dashboard")
@@ -104,6 +105,7 @@ def profile(request):
                 usuario.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
 
             usuario.save()  # Agora salvamos no banco
+            form.save_metadados(usuario)  # Campos extra do perfil (config)
             messages.success(request, "Perfil atualizado com sucesso!")
             return redirect("organizador:profile")
         

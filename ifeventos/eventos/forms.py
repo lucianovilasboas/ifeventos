@@ -218,11 +218,40 @@ class PalestranteForm(forms.ModelForm):
         }
 
 
+class MetadadosFormMixin:
+    """Acrescenta ao formulário os campos configurados em `METADADOS_PARTICIPANTE`.
+
+    Cada campo vira `meta_<chave>` (evita colisão com campos do model) e fica
+    exposto em `form.campos_metadados` (com o BoundField) para os templates.
+    A gravação fica em `save_metadados(participante)`, chamada pela view.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .metadados import campos, construir_field, dados_de, nome_do_campo
+
+        instance = getattr(self, "instance", None)
+        iniciais = dados_de(instance) if instance is not None else {}
+
+        self.campos_metadados = []
+        for campo in campos():
+            nome = nome_do_campo(campo["chave"])
+            self.fields[nome] = construir_field(campo)
+            if campo["chave"] in iniciais:
+                self.initial[nome] = iniciais[campo["chave"]]
+            self.campos_metadados.append({"campo": self[nome], **campo})
+
+    def save_metadados(self, participante):
+        from .metadados import coletar, salvar
+
+        return salvar(participante, coletar(self.cleaned_data))
+
+
 # ---------------------------------------------------------------------------
 # Cadastro de participante (tela /accounts/signup/) — allauth
 # ---------------------------------------------------------------------------
 
-class SignupFormComCpf(AllauthSignupForm):
+class SignupFormComCpf(MetadadosFormMixin, AllauthSignupForm):
     """Cadastro pela web: e-mail + senha + CPF.
 
     O CPF é OBRIGATÓRIO aqui (mas não no modelo: contas de login social/API
@@ -258,10 +287,11 @@ class SignupFormComCpf(AllauthSignupForm):
             raise forms.ValidationError(exc.messages)
 
     def save(self, request):
-        """Cria a conta pelo allauth e grava o CPF logo depois."""
+        """Cria a conta pelo allauth e grava o CPF + metadados logo depois."""
         user = super().save(request)
         user.cpf = self.cleaned_data["cpf"]
         user.save(update_fields=["cpf"])
+        self.save_metadados(user)
         return user
  
 

@@ -33,6 +33,8 @@
                 <i class="fa-solid fa-id-card"></i>
             </div>
 
+            {% include 'includes/campos_metadados.html' with coluna="meta-campo" %}
+
             <div class="form-group">
                 {{ form.password1 }}
                 {% if form.password1.errors %}

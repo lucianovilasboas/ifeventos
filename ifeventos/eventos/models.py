@@ -141,6 +141,30 @@ class Participante(AbstractUser):
         return Participante.objects.get(pk=user.pk)
 
 
+class ParticipanteMetadados(models.Model):
+    """Campos extras do participante, definidos por escola (chave → valor).
+
+    Fica numa tabela à parte de propósito: o schema de cadastro permanece
+    intacto, e outra escola pode usar outros campos (turma, ano, curso…) sem
+    migração. As definições vivem em `settings.METADADOS_PARTICIPANTE`.
+
+    O campo se chama `dados` (e não `metadados`) de propósito: `participante`
+    é quem tem o related_name `metadados`, então `participante.metadados.dados`
+    evita `metadados.metadados`.
+    """
+
+    participante = models.OneToOneField(
+        Participante, on_delete=models.CASCADE, related_name="metadados"
+    )
+    dados = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Metadados do participante"
+        verbose_name_plural = "Metadados dos participantes"
+
+    def __str__(self):
+        return f"Metadados de {self.participante}"
+
 
 class Evento(models.Model):
     # Vocabulário inicial de categorias. serve de sugestão no formulário e de

@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from eventos.models import Atividade, Evento, TipoAtividade
+from eventos.models import Atividade, Evento, ParticipanteMetadados, TipoAtividade
 
 U = get_user_model()
 SENHA = "SenhaForte123!"
@@ -43,3 +43,34 @@ class DashboardOrdemAtividadesTests(TestCase):
         self.assertEqual(resposta.status_code, 200)
         titulos = [a.titulo for a in resposta.context["atividades"]]
         self.assertEqual(titulos, ["Primeiro", "Segundo", "Terceiro"])
+
+
+class PerfilMetadadosTests(TestCase):
+    """O perfil do participante grava os metadados configurados por escola."""
+
+    def setUp(self):
+        self.participante = U.objects.create_user(
+            email="perfilmeta@example.com", password=SENHA, cpf="12345678909",
+            first_name="Aluna", last_name="Teste",
+        )
+        self.client.force_login(self.participante)
+
+    def test_perfil_salva_metadados(self):
+        resposta = self.client.post(
+            reverse("participante:dashboard"),
+            {
+                "first_name": "Aluna", "last_name": "Teste",
+                "username": self.participante.username,
+                "email": self.participante.email,
+                "cpf": "12345678909", "telefone": "", "endereco": "",
+                "meta_matricula": "2026001", "meta_curso": "Informática",
+                "meta_turma": "B", "meta_ano": "3º",
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        dados = ParticipanteMetadados.objects.get(
+            participante=self.participante
+        ).dados
+        self.assertEqual(dados["matricula"], "2026001")
+        self.assertEqual(dados["curso"], "Informática")
+        self.assertEqual(dados["turma"], "B")

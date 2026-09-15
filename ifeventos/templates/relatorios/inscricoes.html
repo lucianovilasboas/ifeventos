@@ -1,4 +1,5 @@
 {% extends 'dashboard_base.html' %}
+{% load metadados_extras %}
 {% block title %}Relatório de Inscrições{% endblock %}
 
 {% block content %}
@@ -36,6 +37,15 @@
             <button type="submit" class="btn btn-app"><i class="fa-solid fa-filter"></i> Filtrar</button>
         </div>
     </form>
+
+    {% if colunas_disponiveis %}
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <span class="text-muted small">Colunas:</span>
+        {% for col in colunas_disponiveis %}
+        <a href="{{ col.url }}" class="btn btn-sm {% if col.ativo %}btn-app{% else %}btn-outline-secondary{% endif %}">{{ col.rotulo }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- Cards (mobile) -->
     <div class="cards-mobile d-md-none app-list">
@@ -90,6 +100,7 @@
                                 <a href="{{ col.url }}">{{ col.rotulo }}</a>
                             </th>
                             {% endfor %}
+                            {% for col in colunas_metadados %}<th>{{ col.rotulo }}</th>{% endfor %}
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -101,6 +112,7 @@
                             <td>{{ inscricao.atividade.evento.title }}</td>
                             <td>{% if inscricao.confirmada %}✅ Sim{% else %}❌ Não{% endif %}</td>
                             <td class="js-cert-status" data-id="{{ inscricao.id }}">{% if inscricao.certificado_emitido %}✅ Sim{% else %}❌ Não{% endif %}</td>
+                            {% for col in colunas_metadados %}<td>{{ inscricao.participante.metadados.dados|meta:col.chave }}</td>{% endfor %}
                             <td>
                                 <a href="{% url 'eventos:gerar_qr_code' inscricao.id %}" target="_blank" class="btn btn-sm btn-dark" title="QR Code de confirmação">
                                     <i class="fa fa-qrcode"></i>
@@ -114,7 +126,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center text-muted">Nenhuma inscrição encontrada.</td>
+                            <td colspan="{{ colunas_metadados|length|add:6 }}" class="text-center text-muted">Nenhuma inscrição encontrada.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

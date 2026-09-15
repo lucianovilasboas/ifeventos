@@ -79,8 +79,32 @@ class CadastroComCpfTests(TestCase):
     def _cadastrar(self, email, cpf, senha=SENHA):
         return self.client.post(
             self.url,
-            {"email": email, "cpf": cpf, "password1": senha, "password2": senha},
+            {
+                "email": email, "cpf": cpf, "password1": senha, "password2": senha,
+                # Metadados obrigatórios (settings.METADADOS_PARTICIPANTE).
+                "meta_matricula": "2026001", "meta_curso": "Informática",
+                "meta_turma": "B", "meta_ano": "3º",
+            },
         )
+
+    def test_salva_metadados_do_participante(self):
+        resposta = self._cadastrar("meta@example.com", CPF_VALIDO)
+        self.assertEqual(resposta.status_code, 302)
+        usuario = U.objects.get(email="meta@example.com")
+        self.assertEqual(
+            usuario.metadados.dados,
+            {"matricula": "2026001", "curso": "Informática", "turma": "B", "ano": "3º"},
+        )
+
+    def test_metadado_obrigatorio_e_exigido(self):
+        resposta = self.client.post(
+            self.url,
+            {"email": "semmeta@example.com", "cpf": CPF_VALIDO,
+             "password1": SENHA, "password2": SENHA},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("meta_matricula", resposta.context["form"].errors)
+        self.assertFalse(U.objects.filter(email="semmeta@example.com").exists())
 
     def test_salva_cpf_sem_mascara(self):
         resposta = self._cadastrar("novo1@example.com", CPF_VALIDO)
@@ -164,7 +188,8 @@ class ConfirmacaoDeEmailTests(TestCase):
         return self.client.post(
             self.url_signup,
             {"email": email, "cpf": "123.456.789-09",
-             "password1": "SenhaForte123!", "password2": "SenhaForte123!"},
+             "password1": "SenhaForte123!", "password2": "SenhaForte123!",
+             "meta_matricula": "2026001", "meta_curso": "Informática"},
         )
 
     def test_pagina_de_aviso_segue_o_padrao_visual(self):

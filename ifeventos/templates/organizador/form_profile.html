@@ -95,6 +95,13 @@
                             </div>
                         </div>
 
+                        {# Campos extras configurados por escola (matrícula, curso, turma…) #}
+                        {% if form.campos_metadados %}
+                        <div class="row mb-3">
+                            {% include 'includes/campos_metadados.html' with coluna="col-md-6" %}
+                        </div>
+                        {% endif %}
+
                         <!-- QUINTA LINHA -->
                         <div class="row mb-3 text-center">
                             <div class="col-md-12">

@@ -388,6 +388,21 @@ ACCOUNT_LOGIN_METHODS = { 'email' }
 # identidade da conta; o CPF NÃO é único.
 ACCOUNT_FORMS = {"signup": "eventos.forms.SignupFormComCpf"}
 
+# ---------------------------------------------------------------------------
+# Metadados do participante (configuráveis por escola; SEM coluna no banco)
+# ---------------------------------------------------------------------------
+# Cada escola ajusta esta lista — o sistema não fixa "turma", "ano" nem nada.
+# Tipos aceitos: "texto", "numero", "escolha" (com "opcoes": [...]).
+# Os valores ficam em `ParticipanteMetadados.dados` (JSON) e aparecem no
+# cadastro/perfil, na lista de presença e nos relatórios/exportações.
+# Exemplo (IFMG Ponte Nova): quem usa ano em vez de turma só troca a lista.
+METADADOS_PARTICIPANTE = [
+    {"chave": "matricula", "rotulo": "Matrícula", "tipo": "texto", "obrigatorio": True, "ordem": 1},
+    {"chave": "curso", "rotulo": "Curso", "tipo": "texto", "obrigatorio": True, "ordem": 2},
+    {"chave": "turma", "rotulo": "Turma", "tipo": "texto", "ordem": 3},
+    {"chave": "ano", "rotulo": "Ano", "tipo": "texto", "ordem": 4},
+]
+
 # Ao confirmar o e-mail (botão na página do link), o usuário já sai logado.
 # Sem isto ele confirma e volta para a tela de login, o que na prática faz
 # muita gente achar que a confirmação não funcionou.

@@ -104,6 +104,9 @@
                                 </div>
                                 {% for error in perfil_form.endereco.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                             </div>
+
+                            {# Campos extras configurados por escola (matrícula, curso, turma…) #}
+                            {% include 'includes/campos_metadados.html' with coluna="col-md-6" form=perfil_form %}
                         </div>
 
                         <!-- Segurança -->
