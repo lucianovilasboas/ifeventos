@@ -94,6 +94,68 @@ rsync -avz ifeventos/media/ ovm-1:/opt/docker/ifeventos/ifeventos/media/
 Ela está montada como volume no contêiner, então os arquivos aparecem
 imediatamente, sem rebuild.
 
+## Metadados do participante (configurável por escola)
+
+Dados extras do aluno/servidor (matrícula, curso, turma, ano/período, SIAPE…)
+não ficam em colunas fixas no banco: cada escola os declara em
+`settings.METADADOS_PARTICIPANTE`. Os valores são gravados num JSON
+(`ParticipanteMetadados.dados`) e aparecem no cadastro/perfil, na lista de
+presença e no relatório de inscrições (com seleção de colunas).
+
+Cada item da lista é um dicionário:
+
+| Chave | Obrigatório | Descrição |
+|---|---|---|
+| `chave` | sim | identificador (vira `meta_<chave>` no formulário e a chave no JSON) |
+| `rotulo` | não | texto mostrado; sem ele, deriva da `chave` |
+| `tipo` | não | `texto` (padrão), `numero` ou `escolha` |
+| `opcoes` | para `escolha` | lista de valores do `<select>` |
+| `obrigatorio` | não | exige preenchimento **quando o campo está visível** |
+| `ajuda` | não | texto de apoio abaixo do campo |
+| `ordem` | não | posição na tela (menor primeiro) |
+
+Recursos avançados:
+
+- **`visivel_quando`** — o campo só aparece (e só é exigido) quando outro campo
+  tem um dos valores: `{"chave": "vinculo", "valores": ["Aluno"]}`.
+- **`depende_de` + `opcoes_por`** — as opções do `<select>` mudam conforme o
+  valor do campo pai:
+  `{"depende_de": "curso", "opcoes_por": {"TPG": ["Primeiro período", …]}}`.
+
+Exemplo em uso (IFMG Campus Ponte Nova):
+
+```python
+METADADOS_PARTICIPANTE = [
+    {"chave": "vinculo", "rotulo": "Vínculo", "tipo": "escolha", "obrigatorio": True, "ordem": 1,
+     "opcoes": ["Aluno", "Servidor", "Colaborador", "Estagiário", "Comunidade externa"]},
+    {"chave": "matricula", "rotulo": "Matrícula", "tipo": "texto", "obrigatorio": True, "ordem": 2,
+     "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
+    {"chave": "curso", "rotulo": "Curso", "tipo": "escolha", "ordem": 3,
+     "opcoes": ["Informática", "Administração", "TPG"],
+     "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
+    {"chave": "ano", "rotulo": "Ano/Período", "tipo": "escolha", "ordem": 5,
+     "depende_de": "curso",
+     "opcoes_por": {"TPG": ["Primeiro período", "Segundo período", "Terceiro período",
+                            "Quarto período", "Quinto período"]},
+     "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
+    {"chave": "funcao", "rotulo": "Função", "tipo": "escolha", "obrigatorio": True, "ordem": 6,
+     "opcoes": ["Professor", "Técnico administrativo"],
+     "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
+    {"chave": "siape", "rotulo": "SIAPE", "tipo": "texto", "ordem": 7,
+     "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
+]
+```
+
+Para adaptar a outra escola, basta trocar a lista: quem usa **ano** em vez de
+**turma** remove `turma`; outras opções de `curso`/`funcao`; etc. Não há
+migração a cada mudança — a configuração é lida a cada requisição.
+
+O comportamento condicional/dependente na tela é do arquivo
+`static/js/metadados_dependentes.js`; a validação (obrigatório só quando
+visível, dependência válida) é sempre refeita no servidor
+(`eventos/metadados.py` + `MetadadosFormMixin`), então continua correta mesmo com
+o JavaScript desligado.
+
 ## Desenvolvimento local
 
 ```bash
