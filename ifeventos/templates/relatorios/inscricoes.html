@@ -18,6 +18,7 @@
     <form method="get" class="mb-3" data-busca-ajax>
         {# Preserva colunas e ordenação atuais ao buscar #}
         {% for col in colunas_metadados %}<input type="hidden" name="campos" value="{{ col.chave }}">{% endfor %}
+        {% for chave in ocultas %}<input type="hidden" name="ocultar" value="{{ chave }}">{% endfor %}
         {% if request.GET.ordenar %}<input type="hidden" name="ordenar" value="{{ request.GET.ordenar }}">{% endif %}
         {% if request.GET.dir %}<input type="hidden" name="dir" value="{{ request.GET.dir }}">{% endif %}
         <div class="busca-lista mb-0">

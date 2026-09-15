@@ -62,13 +62,14 @@
     <div class="table-container">
         <div class="table-responsive">
                 <table class="table table-striped table-hover align-middle"
-                       data-ordenavel data-ordenar-inicial="5:desc">
+                       data-ordenavel data-ordenar-inicial="6:desc">
                     <thead class="table-dark">
                         <tr>
                             <th scope="col" data-renumerar>#</th>
                             <th scope="col" data-sort="text">Atividade</th>
                             <th scope="col" data-sort="text">Data</th>
                             <th scope="col" data-sort="text">Tipo</th>
+                            <th scope="col" data-sort="text">Local</th>
                             <th scope="col" data-sort="number">Vagas</th>
                             <th scope="col" data-sort="number">Inscritos</th>
                             <th scope="col">Ações</th>
@@ -89,6 +90,7 @@
                             {% endif %}
                         </td>
                         <td>{{ atividade.tipo }}</td>
+                        <td>{{ atividade.local }}</td>
                         <td class="js-vagas" data-id="{{ atividade.id }}">{{ atividade.n_vagas }}</td>
                         <td class="js-inscritos" data-id="{{ atividade.id }}">{{ atividade.n_inscricoes }}</td>
                         <td>

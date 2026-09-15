@@ -10,6 +10,7 @@ from eventos.models import Inscricao, Atividade
 ORDENACAO = {
     "participante": ("participante__first_name", "participante__last_name"),
     "atividade": ("atividade__titulo",),
+    "local": ("atividade__local",),
     "evento": ("atividade__evento__title",),
     "confirmada": ("confirmada",),
     "certificado": ("certificado_emitido",),
@@ -20,8 +21,19 @@ class _ColunasMetadadosMixin:
     """Contexto das colunas extras (metadados configuráveis) dos relatórios.
 
     `colunas_disponiveis` traz, por campo, um link que liga/desliga a coluna
-    preservando os demais parâmetros da query (`q`, `ordenar`, `dir`…).
+    preservando os demais parâmetros da query (`q`, `ordenar`, `dir`…). O mesmo
+    vale para `colunas_opcionais`: colunas fixas que a view deixa ocultar
+    (`?ocultar=evento`), como o Evento num relatório de um evento só.
     """
+
+    def colunas_opcionais(self):
+        """Colunas fixas ocultáveis desta view: (chave, rótulo). Vazio por padrão."""
+        return ()
+
+    def _ocultas(self):
+        """Chaves de `colunas_opcionais()` escondidas na URL (validadas)."""
+        permitidas = {chave for chave, _ in self.colunas_opcionais()}
+        return {chave for chave in self.request.GET.getlist("ocultar") if chave in permitidas}
 
     def _selecionadas(self):
         """Colunas de metadados escolhidas na URL (na ordem da configuração)."""
@@ -39,6 +51,28 @@ class _ColunasMetadadosMixin:
             params = self.request.GET.copy()
             params["export"] = formato
             urls.append({"rotulo": rotulo, "url": "?" + params.urlencode()})
+        return urls
+
+    def _urls_colunas_opcionais(self):
+        """Links que ligam/desligam as colunas fixas ocultáveis."""
+        ocultas = self._ocultas()
+        urls = []
+        for chave, rotulo in self.colunas_opcionais():
+            novas = [k for k in ocultas if k != chave]
+            if chave not in ocultas:
+                novas.append(chave)
+            params = self.request.GET.copy()
+            params.pop("page", None)
+            if novas:
+                params.setlist("ocultar", novas)
+            else:
+                params.pop("ocultar", None)
+            urls.append({
+                "chave": chave,
+                "rotulo": rotulo,
+                "ativo": chave not in ocultas,
+                "url": "?" + params.urlencode(),
+            })
         return urls
 
     def metadados_colunas(self):
@@ -69,6 +103,7 @@ class _ColunasMetadadosMixin:
             "campos_metadados": campos_metadados(),
             "colunas_metadados": selecionadas,
             "colunas_disponiveis": disponiveis,
+            "colunas_opcionais": self._urls_colunas_opcionais(),
             "campos_selecionados_str": ",".join(chaves),
             "export_urls": self._urls_exportacao(),
         }
@@ -79,6 +114,10 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
     template_name = "relatorios/inscricoes.html"
     context_object_name = "inscricoes"
     paginate_by = 20  # Paginação: Exibe 20 inscrições por página
+
+    def colunas_opcionais(self):
+        """O Evento é o mesmo para todas as linhas, então dá para ocultá-lo."""
+        return (("evento", "Evento"),)
 
     # -- template --------------------------------------------------------------
 
@@ -147,14 +186,18 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
         """Cabeçalhos ordenáveis: rótulo, link que alterna a direção e aria-sort."""
         atual = self.request.GET.get("ordenar")
         direcao_atual = self.request.GET.get("dir")
+        ocultas = self._ocultas()
         colunas = []
         for chave, rotulo in (
             ("participante", "Participante"),
             ("atividade", "Atividade"),
+            ("local", "Local"),
             ("evento", "Evento"),
             ("confirmada", "Confirmada"),
             ("certificado", "Certificado"),
         ):
+            if chave in ocultas:
+                continue
             if chave == atual:
                 proxima = "desc" if direcao_atual != "desc" else "asc"
                 aria = "descending" if direcao_atual == "desc" else "ascending"
@@ -184,16 +227,23 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
         from eventos.exportacao import exportar
 
         colunas = self._selecionadas()
-        cabecalhos = ["Participante", "Atividade", "Evento",
-                      "Confirmada", "Certificado Emitido"] + [c["rotulo"] for c in colunas]
+        # A exportação espelha as colunas da tela (o Evento pode estar oculto).
+        sem_evento = "evento" in self._ocultas()
+        cabecalhos = ["Participante", "Atividade", "Local"]
+        if not sem_evento:
+            cabecalhos.append("Evento")
+        cabecalhos += ["Confirmada", "Certificado Emitido"] + [c["rotulo"] for c in colunas]
         linhas = []
         for inscricao in self.get_queryset():
             dados = self._dados_metadados(inscricao.participante)
             nome = f"{inscricao.participante.first_name} {inscricao.participante.last_name}".strip()
+            linha = [nome, inscricao.atividade.titulo, inscricao.atividade.local]
+            if not sem_evento:
+                linha.append(inscricao.atividade.evento.title)
             linhas.append(
-                [nome, inscricao.atividade.titulo, inscricao.atividade.evento.title,
-                 "Sim" if inscricao.confirmada else "Não",
-                 "Sim" if inscricao.certificado_emitido else "Não"]
+                linha
+                + ["Sim" if inscricao.confirmada else "Não",
+                   "Sim" if inscricao.certificado_emitido else "Não"]
                 + [dados.get(c["chave"], "") for c in colunas]
             )
         return exportar(
@@ -212,6 +262,12 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
 
         context["colunas"] = self._colunas()
         context.update(self.metadados_colunas())
+
+        # Colunas fixas ocultáveis (ex.: Evento). O colspan da linha de vazio é
+        # o total de colunas fixas visíveis (6) + Ações (1) + metadados.
+        ocultas = self._ocultas()
+        context["ocultas"] = ocultas
+        context["colspan_vazio"] = 7 - len(ocultas)
 
         # Querystring dos filtros (sem `page`) para os links de paginação.
         params = self.request.GET.copy()

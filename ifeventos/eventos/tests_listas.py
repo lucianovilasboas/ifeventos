@@ -58,6 +58,7 @@ class TabelaAtividadesColunaDataTests(TestCase):
         )
         Atividade.objects.create(
             evento=self.evento, titulo="Abertura", descricao="d", tipo=self.tipo,
+            local="Auditório",
             data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
             data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
             n_vagas=10,
@@ -71,7 +72,17 @@ class TabelaAtividadesColunaDataTests(TestCase):
         self.assertEqual(resposta.status_code, 200)
         html = resposta.content.decode()
         self.assertIn(">Data</th>", html)
-        self.assertIn('data-ordenar-inicial="5:desc"', html)
+        # O índice 6 é "Inscritos": as colunas são #, Atividade, Data, Tipo,
+        # Local, Vagas, Inscritos, Ações.
+        self.assertIn('data-ordenar-inicial="6:desc"', html)
+
+    def test_coluna_local_na_tabela(self):
+        resposta = self.client.get(
+            reverse("organizador:atividades_evento", kwargs={"evento_id": self.evento.id})
+        )
+        html = resposta.content.decode()
+        self.assertIn('data-sort="text">Local</th>', html)
+        self.assertIn("Auditório", html)
         # ISO localizado (ex.: 2026-10-10T07:00:00-03:00) — ordena como texto.
         self.assertIn('data-valor="2026-10-10T', html)
 

@@ -13,6 +13,7 @@
 
     <h4>Atividade: {{ atividade.titulo }}</h4>
     <p><strong>Evento:</strong> {{ atividade.evento.title }}</p>
+    {% if atividade.local %}<p><strong>Local:</strong> {{ atividade.local }}</p>{% endif %}
     <p><strong>Data:</strong> {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }} até {{ atividade.data_hora_fim|date:"d/m/Y H:i" }}</p>
     <p><strong>Total de Inscrições:</strong> {{ total_inscricoes }} · <strong>Total de Confirmadas:</strong> {{ total_confirmadas }}</p>
 

@@ -33,9 +33,10 @@ class RelatorioInscricoesTests(TestCase):
                 categoria="formacao", organizador=self.org,
             )
 
-        def atividade(evento, titulo, dia):
+        def atividade(evento, titulo, dia, local=""):
             return Atividade.objects.create(
                 evento=evento, titulo=titulo, descricao="d", tipo=self.tipo,
+                local=local,
                 data_hora_inicio=datetime(2026, 10, dia, 10, 0, tzinfo=tz.utc),
                 data_hora_fim=datetime(2026, 10, dia, 11, 0, tzinfo=tz.utc),
                 n_vagas=10,
@@ -43,9 +44,9 @@ class RelatorioInscricoesTests(TestCase):
 
         self.evento_a = evento("Evento A", 1)
         self.evento_b = evento("Evento B", 5)
-        self.atv_a1 = atividade(self.evento_a, "Abertura", 1)
-        self.atv_a2 = atividade(self.evento_a, "Encerramento", 2)
-        self.atv_b1 = atividade(self.evento_b, "Workshop", 5)
+        self.atv_a1 = atividade(self.evento_a, "Abertura", 1, local="Auditório")
+        self.atv_a2 = atividade(self.evento_a, "Encerramento", 2, local="Sala 2")
+        self.atv_b1 = atividade(self.evento_b, "Workshop", 5, local="Laboratório")
 
         self.p1 = U.objects.create_user(
             email="ana@example.com", password=SENHA, cpf="11144477735",
@@ -126,6 +127,50 @@ class RelatorioInscricoesTests(TestCase):
         self.assertIn("data-busca-ajax", html)
         self.assertIn('id="resultado-inscricoes"', html)
         self.assertNotIn("<datalist", html)
+
+    def test_tabela_e_card_mostram_o_local(self):
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn(">Local</a>", html)      # cabeçalho ordenável da tabela
+        self.assertIn("Auditório", html)       # célula (tabela) / linha (card)
+        self.assertIn("Sala 2", html)
+
+    def test_card_mobile_mostra_os_metadados(self):
+        # O card repete as colunas de metadados da tabela (matrícula do Bruno).
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn("Matrícula: 2026001", html)
+
+    def test_evento_pode_ser_ocultado(self):
+        # Todas as linhas são do mesmo evento, então a coluna Evento é opcional.
+        visivel = self.client.get(self._url())
+        self.assertEqual(
+            [c["rotulo"] for c in visivel.context["colunas"]],
+            ["Participante", "Atividade", "Local", "Evento", "Confirmada", "Certificado"],
+        )
+        self.assertIn("ocultar=evento", visivel.content.decode())  # botão p/ esconder
+        self.assertIn("Evento A", visivel.content.decode())
+
+        oculto = self.client.get(self._url(), {"ocultar": "evento"})
+        self.assertEqual(
+            [c["rotulo"] for c in oculto.context["colunas"]],
+            ["Participante", "Atividade", "Local", "Confirmada", "Certificado"],
+        )
+        self.assertEqual(oculto.context["ocultas"], {"evento"})
+        self.assertEqual(oculto.context["colspan_vazio"], 6)
+        html = oculto.content.decode()
+        self.assertNotIn("Evento A", html)          # nem na tabela nem no card
+        self.assertIn(">Local</a>", html)          # as demais colunas continuam
+
+    def test_exportacao_respeita_o_evento_oculto(self):
+        cabecalho = self.client.get(
+            self._url(), {"ocultar": "evento", "export": "csv"}
+        ).content.decode("utf-8-sig").splitlines()[0]
+        self.assertIn("Local", cabecalho)
+        self.assertNotIn("Evento", cabecalho)
+
+    def test_ordenacao_por_local(self):
+        resposta = self.client.get(self._url(), {"ordenar": "local", "dir": "asc"})
+        locais = [i.atividade.local for i in resposta.context["inscricoes"]]
+        self.assertEqual(locais, ["Auditório", "Sala 2"])
 
     def test_ordenacao_server_side_por_atividade(self):
         crescente = self.client.get(self._url(), {"ordenar": "atividade", "dir": "asc"})
@@ -235,6 +280,7 @@ class ExportacaoRelatoriosTests(TestCase):
         )
         self.atividade = Atividade.objects.create(
             evento=self.evento, titulo="Abertura", descricao="d", tipo=self.tipo,
+            local="Auditório",
             data_hora_inicio=datetime(2026, 10, 1, 10, 0, tzinfo=tz.utc),
             data_hora_fim=datetime(2026, 10, 1, 11, 0, tzinfo=tz.utc),
             n_vagas=10,
@@ -272,6 +318,8 @@ class ExportacaoRelatoriosTests(TestCase):
         texto = resposta.content.decode("utf-8-sig")
         self.assertIn("Matrícula", texto)
         self.assertIn("2026001", texto)
+        self.assertIn("Local", texto)
+        self.assertIn("Auditório", texto)
 
     def test_export_respeita_a_busca(self):
         com = self._inscricoes(export="csv", q="2026001").content.decode("utf-8-sig")

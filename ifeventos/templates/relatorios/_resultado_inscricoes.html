@@ -12,9 +12,13 @@
 
 <p><strong>Total de Inscrições:</strong> {{ total_inscricoes }} · <strong>Total de Confirmadas:</strong> {{ total_confirmadas }}</p>
 
-{% if colunas_disponiveis %}
+{% if colunas_opcionais or colunas_disponiveis %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <span class="text-muted small">Colunas:</span>
+    {# Colunas fixas ocultáveis (ex.: Evento, o mesmo em todas as linhas) #}
+    {% for col in colunas_opcionais %}
+    <a href="{{ col.url }}" class="btn btn-sm {% if col.ativo %}btn-app{% else %}btn-outline-secondary{% endif %}">{{ col.rotulo }}</a>
+    {% endfor %}
     {% for col in colunas_disponiveis %}
     <a href="{{ col.url }}" class="btn btn-sm {% if col.ativo %}btn-app{% else %}btn-outline-secondary{% endif %}">{{ col.rotulo }}</a>
     {% endfor %}
@@ -40,7 +44,15 @@
         <div class="info">
             <h5>{{ inscricao.participante.first_name }} {{ inscricao.participante.last_name }}</h5>
             <p class="mb-1"><i class="fa-solid fa-bullhorn"></i> {{ inscricao.atividade.titulo }}</p>
-            <p class="mb-0"><i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>
+            {% if "evento" not in ocultas %}<p class="mb-0"><i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>{% endif %}
+            {% if inscricao.atividade.local %}
+            <p class="mb-0"><i class="fa-solid fa-location-dot"></i> {{ inscricao.atividade.local }}</p>
+            {% endif %}
+            {% for col in colunas_metadados %}
+            {% with valor=inscricao.participante.metadados.dados|meta:col.chave %}
+            {% if valor %}<p class="mb-0" style="font-size:12px;color:var(--app-muted)">{{ col.rotulo }}: {{ valor }}</p>{% endif %}
+            {% endwith %}
+            {% endfor %}
             <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
                 <span class="badge-app" style="background:{% if inscricao.confirmada %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
                     {% if inscricao.confirmada %}<i class="fa-solid fa-circle-check"></i> Presença confirmada{% else %}<i class="fa-solid fa-clock"></i> Não confirmada{% endif %}
@@ -92,7 +104,8 @@
                     <tr>
                         <td>{{ inscricao.participante.first_name }} {{ inscricao.participante.last_name }}</td>
                         <td>{{ inscricao.atividade.titulo }}</td>
-                        <td>{{ inscricao.atividade.evento.title }}</td>
+                        <td>{{ inscricao.atividade.local }}</td>
+                        {% if "evento" not in ocultas %}<td>{{ inscricao.atividade.evento.title }}</td>{% endif %}
                         <td>{% if inscricao.confirmada %}✅ Sim{% else %}❌ Não{% endif %}</td>
                         <td class="js-cert-status" data-id="{{ inscricao.id }}">{% if inscricao.certificado_emitido %}✅ Sim{% else %}❌ Não{% endif %}</td>
                         {% for col in colunas_metadados %}<td>{{ inscricao.participante.metadados.dados|meta:col.chave }}</td>{% endfor %}
@@ -109,7 +122,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{{ colunas_metadados|length|add:6 }}" class="text-center text-muted">Nenhuma inscrição encontrada.</td>
+                        <td colspan="{{ colunas_metadados|length|add:colspan_vazio }}" class="text-center text-muted">Nenhuma inscrição encontrada.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
