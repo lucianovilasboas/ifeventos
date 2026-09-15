@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% load i18n %}
+{% load static %}
 
 {% block content %}
 <div class="container my-5">
@@ -59,4 +60,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ METADADOS_CONFIG|json_script:"metadados-config" }}
+<script src="{% static 'js/metadados_dependentes.js' %}?v={{ ASSET_VERSION }}"></script>
 {% endblock %}

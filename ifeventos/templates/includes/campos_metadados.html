@@ -7,7 +7,7 @@ da coluna conforme o layout:
   {% include 'includes/campos_metadados.html' with coluna="meta-campo" %} {# tela de cadastro #}
 {% endcomment %}
 {% for campo in form.campos_metadados %}
-<div class="{{ coluna|default:'col-md-6' }}">
+<div class="{{ coluna|default:'col-md-6' }}" data-meta-campo="{{ campo.chave }}">
     <label class="form-label" for="{{ campo.campo.id_for_label }}">
         {{ campo.rotulo }}{% if campo.obrigatorio %} <span class="text-danger">*</span>{% endif %}
     </label>

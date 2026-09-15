@@ -81,9 +81,11 @@ class CadastroComCpfTests(TestCase):
             self.url,
             {
                 "email": email, "cpf": cpf, "password1": senha, "password2": senha,
-                # Metadados obrigatórios (settings.METADADOS_PARTICIPANTE).
+                # Metadados obrigatórios (settings.METADADOS_PARTICIPANTE):
+                # vínculo Aluno exige matrícula e curso.
+                "meta_vinculo": "Aluno",
                 "meta_matricula": "2026001", "meta_curso": "Informática",
-                "meta_turma": "B", "meta_ano": "3º",
+                "meta_turma": "Turma B", "meta_ano": "Terceiro ano",
             },
         )
 
@@ -93,14 +95,16 @@ class CadastroComCpfTests(TestCase):
         usuario = U.objects.get(email="meta@example.com")
         self.assertEqual(
             usuario.metadados.dados,
-            {"matricula": "2026001", "curso": "Informática", "turma": "B", "ano": "3º"},
+            {"vinculo": "Aluno", "matricula": "2026001", "curso": "Informática",
+             "turma": "Turma B", "ano": "Terceiro ano"},
         )
 
     def test_metadado_obrigatorio_e_exigido(self):
         resposta = self.client.post(
             self.url,
             {"email": "semmeta@example.com", "cpf": CPF_VALIDO,
-             "password1": SENHA, "password2": SENHA},
+             "password1": SENHA, "password2": SENHA, "meta_vinculo": "Aluno",
+             "meta_curso": "Informática"},  # falta a matrícula
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertIn("meta_matricula", resposta.context["form"].errors)
@@ -189,6 +193,7 @@ class ConfirmacaoDeEmailTests(TestCase):
             self.url_signup,
             {"email": email, "cpf": "123.456.789-09",
              "password1": "SenhaForte123!", "password2": "SenhaForte123!",
+             "meta_vinculo": "Aluno",
              "meta_matricula": "2026001", "meta_curso": "Informática"},
         )
 

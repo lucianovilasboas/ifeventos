@@ -138,6 +138,9 @@ TEMPLATES = [
                 "eventos.context_processors.assets",
                 # Formulário do modal "Editar Perfil" em todas as telas internas
                 "eventos.context_processors.perfil_form",
+                # Config dos metadados do participante (para o JS dos campos
+                # condicionais/dependentes)
+                "eventos.context_processors.metadados_config",
             ],
         },
     },
@@ -393,14 +396,42 @@ ACCOUNT_FORMS = {"signup": "eventos.forms.SignupFormComCpf"}
 # ---------------------------------------------------------------------------
 # Cada escola ajusta esta lista — o sistema não fixa "turma", "ano" nem nada.
 # Tipos aceitos: "texto", "numero", "escolha" (com "opcoes": [...]).
+# Recursos:
+#   - "depende_de" + "opcoes_por": as opções do campo dependem do valor de outro
+#     (ex.: ano/período muda conforme o curso);
+#   - "visivel_quando": o campo só aparece/é exigido quando outro campo tem um
+#     dos valores (ex.: matrícula só para Aluno; função/SIAPE só para Servidor).
 # Os valores ficam em `ParticipanteMetadados.dados` (JSON) e aparecem no
 # cadastro/perfil, na lista de presença e nos relatórios/exportações.
-# Exemplo (IFMG Ponte Nova): quem usa ano em vez de turma só troca a lista.
 METADADOS_PARTICIPANTE = [
-    {"chave": "matricula", "rotulo": "Matrícula", "tipo": "texto", "obrigatorio": True, "ordem": 1},
-    {"chave": "curso", "rotulo": "Curso", "tipo": "texto", "obrigatorio": True, "ordem": 2},
-    {"chave": "turma", "rotulo": "Turma", "tipo": "texto", "ordem": 3},
-    {"chave": "ano", "rotulo": "Ano", "tipo": "texto", "ordem": 4},
+    {"chave": "vinculo", "rotulo": "Vínculo", "tipo": "escolha", "obrigatorio": True, "ordem": 1,
+     "opcoes": ["Aluno", "Servidor", "Colaborador", "Estagiário", "Comunidade externa"]},
+
+    # -- Só para Aluno -------------------------------------------------------
+    {"chave": "matricula", "rotulo": "Matrícula", "tipo": "texto", "obrigatorio": True, "ordem": 2,
+     "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
+    {"chave": "curso", "rotulo": "Curso", "tipo": "escolha", "obrigatorio": True, "ordem": 3,
+     "opcoes": ["Informática", "Administração", "TPG"],
+     "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
+    {"chave": "turma", "rotulo": "Turma", "tipo": "escolha", "ordem": 4,
+     "opcoes": ["Turma A", "Turma B", "Turma Única"],
+     "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
+    {"chave": "ano", "rotulo": "Ano/Período", "tipo": "escolha", "ordem": 5,
+     "depende_de": "curso",
+     "opcoes_por": {
+         "Informática": ["Primeiro ano", "Segundo ano", "Terceiro ano"],
+         "Administração": ["Primeiro ano", "Segundo ano", "Terceiro ano"],
+         "TPG": ["Primeiro período", "Segundo período", "Terceiro período",
+                 "Quarto período", "Quinto período"],
+     },
+     "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
+
+    # -- Só para Servidor ----------------------------------------------------
+    {"chave": "funcao", "rotulo": "Função", "tipo": "escolha", "obrigatorio": True, "ordem": 6,
+     "opcoes": ["Professor", "Técnico administrativo"],
+     "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
+    {"chave": "siape", "rotulo": "SIAPE", "tipo": "texto", "ordem": 7,
+     "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
 ]
 
 # Ao confirmar o e-mail (botão na página do link), o usuário já sai logado.

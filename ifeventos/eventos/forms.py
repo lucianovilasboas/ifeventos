@@ -233,13 +233,47 @@ class MetadadosFormMixin:
         instance = getattr(self, "instance", None)
         iniciais = dados_de(instance) if instance is not None else {}
 
+        def valor_atual(chave):
+            """Valor do campo agora: do POST (form ligado) ou dos dados salvos."""
+            nome = nome_do_campo(chave)
+            if self.is_bound:
+                return (self.data.get(nome) or "").strip()
+            return str(iniciais.get(chave, "") or "").strip()
+
         self.campos_metadados = []
         for campo in campos():
             nome = nome_do_campo(campo["chave"])
-            self.fields[nome] = construir_field(campo)
+            pai = valor_atual(campo["depende_de"]) if campo["depende_de"] else None
+            self.fields[nome] = construir_field(campo, pai)
             if campo["chave"] in iniciais:
                 self.initial[nome] = iniciais[campo["chave"]]
             self.campos_metadados.append({"campo": self[nome], **campo})
+
+    def clean(self):
+        """Obrigatório só quando visível + valida a dependência entre campos."""
+        from .metadados import (
+            campos,
+            nome_do_campo,
+            opcoes_do_campo,
+            valores_meta,
+            visivel,
+        )
+
+        dados = super().clean()
+        valores = valores_meta(dados)
+        for campo in campos():
+            if not visivel(campo, valores):
+                continue
+            nome = nome_do_campo(campo["chave"])
+            valor = valores.get(campo["chave"])
+            if campo["obrigatorio"] and not valor:
+                self.add_error(nome, "Este campo é obrigatório.")
+                continue
+            if campo["depende_de"] and valor:
+                opcoes = opcoes_do_campo(campo, valores.get(campo["depende_de"]))
+                if valor not in opcoes:
+                    self.add_error(nome, "Escolha uma opção válida para o valor anterior.")
+        return dados
 
     def save_metadados(self, participante):
         from .metadados import coletar, salvar

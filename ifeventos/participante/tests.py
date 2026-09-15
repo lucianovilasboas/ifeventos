@@ -63,14 +63,16 @@ class PerfilMetadadosTests(TestCase):
                 "username": self.participante.username,
                 "email": self.participante.email,
                 "cpf": "12345678909", "telefone": "", "endereco": "",
+                "meta_vinculo": "Aluno",
                 "meta_matricula": "2026001", "meta_curso": "Informática",
-                "meta_turma": "B", "meta_ano": "3º",
+                "meta_turma": "Turma B", "meta_ano": "Terceiro ano",
             },
         )
         self.assertEqual(resposta.status_code, 302)
         dados = ParticipanteMetadados.objects.get(
             participante=self.participante
         ).dados
+        self.assertEqual(dados["vinculo"], "Aluno")
         self.assertEqual(dados["matricula"], "2026001")
         self.assertEqual(dados["curso"], "Informática")
-        self.assertEqual(dados["turma"], "B")
+        self.assertEqual(dados["turma"], "Turma B")

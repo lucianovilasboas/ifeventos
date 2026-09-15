@@ -64,3 +64,10 @@ def perfil_form(request):
     from organizador.forms import ParticipanteUpdateForm
 
     return {"perfil_form": ParticipanteUpdateForm(instance=request.user)}
+
+
+def metadados_config(request):
+    """Config dos metadados do participante para o JS (mostrar/esconder campos)."""
+    from eventos.metadados import campos
+
+    return {"METADADOS_CONFIG": campos()}

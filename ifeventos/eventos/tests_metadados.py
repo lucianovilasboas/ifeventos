@@ -1,9 +1,15 @@
 """Testes dos metadados configuráveis do participante."""
 
+from django.contrib.auth import get_user_model
 from django.http import QueryDict
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from eventos import metadados
+
+U = get_user_model()
+SENHA = "SenhaForte123!"
+CPF = "123.456.789-09"
 
 CONFIG = [
     {"chave": "matricula", "rotulo": "Matrícula", "tipo": "texto", "obrigatorio": True, "ordem": 1},
@@ -50,3 +56,77 @@ class CamposMetadadosTests(TestCase):
             {"meta_matricula": "1", "meta_turma": "B", "meta_lixo": "x"}
         )
         self.assertEqual(coletado, {"matricula": "1", "turma": "B"})
+
+
+class CadastroCondicionalTests(TestCase):
+    """O vínculo condiciona os campos; o curso condiciona o ano/período."""
+
+    def setUp(self):
+        self.url = reverse("account_signup")
+
+    def _post(self, **extra):
+        dados = {"email": "cond@example.com", "cpf": CPF, "password1": SENHA,
+                 "password2": SENHA}
+        dados.update(extra)
+        return self.client.post(self.url, dados)
+
+    def _dados(self):
+        return U.objects.get(email="cond@example.com").metadados.dados
+
+    def test_aluno_valido(self):
+        r = self._post(meta_vinculo="Aluno", meta_matricula="1",
+                       meta_curso="TPG", meta_ano="Primeiro período")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(
+            self._dados(),
+            {"vinculo": "Aluno", "matricula": "1", "curso": "TPG",
+             "ano": "Primeiro período"},
+        )
+
+    def test_aluno_sem_matricula_e_erro(self):
+        r = self._post(meta_vinculo="Aluno", meta_curso="Informática")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("meta_matricula", r.context["form"].errors)
+
+    def test_ano_incompativel_com_o_curso_e_erro(self):
+        r = self._post(meta_vinculo="Aluno", meta_matricula="1",
+                       meta_curso="TPG", meta_ano="Primeiro ano")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("meta_ano", r.context["form"].errors)
+
+    def test_servidor_exige_funcao(self):
+        r = self._post(meta_vinculo="Servidor")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("meta_funcao", r.context["form"].errors)
+
+    def test_servidor_com_funcao_e_siape_opcional(self):
+        r = self._post(meta_vinculo="Servidor", meta_funcao="Professor")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self._dados(), {"vinculo": "Servidor", "funcao": "Professor"})
+
+    def test_comunidade_externa_so_exige_vinculo(self):
+        r = self._post(meta_vinculo="Comunidade externa")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self._dados(), {"vinculo": "Comunidade externa"})
+
+    def test_colaborador_nao_exige_mais_nada(self):
+        r = self._post(meta_vinculo="Colaborador")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self._dados(), {"vinculo": "Colaborador"})
+
+
+class ColetarVisibilidadeTests(TestCase):
+    """O que não está visível não é gravado."""
+
+    def test_descarta_campos_ocultos(self):
+        dados = metadados.coletar({
+            "meta_vinculo": "Comunidade externa",
+            "meta_matricula": "1", "meta_curso": "TPG", "meta_ano": "Primeiro período",
+        })
+        self.assertEqual(dados, {"vinculo": "Comunidade externa"})
+
+    def test_mantem_os_visiveis(self):
+        dados = metadados.coletar({
+            "meta_vinculo": "Servidor", "meta_funcao": "Professor", "meta_siape": "12345",
+        })
+        self.assertEqual(dados, {"vinculo": "Servidor", "funcao": "Professor", "siape": "12345"})

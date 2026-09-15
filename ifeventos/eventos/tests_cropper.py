@@ -257,7 +257,7 @@ class ProfilePaginaRecorteTests(_BaseCropperTests):
             "username": self.org.username, "email": self.org.email,
             "cpf": CPF_1, "telefone": "", "endereco": "",
             # Metadados obrigatórios (settings.METADADOS_PARTICIPANTE).
-            "meta_matricula": "1", "meta_curso": "Informática",
+            "meta_vinculo": "Aluno", "meta_matricula": "1", "meta_curso": "Informática",
         }
 
     def test_recorte_tem_prioridade_sobre_a_foto_crua(self):
@@ -297,7 +297,7 @@ class RecorteMalformadoTests(_BaseCropperTests):
                 "first_name": "Org", "last_name": "Teste",
                 "username": self.org.username, "email": self.org.email,
                 "cpf": CPF_1, "telefone": "", "endereco": "",
-                "meta_matricula": "1", "meta_curso": "Informática",
+                "meta_vinculo": "Aluno", "meta_matricula": "1", "meta_curso": "Informática",
                 "cropped_image": "lixo-sem-base64",
             },
             campo_arquivo="foto", arquivo_bytes=self.cru,

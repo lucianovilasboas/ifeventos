@@ -18,12 +18,30 @@ def _normalizar(item):
     if not chave:
         return None
     tipo = item.get("tipo") if item.get("tipo") in TIPOS_VALIDOS else "texto"
+
+    # Visibilidade condicional: só vale com chave e valores válidos.
+    visivel_quando = None
+    condicao = item.get("visivel_quando") or {}
+    if condicao.get("chave") and condicao.get("valores"):
+        visivel_quando = {
+            "chave": str(condicao["chave"]).strip(),
+            "valores": [str(v) for v in condicao["valores"]],
+        }
+
+    opcoes_por = {
+        str(k): [str(v) for v in (lista or [])]
+        for k, lista in (item.get("opcoes_por") or {}).items()
+    }
+
     return {
         "chave": chave,
         "rotulo": item.get("rotulo") or chave.replace("_", " ").title(),
         "tipo": tipo,
         "obrigatorio": bool(item.get("obrigatorio", False)),
         "opcoes": [str(o) for o in (item.get("opcoes") or [])],
+        "opcoes_por": opcoes_por,
+        "depende_de": (item.get("depende_de") or "").strip() or None,
+        "visivel_quando": visivel_quando,
         "ajuda": item.get("ajuda") or "",
         "ordem": item.get("ordem", 0),
     }
@@ -37,11 +55,39 @@ def campos():
     return lista
 
 
-def construir_field(campo):
-    """Campo de formulário correspondente à definição (nome prefixado com meta_)."""
+def opcoes_do_campo(campo, valor_pai=None):
+    """Opções válidas do campo (dependentes do valor do campo pai, se houver)."""
+    if campo["depende_de"]:
+        return list(campo["opcoes_por"].get(valor_pai or "", []))
+    return list(campo["opcoes"])
+
+
+def visivel(campo, valores):
+    """O campo está visível dado o dicionário de valores dos outros campos?"""
+    condicao = campo["visivel_quando"]
+    if not condicao:
+        return True
+    return valores.get(condicao["chave"]) in condicao["valores"]
+
+
+def valores_meta(cleaned_data):
+    """Valores atuais dos campos de metadados (chave -> texto), do formulário."""
+    valores = {}
+    for campo in campos():
+        valor = cleaned_data.get(nome_do_campo(campo["chave"]))
+        valores[campo["chave"]] = "" if valor is None else str(valor).strip()
+    return valores
+
+
+def construir_field(campo, valor_pai=None):
+    """Campo de formulário correspondente à definição (nome prefixado com meta_).
+
+    Campo condicional NÃO nasce `required` no HTML: escondido, um `required`
+    travaria o envio. A obrigatoriedade é cobrada no `clean()` do formulário.
+    """
     comum = {
         "label": campo["rotulo"],
-        "required": campo["obrigatorio"],
+        "required": campo["obrigatorio"] and not campo["visivel_quando"],
         "help_text": campo["ajuda"],
     }
     if campo["tipo"] == "numero":
@@ -49,7 +95,9 @@ def construir_field(campo):
             widget=forms.NumberInput(attrs={"class": "form-control"}), **comum
         )
     if campo["tipo"] == "escolha":
-        escolhas = [("", "Selecione…")] + [(o, o) for o in campo["opcoes"]]
+        escolhas = [("", "Selecione…")] + [
+            (o, o) for o in opcoes_do_campo(campo, valor_pai)
+        ]
         return forms.ChoiceField(
             choices=escolhas, widget=forms.Select(attrs={"class": "form-control"}), **comum
         )
@@ -64,13 +112,19 @@ def nome_do_campo(chave):
 
 
 def coletar(cleaned_data):
-    """Extrai do formulário só as chaves configuradas, com os valores como texto."""
+    """Extrai só as chaves VISÍVEIS e preenchidas, com os valores como texto.
+
+    Campos ocultos (fora da condição de visibilidade) são descartados — assim
+    trocar o vínculo não deixa dados antigos grudados no JSON.
+    """
+    valores = valores_meta(cleaned_data)
     dados = {}
     for campo in campos():
-        valor = cleaned_data.get(nome_do_campo(campo["chave"]))
-        if valor is None or str(valor).strip() == "":
+        if not visivel(campo, valores):
             continue
-        dados[campo["chave"]] = str(valor).strip()
+        valor = valores.get(campo["chave"])
+        if valor:
+            dados[campo["chave"]] = valor
     return dados
 
 
