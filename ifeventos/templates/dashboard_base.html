@@ -23,6 +23,8 @@
     {# Campos de metadados condicionais/dependentes (perfil) #}
     {{ METADADOS_CONFIG|json_script:"metadados-config" }}
     <script src="{% static 'js/metadados_dependentes.js' %}?v={{ ASSET_VERSION }}" defer></script>
+    {# Botão flutuante "voltar ao topo / ir para o final" (só em páginas longas) #}
+    <script src="{% static 'js/botao_rolagem.js' %}?v={{ ASSET_VERSION }}" defer></script>
 </head>
 <body>
     <!-- Topbar app -->

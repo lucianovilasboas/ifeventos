@@ -124,6 +124,45 @@ class BuscaNasAtividadesTests(TestCase):
         self.assertIn("js/lista_busca.js", self._html())
 
 
+class BotaoRolagemTests(TestCase):
+    """Os dois templates base carregam o botão de rolagem (topo ↔ fim)."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_rolagem@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.evento = Evento.objects.create(
+            title="Evento Rolagem", description="d", local="l",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 11),
+            categoria="formacao", organizador=self.org,
+        )
+        Atividade.objects.create(
+            evento=self.evento, titulo="Abertura", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+            n_vagas=10,
+        )
+
+    def test_pagina_publica_carrega_o_script(self):
+        # Programação é pública e usa base.html.
+        resposta = self.client.get(
+            reverse("eventos:programacao", kwargs={"evento_id": self.evento.id})
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("js/botao_rolagem.js", resposta.content.decode())
+
+    def test_pagina_interna_carrega_o_script(self):
+        # Atividades do evento usa dashboard_base.html.
+        self.client.force_login(self.org)
+        resposta = self.client.get(
+            reverse("organizador:atividades_evento", kwargs={"evento_id": self.evento.id})
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("js/botao_rolagem.js", resposta.content.decode())
+
+
 class LandingTotalAtividadesTests(TestCase):
     """O card e o modal da landing mostram o total de atividades do evento."""
 

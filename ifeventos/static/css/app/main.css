@@ -413,6 +413,33 @@ body:has(.reset-password-container) .hero-ico { display: none; }
    topo em telas grandes, onde há espaço. */
 .nav-rotulo-curto { display: none; }
 
+/* ---------- Botão de rolagem (topo ↔ fim) ----------
+   Um botão só, discreto, encostado no canto direito: no topo ele leva ao fim,
+   depois de rolar uma tela ele volta ao topo. Quem cria é o
+   static/js/botao_rolagem.js, e só em páginas que rolam de verdade. Aqui fica
+   o mínimo: ficar acima da bottom nav (66px) no celular, respeitar a
+   safe-area e ceder no desktop, onde a nav desaparece. */
+.btn-rolagem {
+  position: fixed; right: 14px;
+  bottom: calc(66px + env(safe-area-inset-bottom, 0px) + 12px);
+  z-index: 1040;
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0;
+  border: 2px solid var(--border-ui); border-radius: 50%;
+  background: var(--surface); color: var(--muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  opacity: .85;
+  transition: opacity var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+}
+.btn-rolagem[hidden] { display: none; }
+.btn-rolagem:hover,
+.btn-rolagem:focus-visible {
+  opacity: 1; color: var(--accent-ink); border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+@media (min-width: 992px) { .btn-rolagem { right: 20px; bottom: 20px; } }
+
 /* ---------- Cards padrão ---------- */
 .event-card {
   border-radius: var(--radius-md) !important;
