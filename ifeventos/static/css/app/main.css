@@ -1150,6 +1150,9 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
    Programação — barra de filtros/ordenação, cabeçalhos de dia e legenda
    ========================================================================= */
 .prog-barra { padding: 0 var(--gutter-phone) 6px; }
+/* Distância entre o toolbar (Lista/Grade · Ordenar · Calendário/PDF) e a busca.
+   Sem isto os botões encostam na barra (não havia regra para `.filtros`). */
+.filtros { margin-top: var(--space-3); }
 
 .ordem-grupo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .filtro-rotulo {
@@ -1409,3 +1412,29 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     margin: 0;
 }
 .card-box .btn { margin-top: auto; }
+
+/* Título de bloco em listas do organizador (ex.: Rascunhos / Publicadas). */
+.lista-titulo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-sm);
+    color: var(--fg);
+    padding: 6px var(--gutter-phone) 2px;
+    margin: 0 0 4px;
+}
+.lista-titulo span {
+    color: var(--app-muted, #6b7280);
+    font-weight: 600;
+    font-size: var(--text-xs);
+    margin-left: 4px;
+}
+
+/* Filtro por evento da dashboard do participante.
+   Sem um teto, o `<select>` assume a largura do maior título e fica "solto",
+   desalinhado da grade abaixo; no celular, encosta na borda. */
+.filtro-evento { max-width: 520px; }
+#filtro-evento {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}

@@ -14,7 +14,7 @@
 {% endif %}
 
 {% if eventos_filtro %}
-<form method="get" class="d-flex align-items-center gap-2 px-1 mb-2">
+<form method="get" class="filtro-evento d-flex align-items-center gap-2 px-1 mb-2 flex-wrap">
     <label class="filtro-rotulo" for="filtro-evento">Evento</label>
     <select name="evento" id="filtro-evento" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
         <option value="">Todos os eventos</option>

@@ -64,7 +64,23 @@
     </div>
 
     <div data-vista-painel="lista">
-        {% include 'includes/data_atividades_evento.html' %}
+        {% if rascunhos %}
+        <div data-lista="rascunhos">
+            <h5 class="lista-titulo"><i class="fa-solid fa-eye-slash"></i> Rascunhos <span>{{ rascunhos|length }}</span></h5>
+            {% comment %}
+            O bloco de rascunhos não repete a busca: é curto e o objetivo é só
+            localizar rápido quem ainda não foi publicado.
+            {% endcomment %}
+            {% include 'includes/data_atividades_evento.html' with atividades=rascunhos sem_busca=True %}
+        </div>
+        {% endif %}
+
+        <div data-lista="publicadas">
+            {% if rascunhos and publicadas %}
+            <h5 class="lista-titulo"><i class="fa-solid fa-eye"></i> Publicadas <span>{{ publicadas|length }}</span></h5>
+            {% endif %}
+            {% include 'includes/data_atividades_evento.html' with atividades=publicadas %}
+        </div>
     </div>
 
     <div data-vista-painel="grade" hidden>
@@ -199,7 +215,9 @@
         const loc = esc(data.local || "");
 
         // Adiciona a linha na tabela (desktop)
-        const tableBody = document.querySelector(".table-wrap table tbody");
+        // Atividade nova nasce PUBLICADA: entra no bloco das publicadas (não no
+        // de rascunhos, que agora vem primeiro).
+        const tableBody = document.querySelector('[data-lista="publicadas"] .table-wrap table tbody');
         if (tableBody) {
             const newRow = document.createElement("tr");
             newRow.className = "atividade-item";
@@ -229,7 +247,7 @@
         }
 
         // Adiciona o card (mobile)
-        const cardList = document.querySelector(".cards-mobile");
+        const cardList = document.querySelector('[data-lista="publicadas"] .cards-mobile');
         if (cardList) {
             const card = document.createElement("div");
             card.className = "app-item atividade-item";

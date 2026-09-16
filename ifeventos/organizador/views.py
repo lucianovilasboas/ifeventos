@@ -260,9 +260,12 @@ def atividades_evento(request, evento_id):
     # Ordem padrão: quem tem mais inscritos primeiro. O desempate por horário e
     # id mantém a lista ESTÁVEL (sem "pular" a cada recarregamento) quando duas
     # atividades têm a mesma quantidade de inscritos.
-    atividades = evento.atividades.all().order_by(
-        "-n_inscricoes", "data_hora_inicio", "id"
+    atividades = list(
+        evento.atividades.all().order_by("-n_inscricoes", "data_hora_inicio", "id")
     )
+    # Rascunhos primeiro, num bloco separado: é o que precisa de gerenciamento.
+    rascunhos = [a for a in atividades if not a.publicada]
+    publicadas = [a for a in atividades if a.publicada]
     # A grade trabalha em ordem cronológica e precisa do tipo/palestrantes.
     para_grade = (
         evento.atividades.select_related("tipo")
@@ -278,6 +281,7 @@ def atividades_evento(request, evento_id):
 
     return render(request, 'organizador/atividades_evento.html', {
         'form_ativ' : form, 'evento': evento, 'atividades': atividades,
+        'rascunhos': rascunhos, 'publicadas': publicadas,
         'grade': agenda.montar_grade(para_grade),
         'choques': agenda.choques(para_grade),
         'vista_atividades': vista_atividades,
