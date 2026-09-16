@@ -38,10 +38,15 @@ ifeventos/staticfiles/
 # (179 arquivos, ~56 MB)
 ifeventos/media/
 
+# ---------- Planilhas locais (podem conter dados pessoais) ----------
+*.xls
+*.xlsx
+
 # ---------- Artefatos de desenvolvimento ----------
 ifeventos/console_last.txt
 *.log
-ifeventos/.playwright-mcp/
+.playwright-mcp/
+.claude/
 .dump
 *.bundle
 
@@ -54,7 +59,8 @@ mychatbot/
 
 # ---------- Rascunhos e ferramentas locais ----------
 scripts_test/
-PLANO_API.md
+PLANO_*.md
+RELATORIO_*.md
 
 # ---------- Trabalho de design (protótipo e staging) ----------
 # Documentação da repaginação: fica fora do repositório de implantação.
