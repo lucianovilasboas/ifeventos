@@ -380,6 +380,17 @@ ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 # manual. Sem isto, essa decisão dependeria do adapter local.
 SOCIALACCOUNT_AUTO_SIGNUP = True
 
+# Login social confiável (Google): quando o e-mail do provedor já pertence a
+# uma conta local, entra NELA em vez de recusar o vínculo e exibir a tela de
+# confirmação de e-mail (comportamento padrão que "finge" ter enviado o link).
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+# Vincula o SocialAccount à conta local existente, tornando o login social
+# permanente (sem isso, o vínculo é refeito a cada login).
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+# O e-mail do provedor já vem verificado pelo Google; o fluxo social não exige
+# confirmação. O cadastro local continua exigindo (ACCOUNT_EMAIL_VERIFICATION).
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+
 # Como qualquer conta Google é aceita, o cadastro aceita o campo de e-mail
 # e não exige username (o Google não fornece).
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
