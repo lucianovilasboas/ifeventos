@@ -430,9 +430,51 @@ class OcupacaoSalasView(LoginRequiredMixin, View):
             "evento": evento,
             "linhas": por_local,
             "por_dia_hora": self._por_dia_hora(atividades),
+            "voltar_url": self._voltar_url(request, evento),
             "totais": {
                 "atividades": len(atividades),
                 "vagas": sum(a.n_vagas or 0 for a in atividades),
                 "inscritos": sum(a.n_inscricoes or 0 for a in atividades),
             },
+        })
+
+    def _voltar_url(self, request, evento):
+        """Para onde o botão "Voltar" aponta.
+
+        A tela é aberta da dashboard do organizador E da lista de atividades do
+        evento; cada botão manda `?next=`. Só aceitamos caminho LOCAL (evita
+        open redirect); sem `next`, caímos na lista de atividades do evento.
+        """
+        from django.urls import reverse
+        from django.utils.http import url_has_allowed_host_and_scheme
+
+        padrao = reverse("organizador:atividades_evento", args=[evento.id])
+        destino = request.GET.get("next") or ""
+        if destino.startswith("/") and url_has_allowed_host_and_scheme(
+            destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+        ):
+            return destino
+        return padrao
+
+
+class RelatoriosGraficosView(LoginRequiredMixin, View):
+    """Painel analítico do evento: indicadores + gráficos (Chart.js).
+
+    As agregações ficam em `relatorios/graficos.py` (funções puras); aqui é só
+    montar o contexto. Os dados vão para o JS via `json_script`.
+    """
+
+    template_name = "relatorios/graficos.html"
+
+    def get(self, request, *args, **kwargs):
+        from eventos.models import Evento
+
+        from . import graficos as agregacoes
+
+        evento = get_object_or_404(Evento, id=self.kwargs["evento_id"])
+        return render(request, self.template_name, {
+            "evento": evento,
+            "kpis": agregacoes.kpis(evento),
+            "graficos": agregacoes.graficos(evento),
+            "heatmap": agregacoes.heatmap(evento),
         })

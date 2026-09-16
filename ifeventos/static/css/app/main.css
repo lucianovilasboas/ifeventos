@@ -1438,3 +1438,52 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     max-width: 100%;
     min-width: 0;
 }
+
+/* =========================================================================
+   Relatórios gráficos do organizador (KPIs + painéis do Chart.js)
+   ========================================================================= */
+.kpi-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 100%;
+    border: 2px solid var(--border);
+    border-bottom-width: 4px;
+    border-radius: var(--app-radius, 12px);
+    background: var(--bg);
+    padding: 10px 12px;
+}
+.kpi-card > i { font-size: 20px; color: var(--accent-ink); }
+.kpi-valor {
+    display: block;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-lg);
+    color: var(--fg);
+    line-height: 1.1;
+}
+.kpi-rotulo { display: block; font-size: 11px; color: var(--app-muted, #6b7280); }
+
+.painel-grafico {
+    height: 100%;
+    border: 2px solid var(--border);
+    border-bottom-width: 4px;
+    border-radius: var(--app-radius, 12px);
+    background: var(--bg);
+    padding: 12px;
+}
+.painel-grafico h6 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-sm);
+    color: var(--fg);
+    margin: 0 0 8px;
+}
+/* Altura fixa: o Chart.js usa maintainAspectRatio:false e cresce no painel. */
+.grafico-area { position: relative; height: 280px; }
+.grafico-area canvas { width: 100% !important; height: 100% !important; }
+
+.heat-cel { text-align: center; font-size: 12px; }
+
+/* Barras horizontais com títulos longos pedem mais altura. */
+.painel-grafico[data-tipo="barh"] .grafico-area { height: 340px; }

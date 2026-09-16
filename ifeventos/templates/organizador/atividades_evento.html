@@ -36,7 +36,7 @@
            class="btn btn-outline-success" target="_blank" rel="noopener">
             <i class="fa-solid fa-id-card"></i> Imprimir crachás (PDF)
         </a>
-        <a href="{% url 'organizador:ocupacao_salas' evento.id %}" class="btn btn-outline-secondary">
+        <a href="{% url 'organizador:ocupacao_salas' evento.id %}?next={% url 'organizador:atividades_evento' evento.id %}" class="btn btn-outline-secondary">
             <i class="fa-solid fa-chart-simple"></i> Ocupação por sala
         </a>
         <form method="post" action="{% url 'organizador:modelo_cracha_evento' evento.id %}"

@@ -1,0 +1,88 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+{% block title %}Relatórios gráficos | {{ evento.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fa-solid fa-chart-pie"></i> Relatórios gráficos</span>
+        <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </h2>
+    <p class="text-muted mb-3">{{ evento.title }} · {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}</p>
+
+    <!-- Indicadores -->
+    <div class="row row-cols-2 row-cols-md-4 g-2 g-md-3 mb-3">
+        {% for k in kpis %}
+        <div class="col">
+            <div class="kpi-card">
+                <i class="{{ k.icone }}"></i>
+                <div>
+                    <span class="kpi-valor">{{ k.valor }}{{ k.sufixo|default:"" }}</span>
+                    <span class="kpi-rotulo">{{ k.rotulo }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Gráficos -->
+    <div class="row g-3">
+        {% for g in graficos %}
+        <div class="col-12 col-lg-6">
+            <div class="painel-grafico" data-tipo="{{ g.tipo }}">
+                <h6>{{ g.titulo }}</h6>
+                <div class="grafico-area">
+                    <canvas data-grafico="{{ g.id }}"></canvas>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="app-item"><div class="info text-center" style="flex:1">
+                <h5 style="color:var(--app-muted)">Sem dados suficientes para gráficos.</h5>
+                <p class="mb-0">Cadastre atividades e tenha inscrições para ver as análises.</p>
+            </div></div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Mapa de calor: atividades por dia e horário -->
+    {% if heatmap.linhas %}
+    <div class="painel-grafico mt-3">
+        <h6>Atividades por dia e horário</h6>
+        <div class="agenda-scroll">
+            <table class="agenda">
+                <thead>
+                    <tr>
+                        <th class="agenda-hora">Hora</th>
+                        {% for dia in heatmap.dias %}<th class="agenda-dia">{{ dia|date:"D d/m" }}</th>{% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lin in heatmap.linhas %}
+                    <tr>
+                        <th class="agenda-hora" scope="row">{{ lin.rotulo }}</th>
+                        {% for qtd in lin.celulas %}
+                        <td class="heat-cel" data-max="{{ heatmap.maximo }}" data-valor="{{ qtd }}">
+                            {% if qtd %}<b>{{ qtd }}</b>{% else %}<span class="text-muted">·</span>{% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted mb-0 mt-2" style="font-size:12px">Quanto mais escuro, mais atividades começando naquele horário.</p>
+    </div>
+    {% endif %}
+</div>
+
+{{ graficos|json_script:"dados-graficos" }}
+{% endblock content %}
+
+{% block scripts %}
+<script src="{% static 'vendor/chart.min.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/relatorios_graficos.js' %}?v={{ ASSET_VERSION }}"></script>
+{% endblock scripts %}
