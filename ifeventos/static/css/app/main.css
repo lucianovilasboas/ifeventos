@@ -1010,3 +1010,240 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     color: var(--app-muted, #6b7280);
 }
 .cards-mobile .atividade-quando { margin-top: 2px; }
+
+/* =========================================================================
+   Programação em grade (cronograma semanal)
+   -------------------------------------------------------------------------
+   Visualização alternativa à lista: colunas = dias do evento, linhas = horas.
+   A atividade aparece na linha do seu horário de início; quem começa junto
+   (sobreposição) empilha na mesma célula. Cabeçalho e coluna de horário ficam
+   fixos, e a tabela rola na horizontal em telas estreitas.
+   ========================================================================= */
+.vista-toggle {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 0 var(--gutter-phone) 10px;
+}
+.vista-btn {
+    border: 2px solid var(--border-ui);
+    background: var(--bg);
+    color: var(--fg);
+    border-radius: var(--radius-sm);
+    padding: 6px 14px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: background var(--motion-fast, .15s), color var(--motion-fast, .15s);
+}
+.vista-btn:hover { border-color: var(--accent); }
+.vista-btn.is-active {
+    background: var(--accent-soft, #eef2ff);
+    border-color: var(--accent-ink);
+    color: var(--accent-ink);
+}
+
+.agenda-semana {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-sm);
+    color: var(--app-muted, #6b7280);
+    padding: 12px var(--gutter-phone) 4px;
+}
+
+/* O scroll horizontal vive aqui: no telefone a grade é mais larga que a tela. */
+.agenda-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 var(--gutter-phone) 10px;
+}
+.agenda {
+    border-collapse: separate;
+    border-spacing: 4px;
+    min-width: 640px;
+    width: 100%;
+}
+.agenda th { font-weight: 800; }
+.agenda thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg);
+    text-align: center;
+    font-size: var(--text-xs);
+    padding-bottom: 6px;
+}
+.agenda .agenda-dia .dia-sem { display: block; color: var(--fg); }
+.agenda .agenda-dia .dia-data { display: block; color: var(--app-muted, #6b7280); font-size: 11px; }
+.agenda .agenda-dia.is-hoje .dia-sem { color: var(--accent-ink); }
+
+/* Coluna do horário: fixa à esquerda ao rolar de lado. */
+.agenda .agenda-hora {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--bg);
+    color: var(--app-muted, #6b7280);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: right;
+    vertical-align: top;
+    padding-right: 6px;
+    white-space: nowrap;
+}
+
+.agenda .agenda-cel { min-width: 130px; vertical-align: top; }
+
+.agenda-chip {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border-ui);
+    border-left: 4px solid var(--tipo-cor, var(--accent-ink));
+    border-radius: var(--radius-sm);
+    background: var(--surface-2, #eef0f2);
+    padding: 5px 7px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    line-height: 1.25;
+    cursor: pointer;
+    transition: transform var(--motion-fast, .15s), border-color var(--motion-fast, .15s);
+}
+.agenda-chip:hover { transform: translateY(-1px); }
+.agenda-chip .chip-hora { display: block; font-weight: 800; color: var(--app-muted, #6b7280); }
+.agenda-chip .chip-titulo { display: block; font-weight: 700; color: var(--fg); }
+.agenda-chip .chip-local { display: block; color: var(--app-muted, #6b7280); }
+
+/* Cor por tipo de atividade (índice estável dentro do evento).
+   Vira a variável --tipo-cor, usada no chip, no filtro e na legenda. */
+.agenda-tipo-0 { --tipo-cor: #6366f1; }
+.agenda-tipo-1 { --tipo-cor: #0ea5e9; }
+.agenda-tipo-2 { --tipo-cor: #10b981; }
+.agenda-tipo-3 { --tipo-cor: #f59e0b; }
+.agenda-tipo-4 { --tipo-cor: #ec4899; }
+.agenda-tipo-5 { --tipo-cor: #8b5cf6; }
+.agenda-sem-tipo { --tipo-cor: var(--border-strong, #cbd5e1); }
+
+/* =========================================================================
+   Programação — barra de filtros/ordenação, cabeçalhos de dia e legenda
+   ========================================================================= */
+.prog-barra { padding: 0 var(--gutter-phone) 6px; }
+
+.ordem-grupo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.filtro-rotulo {
+    font-size: var(--text-xs);
+    color: var(--app-muted, #6b7280);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+.ordem-btn {
+    border: 2px solid var(--border-ui);
+    background: var(--bg);
+    color: var(--fg);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-decoration: none;
+}
+.ordem-btn:hover { border-color: var(--accent); color: var(--accent-ink); }
+.ordem-btn.is-active {
+    background: var(--accent-soft, #eef2ff);
+    border-color: var(--accent-ink);
+    color: var(--accent-ink);
+}
+
+.filtro-grupo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 8px;
+}
+.filtro-chip {
+    border: 2px solid var(--border-ui);
+    background: var(--bg);
+    color: var(--fg);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: var(--text-xs);
+    cursor: pointer;
+}
+.filtro-chip[data-filtro-tipo] { border-left-width: 5px; border-left-color: var(--tipo-cor, var(--border-ui)); }
+.filtro-chip b { color: var(--app-muted, #6b7280); font-weight: 700; margin-left: 4px; }
+.filtro-chip:hover { border-color: var(--accent); }
+.filtro-chip[aria-pressed="true"] {
+    background: var(--accent-soft, #eef2ff);
+    border-color: var(--accent-ink);
+    color: var(--accent-ink);
+}
+.filtro-limpar {
+    margin-top: 8px;
+    border: 0;
+    background: none;
+    color: var(--app-danger, #dc2626);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 0;
+}
+
+/* Cabeçalho de cada grupo da lista (dia ou local). */
+.dia-cabecalho {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-sm);
+    color: var(--fg);
+    padding: 14px var(--gutter-phone) 4px;
+    margin: 0;
+}
+.dia-cabecalho span {
+    color: var(--app-muted, #6b7280);
+    font-weight: 600;
+    font-size: var(--text-xs);
+    margin-left: 6px;
+}
+.dia-cabecalho.is-hoje { color: var(--accent-ink); }
+
+/* Legenda das cores (tipo) na grade. */
+.agenda-legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    padding: 0 var(--gutter-phone) 8px;
+}
+.legenda-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--text-xs);
+    color: var(--app-muted, #6b7280);
+}
+.legenda-item i {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    background: var(--tipo-cor, #94a3b8);
+    display: inline-block;
+}
+
+/* Vagas no chip da grade. */
+.agenda-chip .chip-vagas { display: block; color: var(--app-green-d, #15803d); }
+.agenda-chip .chip-lotado { color: var(--app-danger, #dc2626); font-weight: 700; }
+
+/* Atividade acontecendo agora (marcada por JS): lista e grade. */
+.app-item.is-agora { border-color: var(--accent-ink); box-shadow: 0 0 0 2px var(--accent-soft, #eef2ff); }
+.agenda-chip.is-agora { border-color: var(--accent-ink); box-shadow: 0 0 0 2px var(--accent-soft, #eef2ff); }
+.agora-selo { color: var(--app-danger, #dc2626); font-size: 12px; font-weight: 700; }
+.agora-selo i { font-size: 8px; vertical-align: middle; }
+
+/* Impressão: só a programação, sem controles. */
+@media print {
+    .no-print, .app-topbar, .app-hero, .app-bottom-nav, footer, .busca-lista { display: none !important; }
+    .agenda-scroll { overflow: visible; }
+    .agenda { min-width: 0; }
+    .agenda-chip, .app-item { break-inside: avoid; }
+}

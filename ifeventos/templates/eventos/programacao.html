@@ -28,87 +28,234 @@
         </div>
     </div>
 
-    <!-- Lista de Atividades -->
-    <div class="app-sec"><h2><i class="fa-solid fa-list-check"></i> Programação do Evento</h2><span style="color:var(--app-muted);font-size:12px">{{ atividades|length }} atividade(s)</span></div>
-    <div data-busca-lista>
-        <div class="app-list busca-lista">
-            <input type="search" data-busca placeholder="Buscar atividade pelo nome" aria-label="Buscar atividade pelo nome">
+    <!-- Programação: lista ou grade -->
+    <div class="app-sec"><h2><i class="fa-solid fa-list-check"></i> Programação do Evento</h2><span style="color:var(--app-muted);font-size:12px"><span data-total-visivel>{{ atividades|length }}</span> de {{ atividades|length }} atividade(s)</span></div>
+
+    <div class="prog-barra no-print">
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <div class="vista-toggle" role="group" aria-label="Visualização da programação">
+                <button type="button" class="vista-btn{% if vista != 'grade' %} is-active{% endif %}"
+                        data-vista-btn="lista" aria-pressed="{% if vista != 'grade' %}true{% else %}false{% endif %}">
+                    <i class="fa-solid fa-list"></i> Lista
+                </button>
+                <button type="button" class="vista-btn{% if vista == 'grade' %} is-active{% endif %}"
+                        data-vista-btn="grade" aria-pressed="{% if vista == 'grade' %}true{% else %}false{% endif %}">
+                    <i class="fa-solid fa-table-cells"></i> Grade
+                </button>
+            </div>
+            <div class="ordem-grupo" role="group" aria-label="Ordenar a programação">
+                <span class="filtro-rotulo">Ordenar</span>
+                <a class="ordem-btn{% if ordem == 'dia' %} is-active{% endif %}" href="?vista={{ vista }}&amp;ordem=dia">
+                    <i class="fa-solid fa-calendar-day"></i> Dia
+                </a>
+                <a class="ordem-btn{% if ordem == 'local' %} is-active{% endif %}" href="?vista={{ vista }}&amp;ordem=local">
+                    <i class="fa-solid fa-location-dot"></i> Local
+                </a>
+                <a class="ordem-btn{% if ordem == 'titulo' %} is-active{% endif %}" href="?vista={{ vista }}&amp;ordem=titulo">
+                    <i class="fa-solid fa-arrow-down-a-z"></i> Título
+                </a>
+            </div>
         </div>
-        <div class="app-list">
-        {% for atividade in atividades %}
-        <div class="app-item" style="align-items:stretch" data-titulo="{{ atividade.titulo }}">
-            {% if atividade.imagem %}
-            <div class="dot dot-foto"><img src="{{ atividade.imagem.url }}" alt="Imagem da atividade {{ atividade.titulo }}" loading="lazy" decoding="async"></div>
-            {% else %}
-            <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
-                <i class="fa-solid fa-bullhorn"></i>
+
+        <div class="filtros" data-filtros>
+            <div class="app-list busca-lista">
+                <input type="search" data-busca placeholder="Buscar por atividade, local ou palestrante" aria-label="Buscar por atividade, local ou palestrante">
+            </div>
+            {% if locais %}
+            <div class="filtro-grupo" role="group" aria-label="Filtrar por local">
+                <span class="filtro-rotulo"><i class="fa-solid fa-location-dot"></i> Local</span>
+                {% for l in locais %}
+                <button type="button" class="filtro-chip" data-filtro-local="{{ l.nome }}"
+                        aria-pressed="false">{{ l.nome }} <b>{{ l.total }}</b></button>
+                {% endfor %}
             </div>
             {% endif %}
-            <div class="info">
-                <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-                    <h5>{{ atividade.titulo }}</h5>
-                    {% if atividade.n_vagas > atividade.n_inscricoes %}
-                        {% if request.user.is_authenticated %}
-                        <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app">
-                            <i class="fa-solid fa-circle-check"></i> Inscreva-se
-                        </a>
-                        {% else %}
-                        <a href="/accounts/login" class="btn btn-sm btn-app">
-                            <i class="fa-solid fa-right-to-bracket"></i> Entrar para se inscrever
-                        </a>
+            {% if tipos %}
+            <div class="filtro-grupo" role="group" aria-label="Filtrar por tipo">
+                <span class="filtro-rotulo"><i class="fa-solid fa-tag"></i> Tipo</span>
+                {% for t in tipos %}
+                <button type="button" class="filtro-chip {{ t.cor }}" data-filtro-tipo="{{ t.id }}"
+                        aria-pressed="false">{{ t.nome }} <b>{{ t.total }}</b></button>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <button type="button" class="filtro-limpar" data-filtro-limpar hidden>
+                <i class="fa-solid fa-xmark"></i> Limpar filtros
+            </button>
+        </div>
+    </div>
+
+    <div data-busca-lista>
+        <!-- Visualização em lista (padrão) -->
+        <div id="vista-lista" data-vista-painel="lista" {% if vista == 'grade' %}hidden{% endif %}>
+            {% for secao in secoes %}
+            <section data-secao>
+                {% if secao.rotulo %}
+                <h3 class="dia-cabecalho{% if secao.hoje %} is-hoje{% endif %}">
+                    {{ secao.rotulo }} <span>{{ secao.total }} atividade{{ secao.total|pluralize }}</span>
+                </h3>
+                {% endif %}
+                <div class="app-list">
+                {% for atividade in secao.itens %}
+                <div class="app-item" style="align-items:stretch" data-filtravel
+                     data-titulo="{{ atividade.titulo }}"
+                     data-local="{{ atividade.agenda_locais }}"
+                     data-tipo="{{ atividade.tipo_id|default:'' }}"
+                     data-inicio="{{ atividade.data_hora_inicio|date:'c' }}"
+                     data-fim="{{ atividade.data_hora_fim|date:'c' }}"
+                     data-busca-texto="{{ atividade.titulo }} {{ atividade.local }}{% for p in atividade.palestrantes.all %} {{ p.first_name }} {{ p.last_name }}{% endfor %}">
+                    {% if atividade.imagem %}
+                    <div class="dot dot-foto"><img src="{{ atividade.imagem.url }}" alt="Imagem da atividade {{ atividade.titulo }}" loading="lazy" decoding="async"></div>
+                    {% else %}
+                    <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
+                        <i class="fa-solid fa-bullhorn"></i>
+                    </div>
+                    {% endif %}
+                    <div class="info">
+                        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                            <h5>{{ atividade.titulo }}</h5>
+                            {% if atividade.n_vagas > atividade.n_inscricoes %}
+                                {% if request.user.is_authenticated %}
+                                <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app">
+                                    <i class="fa-solid fa-circle-check"></i> Inscreva-se
+                                </a>
+                                {% else %}
+                                <a href="/accounts/login" class="btn btn-sm btn-app">
+                                    <i class="fa-solid fa-right-to-bracket"></i> Entrar para se inscrever
+                                </a>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge-app" style="background:#fee2e2;color:var(--app-danger)"><i class="fa-solid fa-ban"></i> Lotado</span>
+                            {% endif %}
+                        </div>
+                        <p class="mt-2"><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> {{ atividade.tipo }}</span></p>
+                        <p class="text-justify" style="font-size:13px;color:var(--app-ink)">{{ atividade.descricao }}</p>
+                        <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
+                            <i class="fa-regular fa-calendar"></i>
+                            <strong>Início:</strong> {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }}
+                            &nbsp;·&nbsp;
+                            <strong>Fim:</strong> {{ atividade.data_hora_fim|date:"d/m/Y H:i" }}
+                        </p>
+                        {% if atividade.local %}
+                        <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
+                            <i class="fa-solid fa-location-dot"></i> <strong>Local:</strong> {{ atividade.local }}
+                        </p>
                         {% endif %}
-                    {% else %}
-                        <span class="badge-app" style="background:#fee2e2;color:var(--app-danger)"><i class="fa-solid fa-ban"></i> Lotado</span>
-                    {% endif %}
+                        {% if atividade.palestrantes.all %}
+                        <p class="mt-1 mb-0" style="font-size:12px;color:var(--app-muted)">
+                            <i class="fa-solid fa-user-tie"></i> <strong>Palestrantes:</strong>
+                            {% for palestrante in atividade.palestrantes.all %}
+                            <span class="d-inline-flex align-items-center gap-1 me-2">
+                                <img src="{{ palestrante.get_foto_url }}" class="rounded-circle" width="22" height="22" alt="{{ palestrante.first_name }}">
+                                {{ palestrante.first_name }} {{ palestrante.last_name }}
+                            </span>
+                            {% endfor %}
+                        </p>
+                        {% endif %}
+                        <div class="mt-3 pt-2 d-flex flex-wrap align-items-center gap-3" style="border-top:1px solid var(--app-border)">
+                            <span style="font-size:12px"><i class="fa-solid fa-users"></i> <strong>{{ atividade.n_inscricoes }}/{{ atividade.n_vagas }}</strong> inscritos</span>
+                            <span class="agora-selo" hidden><i class="fa-solid fa-circle"></i> acontecendo agora</span>
+                            {% if atividade.emite_certificado %}
+                            <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-certificate"></i> Emite certificado</span>
+                            {% else %}
+                            <span class="badge-app" style="background:#f1f0ff;color:var(--app-muted)"><i class="fa-solid fa-certificate"></i> Sem certificado</span>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-                <p class="mt-2"><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> {{ atividade.tipo }}</span></p>
-                <p class="text-justify" style="font-size:13px;color:var(--app-ink)">{{ atividade.descricao }}</p>
-                <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
-                    <i class="fa-regular fa-calendar"></i>
-                    <strong>Início:</strong> {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }}
-                    &nbsp;·&nbsp;
-                    <strong>Fim:</strong> {{ atividade.data_hora_fim|date:"d/m/Y H:i" }}
-                </p>
-                {% if atividade.local %}
-                <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
-                    <i class="fa-solid fa-location-dot"></i> <strong>Local:</strong> {{ atividade.local }}
-                </p>
-                {% endif %}
-                {% if atividade.palestrantes.all %}
-                <p class="mt-1 mb-0" style="font-size:12px;color:var(--app-muted)">
-                    <i class="fa-solid fa-user-tie"></i> <strong>Palestrantes:</strong>
-                    {% for palestrante in atividade.palestrantes.all %}
-                    <span class="d-inline-flex align-items-center gap-1 me-2">
-                        <img src="{{ palestrante.get_foto_url }}" class="rounded-circle" width="22" height="22" alt="{{ palestrante.first_name }}">
-                        {{ palestrante.first_name }} {{ palestrante.last_name }}
-                    </span>
-                    {% endfor %}
-                </p>
-                {% endif %}
-                <div class="mt-3 pt-2 d-flex flex-wrap align-items-center gap-3" style="border-top:1px solid var(--app-border)">
-                    <span style="font-size:12px"><i class="fa-solid fa-users"></i> <strong>{{ atividade.n_inscricoes }}/{{ atividade.n_vagas }}</strong> inscritos</span>
-                    {% if atividade.emite_certificado %}
-                    <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-certificate"></i> Emite certificado</span>
-                    {% else %}
-                    <span class="badge-app" style="background:#f1f0ff;color:var(--app-muted)"><i class="fa-solid fa-certificate"></i> Sem certificado</span>
-                    {% endif %}
+                {% endfor %}
+                </div>
+            </section>
+            {% empty %}
+            <div class="app-list">
+                <div class="app-item">
+                    <div class="info text-center" style="flex:1">
+                        <h5 style="color:var(--app-muted)">Nenhuma atividade disponível para este evento.</h5>
+                        <p class="mb-0">Volte em breve para conferir a programação.</p>
+                    </div>
                 </div>
             </div>
+            {% endfor %}
         </div>
-        {% empty %}
-        <div class="app-item">
-            <div class="info text-center" style="flex:1">
-                <h5 style="color:var(--app-muted)">Nenhuma atividade disponível para este evento.</h5>
-                <p class="mb-0">Volte em breve para conferir a programação.</p>
+
+        <!-- Visualização em grade (cronograma) -->
+        <div id="vista-grade" data-vista-painel="grade" {% if vista != 'grade' %}hidden{% endif %}>
+            {% if grade.vazio %}
+            <div class="app-list">
+                <div class="app-item">
+                    <div class="info text-center" style="flex:1">
+                        <h5 style="color:var(--app-muted)">Nenhuma atividade disponível para este evento.</h5>
+                        <p class="mb-0">Volte em breve para conferir a programação.</p>
+                    </div>
+                </div>
             </div>
+            {% else %}
+            {% if tipos %}
+            <div class="agenda-legenda">
+                <span class="filtro-rotulo">Legenda</span>
+                {% for t in tipos %}
+                <span class="legenda-item"><i class="{{ t.cor }}"></i> {{ t.nome }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% for semana in grade.semanas %}
+                {% if grade.semanas|length > 1 %}<h3 class="agenda-semana">{{ semana.rotulo }}</h3>{% endif %}
+                <div class="agenda-scroll">
+                    <table class="agenda">
+                        <thead>
+                            <tr>
+                                <th class="agenda-hora" scope="col"><span class="visually-hidden">Horário</span></th>
+                                {% for col in semana.colunas %}
+                                <th class="agenda-dia{% if col.hoje %} is-hoje{% endif %}" scope="col">
+                                    <span class="dia-sem">{{ col.rotulo }}</span>
+                                    <span class="dia-data">{{ col.curta }}</span>
+                                </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for lin in semana.linhas %}
+                            <tr>
+                                <th class="agenda-hora" scope="row">{{ lin.rotulo }}</th>
+                                {% for celula in lin.celulas %}
+                                <td class="agenda-cel">
+                                    {% for a in celula %}
+                                    <button type="button" class="agenda-chip {{ a.agenda_cor }}"
+                                            data-agenda-chip data-filtravel
+                                            data-titulo="{{ a.titulo }}"
+                                            data-local="{{ a.agenda_locais }}"
+                                            data-tipo="{{ a.tipo_id|default:'' }}"
+                                            data-inicio="{{ a.data_hora_inicio|date:'c' }}"
+                                            data-fim="{{ a.data_hora_fim|date:'c' }}"
+                                            data-busca-texto="{{ a.titulo }} {{ a.local }}{% for p in a.palestrantes.all %} {{ p.first_name }} {{ p.last_name }}{% endfor %}"
+                                            title="{{ a.titulo }} — {{ a.local }}">
+                                        <span class="chip-hora">{{ a.data_hora_inicio|time:"H:i" }}–{{ a.data_hora_fim|time:"H:i" }}</span>
+                                        <span class="chip-titulo">{{ a.titulo }}</span>
+                                        {% if a.local %}<span class="chip-local">{{ a.local }}</span>{% endif %}
+                                        {% if a.n_vagas > a.n_inscricoes %}
+                                        <span class="chip-vagas"><i class="fa-solid fa-user-plus"></i> {{ a.vagas_disponiveis }} vaga{{ a.vagas_disponiveis|pluralize }}</span>
+                                        {% else %}
+                                        <span class="chip-vagas chip-lotado"><i class="fa-solid fa-ban"></i> Lotado</span>
+                                        {% endif %}
+                                    </button>
+                                    {% endfor %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endfor %}
+            {% endif %}
         </div>
-        {% endfor %}
-            <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma atividade encontrada com esse termo.</p>
-        </div>
+
+        <p class="busca-vazio" data-filtro-vazio hidden>Nenhuma atividade encontrada com esses filtros.</p>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'js/lista_busca.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/programacao_filtros.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/programacao_vistas.js' %}?v={{ ASSET_VERSION }}"></script>
 {% endblock %}

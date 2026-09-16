@@ -22,6 +22,7 @@ from .crachas import (
 from django.conf import settings
 from django.contrib import messages
 from django.urls import reverse
+from . import agenda
 
 
 def eventos_view(request):
@@ -79,10 +80,28 @@ def evento_programacao_view(request, evento_id):
         return redirect('eventos:eventos')
 
     # Ordem cronológica: a atividade que acontece antes aparece primeiro.
-    atividades = evento.atividades.order_by("data_hora_inicio", "id")
+    atividades = list(
+        evento.atividades.select_related("tipo").order_by("data_hora_inicio", "id")
+    )
+
+    # Duas visualizações da mesma programação: lista (padrão) e grade.
+    # `?vista=grade` deixa o link direto funcionar sem JavaScript.
+    vista = request.GET.get("vista", "lista")
+    if vista not in ("lista", "grade"):
+        vista = "lista"
+
+    # Como a lista se agrupa: por dia (padrão), por local ou por título.
+    ordem = request.GET.get("ordem", agenda.ORDEM_PADRAO)
+
     return render(request, 'eventos/programacao.html', {
         'evento': evento,
         'atividades': atividades,
+        'grade': agenda.montar_grade(atividades),
+        'secoes': agenda.agrupar(atividades, ordem),
+        'locais': agenda.locais_do_evento(atividades),
+        'tipos': agenda.tipos_do_evento(atividades),
+        'ordem': ordem if ordem in agenda.ORDENS else agenda.ORDEM_PADRAO,
+        'vista': vista,
     })
 
 
