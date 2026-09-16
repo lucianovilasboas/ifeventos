@@ -166,19 +166,27 @@ class ParticipanteMetadados(models.Model):
         return f"Metadados de {self.participante}"
 
 
-class AlunoRoster(models.Model):
-    """Linha da planilha de alunos — fonte para completar o perfil no 1º acesso.
+class PessoaRoster(models.Model):
+    """Linha da planilha (pré-carga) — serve para QUALQUER vínculo.
 
-    Não é conta: é só a pré-carga de dados. No primeiro login/cadastro, o e-mail
-    é procurado aqui e os metadados/CPF em falta são preenchidos (ver
-    `eventos/roster.py`). A chave é o e-mail PESSOAL do aluno.
+    Não é conta: é a fonte de dados. No primeiro login/cadastro, o e-mail é
+    procurado aqui e os metadados/CPF/nome em falta são preenchidos (ver
+    `eventos/roster.py`). A chave é o e-mail PESSOAL.
+
+    O que é específico do vínculo (matrícula/curso/turma/ano para Aluno;
+    função/SIAPE para Servidor; …) fica em `dados`, validado pelo schema
+    configurável `settings.METADADOS_PARTICIPANTE` — por isso a MESMA tabela
+    atende todos os vínculos.
     """
 
     email = models.EmailField(unique=True, db_index=True)
     nome = models.CharField(max_length=255, blank=True, default="")
     # Guardado só com os 11 dígitos (a máscara fica na exibição).
     cpf = models.CharField(max_length=11, blank=True, default="")
-    # Metadados já mapeados da planilha (vinculo/matricula/curso/turma/ano).
+    # Espelho de `dados["vinculo"]`, só para filtro/relatório (indexável).
+    # As opções válidas vêm de METADADOS_PARTICIPANTE (ver metadados.validar).
+    vinculo = models.CharField(max_length=50, blank=True, default="", db_index=True)
+    # Metadados já mapeados da planilha (vinculo/matricula/curso/turma/ano/…).
     dados = models.JSONField(default=dict, blank=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -192,8 +200,8 @@ class AlunoRoster(models.Model):
     dados_usuario = models.JSONField(null=True, blank=True)
 
     class Meta:
-        verbose_name = "Aluno (planilha)"
-        verbose_name_plural = "Alunos (planilha)"
+        verbose_name = "Pessoa (planilha)"
+        verbose_name_plural = "Pessoas (planilha)"
 
     def __str__(self):
         return self.email
@@ -204,6 +212,8 @@ class AlunoRoster(models.Model):
         self.email = (self.email or "").strip().lower()
         if self.cpf:
             self.cpf = apenas_digitos(self.cpf)
+        # Espelha o vínculo para permitir filtro/relatório no admin.
+        self.vinculo = str((self.dados or {}).get("vinculo", "") or "").strip()[:50]
         super().save(*args, **kwargs)
 
 

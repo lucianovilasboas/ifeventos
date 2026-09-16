@@ -156,6 +156,33 @@ visível, dependência válida) é sempre refeita no servidor
 (`eventos/metadados.py` + `MetadadosFormMixin`), então continua correta mesmo com
 o JavaScript desligado.
 
+## Pré-carga de pessoas (planilha)
+
+Um único arquivo (`.csv`, `.xls` ou `.xlsx`) carrega os dados de **todos os
+vínculos** (Aluno, Servidor, Colaborador, Estagiário, Comunidade externa) para a
+tabela `PessoaRoster`. No primeiro acesso (Google ou cadastro local), o e-mail é
+procurado nessa tabela e os metadados/CPF/nome em falta são preenchidos
+automaticamente (ver `eventos/roster.py`).
+
+Colunas: `email`, `nome`, `cpf` + as chaves de `METADADOS_PARTICIPANTE`
+(`vinculo`, `matricula`, `curso`, `turma`, `ano`, `funcao`, `siape`). A
+validação é **por vínculo** (Aluno exige matrícula/curso; Servidor exige
+função; os demais só o vínculo). Há um arquivo-modelo com dados fictícios em
+`exemplo_roster.csv`; para regerá-lo conforme o schema da escola:
+
+```bash
+docker compose exec app python manage.py modelo_roster          # exemplo_roster.csv
+docker compose exec app python manage.py modelo_roster --xlsx   # .xlsx
+
+# Importar (rode ANTES de as pessoas entrarem — o preenchimento acontece uma vez,
+# na criação da conta):
+docker compose exec app python manage.py importar_roster /caminho/arquivo.csv
+```
+
+O admin (`/admin/eventos/pessoaroster/`) mostra o vínculo, um resumo dos
+metadados e a situação da linha (*não usado / usado e confere / usado e
+diverge*), e permite ajustes manuais.
+
 ## Desenvolvimento local
 
 ```bash

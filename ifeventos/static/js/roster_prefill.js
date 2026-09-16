@@ -1,14 +1,54 @@
-/* Pré-preenche o cadastro com os dados da planilha de alunos (roster).
+/* Pré-preenche o cadastro com os dados da planilha de pré-carga (roster).
  *
  * Enquanto a pessoa digita o e-mail (ou o CPF) em /accounts/signup/, consulta o
  * endpoint informado no <form data-roster-url="..."> e, se achar a pessoa na
- * pré-carga, preenche os campos de metadados — SOMENTE os que estiverem VAZIOS
- * — para ela conferir e corrigir. Sem JS, nada muda: o cadastro segue normal.
+ * pré-carga, preenche os campos — SOMENTE os que estiverem VAZIOS — para ela
+ * conferir e corrigir.
+ *
+ * É GENÉRICO: percorre as chaves devolvidas em `dados` e preenche o campo
+ * correspondente, `[data-meta-campo="<chave>"]`, sem conhecer os campos de
+ * nenhum vínculo. A ordem (pai antes do dependente; quem condiciona
+ * visibilidade antes de quem é condicionado) sai de `METADADOS_CONFIG`, o mesmo
+ * JSON que o script dos campos condicionais já usa. Sem JS, nada muda.
  */
 (function () {
     "use strict";
 
     var ESPERA = 400;
+
+    function ordemDePreenchimento() {
+        var dados = document.getElementById("metadados-config");
+        var config = [];
+        if (dados) {
+            try {
+                config = JSON.parse(dados.textContent || "[]") || [];
+            } catch (e) {
+                config = [];
+            }
+        }
+        var pendentes = config.slice();
+        var ordem = [];
+        var resolvido = {};
+        var rodadas = 0;
+        while (pendentes.length && rodadas++ < 1000) {
+            for (var i = pendentes.length - 1; i >= 0; i--) {
+                var campo = pendentes[i];
+                var dep =
+                    campo.depende_de ||
+                    (campo.visivel_quando ? campo.visivel_quando.chave : null);
+                if (!dep || resolvido[dep]) {
+                    ordem.push(campo.chave);
+                    resolvido[campo.chave] = true;
+                    pendentes.splice(i, 1);
+                }
+            }
+        }
+        // Dependência circular/ausente: completa na ordem da config.
+        pendentes.forEach(function (campo) {
+            ordem.push(campo.chave);
+        });
+        return ordem;
+    }
 
     function iniciar() {
         var form = document.querySelector("form[data-roster-url]");
@@ -18,6 +58,7 @@
         var rota = form.getAttribute("data-roster-url");
         if (!email || !rota || !form.querySelector("[data-meta-campo]")) return;
 
+        var ordem = ordemDePreenchimento();
         var timer = null;
         var emVoo = null;
         var ultima = "";
@@ -54,13 +95,9 @@
             }
             definirId("id_first_name", json.first_name);
             definirId("id_last_name", json.last_name);
-            definir("vinculo", dados.vinculo);
-            definir("matricula", dados.matricula);
-            // `curso` antes de `ano`: o script de dependentes repovoa as opções
-            // de `ano` quando `curso` muda.
-            definir("curso", dados.curso);
-            definir("ano", dados.ano);
-            definir("turma", dados.turma);
+            ordem.forEach(function (chave) {
+                definir(chave, dados[chave]);
+            });
         }
 
         function consultar() {

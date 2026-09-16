@@ -7,7 +7,7 @@ from .models import TipoAtividade
 from .models import Inscricao
 from .models import Certificado
 from .models import PresencaCancelada
-from .models import AlunoRoster
+from .models import PessoaRoster
 from django.utils.html import format_html
 from django import forms
 from django.core.exceptions import ValidationError
@@ -216,16 +216,17 @@ class PresencaCanceladaAdmin(admin.ModelAdmin):
         return False
 
 
-class AlunoRosterForm(forms.ModelForm):
+class PessoaRosterForm(forms.ModelForm):
     """Valida o JSON `dados` e o CPF na hora de salvar, no próprio admin.
 
     Sem isto, um valor fora das opções (ex.: "Informatica", sem acento) só
     aparecia como aviso no log, em tempo de login, e o perfil não era
-    preenchido. Aqui o erro aparece no formulário, antes de gravar.
+    preenchido. Aqui o erro aparece no formulário, antes de gravar. A validação
+    é por vínculo (o mesmo `metadados.validar` do formulário/importação).
     """
 
     class Meta:
-        model = AlunoRoster
+        model = PessoaRoster
         fields = "__all__"
 
     cpf = forms.CharField(
@@ -285,21 +286,22 @@ class AlunoRosterForm(forms.ModelForm):
             raise forms.ValidationError(exc.messages)
 
 
-@admin.register(AlunoRoster)
-class AlunoRosterAdmin(admin.ModelAdmin):
-    """Pré-carga da planilha de alunos — editável para ajustes manuais.
+@admin.register(PessoaRoster)
+class PessoaRosterAdmin(admin.ModelAdmin):
+    """Pré-carga da planilha — serve TODOS os vínculos.
 
-    A chave é o e-mail; `dados` é o metadado já mapeado (vinculo/matricula/
-    curso/turma/ano) que preenche o perfil do aluno na criação da conta.
+    A chave é o e-mail; `dados` são os metadados (validados por vínculo) que
+    preenchem o perfil na criação da conta. `vinculo` é só um espelho para
+    filtro/relatório e é derivado de `dados`.
     """
 
-    form = AlunoRosterForm
-    list_display = ('email', 'nome', 'curso', 'turma', 'ano', 'cpf',
+    form = PessoaRosterForm
+    list_display = ('email', 'nome', 'vinculo', 'metadados_resumo', 'cpf',
                     'confere', 'situacao', 'usado_em', 'atualizado_em')
-    list_filter = ('confere',)
+    list_filter = ('vinculo', 'confere')
     search_fields = ('email', 'nome', 'cpf')
     ordering = ('email',)
-    readonly_fields = ('atualizado_em', 'usado_em', 'dados_usuario')
+    readonly_fields = ('vinculo', 'atualizado_em', 'usado_em', 'dados_usuario')
 
     @admin.display(description='Situação')
     def situacao(self, obj):
@@ -307,16 +309,14 @@ class AlunoRosterAdmin(admin.ModelAdmin):
             return 'não usado'
         return 'usado e confere' if obj.confere else 'usado e diverge'
 
-    @admin.display(description='Curso')
-    def curso(self, obj):
-        return (obj.dados or {}).get('curso', '')
-
-    @admin.display(description='Turma')
-    def turma(self, obj):
-        return (obj.dados or {}).get('turma', '')
-
-    @admin.display(description='Ano/Período')
-    def ano(self, obj):
-        return (obj.dados or {}).get('ano', '')
+    @admin.display(description='Metadados')
+    def metadados_resumo(self, obj):
+        dados = obj.dados or {}
+        partes = [
+            f"{campo['rotulo']}: {dados[campo['chave']]}"
+            for campo in metadados.campos()
+            if dados.get(campo["chave"])
+        ]
+        return " · ".join(partes)
 
 

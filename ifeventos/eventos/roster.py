@@ -1,53 +1,40 @@
-"""Pré-carga de alunos (planilha) e completamento do perfil no 1º acesso.
+"""Pré-carga de pessoas (planilha) e completamento do perfil no 1º acesso.
 
-A planilha da escola (aba "Registros") é importada uma vez para `AlunoRoster`,
-com a chave sendo o e-mail PESSOAL do aluno. Quando a pessoa cria a conta pelo
-Google ou pelo cadastro local, `completar_do_roster` preenche os metadados de
-aluno e o CPF que ela ainda não informou. Roda UMA vez, na criação da conta
-(signal `user_signed_up`) — nunca sobrescreve depois.
+Um ÚNICO arquivo (CSV, XLS ou XLSX) alimenta a tabela `PessoaRoster`, com a
+chave sendo o e-mail PESSOAL. O mesmo arquivo serve para TODOS os vínculos:
+além de `email`, `nome` e `cpf`, as colunas são as chaves de
+`settings.METADADOS_PARTICIPANTE` (vinculo, matricula, curso, turma, ano,
+funcao, siape…). O que é específico do vínculo fica em `dados` (JSON), validado
+pelo MESMO schema do formulário.
 
-Regras (decididas com a escola):
-  - chave = e-mail pessoal; "Email Acadêmico" é ignorado (330 são "-" e parte
-    aponta para e-mail de terceiros);
-  - o código da turma (ex.: "I1PNIINFO1") traz o ano (I1/I2/I3), o curso
-    (PNIINFO/PNIADMI/PNTGER) e o número da turma (último dígito);
-  - PNEDOCIN fica de fora: não existe opção de curso equivalente;
-  - campos sem lugar no sistema (sexo, turno, situação) são ignorados;
+No primeiro acesso (Google ou cadastro local), `completar_do_roster` preenche
+metadados/CPF/nome que a pessoa ainda não informou e marca a linha (usada,
+confere, o que foi salvo). Roda UMA vez, na criação da conta.
+
+Regras:
+  - chave = e-mail; colunas fora do schema são ignoradas com aviso;
+  - a validação é POR VÍNCULO (Aluno exige matrícula/curso; Servidor exige
+    função; os demais só o vínculo);
   - e-mail fora da planilha, ou conta que já existia, => nada acontece.
 """
 
 import logging
-import re
+import os
 import unicodedata
 
 from django.utils import timezone
 
 from . import metadados
-from .models import AlunoRoster
+from .models import PessoaRoster
 from .validators import cpf_e_valido
 
 logger = logging.getLogger(__name__)
 
-# Código do curso na planilha -> opção de `curso` no sistema.
-MAPA_CURSO = {
-    "PNIINFO": "Informática",
-    "PNIADMI": "Administração",
-    "PNTGER": "TPG",
-}
-
-# I1/I2/I3 -> rótulo de `ano` do sistema (só Informática/Administração).
-MAPA_ANO = {"1": "Primeiro ano", "2": "Segundo ano", "3": "Terceiro ano"}
-
-# Cabeçalhos da planilha, já normalizados (minúsculas, sem acento, um espaço).
-COL_EMAIL = "email pessoal"
+# Colunas próprias da planilha (não são metadados).
+COL_EMAIL = "email"
 COL_NOME = "nome"
 COL_CPF = "cpf"
-COL_MATRICULA = "matricula"
-COL_CURSO = "codigo curso"
-COL_TURMA = "turma"
-
-# "I1PNIINFO1" = I + ano + código do curso + número da turma (1 ou 2).
-CODIGO_TURMA = re.compile(r"^I([123])(PNIINFO|PNIADMI|PNTGER)([12])$", re.IGNORECASE)
+FIXAS = (COL_EMAIL, COL_NOME, COL_CPF)
 
 
 def _chave(texto):
@@ -65,64 +52,99 @@ def _texto(valor):
     return str(valor).strip()
 
 
-def decodificar_turma(codigo):
-    """De "I1PNIINFO1" extrai `{"ano": "Primeiro ano", "turma": "Turma 1"}`.
-
-    Devolve `{}` quando o código não é reconhecido (ex.: "-" nos cursos TPG) —
-    nesse caso ano e turma ficam de fora (são opcionais).
-    """
-    casamento = CODIGO_TURMA.match((codigo or "").strip())
-    if not casamento:
-        return {}
-    ano, _curso, numero = casamento.groups()
-    return {"ano": MAPA_ANO[ano], "turma": f"Turma {numero}"}
+def cabecalhos():
+    """Cabeçalho do arquivo: `email`, `nome`, `cpf` + as chaves de metadados."""
+    return list(FIXAS) + [c["chave"] for c in metadados.campos()]
 
 
-def _campo(chave):
-    """Definição de um campo de metadados (ou None)."""
-    return next((c for c in metadados.campos() if c["chave"] == chave), None)
+# ---------------------------------------------------------------------------
+# Leitura do arquivo (CSV / XLS / XLSX)
+# ---------------------------------------------------------------------------
+
+def ler_csv(caminho):
+    """Lê um CSV (utf-8-sig; delimitador , ; ou tab) e devolve as linhas."""
+    from .importacao import ler_linhas
+
+    with open(caminho, "rb") as arquivo:
+        _cabecalho, linhas = ler_linhas(arquivo)
+    return linhas
 
 
-def montar_dados(linha):
-    """Monta os metadados de aluno a partir de uma linha normalizada.
+def ler_xls(caminho):
+    """Lê a 1ª aba de um `.xls` (xlrd) e devolve as linhas."""
+    import xlrd
 
-    Devolve `{}` quando o curso não tem opção no sistema (PNEDOCIN) ou o código
-    é desconhecido — a linha, então, não entra no roster.
-    """
-    curso = MAPA_CURSO.get(_texto(linha.get(COL_CURSO)).strip().upper())
-    if not curso:
-        return {}
-    dados = {
-        "vinculo": "Aluno",
-        "matricula": _texto(linha.get(COL_MATRICULA)),
-        "curso": curso,
-    }
-    extra = decodificar_turma(_texto(linha.get(COL_TURMA)))
-    if extra:
-        # `ano` só entra se for opção do curso (TPG usa "período", não "ano").
-        campo_ano = _campo("ano")
-        if campo_ano and extra.get("ano") in metadados.opcoes_do_campo(campo_ano, curso):
-            dados["ano"] = extra["ano"]
-        campo_turma = _campo("turma")
-        if (campo_turma and extra.get("turma")
-                and extra["turma"] in metadados.opcoes_do_campo(campo_turma)):
-            dados["turma"] = extra["turma"]
-    return dados
+    livro = xlrd.open_workbook(caminho)
+    aba = livro.sheet_by_index(0)
+    if aba.nrows == 0:
+        return []
+    cabecalho = [_chave(v) for v in aba.row_values(0)]
+    linhas = []
+    for r in range(1, aba.nrows):
+        valores = aba.row_values(r)
+        linhas.append({
+            cabecalho[i]: _texto(valores[i])
+            for i in range(len(cabecalho)) if i < len(valores)
+        })
+    return linhas
 
+
+def ler_xlsx(caminho):
+    """Lê a aba ativa de um `.xlsx` (openpyxl) e devolve as linhas."""
+    from openpyxl import load_workbook
+
+    livro = load_workbook(caminho, read_only=True, data_only=True)
+    try:
+        linhas_iter = livro.active.iter_rows(values_only=True)
+        try:
+            cabecalho = [_chave(v) for v in next(linhas_iter)]
+        except StopIteration:
+            return []
+        linhas = []
+        for valores in linhas_iter:
+            linhas.append({
+                cabecalho[i]: _texto(valores[i])
+                for i in range(len(cabecalho)) if i < len(valores)
+            })
+        return linhas
+    finally:
+        livro.close()
+
+
+def ler_arquivo(caminho):
+    """Escolhe o leitor pela extensão (.csv / .xls / .xlsx)."""
+    ext = os.path.splitext(caminho)[1].lower()
+    if ext == ".csv":
+        return ler_csv(caminho)
+    if ext == ".xls":
+        return ler_xls(caminho)
+    if ext in (".xlsx", ".xlsm"):
+        return ler_xlsx(caminho)
+    raise ValueError(
+        f"Extensão não suportada: {ext or '(sem extensão)'}. Use .csv, .xls ou .xlsx."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Importação
+# ---------------------------------------------------------------------------
 
 def importar_linhas(linhas):
     """Núcleo: lista de linhas (dict) -> relatório por linha.
 
-    Separado da leitura do `.xls` para poder ser testado (e usado por outros
-    formatos) sem depender do `xlrd`.
+    A validação é por vínculo (`metadados.validar`), então o mesmo arquivo
+    aceita Aluno, Servidor, Colaborador, Estagiário e Comunidade externa.
     """
+    chaves = [c["chave"] for c in metadados.campos()]
+    chaves_validas = set(FIXAS) | set(chaves)
     relatorio = {"total": len(linhas or []), "importados": 0, "atualizados": 0,
                  "ignorados": 0, "erros": 0, "linhas": []}
 
     for indice, bruta in enumerate(linhas or [], start=1):
         linha = {_chave(k): v for k, v in (bruta or {}).items()}
         email = _texto(linha.get(COL_EMAIL)).lower()
-        item = {"indice": indice, "email": email, "status": None, "motivo": ""}
+        item = {"indice": indice, "email": email, "status": None,
+                "motivo": "", "avisos": []}
 
         def terminar(status, motivo=""):
             item["status"] = status
@@ -134,22 +156,35 @@ def importar_linhas(linhas):
             terminar("erros", "linha sem e-mail.")
             continue
 
-        dados = montar_dados(linha)
-        if not dados:
-            terminar("ignorados", "curso sem opção no sistema (ou código desconhecido).")
+        for extra in sorted(set(linha) - chaves_validas):
+            item["avisos"].append(f"coluna '{extra}' ignorada.")
+
+        valores = {c: _texto(linha.get(c)) for c in chaves}
+        for campo in metadados.campos():
+            if metadados.visivel(campo, valores):
+                continue
+            if valores.get(campo["chave"]):
+                item["avisos"].append(
+                    f"'{campo['rotulo']}' ignorado (não se aplica ao vínculo)."
+                )
+        dados, erros = metadados.limpar(valores)
+        if erros:
+            mensagens = [m for lista in erros.values() for m in lista]
+            terminar("erros", "; ".join(mensagens))
             continue
 
         cpf = _texto(linha.get(COL_CPF))
         if cpf and not cpf_e_valido(cpf):
-            terminar("ignorados", "CPF inválido.")
+            terminar("erros", "CPF inválido.")
             continue
 
-        _obj, criado = AlunoRoster.objects.update_or_create(
+        _obj, criado = PessoaRoster.objects.update_or_create(
             email=email,
             defaults={
                 "nome": _texto(linha.get(COL_NOME)),
                 "cpf": cpf,
                 "dados": dados,
+                "vinculo": dados.get("vinculo", ""),
             },
         )
         terminar("importados" if criado else "atualizados")
@@ -157,31 +192,14 @@ def importar_linhas(linhas):
     return relatorio
 
 
-def ler_xls(caminho):
-    """Lê a aba "Registros" do `.xls` e devolve a lista de linhas (dict)."""
-    import xlrd
-
-    livro = xlrd.open_workbook(caminho)
-    aba = (
-        livro.sheet_by_name("Registros")
-        if "Registros" in livro.sheet_names()
-        else livro.sheet_by_index(0)
-    )
-    cabecalho = aba.row_values(0)
-    linhas = []
-    for r in range(1, aba.nrows):
-        valores = aba.row_values(r)
-        linhas.append(
-            {_chave(cabecalho[i]): valores[i] for i in range(len(cabecalho))
-             if i < len(valores)}
-        )
-    return linhas
+def importar_arquivo(caminho):
+    """Lê o arquivo (csv/xls/xlsx) e importa para `PessoaRoster`."""
+    return importar_linhas(ler_arquivo(caminho))
 
 
-def importar_xls(caminho):
-    """Importa o `.xls` para `AlunoRoster` (idempotente por e-mail)."""
-    return importar_linhas(ler_xls(caminho))
-
+# ---------------------------------------------------------------------------
+# Completamento do perfil (1º acesso)
+# ---------------------------------------------------------------------------
 
 def dividir_nome(nome):
     """Divide um nome completo em ``(primeiro, sobrenome)``.
@@ -211,7 +229,7 @@ def _conferem(linha, dados, cpf):
 
 
 def completar_do_roster(participante):
-    """Preenche metadados/CPF/nome do participante a partir do `AlunoRoster`.
+    """Preenche metadados/CPF/nome do participante a partir do `PessoaRoster`.
 
     Roda só na criação da conta (ver `signals.py`). Não faz nada se o e-mail
     não estiver na planilha. O que a própria pessoa já informou tem prioridade.
@@ -225,7 +243,7 @@ def completar_do_roster(participante):
         if not email:
             return False
 
-        linha = AlunoRoster.objects.filter(email=email).first()
+        linha = PessoaRoster.objects.filter(email=email).first()
         if linha is None:
             return False
 

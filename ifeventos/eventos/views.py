@@ -436,7 +436,7 @@ def roster_lookup(request):
     pelo e-mail; não achando, tenta pelo CPF. A pessoa usa o retorno só para
     pré-preencher o formulário e confirmar/corrigir.
     """
-    from .models import AlunoRoster
+    from .models import PessoaRoster
     from .validators import apenas_digitos, formatar_cpf
 
     email = (request.GET.get("email") or "").strip().lower()
@@ -445,11 +445,11 @@ def roster_lookup(request):
     linha = None
     origem = None
     if email:
-        linha = AlunoRoster.objects.filter(email=email).first()
+        linha = PessoaRoster.objects.filter(email=email).first()
         if linha is not None:
             origem = "email"
     if linha is None and len(cpf) == 11:
-        linha = AlunoRoster.objects.filter(cpf=cpf).first()
+        linha = PessoaRoster.objects.filter(cpf=cpf).first()
         if linha is not None:
             origem = "cpf"
 
