@@ -1060,10 +1060,24 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 }
 .agenda {
     border-collapse: separate;
-    border-spacing: 4px;
+    border-spacing: 0; /* a malha é desenhada por célula (ver abaixo) */
     min-width: 640px;
     width: 100%;
 }
+
+/* Malha da grade: linha fina em cada célula. Seguimos com `separate` +
+   `spacing: 0` (e não `border-collapse: collapse`) porque as células do
+   cabeçalho e da coluna do horário são `sticky` — com `collapse` as bordas
+   somem ao rolar. */
+.agenda th,
+.agenda td {
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 3px 5px;
+}
+.agenda tr > :first-child { border-left: 1px solid var(--border); }
+.agenda thead tr > * { border-top: 1px solid var(--border); }
+
 .agenda th { font-weight: 800; }
 .agenda thead th {
     position: sticky;
@@ -1072,18 +1086,21 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     background: var(--bg);
     text-align: center;
     font-size: var(--text-xs);
-    padding-bottom: 6px;
+    padding: 4px 5px 6px;
 }
 .agenda .agenda-dia .dia-sem { display: block; color: var(--fg); }
 .agenda .agenda-dia .dia-data { display: block; color: var(--app-muted, #6b7280); font-size: 11px; }
+/* Coluna do dia de hoje ganha um fundo leve para localizar a data na grade. */
+.agenda .agenda-dia.is-hoje { background: var(--accent-soft, #e8f5ea); }
 .agenda .agenda-dia.is-hoje .dia-sem { color: var(--accent-ink); }
 
-/* Coluna do horário: fixa à esquerda ao rolar de lado. */
+/* Coluna do horário: fixa à esquerda ao rolar de lado. Fundo sólido (não
+   translúcido) para os chips não aparecerem por baixo dela. */
 .agenda .agenda-hora {
     position: sticky;
     left: 0;
     z-index: 3;
-    background: var(--bg);
+    background: var(--surface-2, #efefef);
     color: var(--app-muted, #6b7280);
     font-size: 11px;
     font-weight: 700;
@@ -1093,7 +1110,7 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     white-space: nowrap;
 }
 
-.agenda .agenda-cel { min-width: 130px; vertical-align: top; }
+.agenda .agenda-cel { min-width: 130px; vertical-align: top; padding: 3px 4px; }
 
 .agenda-chip {
     display: block;
