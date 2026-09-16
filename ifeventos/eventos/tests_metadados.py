@@ -66,7 +66,7 @@ class CadastroCondicionalTests(TestCase):
 
     def _post(self, **extra):
         dados = {"email": "cond@example.com", "cpf": CPF, "password1": SENHA,
-                 "password2": SENHA}
+                 "password2": SENHA, "first_name": "Aluno"}
         dados.update(extra)
         return self.client.post(self.url, dados)
 

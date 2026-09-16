@@ -65,7 +65,7 @@ class PerfilMetadadosTests(TestCase):
                 "cpf": "12345678909", "telefone": "", "endereco": "",
                 "meta_vinculo": "Aluno",
                 "meta_matricula": "2026001", "meta_curso": "Informática",
-                "meta_turma": "Turma B", "meta_ano": "Terceiro ano",
+                "meta_turma": "Turma 2", "meta_ano": "Terceiro ano",
             },
         )
         self.assertEqual(resposta.status_code, 302)
@@ -75,4 +75,4 @@ class PerfilMetadadosTests(TestCase):
         self.assertEqual(dados["vinculo"], "Aluno")
         self.assertEqual(dados["matricula"], "2026001")
         self.assertEqual(dados["curso"], "Informática")
-        self.assertEqual(dados["turma"], "Turma B")
+        self.assertEqual(dados["turma"], "Turma 2")

@@ -1,7 +1,8 @@
 from django.utils import timezone  # ✅ Correto
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Count
-from django.http import Http404
+from django.http import Http404, JsonResponse
+from django.views.decorators.http import require_GET
 from django.contrib.auth import logout
 from .models import Evento
 import qrcode
@@ -425,3 +426,47 @@ def confirmar_presenca_pelo_qr(request, token):
         },
         status=200 if presenca else 400,
     )
+
+
+@require_GET
+def roster_lookup(request):
+    """AJAX do cadastro: busca a linha da planilha de alunos e devolve os dados.
+
+    Público de propósito — quem consulta ainda não tem conta. Busca primeiro
+    pelo e-mail; não achando, tenta pelo CPF. A pessoa usa o retorno só para
+    pré-preencher o formulário e confirmar/corrigir.
+    """
+    from .models import AlunoRoster
+    from .validators import apenas_digitos, formatar_cpf
+
+    email = (request.GET.get("email") or "").strip().lower()
+    cpf = apenas_digitos(request.GET.get("cpf") or "")
+
+    linha = None
+    origem = None
+    if email:
+        linha = AlunoRoster.objects.filter(email=email).first()
+        if linha is not None:
+            origem = "email"
+    if linha is None and len(cpf) == 11:
+        linha = AlunoRoster.objects.filter(cpf=cpf).first()
+        if linha is not None:
+            origem = "cpf"
+
+    if linha is None:
+        resposta = JsonResponse({"encontrado": False})
+    else:
+        from .roster import dividir_nome
+
+        primeiro, sobrenome = dividir_nome(linha.nome)
+        resposta = JsonResponse({
+            "encontrado": True,
+            "origem": origem,
+            "nome": linha.nome,
+            "first_name": primeiro,
+            "last_name": sobrenome,
+            "cpf": formatar_cpf(linha.cpf),
+            "dados": dict(linha.dados or {}),
+        })
+    resposta["Cache-Control"] = "no-store"
+    return resposta

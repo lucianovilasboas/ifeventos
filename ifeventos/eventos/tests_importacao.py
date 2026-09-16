@@ -49,10 +49,10 @@ class ImportacaoMetadadosTests(TestCase):
                        "aluno@example.com,Aluno,2026001,TPG,Primeiro período\n")
         # Segunda importação só troca a turma; o resto fica.
         relatorio = self._importar("email,vinculo,matricula,curso,turma\n"
-                                   "aluno@example.com,Aluno,2026001,TPG,Turma B\n")
+                                   "aluno@example.com,Aluno,2026001,TPG,Turma 2\n")
         self.assertEqual(relatorio["atualizados"], 1)
         dados = self._dados()
-        self.assertEqual(dados["turma"], "Turma B")
+        self.assertEqual(dados["turma"], "Turma 2")
         self.assertEqual(dados["ano"], "Primeiro período")  # preservado
 
     def test_email_inexistente_e_erro(self):

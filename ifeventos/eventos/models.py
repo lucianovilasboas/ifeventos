@@ -166,6 +166,47 @@ class ParticipanteMetadados(models.Model):
         return f"Metadados de {self.participante}"
 
 
+class AlunoRoster(models.Model):
+    """Linha da planilha de alunos — fonte para completar o perfil no 1º acesso.
+
+    Não é conta: é só a pré-carga de dados. No primeiro login/cadastro, o e-mail
+    é procurado aqui e os metadados/CPF em falta são preenchidos (ver
+    `eventos/roster.py`). A chave é o e-mail PESSOAL do aluno.
+    """
+
+    email = models.EmailField(unique=True, db_index=True)
+    nome = models.CharField(max_length=255, blank=True, default="")
+    # Guardado só com os 11 dígitos (a máscara fica na exibição).
+    cpf = models.CharField(max_length=11, blank=True, default="")
+    # Metadados já mapeados da planilha (vinculo/matricula/curso/turma/ano).
+    dados = models.JSONField(default=dict, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    # -- Rastreio de uso (preenchido no 1º acesso, ver eventos/roster.py) --
+    # Quando a linha foi aplicada (None = ainda não usada).
+    usado_em = models.DateTimeField(null=True, blank=True)
+    # True/False = o que a pessoa salvou confere com a planilha; None = não usada.
+    confere = models.BooleanField(null=True, blank=True)
+    # O que a pessoa efetivamente salvou no 1º acesso (nome, cpf e metadados).
+    # A planilha (`dados`) NÃO é sobrescrita — assim dá para ver a divergência.
+    dados_usuario = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Aluno (planilha)"
+        verbose_name_plural = "Alunos (planilha)"
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        # E-mail é a chave: normaliza para minúsculas, senão o casamento com o
+        # login (que o allauth normaliza) depende de maiúsculas/quebras.
+        self.email = (self.email or "").strip().lower()
+        if self.cpf:
+            self.cpf = apenas_digitos(self.cpf)
+        super().save(*args, **kwargs)
+
+
 class Evento(models.Model):
     # Vocabulário inicial de categorias. serve de sugestão no formulário e de
     # ponto de partida para a IA; não é uma restrição (o campo é texto livre).

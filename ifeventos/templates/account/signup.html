@@ -15,7 +15,7 @@
             {% endfor %}
         {% endif %}
 
-        <form method="post">
+        <form method="post" data-roster-url="{% url 'eventos:roster_lookup' %}">
             {% csrf_token %}
 
             <div class="form-group">
@@ -24,6 +24,22 @@
                     <div class="text-danger text-start">{% for error in form.email.errors %}<small>{{ error }}</small>{% endfor %}</div>
                 {% endif %}
                 <i class="fa-solid fa-envelope"></i>
+            </div>
+
+            <div class="form-group">
+                {{ form.first_name }}
+                {% if form.first_name.errors %}
+                    <div class="text-danger text-start">{% for error in form.first_name.errors %}<small>{{ error }}</small>{% endfor %}</div>
+                {% endif %}
+                <i class="fa-solid fa-user"></i>
+            </div>
+
+            <div class="form-group">
+                {{ form.last_name }}
+                {% if form.last_name.errors %}
+                    <div class="text-danger text-start">{% for error in form.last_name.errors %}<small>{{ error }}</small>{% endfor %}</div>
+                {% endif %}
+                <i class="fa-solid fa-user"></i>
             </div>
 
             <div class="form-group">
@@ -65,4 +81,5 @@
 {% block scripts %}
 {{ METADADOS_CONFIG|json_script:"metadados-config" }}
 <script src="{% static 'js/metadados_dependentes.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/roster_prefill.js' %}?v={{ ASSET_VERSION }}"></script>
 {% endblock %}

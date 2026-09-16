@@ -1,5 +1,6 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
+from allauth.account.signals import user_signed_up
 from .models import Inscricao 
 from .models import Atividade
 from .models import Presenca
@@ -119,3 +120,17 @@ def presenca_removida(sender, instance, **kwargs):
         "acao": "presenca",
     }
     notify_socketio("presenca_cancelada", data)
+
+
+# Pré-carga da planilha de alunos: completa o perfil SÓ na criação da conta.
+#
+# `user_signed_up` dispara uma única vez, no primeiro acesso — tanto no cadastro
+# local (depois de o formulário gravar os metadados, que têm prioridade) quanto
+# no auto-cadastro pelo Google. Nunca roda de novo depois, então não sobrescreve
+# nada que a pessoa edite mais tarde. `completar_do_roster` não levanta exceção.
+@receiver(user_signed_up)
+def completar_perfil_pelo_roster(request, user, **kwargs):
+    from . import roster
+
+    roster.completar_do_roster(user)
+

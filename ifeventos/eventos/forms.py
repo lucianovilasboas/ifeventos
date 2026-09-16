@@ -294,8 +294,40 @@ class SignupFormComCpf(MetadadosFormMixin, AllauthSignupForm):
         help_text="Somente números.",
     )
 
+    first_name = forms.CharField(
+        label="Nome",
+        required=True,
+        max_length=150,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Seu nome",
+                "autocomplete": "given-name",
+            }
+        ),
+    )
+
+    last_name = forms.CharField(
+        label="Sobrenome",
+        required=False,
+        max_length=150,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Seu sobrenome",
+                "autocomplete": "family-name",
+            }
+        ),
+    )
+
     # Ordem de exibição na tela.
-    field_order = ["email", "cpf", "password1", "password2"]
+    field_order = ["email", "first_name", "last_name", "cpf", "password1", "password2"]
+
+    def clean_first_name(self):
+        return " ".join((self.cleaned_data.get("first_name") or "").split())
+
+    def clean_last_name(self):
+        return " ".join((self.cleaned_data.get("last_name") or "").split())
 
     def clean_cpf(self):
         """Valida os dígitos verificadores e devolve o CPF sem máscara."""
@@ -305,10 +337,12 @@ class SignupFormComCpf(MetadadosFormMixin, AllauthSignupForm):
             raise forms.ValidationError(exc.messages)
 
     def save(self, request):
-        """Cria a conta pelo allauth e grava o CPF + metadados logo depois."""
+        """Cria a conta pelo allauth e grava CPF, nome e metadados logo depois."""
         user = super().save(request)
         user.cpf = self.cleaned_data["cpf"]
-        user.save(update_fields=["cpf"])
+        user.first_name = self.cleaned_data["first_name"]
+        user.last_name = self.cleaned_data.get("last_name", "")
+        user.save(update_fields=["cpf", "first_name", "last_name"])
         self.save_metadados(user)
         return user
  

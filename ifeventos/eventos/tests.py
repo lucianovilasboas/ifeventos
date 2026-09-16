@@ -81,13 +81,32 @@ class CadastroComCpfTests(TestCase):
             self.url,
             {
                 "email": email, "cpf": cpf, "password1": senha, "password2": senha,
+                "first_name": "Aluno", "last_name": "Teste",
                 # Metadados obrigatórios (settings.METADADOS_PARTICIPANTE):
                 # vínculo Aluno exige matrícula e curso.
                 "meta_vinculo": "Aluno",
                 "meta_matricula": "2026001", "meta_curso": "Informática",
-                "meta_turma": "Turma B", "meta_ano": "Terceiro ano",
+                "meta_turma": "Turma 2", "meta_ano": "Terceiro ano",
             },
         )
+
+    def test_salva_nome(self):
+        self._cadastrar("nome@example.com", CPF_VALIDO)
+        usuario = U.objects.get(email="nome@example.com")
+        self.assertEqual(usuario.first_name, "Aluno")
+        self.assertEqual(usuario.last_name, "Teste")
+
+    def test_nome_obrigatorio(self):
+        resposta = self.client.post(
+            self.url,
+            {"email": "semnome@example.com", "cpf": CPF_VALIDO,
+             "password1": SENHA, "password2": SENHA,
+             "meta_vinculo": "Aluno", "meta_matricula": "2026001",
+             "meta_curso": "Informática"},  # falta o first_name
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("first_name", resposta.context["form"].errors)
+        self.assertFalse(U.objects.filter(email="semnome@example.com").exists())
 
     def test_salva_metadados_do_participante(self):
         resposta = self._cadastrar("meta@example.com", CPF_VALIDO)
@@ -96,14 +115,15 @@ class CadastroComCpfTests(TestCase):
         self.assertEqual(
             usuario.metadados.dados,
             {"vinculo": "Aluno", "matricula": "2026001", "curso": "Informática",
-             "turma": "Turma B", "ano": "Terceiro ano"},
+             "turma": "Turma 2", "ano": "Terceiro ano"},
         )
 
     def test_metadado_obrigatorio_e_exigido(self):
         resposta = self.client.post(
             self.url,
             {"email": "semmeta@example.com", "cpf": CPF_VALIDO,
-             "password1": SENHA, "password2": SENHA, "meta_vinculo": "Aluno",
+             "password1": SENHA, "password2": SENHA, "first_name": "Aluno",
+             "meta_vinculo": "Aluno",
              "meta_curso": "Informática"},  # falta a matrícula
         )
         self.assertEqual(resposta.status_code, 200)
@@ -193,6 +213,7 @@ class ConfirmacaoDeEmailTests(TestCase):
             self.url_signup,
             {"email": email, "cpf": "123.456.789-09",
              "password1": "SenhaForte123!", "password2": "SenhaForte123!",
+             "first_name": "Aluno",
              "meta_vinculo": "Aluno",
              "meta_matricula": "2026001", "meta_curso": "Informática"},
         )

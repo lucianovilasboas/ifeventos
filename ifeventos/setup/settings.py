@@ -425,7 +425,7 @@ METADADOS_PARTICIPANTE = [
      "opcoes": ["Informática", "Administração", "TPG"],
      "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
     {"chave": "turma", "rotulo": "Turma", "tipo": "escolha", "ordem": 4,
-     "opcoes": ["Turma A", "Turma B", "Turma Única"],
+     "opcoes": ["Turma 1", "Turma 2"],
      "visivel_quando": {"chave": "vinculo", "valores": ["Aluno"]}},
     {"chave": "ano", "rotulo": "Ano/Período", "tipo": "escolha", "ordem": 5,
      "depende_de": "curso",

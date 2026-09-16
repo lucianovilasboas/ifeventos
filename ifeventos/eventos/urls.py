@@ -2,6 +2,7 @@ from django.urls import path
 from eventos.views import eventos_view
 from eventos.views import logout_view
 from eventos.views import evento_programacao_view
+from eventos.views import roster_lookup
 from .views import gerar_qr_code, confirmar_presenca
 from .views import gerar_qr_code_atividade, confirmar_presenca_atividade
 from django.views.generic import TemplateView
@@ -16,6 +17,9 @@ urlpatterns = [
     # logout para todos os usuários
     path('logout/', logout_view, name='logout'),
 
+
+    # -- AJAX do cadastro: pré-preenche os dados pela planilha de alunos --
+    path("roster/", roster_lookup, name="roster_lookup"),
 
     # -- QR Code - Confirmação de Presença por inscrição --
     path("gerar-qr-code/<int:inscricao_id>/", gerar_qr_code, name="gerar_qr_code"),

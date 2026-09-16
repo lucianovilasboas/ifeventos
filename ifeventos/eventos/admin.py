@@ -7,7 +7,12 @@ from .models import TipoAtividade
 from .models import Inscricao
 from .models import Certificado
 from .models import PresencaCancelada
+from .models import AlunoRoster
 from django.utils.html import format_html
+from django import forms
+from django.core.exceptions import ValidationError
+from . import metadados
+from .validators import validar_cpf
 
 
 
@@ -209,4 +214,109 @@ class PresencaCanceladaAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class AlunoRosterForm(forms.ModelForm):
+    """Valida o JSON `dados` e o CPF na hora de salvar, no próprio admin.
+
+    Sem isto, um valor fora das opções (ex.: "Informatica", sem acento) só
+    aparecia como aviso no log, em tempo de login, e o perfil não era
+    preenchido. Aqui o erro aparece no formulário, antes de gravar.
+    """
+
+    class Meta:
+        model = AlunoRoster
+        fields = "__all__"
+
+    cpf = forms.CharField(
+        max_length=14,  # aceita com máscara; normalizamos no clean_cpf
+        required=False,
+        label="CPF",
+        help_text="Aceita com ou sem máscara; guardamos só os 11 dígitos.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["dados"].help_text = self._ajuda_dados()
+        self.fields["dados"].widget.attrs.setdefault("rows", 6)
+
+    @staticmethod
+    def _ajuda_dados():
+        partes = []
+        for campo in metadados.campos():
+            if campo["opcoes_por"]:
+                valores = "; ".join(
+                    f"{pai}: {', '.join(opcoes)}"
+                    for pai, opcoes in campo["opcoes_por"].items()
+                )
+                partes.append(
+                    f"{campo['chave']} (conforme {campo['depende_de']}: {valores})"
+                )
+            elif campo["opcoes"]:
+                partes.append(f"{campo['chave']} ({', '.join(campo['opcoes'])})")
+            else:
+                partes.append(campo["chave"])
+        return "JSON com os metadados. Chaves: " + "; ".join(partes) + "."
+
+    def clean_dados(self):
+        dados = self.cleaned_data.get("dados")
+        if not dados:
+            return {}
+        if not isinstance(dados, dict):
+            raise forms.ValidationError('Informe um objeto JSON ({"chave": "valor"}).')
+        erros = metadados.validar(dados)
+        if erros:
+            rotulos = {c["chave"]: c["rotulo"] for c in metadados.campos()}
+            mensagens = [
+                f"{rotulos.get(chave, chave)}: {mensagem}"
+                for chave, lista in erros.items()
+                for mensagem in lista
+            ]
+            raise forms.ValidationError(mensagens)
+        return dados
+
+    def clean_cpf(self):
+        cpf = (self.cleaned_data.get("cpf") or "").strip()
+        if not cpf:
+            return ""
+        try:
+            return validar_cpf(cpf)
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+
+
+@admin.register(AlunoRoster)
+class AlunoRosterAdmin(admin.ModelAdmin):
+    """Pré-carga da planilha de alunos — editável para ajustes manuais.
+
+    A chave é o e-mail; `dados` é o metadado já mapeado (vinculo/matricula/
+    curso/turma/ano) que preenche o perfil do aluno na criação da conta.
+    """
+
+    form = AlunoRosterForm
+    list_display = ('email', 'nome', 'curso', 'turma', 'ano', 'cpf',
+                    'confere', 'situacao', 'usado_em', 'atualizado_em')
+    list_filter = ('confere',)
+    search_fields = ('email', 'nome', 'cpf')
+    ordering = ('email',)
+    readonly_fields = ('atualizado_em', 'usado_em', 'dados_usuario')
+
+    @admin.display(description='Situação')
+    def situacao(self, obj):
+        if not obj.usado_em:
+            return 'não usado'
+        return 'usado e confere' if obj.confere else 'usado e diverge'
+
+    @admin.display(description='Curso')
+    def curso(self, obj):
+        return (obj.dados or {}).get('curso', '')
+
+    @admin.display(description='Turma')
+    def turma(self, obj):
+        return (obj.dados or {}).get('turma', '')
+
+    @admin.display(description='Ano/Período')
+    def ano(self, obj):
+        return (obj.dados or {}).get('ano', '')
+
 
