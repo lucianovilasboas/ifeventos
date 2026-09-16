@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+{% load social %}
+
+{% block title %}Falha no login — Nossos Eventos IFMG{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="login-container">
+        <h2><i class="fa-solid fa-triangle-exclamation"></i> Falha no login</h2>
+
+        <p class="text-center mb-3">
+            Não foi possível entrar com sua conta do Google.
+            Isso costuma ser temporário — tente novamente.
+        </p>
+        <p class="text-muted text-center mb-4">
+            <small>Se o problema continuar, use outra forma de entrar ou avise a organização.</small>
+        </p>
+
+        {% provider_login_url_seguro 'google' as google_url %}
+        {% if google_url %}
+        <a href="{{ google_url }}" class="btn btn-app w-100 py-2">
+            <i class="fa-brands fa-google"></i> Tentar novamente com o Google
+        </a>
+        {% endif %}
+
+        <div class="extra-links">
+            <p><a href="{% url 'account_login' %}">← Voltar para o login</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

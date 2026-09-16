@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+{% load social %}
+
+{% block title %}Login cancelado — Nossos Eventos IFMG{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="login-container">
+        <h2><i class="fa-solid fa-circle-xmark"></i> Login cancelado</h2>
+
+        <p class="text-center mb-3">
+            Você cancelou o login com o Google e nenhuma conta foi acessada.
+        </p>
+        <p class="text-muted text-center mb-4">
+            <small>Se foi engano, é só tentar novamente.</small>
+        </p>
+
+        {% provider_login_url_seguro 'google' as google_url %}
+        {% if google_url %}
+        <a href="{{ google_url }}" class="btn btn-app w-100 py-2">
+            <i class="fa-brands fa-google"></i> Tentar novamente com o Google
+        </a>
+        {% endif %}
+
+        <div class="extra-links">
+            <p><a href="{% url 'account_login' %}">← Voltar para o login</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
