@@ -1,8 +1,8 @@
 from django.utils import timezone  # ✅ Correto
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import Http404, JsonResponse
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth import logout
 from .models import Evento
 import qrcode
@@ -31,7 +31,7 @@ def eventos_view(request):
     # Eventos atuais/futuros (a agenda mostra apenas os que não encerraram).
     # `n_atividades` vem anotado para o card/modal não fazerem um COUNT por card.
     eventos = (Evento.objects.filter(data_fim__gte=hoje)
-               .annotate(n_atividades=Count('atividades'))
+               .annotate(n_atividades=Count('atividades', filter=Q(atividades__publicada=True)))
                .order_by('data_inicio'))
     # "Próximo na agenda": o evento mais próximo cujo término é hoje ou no futuro
     hoje = timezone.localdate()
@@ -69,7 +69,7 @@ def eventos_view(request):
         # Últimos eventos realizados/encerrados (data_fim no passado),
         # do mais recente para o mais antigo.
         'encerrados': Evento.objects.filter(data_fim__lt=hoje)
-                                  .annotate(n_atividades=Count('atividades'))
+                                  .annotate(n_atividades=Count('atividades', filter=Q(atividades__publicada=True)))
                                   .order_by('-data_fim'),
     })
 
@@ -82,7 +82,9 @@ def evento_programacao_view(request, evento_id):
 
     # Ordem cronológica: a atividade que acontece antes aparece primeiro.
     atividades = list(
-        evento.atividades.select_related("tipo").order_by("data_hora_inicio", "id")
+        evento.atividades.filter(publicada=True)
+        .select_related("tipo")
+        .order_by("data_hora_inicio", "id")
     )
 
     # Duas visualizações da mesma programação: lista (padrão) e grade.
@@ -107,7 +109,23 @@ def evento_programacao_view(request, evento_id):
             {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
             {"valor": "grade", "rotulo": "Grade", "icone": "fa-solid fa-table-cells"},
         ],
+        # Favoritos da conta (quando logado): o JS hidrata daqui e passa a
+        # gravar no servidor em vez do localStorage.
+        'meus_favoritos': _meus_favoritos(request.user),
+        'favoritos_no_servidor': request.user.is_authenticated,
     })
+
+
+def _meus_favoritos(usuario):
+    from .models import Favorito
+
+    if not usuario or not usuario.is_authenticated:
+        return None
+    return list(
+        Favorito.objects.filter(participante=usuario).values_list(
+            "atividade_id", flat=True
+        )
+    )
 
 
 
@@ -504,8 +522,10 @@ def agenda_ics_view(request, evento_id):
     atividades escolhidas (o navegador guarda os favoritos em localStorage).
     """
     evento = get_object_or_404(Evento, id=evento_id)
-    atividades = evento.atividades.select_related("tipo").order_by(
-        "data_hora_inicio", "id"
+    atividades = (
+        evento.atividades.filter(publicada=True)
+        .select_related("tipo")
+        .order_by("data_hora_inicio", "id")
     )
 
     ids = [
@@ -523,3 +543,113 @@ def agenda_ics_view(request, evento_id):
     nome = slugify(evento.title) or f"evento-{evento.id}"
     resposta["Content-Disposition"] = f'attachment; filename="programacao-{nome}.ics"'
     return resposta
+
+
+# ---------------------------------------------------------------------------
+# Favoritos (Minha agenda) — por participante, para acompanhar entre aparelhos
+# ---------------------------------------------------------------------------
+
+@login_required(login_url="/accounts/login")
+@require_POST
+def favorito_toggle(request, atividade_id):
+    """Alterna o favorito do usuário numa atividade e devolve o total."""
+    from .models import Favorito, Participante
+
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    participante = Participante.from_user(request.user)
+
+    existente = Favorito.objects.filter(
+        participante=participante, atividade=atividade
+    )
+    if existente.exists():
+        existente.delete()
+        marcado = False
+    else:
+        Favorito.objects.create(participante=participante, atividade=atividade)
+        marcado = True
+
+    return JsonResponse({
+        "favorito": marcado,
+        "total": Favorito.objects.filter(participante=participante).count(),
+    })
+
+
+@login_required(login_url="/accounts/login")
+@require_POST
+def favoritos_mesclar(request):
+    """Mescla favoritos do navegador (`localStorage`) com os do usuário.
+
+    Chamado no primeiro carregamento logado: o que ficou salvo no aparelho
+    passa a valer também na conta.
+    """
+    from .models import Favorito, Participante
+
+    participante = Participante.from_user(request.user)
+    ids = [
+        int(parte)
+        for parte in (request.POST.get("ids") or "").split(",")
+        if parte.strip().isdigit()
+    ]
+
+    if ids:
+        ja = set(
+            Favorito.objects.filter(participante=participante).values_list(
+                "atividade_id", flat=True
+            )
+        )
+        validos = Atividade.objects.filter(id__in=set(ids) - ja).values_list(
+            "id", flat=True
+        )
+        Favorito.objects.bulk_create(
+            [Favorito(participante=participante, atividade_id=i) for i in validos]
+        )
+
+    return JsonResponse({
+        "ids": list(
+            Favorito.objects.filter(participante=participante).values_list(
+                "atividade_id", flat=True
+            )
+        )
+    })
+
+
+@require_GET
+def atividade_ics_view(request, atividade_id):
+    """Baixa UMA atividade em `.ics` (adicionar ao calendário)."""
+    atividade = get_object_or_404(Atividade, id=atividade_id, publicada=True)
+    conteudo = agenda.montar_ics(atividade.evento, [atividade])
+    resposta = HttpResponse(conteudo, content_type="text/calendar; charset=utf-8")
+    nome = slugify(atividade.titulo) or f"atividade-{atividade.id}"
+    resposta["Content-Disposition"] = f'attachment; filename="{nome}.ics"'
+    return resposta
+
+
+@require_GET
+def programacao_pdf_view(request, evento_id):
+    """Baixa a programação do evento em PDF (uma linha por atividade)."""
+    from django.utils.timezone import localtime
+    from .exportacao import exportar
+
+    evento = get_object_or_404(Evento, id=evento_id)
+    atividades = (
+        evento.atividades.filter(publicada=True)
+        .select_related("tipo")
+        .order_by("data_hora_inicio", "id")
+    )
+
+    cabecalhos = ["Dia", "Hora", "Atividade", "Local", "Tipo"]
+    linhas = []
+    for atividade in atividades:
+        inicio = localtime(atividade.data_hora_inicio)
+        fim = localtime(atividade.data_hora_fim)
+        linhas.append([
+            inicio.strftime("%d/%m/%Y"),
+            f"{inicio:%H:%M}–{fim:%H:%M}",
+            atividade.titulo,
+            atividade.local or evento.local,
+            getattr(atividade.tipo, "nome", "") or "",
+        ])
+    return exportar(
+        "pdf", f"programacao_{evento.id}", cabecalhos, linhas,
+        titulo=f"Programação — {evento.title}",
+    )

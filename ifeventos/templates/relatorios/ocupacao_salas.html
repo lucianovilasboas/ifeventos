@@ -1,0 +1,94 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+{% block title %}Ocupação por sala | {{ evento.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-2">
+    <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fa-solid fa-chart-simple"></i> Ocupação por sala</span>
+        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </h2>
+    <p class="text-muted mb-3">{{ evento.title }}</p>
+
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">
+            <i class="fa-solid fa-list-check"></i> {{ totais.atividades }} atividade{{ totais.atividades|pluralize }}
+        </span>
+        <span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)">
+            <i class="fa-solid fa-chair"></i> {{ totais.vagas }} vagas
+        </span>
+        <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">
+            <i class="fa-solid fa-users"></i> {{ totais.inscritos }} inscritos
+        </span>
+        <span class="ms-auto d-inline-flex gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="?export=csv">CSV</a>
+            <a class="btn btn-sm btn-outline-secondary" href="?export=xlsx">Excel</a>
+            <a class="btn btn-sm btn-outline-secondary" href="?export=pdf">PDF</a>
+        </span>
+    </div>
+
+    <div class="table-wrap mb-4">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>Local</th>
+                    <th class="text-end">Atividades</th>
+                    <th class="text-end">Vagas</th>
+                    <th class="text-end">Inscritos</th>
+                    <th style="min-width:160px">Ocupação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in linhas %}
+                <tr>
+                    <td>{{ l.local }}</td>
+                    <td class="text-end">{{ l.atividades }}</td>
+                    <td class="text-end">{{ l.vagas }}</td>
+                    <td class="text-end">{{ l.inscritos }}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="flex:1;height:8px;border-radius:999px;background:var(--surface-2,#efefef)">
+                                <div style="height:8px;border-radius:999px;background:var(--accent-ink);width:{{ l.ocupacao }}%"></div>
+                            </div>
+                            <span style="font-size:12px">{{ l.ocupacao }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center text-muted">Nenhuma atividade neste evento.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if por_dia_hora.linhas %}
+    <h5 class="mb-2"><i class="fa-solid fa-calendar-week"></i> Atividades por dia e horário</h5>
+    <div class="agenda-scroll">
+        <table class="agenda">
+            <thead>
+                <tr>
+                    <th class="agenda-hora">Hora</th>
+                    {% for dia in por_dia_hora.dias %}
+                    <th class="agenda-dia">{{ dia|date:"D d/m" }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for lin in por_dia_hora.linhas %}
+                <tr>
+                    <th class="agenda-hora" scope="row">{{ lin.rotulo }}</th>
+                    {% for qtd in lin.celulas %}
+                    <td class="agenda-cel text-center">
+                        {% if qtd %}<b>{{ qtd }}</b>{% else %}<span class="text-muted">·</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock content %}

@@ -70,7 +70,46 @@
             somenteFavoritos = !!salvo.favoritos;
             if (input && salvo.termo) input.value = salvo.termo;
         }
-        (ler(CHAVE_FAV, []) || []).forEach(function (id) { favoritos.add(String(id)); });
+        // Favoritos: quando a pessoa está logada, o servidor é a fonte (segue a
+        // conta entre aparelhos); anônimo usa o navegador. No primeiro load
+        // logado, o que estava salvo no aparelho é mesclado na conta.
+        var scriptFav = document.getElementById("meus-favoritos");
+        var servidor = !!scriptFav;
+        var csrf = (raiz.querySelector("input[name=csrfmiddlewaretoken]") || {}).value || "";
+        var urlFavorito = raiz.getAttribute("data-url-favorito") || "";
+        var urlMesclar = raiz.getAttribute("data-url-mesclar") || "";
+        var locaisSalvos = ler(CHAVE_FAV, []) || [];
+
+        if (servidor) {
+            try {
+                (JSON.parse(scriptFav.textContent) || []).forEach(function (id) {
+                    favoritos.add(String(id));
+                });
+            } catch (e) { /* lista inválida: começa vazia */ }
+        } else {
+            locaisSalvos.forEach(function (id) { favoritos.add(String(id)); });
+        }
+
+        function mesclarLocais() {
+            if (!servidor || !urlMesclar || !locaisSalvos.length) return;
+            var corpo = new URLSearchParams({
+                ids: locaisSalvos.join(","),
+                csrfmiddlewaretoken: csrf,
+            });
+            fetch(urlMesclar, {
+                method: "POST",
+                headers: { "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" },
+                body: corpo,
+            })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (json) {
+                    if (!json) return;
+                    favoritos = new Set((json.ids || []).map(String));
+                    try { localStorage.removeItem(CHAVE_FAV); } catch (e) { /* privado */ }
+                    aplicar();
+                })
+                .catch(function () { /* fica com o que veio do servidor */ });
+        }
 
         function termo() {
             return input ? semAcento(input.value.trim()) : "";
@@ -202,6 +241,22 @@
             evento.stopImmediatePropagation();
             var id = estrela.getAttribute("data-id") || "";
             if (!id) return;
+
+            if (servidor && urlFavorito) {
+                fetch(urlFavorito.replace(/0\/?$/, id + "/"), {
+                    method: "POST",
+                    headers: { "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" },
+                })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (json) {
+                        if (!json) return;
+                        if (json.favorito) favoritos.add(id); else favoritos.delete(id);
+                        aplicar();
+                    })
+                    .catch(function () { /* sem rede: mantém como está */ });
+                return;
+            }
+
             favoritos.has(id) ? favoritos.delete(id) : favoritos.add(id);
             gravar(CHAVE_FAV, Array.from(favoritos));
             aplicar();
@@ -221,6 +276,7 @@
         }
 
         aplicar();
+        mesclarLocais();
         marcarAgora();
         setInterval(marcarAgora, 60000);
 

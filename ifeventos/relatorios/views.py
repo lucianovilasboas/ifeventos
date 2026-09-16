@@ -1,6 +1,7 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.views.generic import ListView
+from django.views.generic import ListView, View
+from django.shortcuts import render
 from django.shortcuts import get_object_or_404
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas
 from eventos.models import Inscricao, Atividade
@@ -339,3 +340,99 @@ class ListaPresencaView(_ColunasMetadadosMixin, LoginRequiredMixin, ListView):
         context["total_confirmadas"] = self.get_queryset().filter(confirmada=True).count()
         context.update(self.metadados_colunas())
         return context
+
+
+class OcupacaoSalasView(LoginRequiredMixin, View):
+    """Ocupação por sala do evento + distribuição por dia/hora (organizador).
+
+    Ajuda a dimensionar espaços: quantas atividades, vagas oferecidas,
+    inscritos e a taxa de ocupação de cada local — considerando os vários
+    lugares de uma atividade (o campo `local` é uma lista) e os apelidos de
+    local configurados em `AGENDA_ALIASES_LOCAL`.
+    """
+
+    template_name = "relatorios/ocupacao_salas.html"
+
+    def _evento(self):
+        from eventos.models import Evento
+
+        return get_object_or_404(Evento, id=self.kwargs["evento_id"])
+
+    def _atividades(self, evento):
+        return evento.atividades.select_related("tipo").order_by(
+            "data_hora_inicio", "id"
+        )
+
+    def _por_local(self, atividades):
+        from eventos import agenda
+
+        contagem = {}
+        for atividade in atividades:
+            for lugar in agenda.locais_de(atividade) or [agenda.SEM_LOCAL]:
+                dados = contagem.setdefault(
+                    lugar, {"local": lugar, "atividades": 0, "vagas": 0, "inscritos": 0}
+                )
+                dados["atividades"] += 1
+                dados["vagas"] += atividade.n_vagas or 0
+                dados["inscritos"] += atividade.n_inscricoes or 0
+        linhas = []
+        for lugar in sorted(contagem, key=lambda t: t.lower()):
+            dados = contagem[lugar]
+            dados["ocupacao"] = (
+                round(100 * dados["inscritos"] / dados["vagas"]) if dados["vagas"] else 0
+            )
+            linhas.append(dados)
+        return linhas
+
+    def _por_dia_hora(self, atividades):
+        """Matriz dia × hora com o nº de atividades que começam no horário."""
+        from django.utils.timezone import localtime
+
+        dias = []
+        horas = set()
+        mapa = {}
+        for atividade in atividades:
+            inicio = localtime(atividade.data_hora_inicio)
+            dia = inicio.date()
+            if dia not in dias:
+                dias.append(dia)
+            horas.add(inicio.hour)
+            mapa[(dia, inicio.hour)] = mapa.get((dia, inicio.hour), 0) + 1
+        horas = sorted(horas)
+        linhas = []
+        for hora in horas:
+            linhas.append({
+                "rotulo": f"{hora:02d}:00",
+                "celulas": [mapa.get((dia, hora), 0) for dia in dias],
+            })
+        return {"dias": dias, "horas": horas, "linhas": linhas}
+
+    def get(self, request, *args, **kwargs):
+        evento = self._evento()
+        atividades = list(self._atividades(evento))
+        por_local = self._por_local(atividades)
+        formato = request.GET.get("export")
+
+        if formato in ("csv", "xlsx", "pdf"):
+            from eventos.exportacao import exportar
+
+            cabecalhos = ["Local", "Atividades", "Vagas", "Inscritos", "Ocupação (%)"]
+            linhas = [
+                [l["local"], l["atividades"], l["vagas"], l["inscritos"], l["ocupacao"]]
+                for l in por_local
+            ]
+            return exportar(
+                formato, f"ocupacao_salas_{evento.id}", cabecalhos, linhas,
+                titulo=f"Ocupação por sala — {evento.title}",
+            )
+
+        return render(request, self.template_name, {
+            "evento": evento,
+            "linhas": por_local,
+            "por_dia_hora": self._por_dia_hora(atividades),
+            "totais": {
+                "atividades": len(atividades),
+                "vagas": sum(a.n_vagas or 0 for a in atividades),
+                "inscritos": sum(a.n_inscricoes or 0 for a in atividades),
+            },
+        })

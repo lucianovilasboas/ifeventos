@@ -52,6 +52,10 @@
                    title="Baixar a programação para o seu calendário">
                     <i class="fa-regular fa-calendar-plus"></i> Calendário (.ics)
                 </a>
+                <a class="ordem-btn" href="{% url 'eventos:programacao_pdf' evento.id %}"
+                   title="Baixar a programação em PDF">
+                    <i class="fa-solid fa-file-pdf"></i> PDF
+                </a>
                 <a class="ordem-btn" data-ics-favoritos
                    data-base="{% url 'eventos:agenda_ics' evento.id %}" hidden
                    title="Baixar apenas as suas atividades favoritas">
@@ -60,7 +64,11 @@
             </div>
         </div>
 
-        <div class="filtros" data-filtros>
+        <div class="filtros" data-filtros
+             data-url-favorito="{% url 'eventos:favorito_toggle' atividade_id=0 %}"
+             data-url-mesclar="{% url 'eventos:favoritos_mesclar' %}">
+            {% csrf_token %}
+            {% if favoritos_no_servidor %}{{ meus_favoritos|json_script:"meus-favoritos" }}{% endif %}
             <div class="app-list busca-lista">
                 <input type="search" data-busca placeholder="Buscar por atividade, local ou palestrante" aria-label="Buscar por atividade, local ou palestrante">
             </div>
@@ -201,6 +209,19 @@
         <p class="busca-vazio" data-filtro-vazio hidden>Nenhuma atividade encontrada com esses filtros.</p>
     </div>
     </div>{# /data-vista-grupo="programacao" #}
+</div>
+
+<!-- Atividades no mesmo horário no celular (abre pelo "+N") -->
+<div class="modal fade" id="agendaParalelaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-md-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" data-modal-titulo>Atividades no mesmo horário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" data-modal-corpo></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

@@ -2,7 +2,11 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from eventos.models import Atividade, Inscricao, Participante
 from eventos import agenda
-from eventos.inscricoes import InscricaoBloqueada, cancelar_inscricao as cancelar_inscricao_servico
+from eventos.inscricoes import (
+    InscricaoBloqueada,
+    cancelar_inscricao as cancelar_inscricao_servico,
+    conflito_com_inscricoes,
+)
 from django.contrib import messages
 from django.utils.timezone import localtime
 from django.http import JsonResponse
@@ -25,9 +29,11 @@ def dashboard(request):
     inscricoes = Inscricao.objects.filter(participante=participante).select_related(
         "atividade", "atividade__evento", "atividade__tipo"
     )
-    # Atividades não inscritas, da que acontece antes para a que acontece depois.
+    # Atividades não inscritas (e publicadas), da que acontece antes para a que
+    # acontece depois.
     atividades = (
         Atividade.objects.exclude(inscritos__participante=participante)
+        .filter(publicada=True)
         .select_related("evento", "tipo")
         .order_by("data_hora_inicio", "id")
     )
@@ -38,6 +44,10 @@ def dashboard(request):
         {i.atividade.evento for i in inscricoes} | {a.evento for a in atividades},
         key=lambda e: e.title,
     )
+    # Todas as minhas inscrições (sem o filtro de evento): é com elas que a
+    # lista de disponíveis detecta conflito de horário.
+    minhas_todas = [i.atividade for i in inscricoes]
+
     evento_id = (request.GET.get("evento") or "").strip()
     if evento_id.isdigit():
         inscricoes = inscricoes.filter(atividade__evento_id=evento_id)
@@ -53,6 +63,28 @@ def dashboard(request):
         [a for a in minhas if a.data_hora_inicio > agora],
         key=lambda a: a.data_hora_inicio,
     )[:3]
+
+    # Rótulo do dia em cada inscrição: o template usa `{% regroup %}` para
+    # agrupar a lista por dia (a ordem cronológica garante dias consecutivos).
+    inscricoes = inscricoes.order_by("atividade__data_hora_inicio", "id")
+    for inscricao in inscricoes:
+        inscricao.dia = localtime(inscricao.atividade.data_hora_inicio).strftime("%d/%m/%Y")
+        inscricao.atividade.inscricao = inscricao
+
+    # Aviso de conflito nas disponíveis — calculado em memória (sem query por
+    # atividade), pela mesma regra que recusa a inscrição.
+    atividades = list(atividades)
+    for atividade in atividades:
+        atividade.conflito = next(
+            (
+                m
+                for m in minhas_todas
+                if m.pk != atividade.pk
+                and atividade.data_hora_inicio < m.data_hora_fim
+                and atividade.data_hora_fim > m.data_hora_inicio
+            ),
+            None,
+        )
 
     form = ParticipanteUpdateForm(instance=participante)
 
@@ -116,18 +148,17 @@ def inscrever(request, atividade_id):
         messages.warning(request, "Lamentamos, mas essa atividade não possui mais vagas.")
         return redirect('participante:dashboard')
 
-    # 🔹 Verifica se há conflito de horários com atividades já inscritas
-    atividades_inscritas = Atividade.objects.filter(
-        inscritos__participante=participante
-    )
-
-    for inscrita in atividades_inscritas:
-        if (
-            localtime(atividade.data_hora_inicio) < localtime(inscrita.data_hora_fim) and
-            localtime(atividade.data_hora_fim) > localtime(inscrita.data_hora_inicio)
-        ):
-            messages.error(request, f"Conflito de horário com '{inscrita.titulo}', que ocorre de {inscrita.data_hora_inicio.strftime('%d/%m/%Y %H:%M')} até {inscrita.data_hora_fim.strftime('%d/%m/%Y %H:%M')}.")
-            return redirect('participante:dashboard')
+    # Conflito de horário com atividades já inscritas (mesma regra usada para
+    # avisar antes, na lista de disponíveis).
+    conflito = conflito_com_inscricoes(participante, atividade)
+    if conflito is not None:
+        messages.error(
+            request,
+            f"Conflito de horário com '{conflito.titulo}', que ocorre de "
+            f"{conflito.data_hora_inicio.strftime('%d/%m/%Y %H:%M')} até "
+            f"{conflito.data_hora_fim.strftime('%d/%m/%Y %H:%M')}."
+        )
+        return redirect('participante:dashboard')
 
     # Se não houver conflito, realiza a inscrição
     Inscricao.objects.create(participante=participante, atividade=atividade)

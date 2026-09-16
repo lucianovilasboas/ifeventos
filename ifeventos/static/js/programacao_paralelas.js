@@ -54,12 +54,53 @@
             });
         }
 
+        // No celular o bloco abre num modal: a célula é estreita demais para
+        // empilhar 15 cartas.
+        var modalEl = document.getElementById("agendaParalelaModal");
+        var modal = modalEl && window.bootstrap ? new window.bootstrap.Modal(modalEl) : null;
+        var estreito = window.matchMedia("(max-width: 700px)");
+
+        function abrirModal(grupo) {
+            if (!modal) return;
+            var cabecalho = grupo.querySelector(".agenda-paralelo-head");
+            var titulo = modalEl.querySelector("[data-modal-titulo]");
+            var corpo = modalEl.querySelector("[data-modal-corpo]");
+            if (titulo) {
+                titulo.textContent = cabecalho
+                    ? cabecalho.textContent.trim().replace(/\s+/g, " ")
+                    : "Atividades no mesmo horário";
+            }
+            corpo.innerHTML = "";
+            Array.prototype.forEach.call(
+                grupo.querySelectorAll(".agenda-chip:not([hidden])"),
+                function (carta) {
+                    var copia = carta.cloneNode(true);
+                    copia.classList.remove("is-extra");
+                    copia.style.removeProperty("--i");
+                    corpo.appendChild(copia);
+                }
+            );
+            modal.show();
+        }
+
+        if (modalEl) {
+            // Clicar numa carta do modal leva para a lista (handler delegado) e
+            // fecha o modal.
+            modalEl.addEventListener("click", function (evento) {
+                if (evento.target.closest("[data-agenda-chip]")) modal.hide();
+            });
+        }
+
         grupos.forEach(function (grupo) {
             Array.prototype.forEach.call(
                 grupo.querySelectorAll("[data-paralelo-toggle]"),
                 function (botao) {
                     botao.addEventListener("click", function (evento) {
                         evento.stopPropagation();
+                        if (estreito.matches && grupo.classList.contains("is-paralelo")) {
+                            abrirModal(grupo);
+                            return;
+                        }
                         grupo.classList.toggle("is-aberto");
                         atualizar();
                     });

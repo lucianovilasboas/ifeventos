@@ -47,7 +47,10 @@
             <!-- Lista -->
             <div data-vista-painel="lista">
                 <div class="app-list px-1">
-                {% for inscricao in inscricoes %}
+                {% regroup inscricoes by dia as dias %}
+                {% for dia in dias %}
+                <h6 class="dia-cabecalho">{{ dia.grouper }} <span>{{ dia.list|length }} atividade{{ dia.list|length|pluralize }}</span></h6>
+                {% for inscricao in dia.list %}
                 <div class="app-item" data-titulo="{{ inscricao.atividade.titulo }}">
                     <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
                         <i class="fa-solid fa-bookmark"></i>
@@ -57,15 +60,29 @@
                         <p><i class="fa-solid fa-tag"></i> {{ inscricao.atividade.tipo }} · <i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>
                         <p class="mb-0"><i class="fa-regular fa-calendar"></i> {{ inscricao.atividade.data_hora_inicio|date:"d/m/Y H:i" }} – {{ inscricao.atividade.data_hora_fim|date:"d/m/Y H:i" }}</p>
                         <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">
-                                <i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span>
+                            <span class="d-inline-flex gap-2 flex-wrap">
+                                <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">
+                                    <i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span>
+                                </span>
+                                {% if inscricao.atividade.emite_certificado %}
+                                <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-certificate"></i> Certificado</span>
+                                {% endif %}
+                                {% if inscricao.certificado_emitido %}
+                                <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-award"></i> Emitido</span>
+                                {% endif %}
                             </span>
-                            <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger" title="Cancelar inscrição">
-                                <i class="fa-solid fa-xmark"></i> Cancelar
-                            </a>
+                            <span class="d-inline-flex gap-2">
+                                <a href="{% url 'eventos:atividade_ics' inscricao.atividade.id %}" class="btn btn-sm btn-outline-secondary" title="Adicionar ao calendário">
+                                    <i class="fa-regular fa-calendar-plus"></i>
+                                </a>
+                                <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger" title="Cancelar inscrição">
+                                    <i class="fa-solid fa-xmark"></i> Cancelar
+                                </a>
+                            </span>
                         </div>
                     </div>
                 </div>
+                {% endfor %}
                 {% endfor %}
                 </div>
             </div>
@@ -137,13 +154,21 @@
                         <h5>{{ atividade.titulo }}</h5>
                         <p><i class="fa-solid fa-tag"></i> {{ atividade.tipo }} · <i class="fa-solid fa-calendar-day"></i> {{ atividade.evento.title }}</p>
                         <p class="mb-0"><i class="fa-regular fa-calendar"></i> {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }} – {{ atividade.data_hora_fim|date:"d/m/Y H:i" }}</p>
+                        {% if atividade.conflito %}
+                        <p class="mb-0 mt-1" style="font-size:12px;color:var(--app-danger)"><i class="fa-solid fa-triangle-exclamation"></i> Conflita com “{{ atividade.conflito.titulo }}”</p>
+                        {% endif %}
                         <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">
                                 <i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos
                             </span>
-                            <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green" title="Inscrever-se">
-                                <i class="fa-solid fa-check"></i> Inscrever
-                            </a>
+                            <span class="d-inline-flex gap-2">
+                                <a href="{% url 'eventos:atividade_ics' atividade.id %}" class="btn btn-sm btn-outline-secondary" title="Adicionar ao calendário">
+                                    <i class="fa-regular fa-calendar-plus"></i>
+                                </a>
+                                <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green" title="Inscrever-se">
+                                    <i class="fa-solid fa-check"></i> Inscrever
+                                </a>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -164,6 +189,12 @@
                     <p class="card-meta"><i class="fa-solid fa-location-dot"></i> {{ atividade.local }}</p>
                     {% endif %}
                     <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos</p>
+                    {% if atividade.conflito %}
+                    <p class="card-meta" style="color:var(--app-danger)"><i class="fa-solid fa-triangle-exclamation"></i> Conflita com “{{ atividade.conflito.titulo }}”</p>
+                    {% endif %}
+                    <a href="{% url 'eventos:atividade_ics' atividade.id %}" class="btn btn-sm btn-outline-secondary w-100 mb-1">
+                        <i class="fa-regular fa-calendar-plus"></i> Calendário
+                    </a>
                     <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green w-100">
                         <i class="fa-solid fa-check"></i> Inscrever
                     </a>

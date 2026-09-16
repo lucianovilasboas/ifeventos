@@ -339,6 +339,10 @@ class Atividade(models.Model):
 
     emite_certificado = models.BooleanField(default=False)
 
+    # Rascunho: o organizador monta a grade sem expor ao público. Atividades
+    # não publicadas ficam fora da programação, da landing, do .ics e do PDF.
+    publicada = models.BooleanField(default=True)
+
     @property
     def quando_legivel(self):
         """Data e hora curtinhas para a lista: `20/09 · 19h30`.
@@ -447,6 +451,35 @@ class Inscricao(models.Model):
 
         verbose_name = "Inscrição"
         verbose_name_plural = "Inscrições"
+
+
+class Favorito(models.Model):
+    """Atividade marcada como favorita por um participante ("Minha agenda").
+
+    Fica no banco (e não só no navegador) para acompanhar a pessoa entre
+    dispositivos. Anônimos seguem usando `localStorage`; ao entrar, o JS mescla
+    o que estava local com o que já existe aqui.
+    """
+
+    participante = models.ForeignKey(
+        Participante, on_delete=models.CASCADE, related_name="favoritos"
+    )
+    atividade = models.ForeignKey(
+        Atividade, on_delete=models.CASCADE, related_name="favoritada_por"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["participante", "atividade"], name="unique_favorito"
+            )
+        ]
+        verbose_name = "Favorito"
+        verbose_name_plural = "Favoritos"
+
+    def __str__(self):
+        return f"{self.participante} ♥ {self.atividade}"
 
 
 

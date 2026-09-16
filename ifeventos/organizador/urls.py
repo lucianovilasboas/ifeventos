@@ -9,6 +9,8 @@ from .views import profile
 from .views import importar_metadados, modelo_metadados_csv
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
+from relatorios.views import OcupacaoSalasView
+from organizador.views import publicar_atividade
 
 from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_categoria_ajax
 from .views import EmitirCertificadosAtividadeView
@@ -40,6 +42,7 @@ urlpatterns = [
 
 
     path('editar_atividade/<int:atividade_id>/', editar_atividade, name='editar_atividade'),
+    path('atividade/<int:atividade_id>/publicar/', publicar_atividade, name='publicar_atividade'),
     path('excluir_atividade/<int:atividade_id>/', excluir_atividade, name='excluir_atividade'),
 
 
@@ -57,6 +60,7 @@ urlpatterns = [
 
     # -- Relatórios -- 
     path("relatorio_inscricoes/<int:evento_id>/", RelatorioInscricoesView.as_view(), name="relatorio_inscricoes"),
+    path("ocupacao_salas/<int:evento_id>/", OcupacaoSalasView.as_view(), name="ocupacao_salas"),
     path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
 
 

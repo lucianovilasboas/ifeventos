@@ -17,7 +17,12 @@
         </div>
         {% endif %}
         <div class="info">
-            <h5 class="atividade-titulo"><span class="atividade-nome">{{ atividade.titulo }}</span></h5>
+            <h5 class="atividade-titulo">
+                <span class="atividade-nome">{{ atividade.titulo }}</span>
+                {% if not atividade.publicada %}
+                <span class="badge-app" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-eye-slash"></i> Rascunho</span>
+                {% endif %}
+            </h5>
             {% if atividade.quando_legivel %}
             <p class="atividade-quando mb-0"><i class="fa-regular fa-clock"></i> {{ atividade.quando_legivel }}</p>
             {% endif %}
@@ -34,6 +39,13 @@
                 <a href="{% url 'organizador:criar_editar_atividade_editar' evento.id atividade.id %}" class="btn btn-sm btn-warning btn-icon" title="Editar Atividade">
                     <i class="fa-solid fa-pen"></i>
                 </a>
+                <form method="post" action="{% url 'organizador:publicar_atividade' atividade.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-secondary btn-icon"
+                            title="{% if atividade.publicada %}Voltar para rascunho{% else %}Publicar na programação{% endif %}">
+                        <i class="fa-solid {% if atividade.publicada %}fa-eye-slash{% else %}fa-eye{% endif %}"></i>
+                    </button>
+                </form>
                 <a href="{% url 'organizador:excluir_atividade' atividade.id %}" class="btn btn-sm btn-danger btn-icon" title="Excluir Atividade" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');">
                     <i class="fa-solid fa-trash-can"></i>
                 </a>
@@ -83,6 +95,9 @@
                            texto da data que aparece embaixo. {% endcomment %}
                         <td class="atividade-titulo" data-valor="{{ atividade.titulo }}">
                             <span class="atividade-nome">{{ atividade.titulo }}</span>
+                            {% if not atividade.publicada %}
+                            <span class="badge-app" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-eye-slash"></i> Rascunho</span>
+                            {% endif %}
                         </td>
                         <td data-valor="{{ atividade.data_hora_inicio|date:'c' }}">
                             {% if atividade.quando_legivel %}
@@ -97,6 +112,13 @@
                             <a href="{% url 'organizador:criar_editar_atividade_editar' evento.id atividade.id %}" title="Editar Atividade" class="btn btn-warning btn-sm">
                                 <i class="fa-solid fa-pen"></i>
                             </a>
+                            <form method="post" action="{% url 'organizador:publicar_atividade' atividade.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-secondary btn-sm"
+                                        title="{% if atividade.publicada %}Voltar para rascunho{% else %}Publicar na programação{% endif %}">
+                                    <i class="fa-solid {% if atividade.publicada %}fa-eye-slash{% else %}fa-eye{% endif %}"></i>
+                                </button>
+                            </form>
                             <a href="{% url 'organizador:excluir_atividade' atividade.id %}" title="Excluir Atividade" class="btn btn-danger btn-sm" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');">
                                 <i class="fa-solid fa-trash-can"></i>
                             </a>

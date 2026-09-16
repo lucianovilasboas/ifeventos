@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.utils.timezone import localtime
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 import json
 from .forms import ParticipanteUpdateForm
 from eventos.forms import EventoForm, PalestranteForm, TipoAtividadeForm
@@ -625,3 +626,18 @@ class CheckinAtividadeView(LoginRequiredMixin, View):
             "janela_aberta": janela_aberta,
             "janela_motivo": motivo,
         })
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def publicar_atividade(request, atividade_id):
+    """Alterna rascunho/publicada (dono do evento/superuser)."""
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    atividade.publicada = not atividade.publicada
+    atividade.save(update_fields=["publicada"])
+    messages.success(
+        request,
+        "Atividade publicada na programação." if atividade.publicada
+        else "Atividade voltou para rascunho.",
+    )
+    return redirect("organizador:atividades_evento", evento_id=atividade.evento_id)

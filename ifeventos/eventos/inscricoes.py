@@ -11,11 +11,30 @@ inscrição (tela do participante, AJAX dela e API/MCP). Todos passam por aqui.
 
 from django.core.exceptions import ValidationError
 
-from .models import Certificado, Presenca
+from .models import Atividade, Certificado, Presenca
 
 
 class InscricaoBloqueada(ValidationError):
     """Remoção de inscrição recusada por regra de negócio."""
+
+
+def conflito_com_inscricoes(participante, atividade):
+    """Atividade já inscrita que choca de horário com esta (ou None).
+
+    Usada tanto para RECUSAR a inscrição (view/AJAX/API) quanto para AVISAR
+    antes, nas listas do participante. Devolve a primeira atividade conflitante,
+    na ordem de horário.
+    """
+    inscritas = Atividade.objects.filter(
+        inscritos__participante=participante
+    ).exclude(pk=atividade.pk)
+    for inscrita in inscritas.order_by("data_hora_inicio", "id"):
+        if (
+            atividade.data_hora_inicio < inscrita.data_hora_fim
+            and atividade.data_hora_fim > inscrita.data_hora_inicio
+        ):
+            return inscrita
+    return None
 
 
 def certificado_emitido(participante, atividade):
