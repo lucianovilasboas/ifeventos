@@ -17,18 +17,21 @@
 
         var consulta = window.matchMedia(CONSULTA);
         var atual = "";
+        // Escopo: a grade em que a barra está (a página pode ter mais de uma,
+        // ex.: programação do evento e "Minha agenda" do participante).
+        var escopo = barra.closest("[data-agenda]") || document;
 
         function aplicar() {
             var estreito = consulta.matches;
             var restringir = estreito && atual;
 
-            Array.prototype.forEach.call(document.querySelectorAll("[data-dia]"), function (el) {
+            Array.prototype.forEach.call(escopo.querySelectorAll("[data-dia]"), function (el) {
                 el.hidden = !!(restringir && el.getAttribute("data-dia") !== atual);
             });
             // Semana sem nenhuma coluna visível some inteira (o cabeçalho do
             // horário não conta).
             Array.prototype.forEach.call(
-                document.querySelectorAll("#vista-grade .agenda-scroll"),
+                escopo.querySelectorAll(".agenda-scroll"),
                 function (rolagem) {
                     var colunasVisiveis = rolagem.querySelectorAll(
                         "thead th[data-dia]:not([hidden])"

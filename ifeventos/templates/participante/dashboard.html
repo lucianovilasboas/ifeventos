@@ -9,6 +9,9 @@
 
 {% block scripts %}
 <script src="{% static 'js/lista_busca.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/vista_switch.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/programacao_paralelas.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/programacao_dias.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
@@ -18,10 +21,14 @@
         console.log(`Conectando ao servidor Socket.IO (${socketUrl || window.location.origin})`);
         socket.on("inscricao_atualizada", (data) => {
             console.log(`Inscrição atualizada: ${data.atividade_id}, ${data.n_inscricoes}`);
-            let spanInscritos = document.querySelector(`span#inscritos-${data.atividade_id}`);
-            if (spanInscritos) { spanInscritos.innerText = data.n_inscricoes; }
-            let mySpanInscritos = document.querySelector(`span#my-inscritos-${data.atividade_id}`);
-            if (mySpanInscritos) { mySpanInscritos.innerText = data.n_inscricoes; }
+            // Lista e cartões (e as visões ocultas) mostram o mesmo número:
+            // por isso o seletor é por data-atributo, não por id.
+            document.querySelectorAll(`[data-inscritos="${data.atividade_id}"]`).forEach((el) => {
+                el.innerText = data.n_inscricoes;
+            });
+            document.querySelectorAll(`[data-my-inscritos="${data.atividade_id}"]`).forEach((el) => {
+                el.innerText = data.n_inscricoes;
+            });
         });
         socket.on("atividade_inicio_alert", (data) => {
             alert("Atividade prestes a começar: " + data.titulo);

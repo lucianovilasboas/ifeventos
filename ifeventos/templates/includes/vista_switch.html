@@ -1,0 +1,23 @@
+{# Alternador de visão (Lista / Grade / Cartões / Cronograma). #}
+{% comment %}
+Como usar (envolva os painéis num grupo):
+
+  <div data-vista-grupo="programacao">
+    {% include 'includes/vista_switch.html' with vistas=vistas vista_ativa=vista %}
+    <div data-vista-painel="lista" {% if vista != 'lista' %}hidden{% endif %}>…</div>
+    <div data-vista-painel="grade" {% if vista != 'grade' %}hidden{% endif %}>…</div>
+  </div>
+
+`vistas` é uma lista de dicts `{valor, rotulo, icone}`. `vista_ativa` (opcional)
+marca o botão inicial sem JavaScript; o `static/js/vista_switch.js` assume dali
+(memória por grupo em localStorage e `?vista=` na URL).
+{% endcomment %}
+<div class="vista-switch" role="group" aria-label="Mudar a visualização">
+    {% for v in vistas %}
+    <button type="button" class="vista-switch-btn{% if v.valor == vista_ativa %} is-active{% endif %}"
+            data-vista-btn="{{ v.valor }}"
+            aria-pressed="{% if v.valor == vista_ativa %}true{% else %}false{% endif %}">
+        <i class="{{ v.icone }}"></i> {{ v.rotulo }}
+    </button>
+    {% endfor %}
+</div>

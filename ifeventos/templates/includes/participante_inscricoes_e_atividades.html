@@ -1,6 +1,34 @@
+{% if acontecendo or a_seguir %}
+<div class="alert alert-info">
+    {% if acontecendo %}
+    <p class="mb-1"><strong><i class="fa-solid fa-circle-dot"></i> Acontecendo agora:</strong>
+        {% for a in acontecendo %}{{ a.titulo }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+    {% if a_seguir %}
+    <p class="mb-0"><strong><i class="fa-regular fa-clock"></i> A seguir:</strong>
+        {% for a in a_seguir %}{{ a.titulo }} <span class="text-muted">({{ a.data_hora_inicio|date:"d/m H:i" }})</span>{% if not forloop.last %}; {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if eventos_filtro %}
+<form method="get" class="d-flex align-items-center gap-2 px-1 mb-2">
+    <label class="filtro-rotulo" for="filtro-evento">Evento</label>
+    <select name="evento" id="filtro-evento" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        <option value="">Todos os eventos</option>
+        {% for ev in eventos_filtro %}
+        <option value="{{ ev.id }}" {% if ev.id|stringformat:"s" == evento_id %}selected{% endif %}>{{ ev.title }}</option>
+        {% endfor %}
+    </select>
+    <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Filtrar</button></noscript>
+</form>
+{% endif %}
+
 <div class="row g-3 px-0 mx-0">
     <!-- Minhas Inscrições -->
-    <div class="col-md-6">
+    <div class="col-md-6" data-vista-grupo="minhas-inscricoes">
         <div class="d-flex align-items-center justify-content-between px-1 mb-2">
             <h5 class="fw-bold mb-0" style="color:var(--app-indigo)">
                 <i class="fa-solid fa-bookmark"></i> Minhas Inscrições
@@ -8,33 +36,67 @@
             <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">{{ inscricoes|length }}</span>
         </div>
         {% if inscricoes %}
+        <div class="px-1 mb-2">
+            {% include 'includes/vista_switch.html' with vistas=vistas_inscricoes vista_ativa='lista' %}
+        </div>
         <div data-busca-lista>
             <div class="busca-lista px-1">
                 <input type="search" data-busca placeholder="Buscar atividade pelo nome" aria-label="Buscar atividade pelo nome">
             </div>
-            <div class="app-list px-1">
-            {% for inscricao in inscricoes %}
-            <div class="app-item" data-titulo="{{ inscricao.atividade.titulo }}">
-                <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
-                    <i class="fa-solid fa-bookmark"></i>
-                </div>
-                <div class="info">
-                    <h5>{{ inscricao.atividade.titulo }}</h5>
-                    <p><i class="fa-solid fa-tag"></i> {{ inscricao.atividade.tipo }} · <i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>
-                    <p class="mb-0"><i class="fa-regular fa-calendar"></i> {{ inscricao.atividade.data_hora_inicio|date:"d/m/Y H:i" }} – {{ inscricao.atividade.data_hora_fim|date:"d/m/Y H:i" }}</p>
-                    <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">
-                            <i class="fa-solid fa-users"></i> <span id="my-inscritos-{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span id="my-vagas-{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span>
-                        </span>
-                        <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger" title="Cancelar inscrição">
-                            <i class="fa-solid fa-xmark"></i> Cancelar
-                        </a>
+
+            <!-- Lista -->
+            <div data-vista-painel="lista">
+                <div class="app-list px-1">
+                {% for inscricao in inscricoes %}
+                <div class="app-item" data-titulo="{{ inscricao.atividade.titulo }}">
+                    <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
+                        <i class="fa-solid fa-bookmark"></i>
+                    </div>
+                    <div class="info">
+                        <h5>{{ inscricao.atividade.titulo }}</h5>
+                        <p><i class="fa-solid fa-tag"></i> {{ inscricao.atividade.tipo }} · <i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>
+                        <p class="mb-0"><i class="fa-regular fa-calendar"></i> {{ inscricao.atividade.data_hora_inicio|date:"d/m/Y H:i" }} – {{ inscricao.atividade.data_hora_fim|date:"d/m/Y H:i" }}</p>
+                        <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">
+                                <i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span>
+                            </span>
+                            <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger" title="Cancelar inscrição">
+                                <i class="fa-solid fa-xmark"></i> Cancelar
+                            </a>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
+                </div>
             </div>
-            {% endfor %}
+
+            <!-- Cartões -->
+            <div data-vista-painel="cartoes" hidden>
+                <div class="card-grid px-1">
+                {% for inscricao in inscricoes %}
+                <article class="card-box" data-titulo="{{ inscricao.atividade.titulo }}">
+                    <span class="card-tag" style="background:#e0e7ff;color:var(--app-indigo)"><i class="fa-solid fa-bookmark"></i> {{ inscricao.atividade.tipo }}</span>
+                    <h6 class="card-titulo">{{ inscricao.atividade.titulo }}</h6>
+                    <p class="card-meta"><i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>
+                    <p class="card-meta"><i class="fa-regular fa-calendar"></i> {{ inscricao.atividade.data_hora_inicio|date:"d/m H:i" }} – {{ inscricao.atividade.data_hora_fim|date:"d/m H:i" }}</p>
+                    {% if inscricao.atividade.local %}
+                    <p class="card-meta"><i class="fa-solid fa-location-dot"></i> {{ inscricao.atividade.local }}</p>
+                    {% endif %}
+                    <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span> inscritos</p>
+                    <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger w-100">
+                        <i class="fa-solid fa-xmark"></i> Cancelar
+                    </a>
+                </article>
+                {% endfor %}
+                </div>
+            </div>
+
+            <!-- Cronograma (Minha agenda) -->
+            <div data-vista-painel="cronograma" hidden>
+                {% include 'includes/agenda_grade.html' with grade=grade_minha_agenda mostrar_evento=True %}
+            </div>
+
             <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma inscrição encontrada com esse termo.</p>
-            </div>
         </div>
         {% else %}
         <div class="app-item">
@@ -47,7 +109,7 @@
     </div>
 
     <!-- Atividades Disponíveis -->
-    <div class="col-md-6">
+    <div class="col-md-6" data-vista-grupo="disponiveis">
         <div class="d-flex align-items-center justify-content-between px-1 mb-2">
             <h5 class="fw-bold mb-0" style="color:var(--app-green-d)">
                 <i class="fa-solid fa-calendar-plus"></i> Atividades Disponíveis
@@ -55,33 +117,62 @@
             <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">{{ atividades|length }}</span>
         </div>
         {% if atividades %}
+        <div class="px-1 mb-2">
+            {% include 'includes/vista_switch.html' with vistas=vistas_disponiveis vista_ativa='lista' %}
+        </div>
         <div data-busca-lista>
             <div class="busca-lista px-1">
                 <input type="search" data-busca placeholder="Buscar atividade pelo nome" aria-label="Buscar atividade pelo nome">
             </div>
-            <div class="app-list px-1">
-            {% for atividade in atividades %}
-            <div class="app-item" data-titulo="{{ atividade.titulo }}">
-                <div class="dot" style="background:linear-gradient(135deg,var(--app-green),var(--app-green-d))">
-                    <i class="fa-solid fa-calendar-plus"></i>
-                </div>
-                <div class="info">
-                    <h5>{{ atividade.titulo }}</h5>
-                    <p><i class="fa-solid fa-tag"></i> {{ atividade.tipo }} · <i class="fa-solid fa-calendar-day"></i> {{ atividade.evento.title }}</p>
-                    <p class="mb-0"><i class="fa-regular fa-calendar"></i> {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }} – {{ atividade.data_hora_fim|date:"d/m/Y H:i" }}</p>
-                    <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">
-                            <i class="fa-solid fa-users"></i> <span id="inscritos-{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span id="vagas-{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos
-                        </span>
-                        <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green" title="Inscrever-se">
-                            <i class="fa-solid fa-check"></i> Inscrever
-                        </a>
+
+            <!-- Lista -->
+            <div data-vista-painel="lista">
+                <div class="app-list px-1">
+                {% for atividade in atividades %}
+                <div class="app-item" data-titulo="{{ atividade.titulo }}">
+                    <div class="dot" style="background:linear-gradient(135deg,var(--app-green),var(--app-green-d))">
+                        <i class="fa-solid fa-calendar-plus"></i>
+                    </div>
+                    <div class="info">
+                        <h5>{{ atividade.titulo }}</h5>
+                        <p><i class="fa-solid fa-tag"></i> {{ atividade.tipo }} · <i class="fa-solid fa-calendar-day"></i> {{ atividade.evento.title }}</p>
+                        <p class="mb-0"><i class="fa-regular fa-calendar"></i> {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }} – {{ atividade.data_hora_fim|date:"d/m/Y H:i" }}</p>
+                        <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">
+                                <i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos
+                            </span>
+                            <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green" title="Inscrever-se">
+                                <i class="fa-solid fa-check"></i> Inscrever
+                            </a>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
+                </div>
             </div>
-            {% endfor %}
+
+            <!-- Cartões -->
+            <div data-vista-painel="cartoes" hidden>
+                <div class="card-grid px-1">
+                {% for atividade in atividades %}
+                <article class="card-box" data-titulo="{{ atividade.titulo }}">
+                    <span class="card-tag" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-calendar-plus"></i> {{ atividade.tipo }}</span>
+                    <h6 class="card-titulo">{{ atividade.titulo }}</h6>
+                    <p class="card-meta"><i class="fa-solid fa-calendar-day"></i> {{ atividade.evento.title }}</p>
+                    <p class="card-meta"><i class="fa-regular fa-calendar"></i> {{ atividade.data_hora_inicio|date:"d/m H:i" }} – {{ atividade.data_hora_fim|date:"d/m H:i" }}</p>
+                    {% if atividade.local %}
+                    <p class="card-meta"><i class="fa-solid fa-location-dot"></i> {{ atividade.local }}</p>
+                    {% endif %}
+                    <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos</p>
+                    <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green w-100">
+                        <i class="fa-solid fa-check"></i> Inscrever
+                    </a>
+                </article>
+                {% endfor %}
+                </div>
+            </div>
+
             <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma atividade encontrada com esse termo.</p>
-            </div>
         </div>
         {% else %}
         <div class="app-item">

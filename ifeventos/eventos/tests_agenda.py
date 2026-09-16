@@ -2,12 +2,15 @@
 
 from datetime import datetime, timedelta, timezone as dt_timezone
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from eventos import agenda
 from eventos.models import Atividade, Evento, TipoAtividade
+
+U = get_user_model()
 
 
 class AtividadeFake:
@@ -441,3 +444,51 @@ class ParalelasViewTests(TestCase):
         html = self.client.get(self.url, {"vista": "grade"}).content.decode()
         self.assertIn("agenda-paralelas", html)
         self.assertNotIn("em paralelo", html)
+
+
+class ChoquesTests(TestCase):
+    """Conflitos de grade: mesma sala e/ou palestrante no mesmo horário."""
+
+    def setUp(self):
+        self.evento = Evento.objects.create(
+            title="E", description="d", local="Campus",
+            data_inicio="2026-10-05", data_fim="2026-10-05",
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        self.pessoa = U.objects.create_user(
+            email="palestrante@example.com", password="Senha12345!", first_name="Ana"
+        )
+
+    def _cria(self, titulo, h, dur, sala="", palestrantes=()):
+        a = Atividade.objects.create(
+            evento=self.evento, titulo=titulo, descricao="d", tipo=self.tipo, local=sala,
+            data_hora_inicio=local(2026, 10, 5, h),
+            data_hora_fim=local(2026, 10, 5, h + dur), n_vagas=10,
+        )
+        if palestrantes:
+            a.palestrantes.set(palestrantes)
+        return a
+
+    def test_mesma_sala_no_mesmo_horario(self):
+        self._cria("A", 8, 1, sala="Sala 1")
+        self._cria("B", 8, 2, sala="Sala 1")
+        avisos = agenda.choques(self.evento.atividades.all())
+        self.assertEqual(len(avisos), 1)
+        self.assertEqual(avisos[0]["tipo"], "sala")
+        self.assertEqual(avisos[0]["rotulo"], "Sala 1")
+
+    def test_mesmo_palestrante_no_mesmo_horario(self):
+        self._cria("A", 8, 1, sala="Sala 1", palestrantes=[self.pessoa])
+        self._cria("B", 8, 1, sala="Sala 2", palestrantes=[self.pessoa])
+        avisos = agenda.choques(self.evento.atividades.all())
+        self.assertEqual([a["tipo"] for a in avisos], ["palestrante"])
+
+    def test_horarios_diferentes_nao_conflitam(self):
+        self._cria("A", 8, 1, sala="Sala 1", palestrantes=[self.pessoa])
+        self._cria("B", 9, 1, sala="Sala 1", palestrantes=[self.pessoa])
+        self.assertEqual(agenda.choques(self.evento.atividades.all()), [])
+
+    def test_salas_e_palestrantes_diferentes(self):
+        self._cria("A", 8, 1, sala="Sala 1")
+        self._cria("B", 8, 1, sala="Sala 2")
+        self.assertEqual(agenda.choques(self.evento.atividades.all()), [])

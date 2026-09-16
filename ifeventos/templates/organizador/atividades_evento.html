@@ -55,8 +55,37 @@
         Entram todos que têm papel no evento hoje: inscritos, palestrantes e organizador.
     </p>
 </div>
-{% include 'includes/data_atividades_evento.html' %}
-<!-- Modais inicio --> 
+<div data-vista-grupo="organizador-atividades">
+    <div class="px-1 mb-3">
+        {% include 'includes/vista_switch.html' with vistas=vistas_atividades vista_ativa=vista_atividades %}
+    </div>
+
+    <div data-vista-painel="lista">
+        {% include 'includes/data_atividades_evento.html' %}
+    </div>
+
+    <div data-vista-painel="grade" hidden>
+        {% if choques %}
+        <div class="alert alert-warning">
+            <strong><i class="fa-solid fa-triangle-exclamation"></i> Possíveis conflitos na grade</strong>
+            <ul class="mb-0 mt-1" style="font-size:13px">
+                {% for c in choques|slice:":12" %}
+                <li>
+                    {% if c.tipo == 'sala' %}Mesma sala{% else %}Mesmo palestrante{% endif %}
+                    <strong>{{ c.rotulo }}</strong>: “{{ c.a.titulo }}” e “{{ c.b.titulo }}” no mesmo horário.
+                </li>
+                {% endfor %}
+            </ul>
+            {% if choques|length > 12 %}
+            <p class="mb-0 mt-1" style="font-size:12px">… e mais {{ choques|length|add:"-12" }} conflito(s).</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% include 'includes/agenda_grade.html' with grade=grade %}
+    </div>
+</div>
+
+<!-- Modais inicio -->
 {% include 'includes/modal_novo_palestrante.html' %}
 {% include 'includes/modal_novo_tipo_atividade.html' %}
 <!-- Modais fim -->
@@ -65,6 +94,9 @@
 
 {% block scripts %}
 <script src="{% static 'js/tabela_ordenavel.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/vista_switch.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/programacao_paralelas.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/programacao_dias.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="{% static 'js/lista_busca.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <script>

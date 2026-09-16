@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from eventos.models import Atividade, Inscricao, Participante
+from eventos import agenda
 from django.contrib import messages
 from django.utils.timezone import localtime
 from django.http import JsonResponse
@@ -253,7 +254,7 @@ def excluir_evento(request, evento_id):
 # -- Atividades --
 @login_required(login_url='/accounts/login/')
 def atividades_evento(request, evento_id):
-    """Lista as atividades de um evento"""
+    """Lista as atividades de um evento (lista ou grade) + conflitos da grade."""
     evento = get_object_or_404(Evento, id=evento_id)
     # Ordem padrão: quem tem mais inscritos primeiro. O desempate por horário e
     # id mantém a lista ESTÁVEL (sem "pular" a cada recarregamento) quando duas
@@ -261,11 +262,28 @@ def atividades_evento(request, evento_id):
     atividades = evento.atividades.all().order_by(
         "-n_inscricoes", "data_hora_inicio", "id"
     )
+    # A grade trabalha em ordem cronológica e precisa do tipo/palestrantes.
+    para_grade = (
+        evento.atividades.select_related("tipo")
+        .prefetch_related("palestrantes")
+        .order_by("data_hora_inicio", "id")
+    )
 
     form = AtividadeForm(initial={'evento': evento})
 
+    vista_atividades = request.GET.get("vista", "lista")
+    if vista_atividades not in ("lista", "grade"):
+        vista_atividades = "lista"
+
     return render(request, 'organizador/atividades_evento.html', {
         'form_ativ' : form, 'evento': evento, 'atividades': atividades,
+        'grade': agenda.montar_grade(para_grade),
+        'choques': agenda.choques(para_grade),
+        'vista_atividades': vista_atividades,
+        'vistas_atividades': [
+            {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
+            {"valor": "grade", "rotulo": "Grade", "icone": "fa-solid fa-table-cells"},
+        ],
         'modelos_cracha': Evento.MODELO_CRACHA_CHOICES,
     }) 
 

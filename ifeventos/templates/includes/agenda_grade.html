@@ -1,0 +1,111 @@
+{% comment %}
+Grade (cronograma semanal) — conteúdo do painel “Grade”.
+
+Uso: {% include 'includes/agenda_grade.html' with grade=grade tipos=tipos %}
+
+Espera `grade` = `eventos.agenda.montar_grade(...)`. Cada atividade precisa das
+anotações de `agenda.anotar` (agenda_cor/agenda_locais/agenda_hora). `tipos`
+(opcional) desenha a legenda de cores; `mostrar_evento` (opcional) mostra o
+evento em cada cartão — útil na “Minha agenda” do participante, que cruza
+eventos.
+{% endcomment %}
+<div class="agenda-grade" data-agenda>
+{% if grade.vazio %}
+<div class="app-list">
+    <div class="app-item">
+        <div class="info text-center" style="flex:1">
+            <h5 style="color:var(--app-muted)">Nenhuma atividade para mostrar.</h5>
+            <p class="mb-0">Assim que houver programação, ela aparece aqui.</p>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="agenda-dias no-print" data-agenda-dias hidden>
+    <button type="button" class="filtro-chip is-active" data-dia-tab="">Todos</button>
+    {% for semana in grade.semanas %}{% for col in semana.colunas %}
+    <button type="button" class="filtro-chip" data-dia-tab="{{ col.iso }}">{{ col.rotulo }} {{ col.curta }}</button>
+    {% endfor %}{% endfor %}
+</div>
+{% if tipos %}
+<div class="agenda-legenda">
+    <span class="filtro-rotulo">Legenda</span>
+    {% for t in tipos %}
+    <span class="legenda-item"><i class="{{ t.cor }}"></i> {{ t.nome }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+{% for semana in grade.semanas %}
+    {% if grade.semanas|length > 1 %}<h3 class="agenda-semana">{{ semana.rotulo }}</h3>{% endif %}
+    <div class="agenda-scroll">
+        <table class="agenda">
+            <thead>
+                <tr>
+                    <th class="agenda-hora" scope="col"><span class="visually-hidden">Horário</span></th>
+                    {% for col in semana.colunas %}
+                    <th class="agenda-dia{% if col.hoje %} is-hoje{% endif %}" data-dia="{{ col.iso }}" scope="col">
+                        <span class="dia-sem">{{ col.rotulo }}</span>
+                        <span class="dia-data">{{ col.curta }}</span>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for lin in semana.linhas %}
+                <tr>
+                    <th class="agenda-hora" scope="row">{{ lin.rotulo }}</th>
+                    {% for celula in lin.celulas %}
+                    <td class="agenda-cel" data-dia="{{ celula.coluna.iso }}">
+                        {% regroup celula.atividades by agenda_hora as grupos %}
+                        {% for grupo in grupos %}
+                        <div class="agenda-paralelas{% if grupo.list|length > 1 %} is-paralelo{% endif %}" data-paralelas>
+                            {% if grupo.list|length > 1 %}
+                            <button type="button" class="agenda-paralelo-head" data-paralelo-toggle
+                                    aria-expanded="false" title="Atividades no mesmo horário">
+                                <i class="fa-solid fa-layer-group"></i>
+                                {{ grupo.grouper }} · {{ grupo.list|length }} em paralelo
+                            </button>
+                            {% endif %}
+                            {% for a in grupo.list %}
+                            <div class="agenda-chip {{ a.agenda_cor }}{% if forloop.counter0 >= 3 %} is-extra{% endif %}"
+                                 data-agenda-chip data-filtravel role="button" tabindex="0"
+                                 style="--i: {{ forloop.counter0 }}"
+                                 data-id="{{ a.id }}"
+                                 data-titulo="{{ a.titulo }}"
+                                 data-local="{{ a.agenda_locais }}"
+                                 data-tipo="{{ a.tipo_id|default:'' }}"
+                                 data-inicio="{{ a.data_hora_inicio|date:'c' }}"
+                                 data-fim="{{ a.data_hora_fim|date:'c' }}"
+                                 data-busca-texto="{{ a.titulo }} {{ a.local }}{% for p in a.palestrantes.all %} {{ p.first_name }} {{ p.last_name }}{% endfor %}"
+                                 title="{{ a.titulo }} — {{ a.local }}">
+                                <span class="chip-fav" data-fav data-id="{{ a.id }}" title="Favoritar">
+                                    <i class="fa-regular fa-star"></i>
+                                </span>
+                                <span class="chip-hora">{{ a.data_hora_inicio|time:"H:i" }}–{{ a.data_hora_fim|time:"H:i" }}</span>
+                                <span class="chip-titulo">{{ a.titulo }}</span>
+                                {% if mostrar_evento and a.evento_id %}<span class="chip-evento"><i class="fa-solid fa-calendar-day"></i> {{ a.evento.title }}</span>{% endif %}
+                                {% if a.local %}<span class="chip-local">{{ a.local }}</span>{% endif %}
+                                {% if a.n_vagas > a.n_inscricoes %}
+                                <span class="chip-vagas"><i class="fa-solid fa-user-plus"></i> {{ a.vagas_disponiveis }} vaga{{ a.vagas_disponiveis|pluralize }}</span>
+                                {% else %}
+                                <span class="chip-vagas chip-lotado"><i class="fa-solid fa-ban"></i> Lotado</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                            {% if grupo.list|length > 3 %}
+                            <button type="button" class="agenda-mais" data-paralelo-toggle aria-expanded="false">
+                                <span class="mais-fechado">+{{ grupo.list|length|add:"-3" }} no mesmo horário</span>
+                                <span class="mais-aberto" hidden>recolher</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endfor %}
+{% endif %}
+</div>

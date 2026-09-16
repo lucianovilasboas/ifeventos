@@ -341,3 +341,38 @@ def montar_ics(evento, atividades):
         ]
     linhas.append("END:VCALENDAR")
     return "\r\n".join(_ics_dobrar(linha) for linha in linhas) + "\r\n"
+
+
+# ---------------------------------------------------------------------------
+# Conflitos da programação (para o organizador)
+# ---------------------------------------------------------------------------
+
+def _sobrepoem(a, b):
+    """As duas atividades acontecem ao mesmo tempo?"""
+    return a.data_hora_inicio < b.data_hora_fim and b.data_hora_inicio < a.data_hora_fim
+
+
+def choques(atividades):
+    """Conflitos entre atividades: mesma sala e/ou mesmo palestrante no mesmo horário.
+
+    Devolve uma lista de avisos:
+        {"tipo": "sala"|"palestrante", "rotulo": <sala ou pessoa>, "a": at, "b": at}
+    """
+    itens = list(atividades or [])
+    avisos = []
+    for indice, a in enumerate(itens):
+        for b in itens[indice + 1:]:
+            if not _sobrepoem(a, b):
+                continue
+            for sala in sorted(set(locais_de(a)) & set(locais_de(b))):
+                avisos.append({"tipo": "sala", "rotulo": sala, "a": a, "b": b})
+            palestrantes_a = {p.pk: p for p in a.palestrantes.all()}
+            palestrantes_b = {p.pk: p for p in b.palestrantes.all()}
+            for pk in sorted(set(palestrantes_a) & set(palestrantes_b)):
+                avisos.append({
+                    "tipo": "palestrante",
+                    "rotulo": str(palestrantes_a[pk]),
+                    "a": a,
+                    "b": b,
+                })
+    return avisos

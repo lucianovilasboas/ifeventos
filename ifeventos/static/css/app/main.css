@@ -1019,27 +1019,31 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
    (sobreposição) empilha na mesma célula. Cabeçalho e coluna de horário ficam
    fixos, e a tabela rola na horizontal em telas estreitas.
    ========================================================================= */
-.vista-toggle {
+/* Alternador de visão (Lista / Grade / Cartões / Cronograma) — mesmo visual
+   dos chips da home. Genérico: ver static/js/vista_switch.js. */
+.vista-switch {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
-    justify-content: flex-end;
-    padding: 0 var(--gutter-phone) 10px;
 }
-.vista-btn {
+.vista-switch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     border: 2px solid var(--border-ui);
     background: var(--bg);
     color: var(--fg);
-    border-radius: var(--radius-sm);
-    padding: 6px 14px;
+    border-radius: 999px;
+    padding: 5px 14px;
     font-family: var(--font-display);
     font-weight: 800;
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     cursor: pointer;
-    transition: background var(--motion-fast, .15s), color var(--motion-fast, .15s);
+    transition: background var(--motion-fast, .15s), border-color var(--motion-fast, .15s), color var(--motion-fast, .15s);
 }
-.vista-btn:hover { border-color: var(--accent); }
-.vista-btn.is-active {
-    background: var(--accent-soft, #eef2ff);
+.vista-switch-btn:hover { border-color: var(--accent); }
+.vista-switch-btn.is-active {
+    background: var(--accent-soft, #e8f5ea);
     border-color: var(--accent-ink);
     color: var(--accent-ink);
 }
@@ -1365,3 +1369,43 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     cursor: pointer;
 }
 .agenda-mais:hover { text-decoration: underline; }
+
+/* =========================================================================
+   Grade de cartões (visão "Cartões" das listas do participante)
+   ========================================================================= */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+}
+.card-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 2px solid var(--border);
+    border-bottom-width: 4px;
+    border-radius: var(--app-radius, 12px);
+    background: var(--bg);
+    padding: 12px;
+}
+.card-box[hidden] { display: none; }
+.card-tag {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+.card-titulo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--text-sm);
+    color: var(--fg);
+    margin: 2px 0 4px;
+}
+.card-meta {
+    font-size: 12px;
+    color: var(--app-muted, #6b7280);
+    margin: 0;
+}
+.card-box .btn { margin-top: auto; }

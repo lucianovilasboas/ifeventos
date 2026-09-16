@@ -103,6 +103,10 @@ def evento_programacao_view(request, evento_id):
         'tipos': agenda.tipos_do_evento(atividades),
         'ordem': ordem if ordem in agenda.ORDENS else agenda.ORDEM_PADRAO,
         'vista': vista,
+        'vistas': [
+            {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
+            {"valor": "grade", "rotulo": "Grade", "icone": "fa-solid fa-table-cells"},
+        ],
     })
 
 

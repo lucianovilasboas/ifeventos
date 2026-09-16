@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from eventos.models import Atividade, Inscricao, Participante
+from eventos import agenda
 from eventos.inscricoes import InscricaoBloqueada, cancelar_inscricao as cancelar_inscricao_servico
 from django.contrib import messages
 from django.utils.timezone import localtime
@@ -21,11 +22,37 @@ def dashboard(request):
 
     participante = get_object_or_404(Participante, id=request.user.id)
 
-    inscricoes = Inscricao.objects.filter(participante=participante)
-    # Atividades não inscritas, da que acontece antes para a que acontece depois.
-    atividades = Atividade.objects.exclude(inscritos__participante=participante).order_by(
-        "data_hora_inicio", "id"
+    inscricoes = Inscricao.objects.filter(participante=participante).select_related(
+        "atividade", "atividade__evento", "atividade__tipo"
     )
+    # Atividades não inscritas, da que acontece antes para a que acontece depois.
+    atividades = (
+        Atividade.objects.exclude(inscritos__participante=participante)
+        .select_related("evento", "tipo")
+        .order_by("data_hora_inicio", "id")
+    )
+
+    # Filtro por evento (afeta as duas listas). A lista de opções é montada
+    # ANTES de filtrar, senão o próprio filtro sumiria da tela.
+    eventos_filtro = sorted(
+        {i.atividade.evento for i in inscricoes} | {a.evento for a in atividades},
+        key=lambda e: e.title,
+    )
+    evento_id = (request.GET.get("evento") or "").strip()
+    if evento_id.isdigit():
+        inscricoes = inscricoes.filter(atividade__evento_id=evento_id)
+        atividades = atividades.filter(evento_id=evento_id)
+
+    # "Acontecendo agora" e "a seguir" (entre as minhas inscrições).
+    agora = localtime()
+    minhas = [i.atividade for i in inscricoes]
+    acontecendo = [
+        a for a in minhas if a.data_hora_inicio <= agora < a.data_hora_fim
+    ]
+    a_seguir = sorted(
+        [a for a in minhas if a.data_hora_inicio > agora],
+        key=lambda a: a.data_hora_inicio,
+    )[:3]
 
     form = ParticipanteUpdateForm(instance=participante)
 
@@ -50,6 +77,20 @@ def dashboard(request):
     return render(request, 'participante/dashboard.html', {
         'inscricoes': inscricoes,
         'atividades': atividades,
+        'grade_minha_agenda': agenda.montar_grade(minhas),
+        'acontecendo': acontecendo,
+        'a_seguir': a_seguir,
+        'eventos_filtro': eventos_filtro,
+        'evento_id': evento_id,
+        'vistas_inscricoes': [
+            {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
+            {"valor": "cartoes", "rotulo": "Cartões", "icone": "fa-solid fa-table-cells-large"},
+            {"valor": "cronograma", "rotulo": "Cronograma", "icone": "fa-regular fa-calendar-days"},
+        ],
+        'vistas_disponiveis': [
+            {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
+            {"valor": "cartoes", "rotulo": "Cartões", "icone": "fa-solid fa-table-cells-large"},
+        ],
         'message': 'Bora se inscrever em mais atividades?',
         'is_organizador': participante.is_organizador,
         'form': form
