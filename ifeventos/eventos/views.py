@@ -22,6 +22,7 @@ from .crachas import (
 from django.conf import settings
 from django.contrib import messages
 from django.urls import reverse
+from django.utils.text import slugify
 from . import agenda
 
 
@@ -488,4 +489,33 @@ def roster_lookup(request):
             "dados": dict(linha.dados or {}),
         })
     resposta["Cache-Control"] = "no-store"
+    return resposta
+
+
+@require_GET
+def agenda_ics_view(request, evento_id):
+    """Baixa a programação em `.ics` (calendário).
+
+    Sem `?favoritos=`, exporta o evento inteiro; com `?favoritos=1,2,3`, só as
+    atividades escolhidas (o navegador guarda os favoritos em localStorage).
+    """
+    evento = get_object_or_404(Evento, id=evento_id)
+    atividades = evento.atividades.select_related("tipo").order_by(
+        "data_hora_inicio", "id"
+    )
+
+    ids = [
+        int(parte)
+        for parte in (request.GET.get("favoritos") or "").split(",")
+        if parte.strip().isdigit()
+    ]
+    if ids:
+        atividades = atividades.filter(id__in=ids)
+
+    resposta = HttpResponse(
+        agenda.montar_ics(evento, atividades),
+        content_type="text/calendar; charset=utf-8",
+    )
+    nome = slugify(evento.title) or f"evento-{evento.id}"
+    resposta["Content-Disposition"] = f'attachment; filename="programacao-{nome}.ics"'
     return resposta

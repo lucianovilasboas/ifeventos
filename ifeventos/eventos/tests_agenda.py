@@ -1,8 +1,8 @@
 """Testes da grade (cronograma) da programação."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -58,8 +58,8 @@ class MontarGradeTests(TestCase):
             [l["rotulo"] for l in linhas],
             ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00"],
         )
-        self.assertEqual(linhas[0]["celulas"][0][0].titulo, "A")
-        self.assertEqual(linhas[6]["celulas"][0][0].titulo, "B")
+        self.assertEqual(linhas[0]["celulas"][0]["atividades"][0].titulo, "A")
+        self.assertEqual(linhas[6]["celulas"][0]["atividades"][0].titulo, "B")
 
     def test_varios_dias_viram_varias_colunas(self):
         grade = agenda.montar_grade([
@@ -75,7 +75,7 @@ class MontarGradeTests(TestCase):
             AtividadeFake(local(2026, 10, 5, 11), local(2026, 10, 5, 13)),
         ])
         celula = grade["semanas"][0]["linhas"][0]["celulas"][0]
-        self.assertEqual(len(celula), 2)
+        self.assertEqual(len(celula["atividades"]), 2)
 
     def test_fim_em_ponto_nao_ocupa_a_hora_seguinte(self):
         grade = agenda.montar_grade([
@@ -294,3 +294,98 @@ class ProgramacaoFiltrosViewTests(TestCase):
         self.assertContains(resposta, "data-filtravel")
         self.assertContains(resposta, "ordem=local")
         self.assertContains(resposta, "agenda-legenda")
+
+
+class AliasLocalTests(TestCase):
+    @override_settings(AGENDA_ALIASES_LOCAL={"Lab 1": "Lab"})
+    def test_locais_de_aplica_apelido_e_deduplica(self):
+        a = AtividadeFake(local(2026, 10, 5, 8), local(2026, 10, 5, 9), local="Lab 1, Lab")
+        self.assertEqual(agenda.locais_de(a), ["Lab"])
+
+    @override_settings(AGENDA_ALIASES_LOCAL={"Lab 1": "Lab"})
+    def test_locais_do_evento_une_pelo_apelido(self):
+        locais = agenda.locais_do_evento([
+            AtividadeFake(local(2026, 10, 5, 8), local(2026, 10, 5, 9), local="Lab 1"),
+            AtividadeFake(local(2026, 10, 5, 9), local(2026, 10, 5, 10), local="Lab"),
+        ])
+        self.assertEqual(locais, [{"nome": "Lab", "total": 2}])
+
+    @override_settings(AGENDA_ALIASES_LOCAL={})
+    def test_sem_alias_mantem_os_nomes(self):
+        a = AtividadeFake(local(2026, 10, 5, 8), local(2026, 10, 5, 9), local="Lab 1")
+        self.assertEqual(agenda.locais_de(a), ["Lab 1"])
+
+
+class MontarIcsTests(TestCase):
+    def setUp(self):
+        self.evento = Evento.objects.create(
+            title="Mostra; C&T", description="d", local="Campus",
+            data_inicio="2026-10-05", data_fim="2026-10-05",
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina, prática", descricao="Linha1\nLinha2",
+            tipo=self.tipo, local="",
+            data_hora_inicio=local(2026, 10, 5, 8),
+            data_hora_fim=local(2026, 10, 5, 9), n_vagas=5,
+        )
+
+    def test_conteudo_do_ics(self):
+        ics = agenda.montar_ics(self.evento, [self.atividade])
+
+        self.assertTrue(ics.startswith("BEGIN:VCALENDAR\r\n"))
+        self.assertTrue(ics.endswith("END:VCALENDAR\r\n"))
+        self.assertEqual(ics.count("BEGIN:VEVENT"), 1)
+        self.assertIn(f"UID:{self.atividade.codigo_confirmacao}@ifeventos", ics)
+
+        esperado_ini = self.atividade.data_hora_inicio.astimezone(
+            dt_timezone.utc
+        ).strftime("%Y%m%dT%H%M%SZ")
+        self.assertIn(f"DTSTART:{esperado_ini}", ics)
+
+        # Escapes da RFC: vírgula no título, quebra de linha na descrição e o
+        # sem-ponto-e-vírgula do nome do calendário.
+        self.assertIn("SUMMARY:Oficina\\, prática", ics)
+        self.assertIn("\\n", ics)
+        self.assertIn("X-WR-CALNAME:Mostra\\; C&T", ics)
+        # Sem local na atividade, usa o do evento.
+        self.assertIn("LOCATION:Campus", ics)
+
+    def test_sem_atividades(self):
+        ics = agenda.montar_ics(self.evento, [])
+        self.assertEqual(ics.count("BEGIN:VEVENT"), 0)
+
+
+class AgendaIcsViewTests(TestCase):
+    def setUp(self):
+        self.evento = Evento.objects.create(
+            title="Semana de Tecnologia", description="d", local="Campus",
+            data_inicio="2026-10-05", data_fim="2026-10-06",
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        self.a1 = Atividade.objects.create(
+            evento=self.evento, titulo="A", descricao="d", tipo=self.tipo, local="Sala 1",
+            data_hora_inicio=local(2026, 10, 5, 8),
+            data_hora_fim=local(2026, 10, 5, 9), n_vagas=5,
+        )
+        self.a2 = Atividade.objects.create(
+            evento=self.evento, titulo="B", descricao="d", tipo=self.tipo, local="Sala 2",
+            data_hora_inicio=local(2026, 10, 6, 8),
+            data_hora_fim=local(2026, 10, 6, 9), n_vagas=5,
+        )
+        self.url = reverse("eventos:agenda_ics", args=[self.evento.id])
+
+    def test_baixa_a_programacao_inteira(self):
+        resposta = self.client.get(self.url)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta["Content-Type"].startswith("text/calendar"))
+        self.assertIn("attachment", resposta["Content-Disposition"])
+        self.assertIn("programacao-semana-de-tecnologia.ics", resposta["Content-Disposition"])
+        self.assertEqual(resposta.content.decode().count("BEGIN:VEVENT"), 2)
+
+    def test_exporta_apenas_os_favoritos(self):
+        resposta = self.client.get(self.url, {"favoritos": str(self.a1.id)})
+        texto = resposta.content.decode()
+        self.assertEqual(texto.count("BEGIN:VEVENT"), 1)
+        self.assertIn(str(self.a1.codigo_confirmacao), texto)
+        self.assertNotIn(str(self.a2.codigo_confirmacao), texto)

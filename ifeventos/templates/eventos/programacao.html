@@ -55,11 +55,30 @@
                     <i class="fa-solid fa-arrow-down-a-z"></i> Título
                 </a>
             </div>
+            <div class="ordem-grupo">
+                <a class="ordem-btn" href="{% url 'eventos:agenda_ics' evento.id %}"
+                   title="Baixar a programação para o seu calendário">
+                    <i class="fa-regular fa-calendar-plus"></i> Calendário (.ics)
+                </a>
+                <a class="ordem-btn" data-ics-favoritos
+                   data-base="{% url 'eventos:agenda_ics' evento.id %}" hidden
+                   title="Baixar apenas as suas atividades favoritas">
+                    <i class="fa-solid fa-star"></i> Meus favoritos
+                </a>
+            </div>
         </div>
 
         <div class="filtros" data-filtros>
             <div class="app-list busca-lista">
                 <input type="search" data-busca placeholder="Buscar por atividade, local ou palestrante" aria-label="Buscar por atividade, local ou palestrante">
+            </div>
+            <div class="filtro-grupo" role="group" aria-label="Filtros da programação">
+                <button type="button" class="filtro-chip" data-filtro-favoritos aria-pressed="false">
+                    <i class="fa-solid fa-star"></i> Só favoritos <b data-fav-total>0</b>
+                </button>
+                <button type="button" class="filtro-limpar" data-filtro-limpar hidden>
+                    <i class="fa-solid fa-xmark"></i> Limpar filtros
+                </button>
             </div>
             {% if locais %}
             <div class="filtro-grupo" role="group" aria-label="Filtrar por local">
@@ -79,9 +98,6 @@
                 {% endfor %}
             </div>
             {% endif %}
-            <button type="button" class="filtro-limpar" data-filtro-limpar hidden>
-                <i class="fa-solid fa-xmark"></i> Limpar filtros
-            </button>
         </div>
     </div>
 
@@ -98,6 +114,7 @@
                 <div class="app-list">
                 {% for atividade in secao.itens %}
                 <div class="app-item" style="align-items:stretch" data-filtravel
+                     data-id="{{ atividade.id }}"
                      data-titulo="{{ atividade.titulo }}"
                      data-local="{{ atividade.agenda_locais }}"
                      data-tipo="{{ atividade.tipo_id|default:'' }}"
@@ -113,7 +130,13 @@
                     {% endif %}
                     <div class="info">
                         <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-                            <h5>{{ atividade.titulo }}</h5>
+                            <h5>
+                                <button type="button" class="fav-btn" data-fav data-id="{{ atividade.id }}"
+                                        aria-pressed="false" aria-label="Favoritar atividade" title="Favoritar">
+                                    <i class="fa-regular fa-star"></i>
+                                </button>
+                                {{ atividade.titulo }}
+                            </h5>
                             {% if atividade.n_vagas > atividade.n_inscricoes %}
                                 {% if request.user.is_authenticated %}
                                 <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app">
@@ -190,6 +213,12 @@
                 </div>
             </div>
             {% else %}
+            <div class="agenda-dias no-print" data-agenda-dias hidden>
+                <button type="button" class="filtro-chip is-active" data-dia-tab="">Todos</button>
+                {% for semana in grade.semanas %}{% for col in semana.colunas %}
+                <button type="button" class="filtro-chip" data-dia-tab="{{ col.iso }}">{{ col.rotulo }} {{ col.curta }}</button>
+                {% endfor %}{% endfor %}
+            </div>
             {% if tipos %}
             <div class="agenda-legenda">
                 <span class="filtro-rotulo">Legenda</span>
@@ -206,7 +235,7 @@
                             <tr>
                                 <th class="agenda-hora" scope="col"><span class="visually-hidden">Horário</span></th>
                                 {% for col in semana.colunas %}
-                                <th class="agenda-dia{% if col.hoje %} is-hoje{% endif %}" scope="col">
+                                <th class="agenda-dia{% if col.hoje %} is-hoje{% endif %}" data-dia="{{ col.iso }}" scope="col">
                                     <span class="dia-sem">{{ col.rotulo }}</span>
                                     <span class="dia-data">{{ col.curta }}</span>
                                 </th>
@@ -218,17 +247,21 @@
                             <tr>
                                 <th class="agenda-hora" scope="row">{{ lin.rotulo }}</th>
                                 {% for celula in lin.celulas %}
-                                <td class="agenda-cel">
-                                    {% for a in celula %}
-                                    <button type="button" class="agenda-chip {{ a.agenda_cor }}"
-                                            data-agenda-chip data-filtravel
-                                            data-titulo="{{ a.titulo }}"
-                                            data-local="{{ a.agenda_locais }}"
-                                            data-tipo="{{ a.tipo_id|default:'' }}"
-                                            data-inicio="{{ a.data_hora_inicio|date:'c' }}"
-                                            data-fim="{{ a.data_hora_fim|date:'c' }}"
-                                            data-busca-texto="{{ a.titulo }} {{ a.local }}{% for p in a.palestrantes.all %} {{ p.first_name }} {{ p.last_name }}{% endfor %}"
-                                            title="{{ a.titulo }} — {{ a.local }}">
+                                <td class="agenda-cel" data-dia="{{ celula.coluna.iso }}">
+                                    {% for a in celula.atividades %}
+                                    <div class="agenda-chip {{ a.agenda_cor }}"
+                                         data-agenda-chip data-filtravel role="button" tabindex="0"
+                                         data-id="{{ a.id }}"
+                                         data-titulo="{{ a.titulo }}"
+                                         data-local="{{ a.agenda_locais }}"
+                                         data-tipo="{{ a.tipo_id|default:'' }}"
+                                         data-inicio="{{ a.data_hora_inicio|date:'c' }}"
+                                         data-fim="{{ a.data_hora_fim|date:'c' }}"
+                                         data-busca-texto="{{ a.titulo }} {{ a.local }}{% for p in a.palestrantes.all %} {{ p.first_name }} {{ p.last_name }}{% endfor %}"
+                                         title="{{ a.titulo }} — {{ a.local }}">
+                                        <span class="chip-fav" data-fav data-id="{{ a.id }}" title="Favoritar">
+                                            <i class="fa-regular fa-star"></i>
+                                        </span>
                                         <span class="chip-hora">{{ a.data_hora_inicio|time:"H:i" }}–{{ a.data_hora_fim|time:"H:i" }}</span>
                                         <span class="chip-titulo">{{ a.titulo }}</span>
                                         {% if a.local %}<span class="chip-local">{{ a.local }}</span>{% endif %}
@@ -237,7 +270,7 @@
                                         {% else %}
                                         <span class="chip-vagas chip-lotado"><i class="fa-solid fa-ban"></i> Lotado</span>
                                         {% endif %}
-                                    </button>
+                                    </div>
                                     {% endfor %}
                                 </td>
                                 {% endfor %}
@@ -257,5 +290,6 @@
 
 {% block scripts %}
 <script src="{% static 'js/programacao_filtros.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/programacao_dias.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="{% static 'js/programacao_vistas.js' %}?v={{ ASSET_VERSION }}"></script>
 {% endblock %}

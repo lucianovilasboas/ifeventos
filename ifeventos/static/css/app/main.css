@@ -1247,3 +1247,44 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     .agenda { min-width: 0; }
     .agenda-chip, .app-item { break-inside: avoid; }
 }
+
+/* =========================================================================
+   Programação — favoritos (Minha agenda) e abas de dia (mobile)
+   ========================================================================= */
+.fav-btn {
+    border: 0;
+    background: none;
+    padding: 0 6px 0 0;
+    cursor: pointer;
+    color: var(--app-muted, #6b7280);
+    vertical-align: middle;
+    line-height: 1;
+}
+.fav-btn:hover { color: #f59e0b; }
+.fav-btn.is-fav { color: #f59e0b; }
+
+/* O chip virou <div role="button"> para caber a estrela dentro. */
+.agenda-chip { position: relative; padding-right: 22px; }
+.chip-fav {
+    position: absolute;
+    top: 3px;
+    right: 5px;
+    font-size: 11px;
+    color: var(--app-muted, #6b7280);
+    line-height: 1;
+}
+.chip-fav:hover { color: #f59e0b; }
+.chip-fav.is-fav { color: #f59e0b; }
+
+/* Abas de dia: só aparecem no celular (o JS controla o `hidden`). */
+.agenda-dias {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 var(--gutter-phone) 8px;
+}
+.filtro-chip.is-active {
+    background: var(--accent-soft, #eef2ff);
+    border-color: var(--accent-ink);
+    color: var(--accent-ink);
+}

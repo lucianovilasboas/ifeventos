@@ -51,9 +51,7 @@
 
         // Clicar num chip leva para a LISTA já filtrada por aquele título —
         // reaproveita a busca existente em vez de duplicar o cartão na grade.
-        document.addEventListener("click", function (evento) {
-            var chip = evento.target.closest("[data-agenda-chip]");
-            if (!chip) return;
+        function abrirNoLista(chip) {
             var termo = chip.getAttribute("data-titulo") || "";
             var input = document.querySelector("[data-busca]");
             var botaoLista = document.querySelector('[data-vista-btn="lista"]');
@@ -67,6 +65,21 @@
                 input.dispatchEvent(new Event("input", { bubbles: true }));
                 input.focus();
             }
+        }
+
+        document.addEventListener("click", function (evento) {
+            var chip = evento.target.closest("[data-agenda-chip]");
+            if (chip) abrirNoLista(chip);
+        });
+
+        // O chip é uma <div role="button"> (para caber a estrela dentro): o
+        // teclado precisa do Enter/Espaço.
+        document.addEventListener("keydown", function (evento) {
+            if (evento.key !== "Enter" && evento.key !== " ") return;
+            var chip = evento.target.closest("[data-agenda-chip]");
+            if (!chip) return;
+            evento.preventDefault();
+            abrirNoLista(chip);
         });
 
         // Deep link (?vista=...) manda; senão, aplica a preferência salva.

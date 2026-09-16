@@ -445,6 +445,18 @@ METADADOS_PARTICIPANTE = [
      "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
 ]
 
+# ---------------------------------------------------------------------------
+# Programação (agenda): apelidos de local
+# ---------------------------------------------------------------------------
+# O campo `local` da atividade é texto livre e a escola escreve variações do
+# mesmo espaço. Este mapa unifica os nomes no FILTRO e no agrupamento (o texto
+# exibido na atividade continua o original). Ex.: "Lab. de Informática 1" e
+# "Lab. de Informática" passam a ser um só lugar.
+AGENDA_ALIASES_LOCAL = {
+    "Sala de aula vazia (sem carteiras)": "Sala de aula",
+    "Laboratório de Informática 1": "Laboratório de Informática",
+}
+
 # Ao confirmar o e-mail (botão na página do link), o usuário já sai logado.
 # Sem isto ele confirma e volta para a tela de login, o que na prática faz
 # muita gente achar que a confirmação não funcionou.

@@ -24,7 +24,7 @@ Devolve só estruturas prontas para o template (nada de acesso a tuplas):
 `celulas` é paralelo a `colunas` (mesma ordem).
 """
 
-from datetime import date
+from datetime import date, timezone as dt_timezone
 import unicodedata
 
 from django.utils import timezone
@@ -48,9 +48,29 @@ def _sem_acento(texto):
     return "".join(c for c in base if unicodedata.category(c) != "Mn")
 
 
+def _aliases():
+    """Apelidos de local configurados pela escola (settings)."""
+    from django.conf import settings
+
+    return getattr(settings, "AGENDA_ALIASES_LOCAL", None) or {}
+
+
 def locais_de(atividade):
-    """Lugares da atividade: `local` é texto livre, com vários separados por vírgula."""
-    return [parte.strip() for parte in (atividade.local or "").split(",") if parte.strip()]
+    """Lugares da atividade: `local` é texto livre, com vários separados por vírgula.
+
+    Aplica os apelidos (`AGENDA_ALIASES_LOCAL`) e remove repetições, para o
+    filtro e o agrupamento falarem de um lugar só.
+    """
+    aliases = _aliases()
+    lugares = []
+    for parte in (atividade.local or "").split(","):
+        nome = parte.strip()
+        if not nome:
+            continue
+        nome = aliases.get(nome, nome)
+        if nome not in lugares:
+            lugares.append(nome)
+    return lugares
 
 
 def locais_do_evento(atividades):
@@ -224,6 +244,7 @@ def montar_grade(atividades):
         colunas = [
             {
                 "data": dia,
+                "iso": dia.strftime("%Y-%m-%d"),
                 "rotulo": DIAS_SEMANA[dia.weekday()],
                 "curta": dia.strftime("%d/%m"),
                 "hoje": dia == hoje,
@@ -233,7 +254,10 @@ def montar_grade(atividades):
         linhas = [
             {
                 "rotulo": f"{hora:02d}:00",
-                "celulas": [dia_por_hora.get((col["data"], hora), []) for col in colunas],
+                "celulas": [
+                    {"coluna": col, "atividades": dia_por_hora.get((col["data"], hora), [])}
+                    for col in colunas
+                ],
             }
             for hora in horas
         ]
@@ -247,3 +271,71 @@ def montar_grade(atividades):
         })
 
     return {"vazio": False, "total": len(itens), "semanas": semanas}
+
+
+# ---------------------------------------------------------------------------
+# Exportação .ics (adicionar ao calendário)
+# ---------------------------------------------------------------------------
+
+def _ics_escapar(texto):
+    """Escapa o texto conforme a RFC 5545 (\\ ; , e quebras de linha)."""
+    return (
+        str(texto or "")
+        .replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\r\n", "\\n")
+        .replace("\r", "\\n")
+        .replace("\n", "\\n")
+    )
+
+
+def _ics_dobrar(linha):
+    """RFC 5545: linhas de até 75 octetos; a continuação começa com espaço."""
+    pedacos = []
+    atual = ""
+    for caracter in linha:
+        if len((atual + caracter).encode("utf-8")) > 75:
+            pedacos.append(atual)
+            atual = " " + caracter
+        else:
+            atual += caracter
+    pedacos.append(atual)
+    return "\r\n".join(pedacos)
+
+
+def _ics_data(valor):
+    """Data/hora em UTC no formato do iCalendar (…Z)."""
+    return valor.astimezone(dt_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def montar_ics(evento, atividades):
+    """Conteúdo `.ics` com um VEVENT por atividade (para o calendário)."""
+    carimbo = timezone.now().strftime("%Y%m%dT%H%M%SZ")
+    linhas = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//IF Eventos//Programacao//PT-BR",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{_ics_escapar(evento.title)}",
+    ]
+    for atividade in atividades or []:
+        local = (atividade.local or "").strip() or (evento.local or "")
+        descricao = atividade.descricao or ""
+        tipo = getattr(atividade.tipo, "nome", "") or ""
+        if tipo:
+            descricao = f"[{tipo}] {descricao}"
+        linhas += [
+            "BEGIN:VEVENT",
+            f"UID:{atividade.codigo_confirmacao}@ifeventos",
+            f"DTSTAMP:{carimbo}",
+            f"DTSTART:{_ics_data(atividade.data_hora_inicio)}",
+            f"DTEND:{_ics_data(atividade.data_hora_fim)}",
+            f"SUMMARY:{_ics_escapar(atividade.titulo)}",
+            f"LOCATION:{_ics_escapar(local)}",
+            f"DESCRIPTION:{_ics_escapar(descricao)}",
+            "END:VEVENT",
+        ]
+    linhas.append("END:VCALENDAR")
+    return "\r\n".join(_ics_dobrar(linha) for linha in linhas) + "\r\n"

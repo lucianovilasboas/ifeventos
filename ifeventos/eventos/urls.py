@@ -3,6 +3,7 @@ from eventos.views import eventos_view
 from eventos.views import logout_view
 from eventos.views import evento_programacao_view
 from eventos.views import roster_lookup
+from eventos.views import agenda_ics_view
 from .views import gerar_qr_code, confirmar_presenca
 from .views import gerar_qr_code_atividade, confirmar_presenca_atividade
 from django.views.generic import TemplateView
@@ -13,6 +14,7 @@ app_name = "eventos"  # Define o app_name para o namespace
 urlpatterns = [
     path("", eventos_view, name="eventos"),
     path("programacao/<int:evento_id>", evento_programacao_view, name="programacao"),
+    path("programacao/<int:evento_id>/agenda.ics", agenda_ics_view, name="agenda_ics"),
 
     # logout para todos os usuários
     path('logout/', logout_view, name='logout'),
