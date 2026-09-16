@@ -155,6 +155,9 @@
                 chip.setAttribute("aria-pressed", ligado ? "true" : "false");
             });
             pintarFavoritos();
+            // O "+N no mesmo horário" só pode prometer cartas que o filtro não
+            // escondeu — então o bloco de paralelas se recontá depois do filtro.
+            if (window.programacaoParalelas) window.programacaoParalelas.atualizar();
             salvar();
         }
 

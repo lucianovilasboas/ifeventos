@@ -1305,3 +1305,63 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     border-color: var(--accent-ink);
     color: var(--accent-ink);
 }
+
+/* =========================================================================
+   Agenda — atividades no mesmo horário (leque + expandir)
+   -------------------------------------------------------------------------
+   Dentro da célula, quem começa no MESMO horário vira um bloco: um cabeçalho
+   discreto ("08:00 · 15 em paralelo"), as 3 primeiras cartas num leque sutil
+   (deslocadas e levemente sobrepostas) e um botão que revela o resto alinhado.
+   A sobreposição é pequena de propósito: cobre só a margem, nunca o texto.
+   ========================================================================= */
+.agenda-paralelas { margin-bottom: 6px; }
+.agenda-paralelas:last-child { margin-bottom: 0; }
+.agenda-paralelas.is-paralelo {
+    border-left: 3px solid var(--accent-soft, #e8f5ea);
+    padding-left: 5px;
+}
+
+.agenda-paralelo-head {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: none;
+    padding: 0 0 3px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .2px;
+    color: var(--app-muted, #6b7280);
+    cursor: pointer;
+}
+.agenda-paralelo-head i { color: var(--accent-ink); margin-right: 2px; }
+
+/* Leque: cada carta desloca até 3 passos e estreita junto, formando o degrau. */
+.agenda-paralelas .agenda-chip {
+    --desloc: calc(min(var(--i, 0), 3) * 5px);
+    margin-left: var(--desloc);
+    width: calc(100% - var(--desloc));
+}
+/* Sobreposição sutil: a carta seguinte cobre só a margem da anterior. */
+.agenda-paralelas .agenda-chip + .agenda-chip { margin-top: -8px; }
+.agenda-paralelas .agenda-chip:hover { z-index: 2; }
+
+/* Recolhidas (além das 3 primeiras) só aparecem ao abrir. */
+.agenda-paralelas .agenda-chip.is-extra { display: none; }
+.agenda-chip[hidden] { display: none; }
+
+.agenda-paralelas.is-aberto .agenda-chip { margin-left: 0; width: 100%; }
+.agenda-paralelas.is-aberto .agenda-chip + .agenda-chip { margin-top: 0; }
+.agenda-paralelas.is-aberto .agenda-chip.is-extra:not([hidden]) { display: block; }
+
+.agenda-mais {
+    display: block;
+    border: 0;
+    background: none;
+    padding: 3px 0 0;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--accent-ink);
+    cursor: pointer;
+}
+.agenda-mais:hover { text-decoration: underline; }

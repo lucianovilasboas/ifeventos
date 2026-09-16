@@ -92,13 +92,15 @@ def anotar(atividades):
     """Acrescenta às atividades dados derivados usados no template/filtro.
 
     - `agenda_cor`: classe de cor pelo tipo;
-    - `agenda_locais`: lugares separados por `|` (o filtro compara assim).
+    - `agenda_locais`: lugares separados por `|` (o filtro compara assim);
+    - `agenda_hora`: horário de início (HH:MM local) — agrupa quem começa junto.
     """
     itens = list(atividades or [])
     cores = _cores_por_tipo(itens)
     for atividade in itens:
         atividade.agenda_cor = cores.get(atividade.tipo_id, "agenda-sem-tipo")
         atividade.agenda_locais = "|".join(locais_de(atividade))
+        atividade.agenda_hora = _hora_local(atividade).strftime("%H:%M")
     return itens
 
 

@@ -248,6 +248,11 @@ class LocaisETiposTests(TestCase):
         agenda.anotar([a])
         self.assertEqual(a.agenda_locais, "Auditório|Quadra")
 
+    def test_anotar_gera_horario_de_inicio(self):
+        a = AtividadeFake(local(2026, 10, 5, 8, 30), local(2026, 10, 5, 9))
+        agenda.anotar([a])
+        self.assertEqual(a.agenda_hora, "08:30")
+
 
 class ProgramacaoFiltrosViewTests(TestCase):
     def setUp(self):
@@ -389,3 +394,50 @@ class AgendaIcsViewTests(TestCase):
         self.assertEqual(texto.count("BEGIN:VEVENT"), 1)
         self.assertIn(str(self.a1.codigo_confirmacao), texto)
         self.assertNotIn(str(self.a2.codigo_confirmacao), texto)
+
+
+class ParalelasViewTests(TestCase):
+    """Atividades no MESMO horário viram um bloco com leque e "+N"."""
+
+    def setUp(self):
+        self.evento = Evento.objects.create(
+            title="Mostra", description="d", local="Campus",
+            data_inicio="2026-10-05", data_fim="2026-10-05",
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        self.url = reverse("eventos:programacao", args=[self.evento.id])
+
+    def _juntas(self, quantas, hora=8, minuto=0):
+        for i in range(quantas):
+            Atividade.objects.create(
+                evento=self.evento, titulo=f"Oficina {i}", descricao="d",
+                tipo=self.tipo, local=f"Sala {i}",
+                data_hora_inicio=local(2026, 10, 5, hora, minuto),
+                data_hora_fim=local(2026, 10, 5, hora + 1, minuto),
+                n_vagas=10,
+            )
+
+    def test_quatro_no_mesmo_horario_tem_leque_e_botao(self):
+        self._juntas(4)
+        html = self.client.get(self.url, {"vista": "grade"}).content.decode()
+
+        self.assertIn("agenda-paralelas is-paralelo", html)
+        self.assertIn("em paralelo", html)
+        self.assertIn("08:00 · 4 em paralelo", html)
+        self.assertIn("is-extra", html)          # a 4ª vai para o "resto"
+        self.assertIn("+1 no mesmo horário", html)
+
+    def test_horarios_diferentes_nao_viram_bloco(self):
+        self._juntas(2, hora=8)
+        self._juntas(2, hora=8, minuto=30)
+        html = self.client.get(self.url, {"vista": "grade"}).content.decode()
+
+        self.assertIn("08:00 · 2 em paralelo", html)
+        self.assertIn("08:30 · 2 em paralelo", html)
+        self.assertNotIn("4 em paralelo", html)
+
+    def test_uma_so_nao_tem_cabecalho_de_paralelo(self):
+        self._juntas(1)
+        html = self.client.get(self.url, {"vista": "grade"}).content.decode()
+        self.assertIn("agenda-paralelas", html)
+        self.assertNotIn("em paralelo", html)
