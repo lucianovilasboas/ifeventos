@@ -1,0 +1,14 @@
+Sua proposta não foi aprovada.
+
+Atividade: {{ atividade.titulo }}
+Evento: {{ evento.title }}
+{% if atividade.vaga %}Vaga: {{ atividade.vaga.espaco.nome }} — {{ atividade.vaga.inicio|date:"d/m/Y H:i" }} às {{ atividade.vaga.fim|date:"H:i" }}{% endif %}
+
+Motivo informado pela organização:
+{{ atividade.motivo_rejeicao }}
+
+A vaga voltou a ficar disponível. Veja suas propostas em:
+{{ url }}
+
+--
+Nossos Eventos · IFMG Campus Ponte Nova

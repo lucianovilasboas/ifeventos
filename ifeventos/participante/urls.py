@@ -3,6 +3,7 @@ from django.urls import path
 from .views import dashboard
 from .views import inscrever, cancelar_inscricao, gerenciar_inscricoes_ajax
 from .views import (
+    buscar_participante,
     cancelar_proposta,
     editar_proposta,
     minhas_propostas,
@@ -39,6 +40,7 @@ urlpatterns = [
     path("propostas/<int:atividade_id>/editar/", editar_proposta, name="editar_proposta"),
     path("propostas/<int:atividade_id>/cancelar/", cancelar_proposta, name="cancelar_proposta"),
     path("propostas/sugerir-tipo/", sugerir_tipo_ajax, name="sugerir_tipo"),
+    path("propostas/buscar-participante/", buscar_participante, name="buscar_participante"),
 
 
     # -- Rotas para a IA --

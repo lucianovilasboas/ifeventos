@@ -281,12 +281,30 @@ class MeusCrachasView(LoginRequiredMixin, TemplateView):
 # Chamada de proposições (proponente)
 # ---------------------------------------------------------------------------
 
-def _palestrantes_escolhidos(form, participante):
-    """Palestrantes marcados + o próprio proponente (quando ele vai ministrar)."""
+def _palestrantes_escolhidos(form, participante, request=None):
+    """Palestrantes marcados + os extras da busca + o próprio proponente.
+
+    Os "extras" vêm de `palestrantes_extra` — a busca por nome/e-mail acha
+    qualquer participante cadastrado, não só quem já tem a flag de palestrante.
+    Os ids são reconsultados aqui: o POST pode vir com qualquer coisa.
+    """
     escolhidos = list(form.cleaned_data.get("palestrantes") or [])
-    if form.cleaned_data.get("eu_sou_palestrante"):
-        if all(p.pk != participante.pk for p in escolhidos):
-            escolhidos.append(participante)
+    ids = {pessoa.pk for pessoa in escolhidos}
+
+    if request is not None:
+        extras = [
+            valor for valor in request.POST.getlist("palestrantes_extra")
+            if str(valor).isdigit()
+        ]
+        if extras:
+            for pessoa in Participante.objects.filter(pk__in=extras):
+                if pessoa.pk != participante.pk and pessoa.pk not in ids:
+                    ids.add(pessoa.pk)
+                    escolhidos.append(pessoa)
+
+    if form.cleaned_data.get("eu_sou_palestrante") and participante.pk not in ids:
+        escolhidos.append(participante)
+
     return escolhidos
 
 
@@ -323,7 +341,7 @@ def propor_atividade(request, evento_id):
                     descricao=form.cleaned_data['descricao'],
                     tipo=form.cleaned_data.get('tipo'),
                     tipo_sugerido=form.cleaned_data.get('tipo_sugerido'),
-                    palestrantes=_palestrantes_escolhidos(form, participante),
+                    palestrantes=_palestrantes_escolhidos(form, participante, request),
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
                     imagem=form.cleaned_data.get('imagem'),
@@ -382,7 +400,7 @@ def editar_proposta(request, atividade_id):
                     descricao=form.cleaned_data['descricao'],
                     tipo=form.cleaned_data.get('tipo'),
                     tipo_sugerido=form.cleaned_data.get('tipo_sugerido'),
-                    palestrantes=_palestrantes_escolhidos(form, request.user),
+                    palestrantes=_palestrantes_escolhidos(form, request.user, request),
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
                     imagem=form.cleaned_data.get('imagem'),
@@ -400,6 +418,12 @@ def editar_proposta(request, atividade_id):
         'evento': evento,
         'form': form,
         'proposta': proposta,
+        # Palestrantes sem a flag global não cabem no select (que lista só quem
+        # já é palestrante): eles voltam como "extras" selecionados.
+        'palestrantes_extras': [
+            pessoa for pessoa in proposta.palestrantes.all()
+            if not pessoa.is_palestrante and pessoa.pk != request.user.pk
+        ],
         'chamada': propostas.chamada_de(evento),
         'aberta': True,
         'motivo_fechado': '',
@@ -420,3 +444,38 @@ def cancelar_proposta(request, atividade_id):
     else:
         messages.success(request, "Proposta cancelada.")
     return redirect('participante:minhas_propostas')
+
+
+@login_required(login_url='/accounts/login/')
+def buscar_participante(request):
+    """Busca participantes por nome ou e-mail (para escolher palestrantes).
+
+    A lista de palestrantes do formulário traz só quem já tem a flag; este
+    endpoint é o que permite escolher qualquer pessoa cadastrada sem
+    transformar o select num paredão de centenas de opções. Exige 3 caracteres
+    e devolve no máximo 10 resultados.
+    """
+    from django.db.models import Q
+
+    termo = (request.GET.get("q") or "").strip()
+    if len(termo) < 3:
+        return JsonResponse({"resultados": []})
+
+    pessoas = (
+        Participante.objects.filter(
+            Q(first_name__icontains=termo)
+            | Q(last_name__icontains=termo)
+            | Q(email__icontains=termo)
+        )
+        .exclude(pk=request.user.pk)
+        .order_by("first_name", "last_name")[:10]
+    )
+    return JsonResponse({"resultados": [
+        {
+            "id": pessoa.pk,
+            "nome": pessoa.get_full_name() or pessoa.username,
+            "email": pessoa.email,
+            "palestrante": pessoa.is_palestrante,
+        }
+        for pessoa in pessoas
+    ]})

@@ -156,6 +156,28 @@
                     <label class="form-label" for="id_palestrantes">{{ form.palestrantes.label }}</label>
                     {{ form.palestrantes }}
                     <small class="text-muted d-block">{{ form.palestrantes.help_text }}</small>
+
+                    <label class="form-label mt-3" for="buscaPalestrante">
+                        Não está na lista? Busque pelo nome ou e-mail
+                    </label>
+                    <input type="search" id="buscaPalestrante" class="form-control"
+                           autocomplete="off" placeholder="Ex.: Maria Souza ou maria@exemplo.com">
+                    <div id="resultadosPalestrante" class="mt-2 d-flex flex-wrap gap-2"></div>
+
+                    <div id="extrasPalestrante" class="mt-2 d-flex flex-wrap gap-2">
+                        {% for pessoa in palestrantes_extras %}
+                        <span class="badge-app" data-extra="{{ pessoa.pk }}">
+                            {{ pessoa.get_full_name }}
+                            <button type="button" class="btn-close btn-close-sm ms-1"
+                                    aria-label="Remover {{ pessoa.get_full_name }}"></button>
+                            <input type="hidden" name="palestrantes_extra" value="{{ pessoa.pk }}">
+                        </span>
+                        {% endfor %}
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        Quem você adicionar aqui entra como palestrante desta atividade
+                        (não é preciso já ser palestrante no sistema).
+                    </small>
                 </div>
                 <div class="col-12 col-md-5">
                     <label class="form-label d-block">Você mesmo</label>
@@ -289,6 +311,94 @@
             }
         });
     }
+})();
+
+(function () {
+    // Busca de palestrante: qualquer participante cadastrado pode ser
+    // escolhido, não só quem já tem a flag — o escolhido vira um chip com um
+    // input "palestrantes_extra" (o servidor revalida os ids).
+    var busca = document.querySelector('#buscaPalestrante');
+    if (!busca) return;
+
+    var resultados = document.querySelector('#resultadosPalestrante');
+    var extras = document.querySelector('#extrasPalestrante');
+    var relogio = null;
+
+    function adicionarExtra(pessoa) {
+        if (extras.querySelector('[data-extra="' + pessoa.id + '"]')) return;
+
+        var chip = document.createElement('span');
+        chip.className = 'badge-app';
+        chip.dataset.extra = pessoa.id;
+
+        var nome = document.createElement('span');
+        nome.textContent = pessoa.nome;           // textContent: nome vem do banco
+
+        var remover = document.createElement('button');
+        remover.type = 'button';
+        remover.className = 'btn-close btn-close-sm ms-1';
+        remover.setAttribute('aria-label', 'Remover ' + pessoa.nome);
+
+        var oculto = document.createElement('input');
+        oculto.type = 'hidden';
+        oculto.name = 'palestrantes_extra';
+        oculto.value = pessoa.id;
+
+        chip.append(nome, remover, oculto);
+        extras.appendChild(chip);
+    }
+
+    function desenhar(itens) {
+        resultados.innerHTML = '';
+        if (!itens.length) {
+            var vazio = document.createElement('span');
+            vazio.className = 'text-muted';
+            vazio.textContent = 'Nenhum participante encontrado.';
+            resultados.appendChild(vazio);
+            return;
+        }
+        itens.forEach(function (pessoa) {
+            var botao = document.createElement('button');
+            botao.type = 'button';
+            botao.className = 'badge-app btn btn-sm btn-outline-primary';
+            botao.textContent = pessoa.palestrante
+                ? pessoa.nome
+                : pessoa.nome + ' (novo palestrante)';
+            botao.title = pessoa.email;
+            botao.addEventListener('click', function () {
+                adicionarExtra(pessoa);
+                resultados.innerHTML = '';
+                busca.value = '';
+            });
+            resultados.appendChild(botao);
+        });
+    }
+
+    // Delegação: vale para os chips criados aqui e para os pré-renderizados
+    // na edição de uma proposta.
+    extras.addEventListener('click', function (evento) {
+        var botao = evento.target.closest('button');
+        if (!botao) return;
+        var chip = botao.closest('[data-extra]');
+        if (chip) chip.remove();
+    });
+
+    busca.addEventListener('input', function () {
+        clearTimeout(relogio);
+        var termo = busca.value.trim();
+        if (termo.length < 3) {
+            resultados.innerHTML = '';
+            return;
+        }
+        relogio = setTimeout(function () {
+            fetch("{% url 'participante:buscar_participante' %}?q=" + encodeURIComponent(termo))
+                .then(function (resposta) { return resposta.json(); })
+                .then(function (dados) { desenhar(dados.resultados || []); })
+                .catch(function () {
+                    resultados.innerHTML = '<span class="text-danger">Não consegui buscar agora.</span>';
+                });
+        }, 300);
+    });
 })();
 </script>
 {% endblock scripts %}

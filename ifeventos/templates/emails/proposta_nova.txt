@@ -1,0 +1,16 @@
+Nova proposta de atividade para "{{ evento.title }}".
+
+Atividade: {{ atividade.titulo }}
+Proponente: {{ proponente.get_full_name|default:proponente.email }}
+{% if atividade.vaga %}Vaga: {{ atividade.vaga.espaco.nome }} — {{ atividade.vaga.inicio|date:"d/m/Y H:i" }} às {{ atividade.vaga.fim|date:"H:i" }}{% endif %}
+{% if atividade.tipo %}Tipo: {{ atividade.tipo.nome }}{% elif atividade.tipo_sugerido %}Tipo sugerido: {{ atividade.tipo_sugerido }}{% endif %}
+Palestrante(s): {% for pessoa in atividade.palestrantes.all %}{{ pessoa.get_full_name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+
+Descrição:
+{{ atividade.descricao }}
+
+A proposta está aguardando a sua decisão. Aprove ou rejeite em:
+{{ url }}
+
+--
+Nossos Eventos · IFMG Campus Ponte Nova

@@ -463,6 +463,11 @@ AGENDA_ALIASES_LOCAL = {
 # — não há constraint no banco, então dois envios simultâneos podem passar de 1.
 MAX_PROPOSTAS_POR_PROPONENTE = config("MAX_PROPOSTAS_POR_PROPONENTE", default=0, cast=int)
 
+# Avisos por e-mail da chamada (nova proposta para o organizador; decisão para
+# o proponente). DESLIGADO por padrão: só ligue depois de validar o SMTP de
+# produção (EMAIL_HOST_*), senão os envios falham em silêncio e param no log.
+PROPOSTAS_NOTIFICAR_EMAIL = config("PROPOSTAS_NOTIFICAR_EMAIL", default=False, cast=bool)
+
 # Ao confirmar o e-mail (botão na página do link), o usuário já sai logado.
 # Sem isto ele confirma e volta para a tela de login, o que na prática faz
 # muita gente achar que a confirmação não funcionou.

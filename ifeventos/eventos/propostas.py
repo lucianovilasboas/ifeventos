@@ -20,6 +20,7 @@ from types import SimpleNamespace
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from . import agenda
@@ -350,6 +351,10 @@ def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
         )
         if palestrantes:
             atividade.palestrantes.set(palestrantes)
+
+        # Aviso só DEPOIS do commit: se a transação voltar atrás, ninguém
+        # recebe e-mail de uma proposta que não existe.
+        transaction.on_commit(lambda: avisar_proposta_nova(atividade))
         return atividade
 
 
@@ -437,6 +442,7 @@ def aprovar(atividade, por, publicar=True, tipo=None):
     atividade.decidida_por = por
     atividade.save(update_fields=_campos_decisao(atividade, tipo))
     promover_palestrante(atividade)
+    transaction.on_commit(lambda: avisar_decisao(atividade, aprovada=True))
     return atividade
 
 
@@ -457,6 +463,7 @@ def rejeitar(atividade, por, motivo):
     atividade.decidida_em = timezone.now()
     atividade.decidida_por = por
     atividade.save(update_fields=_campos_decisao(atividade))
+    transaction.on_commit(lambda: avisar_decisao(atividade, aprovada=False))
     return atividade
 
 
@@ -483,6 +490,63 @@ def promover_palestrante(atividade):
     if not proponente.is_palestrante:
         proponente.is_palestrante = True
         proponente.save(update_fields=["is_palestrante"])
+
+
+# ---------------------------------------------------------------------------
+# Avisos por e-mail (best-effort: nunca quebram a ação principal)
+# ---------------------------------------------------------------------------
+
+def avisar_proposta_nova(atividade):
+    """Manda para o organizador do evento a proposta que acabou de chegar."""
+    from . import emails  # import local: evita ciclo com models/settings
+
+    if not emails.notificar_email_ligado():
+        return False
+
+    organizador = atividade.evento.organizador
+    if organizador is None or not getattr(organizador, "email", ""):
+        return False
+
+    return emails.enviar(
+        assunto=f"Nova proposta: {atividade.titulo}",
+        destinatarios=[organizador.email],
+        template="emails/proposta_nova.txt",
+        contexto={
+            "atividade": atividade,
+            "evento": atividade.evento,
+            "proponente": atividade.proponente,
+            "url": emails.site_url(
+                reverse("organizador:propostas_pendentes", args=[atividade.evento_id])
+            ),
+        },
+    )
+
+
+def avisar_decisao(atividade, aprovada):
+    """Manda para o proponente o resultado da avaliação (com o motivo)."""
+    from . import emails
+
+    if not emails.notificar_email_ligado():
+        return False
+
+    proponente = atividade.proponente
+    if proponente is None or not getattr(proponente, "email", ""):
+        return False
+
+    return emails.enviar(
+        assunto=("Proposta aprovada" if aprovada else "Proposta não aprovada")
+        + f": {atividade.titulo}",
+        destinatarios=[proponente.email],
+        template=(
+            "emails/proposta_aprovada.txt" if aprovada
+            else "emails/proposta_rejeitada.txt"
+        ),
+        contexto={
+            "atividade": atividade,
+            "evento": atividade.evento,
+            "url": emails.site_url(reverse("participante:minhas_propostas")),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

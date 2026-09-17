@@ -611,8 +611,10 @@ class PropostaForm(forms.ModelForm):
         # caixa "eu vou ministrar" marcada quando ele já estava na atividade.
         if self.instance and self.instance.pk and getattr(usuario, "pk", None):
             atuais = self.instance.palestrantes.all()
+            # Só entra no initial quem o select consegue exibir (a query é dos
+            # que têm a flag); os demais chegam como "extras" pela busca.
             self.fields["palestrantes"].initial = [
-                p.pk for p in atuais if p.pk != usuario.pk
+                p.pk for p in atuais if p.pk != usuario.pk and p.is_palestrante
             ]
             self.fields["eu_sou_palestrante"].initial = any(
                 p.pk == usuario.pk for p in atuais

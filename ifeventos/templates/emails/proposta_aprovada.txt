@@ -1,0 +1,12 @@
+Sua proposta foi aprovada!
+
+Atividade: {{ atividade.titulo }}
+Evento: {{ evento.title }}
+{% if atividade.vaga %}Vaga: {{ atividade.vaga.espaco.nome }} — {{ atividade.vaga.inicio|date:"d/m/Y H:i" }} às {{ atividade.vaga.fim|date:"H:i" }}{% endif %}
+{% if atividade.publicada %}Já está publicada na programação do evento.{% else %}A organização vai publicá-la na programação.{% endif %}
+
+Acompanhe em:
+{{ url }}
+
+--
+Nossos Eventos · IFMG Campus Ponte Nova
