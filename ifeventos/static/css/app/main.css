@@ -376,6 +376,11 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 .app-content-top {
   margin-top: var(--space-6);
   padding-bottom: var(--space-8);
+  /* Rede de segurança: nenhum conteúdo consegue alargar o documento (e
+     deslocar a topbar/bottomnav). `clip` e não `hidden` porque não cria
+     contêiner de rolagem — o sticky dos filhos e o .agenda-scroll seguem
+     funcionando. */
+  overflow-x: clip;
 }
 
 .app-sec {
@@ -1512,7 +1517,7 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 }
 
 /* Filtro por evento da dashboard do participante (chips-link). */
-.chips-evento { row-gap: 6px; }
+.chips-evento { row-gap: 6px; min-width: 0; }
 .chip-evento {
     display: inline-flex; align-items: center;
     padding: 6px 12px;
@@ -1523,13 +1528,26 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     font-size: var(--text-sm);
     font-weight: 700;
     text-decoration: none;
-    white-space: nowrap;
+    /* O título do evento pode ser longo ("SNCT 2026 - 23ª Semana Nacional…").
+       Sem o teto e com `nowrap`, o chip ficava MAIS LARGO que a tela: o
+       documento crescia e a topbar (sticky) e a bottom nav (fixed) passavam a
+       medir a largura do layout — apareciam deslocadas ao rolar de lado. */
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 .chip-evento:hover { border-color: var(--accent); color: var(--accent-ink); }
 .chip-evento.is-ativo {
     background: var(--accent-soft);
     border-color: var(--accent);
     color: var(--accent-ink);
+}
+
+/* No celular o corpo do chip é menor: o nome longo do evento fica em duas
+   linhas sem dominar a tela. Precisa vir DEPOIS da regra base — mesma
+   especificidade, e a última regra do arquivo é a que vale. */
+@media (max-width: 991.98px) {
+    .chip-evento { font-size: var(--text-xs); padding: 5px 10px; }
 }
 
 /* =========================================================================
