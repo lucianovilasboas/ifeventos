@@ -4,7 +4,7 @@ Uso:
     python manage.py importar_roster /caminho/arquivo.csv    # ou .xls / .xlsx
 
 Colunas: `email`, `nome`, `cpf` + as chaves de `settings.METADADOS_PARTICIPANTE`
-(vinculo, matricula, curso, turma, ano, funcao, siape…). A chave é o e-mail;
+(vinculo, matricula, curso, turma, ano, funcao…). A chave é o e-mail;
 rodar de novo atualiza (idempotente). Gere um modelo com `modelo_roster`.
 """
 

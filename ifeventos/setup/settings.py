@@ -411,7 +411,7 @@ ACCOUNT_FORMS = {"signup": "eventos.forms.SignupFormComCpf"}
 #   - "depende_de" + "opcoes_por": as opções do campo dependem do valor de outro
 #     (ex.: ano/período muda conforme o curso);
 #   - "visivel_quando": o campo só aparece/é exigido quando outro campo tem um
-#     dos valores (ex.: matrícula só para Aluno; função/SIAPE só para Servidor).
+#     dos valores (ex.: matrícula só para Aluno; função só para Servidor).
 # Os valores ficam em `ParticipanteMetadados.dados` (JSON) e aparecem no
 # cadastro/perfil, na lista de presença e nos relatórios/exportações.
 METADADOS_PARTICIPANTE = [
@@ -440,8 +440,6 @@ METADADOS_PARTICIPANTE = [
     # -- Só para Servidor ----------------------------------------------------
     {"chave": "funcao", "rotulo": "Função", "tipo": "escolha", "obrigatorio": True, "ordem": 6,
      "opcoes": ["Professor", "Técnico administrativo"],
-     "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
-    {"chave": "siape", "rotulo": "SIAPE", "tipo": "texto", "ordem": 7,
      "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
 ]
 

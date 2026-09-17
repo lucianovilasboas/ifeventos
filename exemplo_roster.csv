@@ -1,6 +1,6 @@
-﻿email;nome;cpf;vinculo;matricula;curso;turma;ano;funcao;siape
-aluno1@example.com;Exemplo Aluno;52998224725;Aluno;«Matrícula»;Informática;Turma 1;Primeiro ano;;
-servidor2@example.com;Exemplo Servidor;11144477735;Servidor;;;;;Professor;«SIAPE»
-colaborador3@example.com;Exemplo Colaborador;39053344705;Colaborador;;;;;;
-estagiario4@example.com;Exemplo Estagiário;16899535009;Estagiário;;;;;;
-comunidadeexterna5@example.com;Exemplo Comunidade externa;12345678909;Comunidade externa;;;;;;
+﻿email;nome;cpf;vinculo;matricula;curso;turma;ano;funcao
+aluno1@example.com;Exemplo Aluno;52998224725;Aluno;«Matrícula»;Informática;Turma 1;Primeiro ano;
+servidor2@example.com;Exemplo Servidor;11144477735;Servidor;;;;;Professor
+colaborador3@example.com;Exemplo Colaborador;39053344705;Colaborador;;;;;
+estagiario4@example.com;Exemplo Estagiário;16899535009;Estagiário;;;;;
+comunidadeexterna5@example.com;Exemplo Comunidade externa;12345678909;Comunidade externa;;;;;

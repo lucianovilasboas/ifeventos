@@ -174,7 +174,7 @@ class PessoaRoster(models.Model):
     `eventos/roster.py`). A chave é o e-mail PESSOAL.
 
     O que é específico do vínculo (matrícula/curso/turma/ano para Aluno;
-    função/SIAPE para Servidor; …) fica em `dados`, validado pelo schema
+    função para Servidor; …) fica em `dados`, validado pelo schema
     configurável `settings.METADADOS_PARTICIPANTE` — por isso a MESMA tabela
     atende todos os vínculos.
     """

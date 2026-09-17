@@ -1,11 +1,15 @@
 """Testes dos metadados configuráveis do participante."""
 
+from io import StringIO
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.http import QueryDict
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from eventos import metadados
+from eventos.models import PessoaRoster
 
 U = get_user_model()
 SENHA = "SenhaForte123!"
@@ -99,7 +103,7 @@ class CadastroCondicionalTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("meta_funcao", r.context["form"].errors)
 
-    def test_servidor_com_funcao_e_siape_opcional(self):
+    def test_servidor_com_funcao(self):
         r = self._post(meta_vinculo="Servidor", meta_funcao="Professor")
         self.assertEqual(r.status_code, 302)
         self.assertEqual(self._dados(), {"vinculo": "Servidor", "funcao": "Professor"})
@@ -127,6 +131,48 @@ class ColetarVisibilidadeTests(TestCase):
 
     def test_mantem_os_visiveis(self):
         dados = metadados.coletar({
-            "meta_vinculo": "Servidor", "meta_funcao": "Professor", "meta_siape": "12345",
+            "meta_vinculo": "Servidor", "meta_funcao": "Professor",
         })
-        self.assertEqual(dados, {"vinculo": "Servidor", "funcao": "Professor", "siape": "12345"})
+        self.assertEqual(dados, {"vinculo": "Servidor", "funcao": "Professor"})
+
+
+class LimparMetadadoCommandTests(TestCase):
+    """O comando apaga a chave dos três lugares onde o valor pode ficar."""
+
+    def setUp(self):
+        self.usuario = U.objects.create_user(
+            email="limpa@example.com", password=SENHA, cpf="11144477735"
+        )
+        metadados.salvar(self.usuario, {
+            "vinculo": "Servidor", "funcao": "Professor", "siape": "123",
+        })
+        self.linha = PessoaRoster.objects.create(
+            email="limpa@example.com",
+            dados={"vinculo": "Servidor", "funcao": "Professor", "siape": "123"},
+            dados_usuario={
+                "nome": "Limpa Teste", "cpf": "",
+                "metadados": {"funcao": "Professor", "siape": "123"},
+            },
+        )
+
+    def test_dry_run_nao_altera_nada(self):
+        call_command("limpar_metadado", "siape", stdout=StringIO())
+
+        self.assertEqual(metadados.dados_de(self.usuario).get("siape"), "123")
+        self.linha.refresh_from_db()
+        self.assertEqual(self.linha.dados.get("siape"), "123")
+        self.assertEqual(self.linha.dados_usuario["metadados"].get("siape"), "123")
+
+    def test_aplicar_remove_dos_tres_lugares(self):
+        call_command("limpar_metadado", "siape", "--aplicar", stdout=StringIO())
+
+        self.assertEqual(
+            metadados.dados_de(self.usuario),
+            {"vinculo": "Servidor", "funcao": "Professor"},
+        )
+        self.linha.refresh_from_db()
+        self.assertEqual(self.linha.dados, {"vinculo": "Servidor", "funcao": "Professor"})
+        self.assertEqual(
+            self.linha.dados_usuario,
+            {"nome": "Limpa Teste", "cpf": "", "metadados": {"funcao": "Professor"}},
+        )

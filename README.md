@@ -96,7 +96,7 @@ imediatamente, sem rebuild.
 
 ## Metadados do participante (configurável por escola)
 
-Dados extras do aluno/servidor (matrícula, curso, turma, ano/período, SIAPE…)
+Dados extras do aluno/servidor (matrícula, curso, turma, ano/período, função…)
 não ficam em colunas fixas no banco: cada escola os declara em
 `settings.METADADOS_PARTICIPANTE`. Os valores são gravados num JSON
 (`ParticipanteMetadados.dados`) e aparecem no cadastro/perfil, na lista de
@@ -141,8 +141,6 @@ METADADOS_PARTICIPANTE = [
     {"chave": "funcao", "rotulo": "Função", "tipo": "escolha", "obrigatorio": True, "ordem": 6,
      "opcoes": ["Professor", "Técnico administrativo"],
      "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
-    {"chave": "siape", "rotulo": "SIAPE", "tipo": "texto", "ordem": 7,
-     "visivel_quando": {"chave": "vinculo", "valores": ["Servidor"]}},
 ]
 ```
 
@@ -165,7 +163,7 @@ procurado nessa tabela e os metadados/CPF/nome em falta são preenchidos
 automaticamente (ver `eventos/roster.py`).
 
 Colunas: `email`, `nome`, `cpf` + as chaves de `METADADOS_PARTICIPANTE`
-(`vinculo`, `matricula`, `curso`, `turma`, `ano`, `funcao`, `siape`). A
+(`vinculo`, `matricula`, `curso`, `turma`, `ano`, `funcao`). A
 validação é **por vínculo** (Aluno exige matrícula/curso; Servidor exige
 função; os demais só o vínculo). Há um arquivo-modelo com dados fictícios em
 `exemplo_roster.csv`; para regerá-lo conforme o schema da escola:

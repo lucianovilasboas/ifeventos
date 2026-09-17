@@ -128,7 +128,7 @@ class ImportacaoViewTests(TestCase):
         primeira = resposta.content.decode("utf-8-sig").splitlines()[0]
         self.assertEqual(
             primeira.split(","),
-            ["email", "vinculo", "matricula", "curso", "turma", "ano", "funcao", "siape"],
+            ["email", "vinculo", "matricula", "curso", "turma", "ano", "funcao"],
         )
 
     def test_organizador_importa_pela_view(self):

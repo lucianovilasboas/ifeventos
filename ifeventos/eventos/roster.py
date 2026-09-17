@@ -4,7 +4,7 @@ Um ÚNICO arquivo (CSV, XLS ou XLSX) alimenta a tabela `PessoaRoster`, com a
 chave sendo o e-mail PESSOAL. O mesmo arquivo serve para TODOS os vínculos:
 além de `email`, `nome` e `cpf`, as colunas são as chaves de
 `settings.METADADOS_PARTICIPANTE` (vinculo, matricula, curso, turma, ano,
-funcao, siape…). O que é específico do vínculo fica em `dados` (JSON), validado
+funcao…). O que é específico do vínculo fica em `dados` (JSON), validado
 pelo MESMO schema do formulário.
 
 No primeiro acesso (Google ou cadastro local), `completar_do_roster` preenche
