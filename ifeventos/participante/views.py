@@ -1,7 +1,9 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
-from eventos.models import Atividade, Inscricao, Participante
-from eventos import agenda
+from eventos.models import Atividade, Evento, Inscricao, Participante
+from eventos import agenda, propostas
+from eventos.forms import PropostaForm
+from eventos.propostas import PropostaBloqueada
 from eventos.inscricoes import (
     InscricaoBloqueada,
     cancelar_inscricao as cancelar_inscricao_servico,
@@ -11,6 +13,7 @@ from django.contrib import messages
 from django.utils.timezone import localtime
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 import json
 from .forms import ParticipanteUpdateForm
 
@@ -272,3 +275,147 @@ class MeusCrachasView(LoginRequiredMixin, TemplateView):
         contexto["crachas"] = crachas_do_usuario(self.request.user)
         contexto["logo_url"] = url_da_logo()
         return contexto
+
+
+# ---------------------------------------------------------------------------
+# Chamada de proposições (proponente)
+# ---------------------------------------------------------------------------
+
+def _palestrantes_escolhidos(form, participante):
+    """Palestrantes marcados + o próprio proponente (quando ele vai ministrar)."""
+    escolhidos = list(form.cleaned_data.get("palestrantes") or [])
+    if form.cleaned_data.get("eu_sou_palestrante"):
+        if all(p.pk != participante.pk for p in escolhidos):
+            escolhidos.append(participante)
+    return escolhidos
+
+
+@login_required(login_url='/accounts/login/')
+def minhas_propostas(request):
+    """Minhas propostas de atividade e o atalho para propor."""
+    participante = get_object_or_404(Participante, id=request.user.id)
+    return render(request, 'participante/minhas_propostas.html', {
+        'minhas': propostas.minhas_propostas(participante),
+        'chamadas': propostas.chamadas_abertas(),
+    })
+
+
+@login_required(login_url='/accounts/login/')
+def propor_atividade(request, evento_id):
+    """Formulário de proposta de atividade (só com a chamada aberta)."""
+    evento = get_object_or_404(Evento, id=evento_id)
+    participante = get_object_or_404(Participante, id=request.user.id)
+    aberta = propostas.esta_aberta(evento)
+
+    if request.method == "POST":
+        if not aberta:
+            messages.error(request, propostas.motivo_fechada(evento))
+            return redirect('participante:minhas_propostas')
+
+        form = PropostaForm(request.POST, request.FILES, evento=evento,
+                            usuario=participante)
+        if form.is_valid():
+            try:
+                propostas.propor(
+                    participante, evento,
+                    vaga=form.cleaned_data['vaga'],
+                    titulo=form.cleaned_data['titulo'],
+                    descricao=form.cleaned_data['descricao'],
+                    tipo=form.cleaned_data.get('tipo'),
+                    tipo_sugerido=form.cleaned_data.get('tipo_sugerido'),
+                    palestrantes=_palestrantes_escolhidos(form, participante),
+                    n_vagas=form.cleaned_data.get('n_vagas') or 0,
+                    emite_certificado=form.cleaned_data.get('emite_certificado'),
+                    imagem=form.cleaned_data.get('imagem'),
+                )
+            except PropostaBloqueada as erro:
+                form.add_error(None, erro)
+            else:
+                messages.success(
+                    request,
+                    "Proposta enviada! Ela fica como rascunho até a aprovação "
+                    "da organização.",
+                )
+                return redirect('participante:minhas_propostas')
+    else:
+        form = PropostaForm(evento=evento, usuario=participante)
+
+    return render(request, 'participante/form_proposta.html', {
+        'evento': evento,
+        'form': form,
+        'chamada': propostas.chamada_de(evento),
+        'aberta': aberta,
+        'motivo_fechado': propostas.motivo_fechada(evento),
+    })
+
+
+@login_required(login_url='/accounts/login/')
+def editar_proposta(request, atividade_id):
+    """Edita a própria proposta (só enquanto pendente e com a chamada aberta)."""
+    proposta = get_object_or_404(
+        Atividade, id=atividade_id, proponente_id=request.user.id
+    )
+    evento = proposta.evento
+
+    if not proposta.pendente:
+        messages.error(
+            request,
+            "Esta proposta já foi decidida pela organização e não pode mais "
+            "ser alterada.",
+        )
+        return redirect('participante:minhas_propostas')
+    if not propostas.esta_aberta(evento):
+        messages.error(request, propostas.motivo_fechada(evento))
+        return redirect('participante:minhas_propostas')
+
+    if request.method == "POST":
+        form = PropostaForm(request.POST, request.FILES, instance=proposta,
+                            evento=evento, usuario=request.user,
+                            incluir_vaga=proposta.vaga)
+        if form.is_valid():
+            try:
+                propostas.atualizar(
+                    proposta,
+                    vaga=form.cleaned_data['vaga'],
+                    titulo=form.cleaned_data['titulo'],
+                    descricao=form.cleaned_data['descricao'],
+                    tipo=form.cleaned_data.get('tipo'),
+                    tipo_sugerido=form.cleaned_data.get('tipo_sugerido'),
+                    palestrantes=_palestrantes_escolhidos(form, request.user),
+                    n_vagas=form.cleaned_data.get('n_vagas') or 0,
+                    emite_certificado=form.cleaned_data.get('emite_certificado'),
+                    imagem=form.cleaned_data.get('imagem'),
+                )
+            except PropostaBloqueada as erro:
+                form.add_error(None, erro)
+            else:
+                messages.success(request, "Proposta atualizada.")
+                return redirect('participante:minhas_propostas')
+    else:
+        form = PropostaForm(instance=proposta, evento=evento,
+                            usuario=request.user, incluir_vaga=proposta.vaga)
+
+    return render(request, 'participante/form_proposta.html', {
+        'evento': evento,
+        'form': form,
+        'proposta': proposta,
+        'chamada': propostas.chamada_de(evento),
+        'aberta': True,
+        'motivo_fechado': '',
+    })
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def cancelar_proposta(request, atividade_id):
+    """Cancela a própria proposta enquanto ela está pendente."""
+    proposta = get_object_or_404(
+        Atividade, id=atividade_id, proponente_id=request.user.id
+    )
+    try:
+        propostas.cancelar(proposta)
+    except PropostaBloqueada as erro:
+        messages.error(request, erro.messages[0])
+    else:
+        messages.success(request, "Proposta cancelada.")
+    return redirect('participante:minhas_propostas')

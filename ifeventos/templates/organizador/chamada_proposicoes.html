@@ -1,0 +1,204 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Chamada de propostas | {{ evento.title }}{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        <i class="fa-solid fa-bullhorn"></i> Chamada de propostas · <b>{{ evento.title }}</b>
+        {% if aberta %}
+        <span class="badge text-bg-success">aberta</span>
+        {% else %}
+        <span class="badge text-bg-secondary">fechada</span>
+        {% endif %}
+    </span>
+    <div class="d-flex gap-2">
+        <a href="{% url 'organizador:propostas_pendentes' evento.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="fa-solid fa-inbox"></i> Propostas
+            {% if n_pendentes %}<span class="badge text-bg-danger">{{ n_pendentes }}</span>{% endif %}
+        </a>
+        <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+{% endblock action %}
+
+{% block content %}
+
+<!-- ===================== PERÍODO ===================== -->
+<div class="app-panel mb-3">
+    <div class="ativ-sec-head">
+        <h3>Período de proposições</h3>
+        <span>{{ situacao }}</span>
+    </div>
+
+    <form method="post" action="{% url 'organizador:salvar_chamada' evento.id %}">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12 col-md-8">
+                <label class="form-label" for="id_chamada-titulo">{{ form_chamada.titulo.label }}</label>
+                {{ form_chamada.titulo }}
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label d-block">{{ form_chamada.aberta.label }}</label>
+                <div class="form-check form-switch">
+                    {{ form_chamada.aberta }}
+                    <label class="form-check-label" for="id_chamada-aberta">aceitando propostas</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="id_chamada-descricao">{{ form_chamada.descricao.label }}</label>
+                {{ form_chamada.descricao }}
+                <small class="text-muted d-block">Este texto aparece no banner da home.</small>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="id_chamada-inicio">{{ form_chamada.inicio.label }}</label>
+                {{ form_chamada.inicio }}
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="id_chamada-fim">{{ form_chamada.fim.label }}</label>
+                {{ form_chamada.fim }}
+            </div>
+        </div>
+        <div class="mt-3">
+            <button class="btn btn-app btn-sm">
+                <i class="fa-solid fa-floppy-disk"></i> Salvar chamada
+            </button>
+            {% if not chamada %}
+            <small class="text-muted ms-2">A chamada ainda não existe: salvou, passou a existir.</small>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<!-- ===================== ESPAÇOS ===================== -->
+<div class="app-panel mb-3">
+    <div class="ativ-sec-head">
+        <h3>Espaços (catálogo da escola)</h3>
+        <span>reaproveitados por todos os eventos</span>
+    </div>
+
+    {% if espacos %}
+    <div class="app-list mb-3">
+        {% for espaco in espacos %}
+        <div class="app-item">
+            <div class="dot" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">
+                <i class="fa-solid fa-door-open"></i>
+            </div>
+            <div class="info">
+                <h5>{{ espaco.nome }}</h5>
+                <p>
+                    {% if espaco.capacidade %}{{ espaco.capacidade }} lugares{% else %}capacidade não informada{% endif %}
+                    {% if espaco.pk in espacos_usados %}
+                    · <span class="badge-app" style="background:var(--accent-soft);color:var(--accent-ink)">neste evento</span>
+                    {% endif %}
+                </p>
+            </div>
+            <form method="post" action="{% url 'organizador:excluir_espaco' evento.id espaco.id %}"
+                  onsubmit="return confirm('Tirar o espaço {{ espaco.nome|escapejs }} do catálogo?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Excluir espaço do catálogo">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">Catálogo vazio — sem espaço não há vaga na grade.</p>
+    {% endif %}
+
+    <form method="post" action="{% url 'organizador:adicionar_espaco' evento.id %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-12 col-md-6">
+            <label class="form-label" for="id_espaco-nome">{{ form_espaco.nome.label }}</label>
+            {{ form_espaco.nome }}
+            <datalist id="listaEspacos">
+                {% for nome in nomes_conhecidos %}<option value="{{ nome }}"></option>{% endfor %}
+            </datalist>
+            <small class="text-muted d-block">
+                Escolha um nome já usado na agenda ou cadastre um novo — ele fica
+                no catálogo para os próximos eventos.
+            </small>
+        </div>
+        <div class="col-8 col-md-3">
+            <label class="form-label" for="id_espaco-capacidade">{{ form_espaco.capacidade.label }}</label>
+            {{ form_espaco.capacidade }}
+        </div>
+        <div class="col-4 col-md-3">
+            <button class="btn btn-app-green btn-sm w-100">
+                <i class="fa-solid fa-plus"></i> Adicionar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- ===================== VAGAS ===================== -->
+<div class="app-panel mb-3">
+    <div class="ativ-sec-head">
+        <h3>Grade de vagas</h3>
+        <span>o que o proponente pode reservar (quem propõe primeiro leva)</span>
+    </div>
+
+    {% if vagas %}
+    <div class="app-list mb-3">
+        {% for vaga in vagas %}
+        <div class="app-item">
+            <div class="dot" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)">
+                <i class="fa-regular fa-clock"></i>
+            </div>
+            <div class="info">
+                <h5>{{ vaga.espaco.nome }} · {{ vaga.inicio|date:"d/m/Y H:i" }}–{{ vaga.fim|date:"H:i" }}</h5>
+                <p>
+                    {{ vaga.ocupadas }}/{{ vaga.capacidade }} ocupada(s)
+                    {% if vaga.capacidade > 1 %}· {{ vaga.vagas_restantes }} livre(s){% endif %}
+                </p>
+            </div>
+            {% if vaga.livre %}
+            <span class="badge-app" style="background:var(--accent-soft);color:var(--accent-ink)">livre</span>
+            {% else %}
+            <span class="badge-app" style="background:#fee2e2;color:#b91c1c">cheia</span>
+            {% endif %}
+            <form method="post" action="{% url 'organizador:excluir_vaga' vaga.id %}"
+                  onsubmit="return confirm('Excluir esta vaga?');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Excluir vaga">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">Nenhuma vaga na grade — sem vaga o participante não consegue propor.</p>
+    {% endif %}
+
+    <form method="post" action="{% url 'organizador:adicionar_vaga' evento.id %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-12 col-md-4">
+            <label class="form-label" for="id_vaga-espaco">{{ form_vaga.espaco.label }}</label>
+            {{ form_vaga.espaco }}
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label" for="id_vaga-inicio">{{ form_vaga.inicio.label }}</label>
+            {{ form_vaga.inicio }}
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label" for="id_vaga-fim">{{ form_vaga.fim.label }}</label>
+            {{ form_vaga.fim }}
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label" for="id_vaga-capacidade">{{ form_vaga.capacidade.label }}</label>
+            {{ form_vaga.capacidade }}
+            <small class="text-muted d-block">1 = exclusiva</small>
+        </div>
+        <div class="col-6 col-md-12 d-flex justify-content-end">
+            <button class="btn btn-app-green btn-sm">
+                <i class="fa-solid fa-plus"></i> Adicionar vaga
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

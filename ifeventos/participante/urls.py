@@ -2,7 +2,13 @@ from django.contrib import admin
 from django.urls import path
 from .views import dashboard
 from .views import inscrever, cancelar_inscricao, gerenciar_inscricoes_ajax
-from eventos.services import ia_mensagem_view
+from .views import (
+    cancelar_proposta,
+    editar_proposta,
+    minhas_propostas,
+    propor_atividade,
+)
+from eventos.services import ia_mensagem_view, sugerir_tipo_ajax
 from .views import MeusCertificadosView, MeusCrachasView
 
 app_name = 'participante' 
@@ -26,6 +32,13 @@ urlpatterns = [
 
     # -- Meus Crachás (crachá com QR para confirmar presença) --
     path("meus-crachas/", MeusCrachasView.as_view(), name="meus_crachas"),
+
+    # -- Chamada de proposições (proponente) --
+    path("propostas/", minhas_propostas, name="minhas_propostas"),
+    path("propostas/<int:evento_id>/nova/", propor_atividade, name="propor_atividade"),
+    path("propostas/<int:atividade_id>/editar/", editar_proposta, name="editar_proposta"),
+    path("propostas/<int:atividade_id>/cancelar/", cancelar_proposta, name="cancelar_proposta"),
+    path("propostas/sugerir-tipo/", sugerir_tipo_ajax, name="sugerir_tipo"),
 
 
     # -- Rotas para a IA --

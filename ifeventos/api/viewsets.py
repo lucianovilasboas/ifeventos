@@ -104,6 +104,26 @@ class AtividadeViewSet(viewsets.ModelViewSet):
     search_fields = ["titulo", "descricao"]
     permission_classes = [AllowAny, IsOrganizador]
 
+    def get_queryset(self):
+        base = (
+            Atividade.objects.select_related("tipo", "evento")
+            .prefetch_related("palestrantes")
+            .order_by("data_hora_inicio")
+        )
+        usuario = self.request.user
+        gerencia = (
+            usuario.is_staff
+            or usuario.is_superuser
+            or getattr(usuario, "is_organizador", False)
+        )
+        # Rascunho e proposta ainda não aprovada NÃO são catálogo público — é o
+        # que a tela já faz (programação/landing/.ics/PDF filtram `publicada`).
+        # Sem isto, a API devolvia rascunhos (e, agora, propostas) para qualquer
+        # um. Quem gerencia continua vendo tudo.
+        if self.action in ("list", "retrieve") and not gerencia:
+            return base.filter(publicada=True)
+        return base
+
     @extend_schema(responses=QrAtividadeSerializer)
     @action(detail=True, methods=["get"], url_path="qrcode", url_name="qrcode")
     def qrcode(self, request, pk=None):

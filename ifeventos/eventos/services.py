@@ -404,3 +404,194 @@ def notify_socketio(event_type, data):
         return False
 
 
+
+
+# ---------------------------------------------------------------------------
+# Sugestão de tipo de atividade (chamada de propostas)
+# ---------------------------------------------------------------------------
+
+TIPO_MODELO = "gpt-4o-mini"
+
+# Duas sugestões bastam: o proponente escolhe uma ou escreve a dele.
+TIPO_MAX_SUGESTOES = 2
+
+# Rede de segurança sem IA: tipos comuns do campus e as palavras que os
+# denunciam. Só vale quando não há tipo existente casando com o texto.
+TIPO_PALAVRAS = {
+    "Palestra": ["palestra", "conversa", "bate-papo", "mesa-redonda", "painel",
+                 "debate", "roda de conversa"],
+    "Minicurso": ["minicurso", "curso", "aula", "capacitacao", "treinamento",
+                  "tutorial", "introducao a"],
+    "Oficina": ["oficina", "workshop", "pratica", "mao na massa", "maker",
+                "laboratorio"],
+    "Apresentação cultural": ["cultural", "musica", "teatro", "danca", "arte",
+                              "sarau", "poesia", "show", "apresentacao"],
+    "Exposição": ["exposicao", "mostra", "feira", "stand"],
+    "Competição": ["competicao", "torneio", "maratona", "hackathon", "olimpiada",
+                   "campeonato", "gincana"],
+    "Visita técnica": ["visita", "tour", "passeio"],
+    "Reunião": ["reuniao", "encontro", "assembleia", "planejamento"],
+}
+
+
+def sugerir_tipo_por_palavras(titulo, descricao, nomes_conhecidos):
+    """Rede de segurança sem IA. Devolve `(nome, existente)`.
+
+    Primeiro tenta achar um tipo JÁ EXISTENTE cujo nome apareça no texto; só
+    depois recorre às palavras-chave, e aí o nome é novo (para o proponente
+    gravar como sugestão).
+    """
+    texto = sem_acento(f"{titulo} {descricao}")
+    for nome in nomes_conhecidos:
+        chave = sem_acento(nome)
+        if chave and chave in texto:
+            return nome, True
+
+    melhor, peso = None, 0
+    for nome, palavras in TIPO_PALAVRAS.items():
+        peso_atual = sum(1 for palavra in palavras if palavra in texto)
+        if peso_atual > peso:
+            melhor, peso = nome, peso_atual
+    if not melhor:
+        return "", False
+
+    por_nome = {sem_acento(nome): nome for nome in nomes_conhecidos}
+    existente = por_nome.get(sem_acento(melhor))
+    return (existente, True) if existente else (melhor, False)
+
+
+async def sugerir_tipos_atividade(titulo, descricao, conhecidos,
+                                  maximo=TIPO_MAX_SUGESTOES):
+    """Sugere tipos de atividade, preferindo os que já existem no catálogo.
+
+    `conhecidos` é a lista de dicts `{"id", "nome"}`. Nada vindo do modelo é
+    aceito sem validação: nomes casados com o catálogo viram sugestão de tipo
+    existente (com o id, para o formulário selecionar) e nomes novos passam por
+    saneamento — o proponente grava em `tipo_sugerido` e o organizador
+    normaliza na aprovação.
+
+    Devolve:
+        {"sugestoes": [{"nome", "existente", "id", "justificativa"}],
+         "origem": "ia" | "palavras-chave" | None,
+         "aviso": str}
+    """
+    titulo = (titulo or "").strip()
+    descricao = (descricao or "").strip()
+    maximo = max(1, min(int(maximo or TIPO_MAX_SUGESTOES), TIPO_MAX_SUGESTOES))
+
+    por_chave = {sem_acento(item["nome"]): item for item in conhecidos}
+    nomes = [item["nome"] for item in conhecidos]
+    aviso = ""
+
+    prompt = f"""Você ajuda a classificar atividades de um evento de um campus do IFMG.
+
+Tipos de atividade que JÁ EXISTEM: {", ".join(nomes) or "(nenhum)"}
+
+Título da atividade: {titulo}
+Descrição: {descricao or "(sem descrição informada)"}
+
+Regras:
+1. Se a atividade se encaixa em um tipo existente, use exatamente o nome dele.
+2. Se nenhum serve bem, proponha nomes NOVOS (curtos, 1 a 3 palavras, em português, sem numeração).
+3. Dê no máximo {maximo} sugestões, da mais adequada para a menos adequada.
+4. Em "novo", diga true somente quando o tipo não existir na lista acima.
+
+Responda SOMENTE com um JSON neste formato:
+{{"sugestoes": [{{"nome": "<nome>", "justificativa": "<frase curta>", "novo": false}}]}}
+"""
+
+    try:
+        client = get_openai_client()
+        resposta = await client.chat.completions.create(
+            model=TIPO_MODELO,
+            messages=[{"role": "system", "content": prompt}],
+            max_tokens=300,
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        dados = json.loads(resposta.choices[0].message.content or "{}")
+
+        sugestoes, vistas = [], set()
+        for item in dados.get("sugestoes") or []:
+            if not isinstance(item, dict):
+                continue
+            nome = limpar_nome_categoria(item.get("nome"))[:40].strip()
+            if not nome:
+                continue
+            chave = sem_acento(nome)
+            if chave in vistas:
+                continue
+            vistas.add(chave)
+            justificativa = " ".join(str(item.get("justificativa", "")).split())[:220]
+            existente = por_chave.get(chave)
+            if existente:
+                sugestoes.append({
+                    "nome": existente["nome"], "existente": True,
+                    "id": existente["id"], "justificativa": justificativa,
+                })
+            else:
+                sugestoes.append({
+                    "nome": nome, "existente": False, "id": None,
+                    "justificativa": justificativa,
+                })
+            if len(sugestoes) >= maximo:
+                break
+
+        if sugestoes:
+            return {"sugestoes": sugestoes, "origem": "ia", "aviso": ""}
+
+        aviso = "A IA não devolveu sugestões utilizáveis; usei a análise por palavras-chave."
+    except Exception as e:
+        aviso = f"A IA não está disponível agora ({e}); usei a análise por palavras-chave."
+
+    nome, existente = sugerir_tipo_por_palavras(titulo, descricao, nomes)
+    if nome:
+        item = por_chave.get(sem_acento(nome))
+        return {
+            "sugestoes": [{
+                "nome": nome,
+                "existente": existente,
+                "id": item["id"] if item else None,
+                "justificativa": "Reconhecido pelas palavras do título e da descrição.",
+            }],
+            "origem": "palavras-chave",
+            "aviso": aviso,
+        }
+
+    return {
+        "sugestoes": [],
+        "origem": None,
+        "aviso": aviso or (
+            "Não consegui identificar o tipo. Escolha um da lista ou escreva um nome novo."
+        ),
+    }
+
+
+@csrf_exempt
+@login_required
+async def sugerir_tipo_ajax(request):
+    """Recebe título e descrição e devolve sugestões de tipo de atividade."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    titulo = (data.get("titulo") or "").strip()
+    descricao = (data.get("descricao") or "").strip()
+    if not titulo:
+        return JsonResponse(
+            {"erro": "Informe o título da atividade antes de pedir a sugestão."},
+            status=400,
+        )
+
+    from .models import TipoAtividade
+
+    # A view é assíncrona: consulta ao banco precisa ir para uma thread.
+    conhecidos = await sync_to_async(list)(
+        TipoAtividade.objects.order_by("nome").values("id", "nome")
+    )
+    resultado = await sugerir_tipos_atividade(titulo, descricao, conhecidos)
+    return JsonResponse(resultado)

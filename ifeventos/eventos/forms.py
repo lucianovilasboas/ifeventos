@@ -1,7 +1,7 @@
 from django import forms
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
-from .models import Atividade
+from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
@@ -347,3 +347,249 @@ class SignupFormComCpf(MetadadosFormMixin, AllauthSignupForm):
         return user
  
 
+
+
+# ---------------------------------------------------------------------------
+# Chamada de proposições de atividades
+# ---------------------------------------------------------------------------
+
+class ChamadaProposicoesForm(forms.ModelForm):
+    """Janela de proposições do evento (aberta/encerrada pelo organizador)."""
+
+    class Meta:
+        model = ChamadaProposicoes
+        fields = ["titulo", "descricao", "inicio", "fim", "aberta"]
+        labels = {
+            "titulo": "Título da chamada",
+            "descricao": "Texto de apoio",
+            "inicio": "Abre em",
+            "fim": "Encerra em",
+            "aberta": "Aceitando propostas",
+        }
+        widgets = {
+            "titulo": forms.TextInput(attrs={"class": "form-control"}),
+            "descricao": forms.Textarea(attrs={"class": "form-control", "rows": 3,
+                "placeholder": "Explique o que você espera das propostas."}),
+            "inicio": forms.DateTimeInput(
+                attrs={"class": "form-control", "type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M"),
+            "fim": forms.DateTimeInput(
+                attrs={"class": "form-control", "type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M"),
+            "aberta": forms.CheckboxInput(
+                attrs={"class": "form-check-input", "role": "switch"}),
+        }
+
+    def clean(self):
+        dados = super().clean()
+        inicio, fim = dados.get("inicio"), dados.get("fim")
+        if inicio and fim and fim <= inicio:
+            self.add_error("fim", "O encerramento precisa ser depois da abertura.")
+        return dados
+
+
+class EspacoForm(forms.ModelForm):
+    """Espaço no catálogo da escola, reaproveitado pelos eventos.
+
+    O `datalist` com os nomes já conhecidos fica no template; aqui a checagem é
+    a que vale: não deixa criar "Auditorio" quando já existe "Auditório".
+    """
+
+    class Meta:
+        model = Espaco
+        fields = ["nome", "capacidade"]
+        labels = {"nome": "Espaço", "capacidade": "Capacidade (lugares)"}
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": "form-control",
+                "autocomplete": "off", "list": "listaEspacos",
+                "placeholder": "Ex.: Auditório, Laboratório 2"}),
+            "capacidade": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+        }
+
+    def clean_nome(self):
+        nome = " ".join((self.cleaned_data.get("nome") or "").split())
+        if not nome:
+            return nome
+        outros = Espaco.objects.exclude(pk=getattr(self.instance, "pk", None))
+        chave = sem_acento(nome)
+        for existente in outros.values_list("nome", flat=True):
+            if sem_acento(existente) == chave:
+                raise forms.ValidationError(
+                    f"Esse espaço já está no catálogo como '{existente}' — "
+                    "escolha ele na lista."
+                )
+        return nome
+
+
+class VagaForm(forms.ModelForm):
+    """Vaga da grade: dia + horário + espaço que o proponente pode reservar."""
+
+    class Meta:
+        model = Vaga
+        fields = ["espaco", "inicio", "fim", "capacidade"]
+        labels = {
+            "espaco": "Espaço",
+            "inicio": "Início",
+            "fim": "Término",
+            "capacidade": "Atividades simultâneas",
+        }
+        widgets = {
+            "espaco": forms.Select(attrs={"class": "form-select"}),
+            "inicio": forms.DateTimeInput(
+                attrs={"class": "form-control", "type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M"),
+            "fim": forms.DateTimeInput(
+                attrs={"class": "form-control", "type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M"),
+            "capacidade": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+        }
+
+    def __init__(self, *args, evento=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # O espaço vem do catálogo da escola (não é exclusivo do evento): é o
+        # que faz "Auditório" ser o mesmo lugar em todos os eventos.
+        self.fields["espaco"].queryset = Espaco.objects.all()
+        if not Espaco.objects.exists():
+            self.fields["espaco"].help_text = (
+                "Cadastre um espaço antes de criar vagas."
+            )
+
+    def clean(self):
+        dados = super().clean()
+        inicio, fim = dados.get("inicio"), dados.get("fim")
+        if inicio and fim and fim <= inicio:
+            self.add_error("fim", "O término precisa ser depois do início.")
+        return dados
+
+
+class PropostaForm(forms.ModelForm):
+    """Proposta de atividade feita por um participante durante a chamada.
+
+    O horário e o espaço NÃO são digitados: vêm da vaga escolhida na grade de
+    oferta (é o que garante "quem propõe primeiro leva"). O tipo pode ser
+    escolhido do catálogo ou sugerido como texto — o organizador normaliza na
+    aprovação, para o catálogo global de tipos não virar terra de ninguém.
+    """
+
+    vaga = forms.ModelChoiceField(
+        queryset=Vaga.objects.none(),
+        label="Dia, horário e espaço",
+        empty_label="Selecione a vaga…",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    palestrantes = forms.ModelMultipleChoiceField(
+        queryset=Participante.objects.none(),
+        label="Palestrantes",
+        required=False,
+        widget=forms.SelectMultiple(attrs={"class": "form-select", "size": 6}),
+        help_text="Escolha quem já é palestrante — ou marque abaixo que é você.",
+    )
+    tipo = forms.ModelChoiceField(
+        queryset=TipoAtividade.objects.all(),
+        label="Tipo de atividade",
+        required=False,
+        empty_label="Selecione o tipo…",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    tipo_sugerido = forms.CharField(
+        label="Sugerir um tipo novo",
+        required=False,
+        max_length=60,
+        widget=forms.TextInput(attrs={
+            "class": "form-control", "list": "listaTipos", "autocomplete": "off",
+            "placeholder": "Só se nenhum tipo da lista servir",
+        }),
+    )
+    eu_sou_palestrante = forms.BooleanField(
+        label="Eu vou ministrar esta atividade",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
+    )
+    # Não obrigatório de propósito: sem preencher, vale a capacidade do espaço.
+    n_vagas = forms.IntegerField(
+        label="Vagas para participantes",
+        required=False,
+        min_value=0,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+    )
+
+    class Meta:
+        model = Atividade
+        # `vaga`, `tipo`, `tipo_sugerido` e `palestrantes` entram aqui para o
+        # formulário de EDIÇÃO receber o valor atual do banco como inicial
+        # (declarar o campo não basta: o Django só monta o initial do que está
+        # em Meta.fields).
+        fields = [
+            "titulo", "descricao", "n_vagas", "emite_certificado", "imagem",
+            "vaga", "tipo", "tipo_sugerido", "palestrantes",
+        ]
+        labels = {
+            "titulo": "Título",
+            "descricao": "Descrição",
+            "emite_certificado": "Emite certificado",
+            "imagem": "Imagem",
+        }
+        widgets = {
+            "titulo": forms.TextInput(attrs={"class": "form-control",
+                "placeholder": "Ex.: Oficina de fotografia"}),
+            "descricao": forms.Textarea(attrs={"class": "form-control", "rows": 4,
+                "placeholder": "O que vai acontecer, para quem e o que a pessoa leva de lá."}),
+            "emite_certificado": forms.CheckboxInput(
+                attrs={"class": "form-check-input", "role": "switch"}),
+            "imagem": forms.ClearableFileInput(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, evento=None, usuario=None, incluir_vaga=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.evento = evento
+        self.usuario = usuario
+        if evento is not None:
+            livres = [v.pk for v in evento.vagas.select_related("espaco") if v.livre]
+            if incluir_vaga is not None and incluir_vaga.pk not in livres:
+                livres.append(incluir_vaga.pk)
+            self.fields["vaga"].queryset = (
+                Vaga.objects.filter(pk__in=livres)
+                .select_related("espaco")
+                .order_by("inicio", "espaco__nome")
+            )
+
+        pessoas = Participante.objects.filter(is_palestrante=True)
+        if usuario is not None and getattr(usuario, "pk", None):
+            pessoas = pessoas.exclude(pk=usuario.pk)
+        self.fields["palestrantes"].queryset = pessoas.order_by("first_name", "last_name")
+
+        # Na edição: já escolhidos (sem o próprio, que é a caixa abaixo) e a
+        # caixa "eu vou ministrar" marcada quando ele já estava na atividade.
+        if self.instance and self.instance.pk and getattr(usuario, "pk", None):
+            atuais = self.instance.palestrantes.all()
+            self.fields["palestrantes"].initial = [
+                p.pk for p in atuais if p.pk != usuario.pk
+            ]
+            self.fields["eu_sou_palestrante"].initial = any(
+                p.pk == usuario.pk for p in atuais
+            )
+
+    def _ocupadas(self, vaga):
+        """Propostas ativas na vaga, ignorando esta (na edição)."""
+        return vaga.propostas_ativas(ignorar=self.instance).count()
+
+    def clean(self):
+        dados = super().clean()
+        if not dados.get("tipo") and not (dados.get("tipo_sugerido") or "").strip():
+            self.add_error("tipo", "Escolha um tipo da lista ou sugira um novo.")
+        vaga = dados.get("vaga")
+        if vaga is not None and self._ocupadas(vaga) >= vaga.capacidade:
+            self.add_error("vaga", f"A vaga de {vaga} já está ocupada. Escolha outra.")
+        return dados
+
+    def aplicar_em(self, atividade):
+        """Copia para a atividade os campos que o form entrega prontos."""
+        atividade.titulo = self.cleaned_data["titulo"].strip()
+        atividade.descricao = self.cleaned_data["descricao"].strip()
+        atividade.n_vagas = self.cleaned_data.get("n_vagas") or 0
+        atividade.emite_certificado = bool(self.cleaned_data.get("emite_certificado"))
+        atividade.tipo = self.cleaned_data.get("tipo")
+        atividade.tipo_sugerido = (self.cleaned_data.get("tipo_sugerido") or "").strip()
+        if self.cleaned_data.get("imagem"):
+            atividade.imagem = self.cleaned_data["imagem"]
+        return atividade

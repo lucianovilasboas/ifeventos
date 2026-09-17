@@ -37,6 +37,13 @@
         </a>
     {% endif %}
 
+    {% if request.user.is_participante %}
+    {# Propostas de atividade: qualquer participante pode propor quando há chamada #}
+    <a href="{% url 'participante:minhas_propostas' %}" class="{% if request.resolver_match.url_name == 'minhas_propostas' or request.resolver_match.url_name == 'propor_atividade' %}active{% endif %}">
+        <i class="fa-solid fa-lightbulb"></i><span class="nav-rotulo">Propostas</span><span class="nav-rotulo-curto" aria-hidden="true">Propostas</span>
+    </a>
+    {% endif %}
+
     <a href="{% url 'participante:meus_crachas' %}" class="{% if request.resolver_match.url_name == 'meus_crachas' %}active{% endif %}">
         <i class="fa-solid fa-id-card"></i><span class="nav-rotulo">Crachá</span>
     </a>

@@ -700,3 +700,73 @@ body.is-locked { overflow: hidden; }
   .landing-modal { padding: 18px; }
   .landing-modal h2 { font-size: 19px; }
 }
+/* ---------- Banner da chamada de propostas (home) ---------- */
+/* A seção não usa `.landing-section` (48px/80px): o banner precisa de um
+   respiro curto do hero e o espaço de baixo já vem da seção Agenda. */
+.landing-chamada-sec {
+  padding: 32px 0 0;
+}
+
+.landing-chamada {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  padding: var(--space-6) var(--space-8);
+  border: 2px solid color-mix(in oklch, var(--accent) 45%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg,
+      color-mix(in oklch, var(--accent) 12%, var(--surface-1, #fff)),
+      var(--surface-1, #fff));
+}
+.landing-chamada .lc-texto { flex: 1 1 320px; min-width: 0; }
+.landing-chamada .lc-eyebrow {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.landing-chamada h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--fg-strong);
+}
+.landing-chamada .lc-desc {
+  margin: 8px 0 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.landing-chamada .lc-prazo {
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+.landing-chamada .lc-acao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.landing-chamada .lc-link {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-decoration: none;
+}
+.landing-chamada .lc-link:hover { text-decoration: underline; color: var(--accent-ink); }
+
+@media (max-width: 640px) {
+  .landing-chamada { padding: var(--space-5); }
+  .landing-chamada .lc-acao { align-items: stretch; width: 100%; }
+  .landing-chamada .lc-acao .btn-land { text-align: center; }
+}

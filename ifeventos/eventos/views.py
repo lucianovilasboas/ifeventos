@@ -23,7 +23,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.urls import reverse
 from django.utils.text import slugify
-from . import agenda
+from . import agenda, propostas
 
 
 def eventos_view(request):
@@ -66,6 +66,8 @@ def eventos_view(request):
         'proximo': proximo,
         'proximo_frase': proximo_frase,
         'categorias': categorias,
+        # Chamadas de propostas abertas: viram o banner de destaque da home.
+        'chamadas': propostas.chamadas_abertas(),
         # Últimos eventos realizados/encerrados (data_fim no passado),
         # do mais recente para o mais antigo.
         'encerrados': Evento.objects.filter(data_fim__lt=hoje)

@@ -37,6 +37,12 @@
                 <a href="{% url 'organizador:relatorios_graficos' evento.id %}" class="btn btn-sm btn-dark btn-icon" title="Relatórios gráficos">
                     <i class="fa-solid fa-chart-pie"></i>
                 </a>
+                <a href="{% url 'organizador:chamada_proposicoes' evento.id %}" class="btn btn-sm btn-outline-primary btn-icon" title="Chamada de propostas de atividades{% if evento.tem_chamada %} (existe){% endif %}">
+                    <i class="fa-solid fa-bullhorn"></i>
+                    {% if evento.n_pendentes %}
+                    <span class="badge rounded-pill bg-danger" style="position:absolute;top:-5px;right:-5px;font-size:9px">{{ evento.n_pendentes }}</span>
+                    {% endif %}
+                </a>
             </div>
         </div>
     </div>

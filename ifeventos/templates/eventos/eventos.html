@@ -94,6 +94,44 @@
             </div>
         </section>
 
+        <!-- ===================== CHAMADA DE PROPOSTAS ===================== -->
+        {% if chamadas %}
+        <section class="landing-chamada-sec">
+            <div class="landing-container">
+                {% for chamada in chamadas %}
+                <div class="landing-chamada">
+                    <div class="lc-texto">
+                        <p class="lc-eyebrow">Chamada aberta · {{ chamada.evento.title }}</p>
+                        <h2>{{ chamada.titulo }}</h2>
+                        <p class="lc-desc">
+                            {{ chamada.descricao|default:"Envie sua proposta de atividade para a programação do evento." }}
+                        </p>
+                        <p class="lc-prazo">
+                            <i class="fa-regular fa-clock"></i>
+                            Propostas até {{ chamada.fim|date:"d/m/Y" }} às {{ chamada.fim|date:"H:i" }}
+                        </p>
+                    </div>
+                    <div class="lc-acao">
+                        {% if request.user.is_authenticated %}
+                        <a class="btn-land btn-primary-land"
+                           href="{% url 'participante:propor_atividade' chamada.evento.id %}">
+                            <i class="fa-solid fa-plus"></i> Propor atividade
+                        </a>
+                        <a class="lc-link" href="{% url 'participante:minhas_propostas' %}">minhas propostas</a>
+                        {% else %}
+                        <a class="btn-land btn-primary-land"
+                           href="{% url 'account_login' %}?next={% url 'participante:propor_atividade' chamada.evento.id %}">
+                            <i class="fa-solid fa-right-to-bracket"></i> Entrar e propor
+                        </a>
+                        <span class="lc-link">é preciso ter conta de participante</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
         <!-- ===================== AGENDA ===================== -->
         <section id="agenda" class="landing-section">
             <div class="landing-container">

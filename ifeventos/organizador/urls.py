@@ -12,6 +12,17 @@ from relatorios.views import ListaPresencaView
 from relatorios.views import OcupacaoSalasView
 from relatorios.views import RelatoriosGraficosView
 from organizador.views import publicar_atividade
+from organizador.views import (
+    adicionar_espaco,
+    adicionar_vaga,
+    aprovar_proposta,
+    chamada_proposicoes,
+    excluir_espaco,
+    excluir_vaga,
+    propostas_pendentes,
+    rejeitar_proposta,
+    salvar_chamada,
+)
 
 from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_categoria_ajax
 from .views import EmitirCertificadosAtividadeView
@@ -53,6 +64,17 @@ urlpatterns = [
 
     #-- Profile --
     path('profile/', profile, name='profile'), 
+
+    # -- Chamada de proposições de atividades --
+    path("chamada/<int:evento_id>/", chamada_proposicoes, name="chamada_proposicoes"),
+    path("chamada/<int:evento_id>/salvar/", salvar_chamada, name="salvar_chamada"),
+    path("chamada/<int:evento_id>/espaco/novo/", adicionar_espaco, name="adicionar_espaco"),
+    path("chamada/<int:evento_id>/espaco/<int:espaco_id>/excluir/", excluir_espaco, name="excluir_espaco"),
+    path("chamada/<int:evento_id>/vaga/nova/", adicionar_vaga, name="adicionar_vaga"),
+    path("chamada/vaga/<int:vaga_id>/excluir/", excluir_vaga, name="excluir_vaga"),
+    path("propostas/<int:evento_id>/", propostas_pendentes, name="propostas_pendentes"),
+    path("proposta/<int:atividade_id>/aprovar/", aprovar_proposta, name="aprovar_proposta"),
+    path("proposta/<int:atividade_id>/rejeitar/", rejeitar_proposta, name="rejeitar_proposta"),
 
     #-- Metadados do participante (por escola) --
     path('importar_metadados/', importar_metadados, name='importar_metadados'),

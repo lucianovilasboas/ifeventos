@@ -1,0 +1,283 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Propor atividade{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        {% if proposta %}Editar proposta: <b>{{ proposta.titulo }}</b>{% else %}Propor atividade{% endif %}
+    </span>
+    <a href="{% url 'participante:minhas_propostas' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Minhas propostas
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+
+{% if not aberta %}
+<div class="app-panel">
+    <h5 class="mb-1"><i class="fa-solid fa-lock"></i> Chamada fechada</h5>
+    <p class="mb-3">{{ motivo_fechado }}</p>
+    <a href="{% url 'eventos:programacao' evento.id %}" class="btn btn-sm btn-outline-primary">
+        Ver a programação do evento
+    </a>
+</div>
+{% else %}
+
+<div class="app-panel">
+
+    {% if form.errors %}
+    <div class="alert alert-danger">
+        <strong>Confira os campos:</strong>
+        <ul class="mb-0">
+            {% for campo, mensagens in form.errors.items %}
+                {% for mensagem in mensagens %}<li>{{ mensagem }}</li>{% endfor %}
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <section class="ativ-sec">
+            <div class="ativ-sec-head">
+                <h3>Onde e quando</h3>
+                <span>vagas da grade — quem propõe primeiro leva</span>
+            </div>
+
+            <div class="ativ-contexto">
+                <i class="fa-solid fa-calendar-days"></i>
+                Evento: <b>{{ evento.title }}</b>
+                <span class="ativ-contexto-data">{{ evento.data_inicio|date:"d/m/Y" }} a {{ evento.data_fim|date:"d/m/Y" }}</span>
+            </div>
+
+            {% if form.vaga.field.queryset %}
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label" for="id_vaga">
+                        {{ form.vaga.label }} <span class="ativ-req">*</span>
+                    </label>
+                    <select name="{{ form.vaga.name }}" id="id_vaga" class="form-select" required>
+                        <option value="">Selecione a vaga…</option>
+                        {% for vaga in form.vaga.field.queryset %}
+                        <option value="{{ vaga.pk }}"
+                                data-cap="{{ vaga.espaco.capacidade }}"
+                                data-local="{{ vaga.espaco.nome|escapejs }}"
+                                {% if form.vaga.value|stringformat:"s" == vaga.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ vaga.espaco.nome }} · {{ vaga.inicio|date:"d/m/Y H:i" }}–{{ vaga.fim|date:"H:i" }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted d-block" id="vagaAjuda">
+                        Escolha o dia, o horário e o espaço da sua atividade.
+                    </small>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning mb-0">
+                Nenhuma vaga livre na grade deste evento. Fale com a organização.
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="ativ-sec">
+            <div class="ativ-sec-head">
+                <h3>Identificação</h3>
+                <span>o que a atividade é</span>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label" for="id_titulo">
+                        Título <span class="ativ-req">*</span>
+                    </label>
+                    {{ form.titulo }}
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="id_descricao">Descrição</label>
+                    {{ form.descricao }}
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="id_imagem">Imagem</label>
+                    {{ form.imagem }}
+                </div>
+            </div>
+        </section>
+
+        <section class="ativ-sec">
+            <div class="ativ-sec-head">
+                <h3>Tipo de atividade</h3>
+                <span>escolha um tipo ou sugira um novo</span>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="id_tipo">Tipo</label>
+                    {{ form.tipo }}
+                    <small class="text-muted d-block">
+                        Não achou? Deixe em branco e escreva em "sugerir um tipo novo".
+                    </small>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="id_tipo_sugerido">Sugerir um tipo novo</label>
+                    {{ form.tipo_sugerido }}
+                    <datalist id="listaTipos">
+                        {% for tipo in form.tipo.field.queryset %}<option value="{{ tipo.nome }}"></option>{% endfor %}
+                    </datalist>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="btnSugerirTipo">
+                        <i class="fa-solid fa-robot"></i> Sugerir com IA
+                    </button>
+                    <div id="sugestoesTipo" class="mt-2 d-flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="ativ-sec">
+            <div class="ativ-sec-head">
+                <h3>Quem apresenta</h3>
+                <span>palestrantes da atividade</span>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12 col-md-7">
+                    <label class="form-label" for="id_palestrantes">{{ form.palestrantes.label }}</label>
+                    {{ form.palestrantes }}
+                    <small class="text-muted d-block">{{ form.palestrantes.help_text }}</small>
+                </div>
+                <div class="col-12 col-md-5">
+                    <label class="form-label d-block">Você mesmo</label>
+                    <div class="form-check form-switch">
+                        {{ form.eu_sou_palestrante }}
+                        <label class="form-check-label" for="id_eu_sou_palestrante">
+                            {{ form.eu_sou_palestrante.label }}
+                        </label>
+                    </div>
+                    <small class="text-muted d-block">
+                        Marcando, você entra como palestrante (a organização confirma na aprovação).
+                    </small>
+                </div>
+            </div>
+        </section>
+
+        <section class="ativ-sec">
+            <div class="ativ-sec-head">
+                <h3>Inscrições</h3>
+                <span>quantas pessoas cabem</span>
+            </div>
+
+            <div class="row g-3 align-items-center">
+                <div class="col-6 col-md-4">
+                    <label class="form-label" for="id_n_vagas">{{ form.n_vagas.label }}</label>
+                    {{ form.n_vagas }}
+                </div>
+                <div class="col-6 col-md-8">
+                    <div class="form-check form-switch mt-3">
+                        {{ form.emite_certificado }}
+                        <label class="form-check-label" for="id_emite_certificado">
+                            {{ form.emite_certificado.label }}
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <a href="{% url 'participante:minhas_propostas' %}" class="btn btn-outline-secondary btn-sm">Cancelar</a>
+            <button class="btn btn-app btn-sm">
+                <i class="fa-solid fa-paper-plane"></i>
+                {% if proposta %}Salvar alterações{% else %}Enviar proposta{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const vaga = document.querySelector('#id_vaga');
+    const vagas = document.querySelector('#id_n_vagas');
+    const ajuda = document.querySelector('#vagaAjuda');
+
+    // A capacidade do espaço é só uma sugestão: o proponente pode ajustar.
+    if (vaga && vagas) {
+        vaga.addEventListener('change', function () {
+            const opcao = vaga.options[vaga.selectedIndex];
+            const cap = opcao ? opcao.dataset.cap : '';
+            if (cap !== undefined && cap !== '') { vagas.value = cap; }
+            if (ajuda) {
+                ajuda.textContent = opcao && opcao.value
+                    ? `Local: ${opcao.dataset.local} · capacidade ${cap || 'não informada'}`
+                    : 'Escolha o dia, o horário e o espaço da sua atividade.';
+            }
+        });
+        vaga.dispatchEvent(new Event('change'));
+    }
+
+    // Sugestão de tipo: 2 no máximo, preferindo os tipos já cadastrados.
+    const btn = document.querySelector('#btnSugerirTipo');
+    const caixa = document.querySelector('#sugestoesTipo');
+    const tipo = document.querySelector('#id_tipo');
+    const tipoSugerido = document.querySelector('#id_tipo_sugerido');
+
+    function chip(nome, id, justificativa) {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'badge-app btn btn-sm btn-outline-primary';
+        el.textContent = id ? `${nome} (já existe)` : `${nome} (novo)`;
+        if (justificativa) { el.title = justificativa; }
+        el.addEventListener('click', function () {
+            if (id) {
+                tipo.value = id;
+                tipoSugerido.value = '';
+            } else {
+                tipoSugerido.value = nome;
+                tipo.value = '';
+            }
+            caixa.innerHTML = `<span class="badge text-bg-success">usando: ${nome}</span>`;
+        });
+        return el;
+    }
+
+    if (btn && caixa) {
+        btn.addEventListener('click', async function () {
+            const titulo = document.querySelector('#id_titulo').value.trim();
+            if (!titulo) {
+                caixa.innerHTML = '<span class="text-danger">Informe o título antes de pedir a sugestão.</span>';
+                return;
+            }
+            btn.disabled = true;
+            caixa.textContent = 'Consultando…';
+            try {
+                const resposta = await fetch("{% url 'participante:sugerir_tipo' %}", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({
+                        titulo: titulo,
+                        descricao: document.querySelector('#id_descricao').value,
+                    }),
+                });
+                const dados = await resposta.json();
+                caixa.innerHTML = '';
+                if (dados.erro) {
+                    caixa.innerHTML = `<span class="text-danger">${dados.erro}</span>`;
+                } else if (!dados.sugestoes || !dados.sugestoes.length) {
+                    caixa.innerHTML = `<span class="text-muted">${dados.aviso || 'Sem sugestões.'}</span>`;
+                } else {
+                    dados.sugestoes.forEach(s => caixa.appendChild(chip(s.nome, s.id, s.justificativa)));
+                }
+            } catch (erro) {
+                caixa.innerHTML = '<span class="text-danger">Não consegui consultar agora.</span>';
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    }
+})();
+</script>
+{% endblock scripts %}

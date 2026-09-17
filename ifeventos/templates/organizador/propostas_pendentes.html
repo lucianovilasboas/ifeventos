@@ -1,0 +1,108 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Propostas pendentes | {{ evento.title }}{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        <i class="fa-solid fa-inbox"></i> Propostas pendentes · <b>{{ evento.title }}</b>
+        {% if not aberta %}<span class="badge text-bg-secondary">chamada fechada</span>{% endif %}
+    </span>
+    <div class="d-flex gap-2">
+        <a href="{% url 'organizador:chamada_proposicoes' evento.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="fa-solid fa-bullhorn"></i> Chamada e grade
+        </a>
+        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Atividades
+        </a>
+    </div>
+</div>
+{% endblock action %}
+
+{% block content %}
+
+{% for proposta in lista %}
+<div class="app-panel mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div style="flex:1;min-width:0">
+            <h5 class="mb-1">{{ proposta.titulo }}</h5>
+            <p class="mb-1 text-muted">
+                <i class="fa-solid fa-user"></i>
+                {% if proposta.proponente %}{{ proposta.proponente.get_full_name }}{% else %}—{% endif %}
+                · <i class="fa-regular fa-clock"></i> {{ proposta.vaga|default:"sem vaga" }}
+            </p>
+            <p class="mb-2">
+                <span class="badge-app" style="background:var(--accent-soft);color:var(--accent-ink)">
+                    {% if proposta.tipo %}{{ proposta.tipo.nome }}{% else %}tipo sugerido: {{ proposta.tipo_sugerido|default:"—" }}{% endif %}
+                </span>
+                <span class="badge-app">{{ proposta.n_vagas }} vaga(s)</span>
+                {% if proposta.emite_certificado %}<span class="badge-app">emite certificado</span>{% endif %}
+            </p>
+            <p class="mb-1">{{ proposta.descricao|linebreaksbr }}</p>
+            <p class="mb-0 text-muted">
+                Palestrante(s):
+                {% for pessoa in proposta.palestrantes.all %}
+                    {{ pessoa.get_full_name }}{% if not forloop.last %}, {% endif %}
+                {% empty %}
+                    —
+                {% endfor %}
+            </p>
+        </div>
+        <span class="badge text-bg-warning">aguardando</span>
+    </div>
+
+    <hr>
+
+    <div class="row g-3">
+        <div class="col-12 col-lg-6">
+            <form method="post" action="{% url 'organizador:aprovar_proposta' proposta.id %}">
+                {% csrf_token %}
+                <label class="form-label" for="tipo-{{ proposta.id }}">Tipo de atividade</label>
+                <select name="tipo" id="tipo-{{ proposta.id }}" class="form-select form-select-sm mb-2">
+                    <option value="">— manter o que está —</option>
+                    {% for tipo in tipos %}
+                    <option value="{{ tipo.id }}" {% if proposta.tipo_id == tipo.id %}selected{% endif %}>{{ tipo.nome }}</option>
+                    {% endfor %}
+                </select>
+                {% if not proposta.tipo and proposta.tipo_sugerido %}
+                <small class="text-muted d-block mb-2">
+                    O proponente sugeriu <b>{{ proposta.tipo_sugerido }}</b>: escolha um tipo da
+                    lista (ou crie depois, em Atividades).
+                </small>
+                {% endif %}
+                <input type="hidden" name="publicar" value="0">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" name="publicar" value="1"
+                           id="pub-{{ proposta.id }}" checked>
+                    <label class="form-check-label" for="pub-{{ proposta.id }}">publicar na programação</label>
+                </div>
+                <button class="btn btn-app btn-sm w-100">
+                    <i class="fa-solid fa-check"></i> Aprovar
+                </button>
+            </form>
+        </div>
+
+        <div class="col-12 col-lg-6">
+            <form method="post" action="{% url 'organizador:rejeitar_proposta' proposta.id %}">
+                {% csrf_token %}
+                <label class="form-label" for="motivo-{{ proposta.id }}">Motivo da rejeição</label>
+                <textarea name="motivo" id="motivo-{{ proposta.id }}" rows="3" required
+                          class="form-control form-control-sm mb-2"
+                          placeholder="Ex.: já temos atividade nesse horário."></textarea>
+                <button class="btn btn-outline-danger btn-sm w-100">
+                    <i class="fa-solid fa-xmark"></i> Rejeitar (libera a vaga)
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="app-panel">
+    <h5 class="mb-1">Nenhuma proposta aguardando.</h5>
+    <p class="mb-0 text-muted">
+        Quando alguém propuser uma atividade, ela aparece aqui para aprovação.
+    </p>
+</div>
+{% endfor %}
+
+{% endblock %}

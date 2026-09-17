@@ -1,0 +1,97 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Minhas propostas{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="fa-solid fa-lightbulb"></i> Minhas propostas de atividade</span>
+    <a href="{% url 'participante:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+
+{# Chamadas abertas: é por aqui que se chega ao formulário de proposta. #}
+{% for chamada in chamadas %}
+<div class="app-panel mb-3">
+    <div class="ativ-sec-head">
+        <h3><i class="fa-solid fa-bullhorn"></i> {{ chamada.titulo }}</h3>
+        <span>
+            {{ chamada.evento.title }} · propostas até
+            {{ chamada.fim|date:"d/m/Y" }} às {{ chamada.fim|date:"H:i" }}
+        </span>
+    </div>
+    {% if chamada.descricao %}<p class="mb-3">{{ chamada.descricao }}</p>{% endif %}
+    <a href="{% url 'participante:propor_atividade' chamada.evento.id %}" class="btn btn-app btn-sm">
+        <i class="fa-solid fa-plus"></i> Propor atividade
+    </a>
+</div>
+{% endfor %}
+
+<div class="app-list">
+    {% for proposta in minhas %}
+    <div class="app-item">
+        <div class="dot" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)">
+            <i class="fa-solid fa-lightbulb"></i>
+        </div>
+        <div class="info">
+            <h5>{{ proposta.titulo }}</h5>
+            <p>
+                {{ proposta.evento.title }}
+                · {{ proposta.data_hora_inicio|date:"d/m/Y H:i" }}
+                {% if proposta.vaga %}· {{ proposta.vaga.espaco.nome }}{% endif %}
+            </p>
+            <p>
+                {% if proposta.situacao == 'pendente' %}
+                    <span class="badge text-bg-warning">aguardando aprovação</span>
+                {% elif proposta.situacao == 'aprovada' %}
+                    {% if proposta.publicada %}
+                    <span class="badge text-bg-success">aprovada e publicada</span>
+                    <a href="{% url 'eventos:programacao' proposta.evento.id %}">ver na programação</a>
+                    {% else %}
+                    <span class="badge text-bg-success">aprovada</span>
+                    <span class="text-muted">(aguardando publicação)</span>
+                    {% endif %}
+                {% else %}
+                    <span class="badge text-bg-danger">rejeitada</span>
+                {% endif %}
+            </p>
+            {% if proposta.situacao == 'rejeitada' and proposta.motivo_rejeicao %}
+            <p class="mb-0" style="color:#b91c1c">
+                <b>Motivo:</b> {{ proposta.motivo_rejeicao }}
+            </p>
+            {% endif %}
+        </div>
+        {% if proposta.pendente %}
+        <a href="{% url 'participante:editar_proposta' proposta.id %}"
+           class="btn btn-sm btn-outline-secondary" title="Editar proposta">
+            <i class="fa-solid fa-pen"></i>
+        </a>
+        <form method="post" action="{% url 'participante:cancelar_proposta' proposta.id %}"
+              onsubmit="return confirm('Cancelar esta proposta?');">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger" title="Cancelar proposta">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="app-item">
+        <div class="info text-center" style="flex:1">
+            <h5 style="color:var(--app-muted)">Você ainda não propôs nenhuma atividade.</h5>
+            <p class="mb-0">
+                {% if chamadas %}
+                Aproveite a chamada aberta para enviar sua proposta.
+                {% else %}
+                Quando um evento abrir chamada de propostas, ela aparece aqui.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

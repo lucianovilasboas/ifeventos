@@ -10,9 +10,14 @@ from django.views.decorators.http import require_POST
 import json
 from .forms import ParticipanteUpdateForm
 from eventos.forms import EventoForm, PalestranteForm, TipoAtividadeForm
+from eventos.forms import ChamadaProposicoesForm, EspacoForm, VagaForm
 from eventos.models import Evento
 from eventos.forms import AtividadeForm
 from eventos.models import Atividade
+from eventos.models import ChamadaProposicoes, Espaco, TipoAtividade, Vaga
+from eventos import propostas
+from eventos.propostas import PropostaBloqueada
+from django.db.models import Count, Exists, OuterRef, Q
 
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -41,6 +46,15 @@ def dashboard(request):
         eventos = Evento.objects.all() # Todos os eventos de todos os organizadores
     else:
         eventos = organizador.eventos.all() # Apenas eventos do organizador logado
+
+    # Chamada de proposições: o cartão do evento mostra o atalho e quantas
+    # propostas esperam decisão (sem uma query por cartão).
+    eventos = eventos.annotate(
+        n_pendentes=Count(
+            "atividades", filter=Q(atividades__situacao=Atividade.SITUACAO_PENDENTE)
+        ),
+        tem_chamada=Exists(ChamadaProposicoes.objects.filter(evento=OuterRef("pk"))),
+    )
 
     # if organizador.is_participante: # rever essa condição 
     #     inscricoes = Inscricao.objects.filter(participante=organizador) # Inscrições do organizador
@@ -645,3 +659,193 @@ def publicar_atividade(request, atividade_id):
         else "Atividade voltou para rascunho.",
     )
     return redirect("organizador:atividades_evento", evento_id=atividade.evento_id)
+
+
+# -- Chamada de proposições de atividades --
+def _evento_gerenciavel(request, evento_id):
+    """Busca o evento e recusa (403) quem não o gerencia."""
+    evento = get_object_or_404(Evento, id=evento_id)
+    if not pode_gerenciar_evento(request.user, evento):
+        raise PermissionDenied("Você não gerencia este evento.")
+    return evento
+
+
+def _erros_do_form(form):
+    return "; ".join(m for mensagens in form.errors.values() for m in mensagens)
+
+
+@login_required(login_url='/accounts/login/')
+def chamada_proposicoes(request, evento_id):
+    """Tela da chamada: janela de proposições, espaços e grade de vagas."""
+    evento = _evento_gerenciavel(request, evento_id)
+    chamada = propostas.chamada_de(evento)
+    # Catálogo da escola (reaproveitado entre eventos): os espaços que ESTE
+    # evento já usa aparecem primeiro, para o organizador não se perder.
+    espacos_usados = set(
+        Vaga.objects.filter(evento=evento).values_list("espaco_id", flat=True)
+    )
+    espacos = sorted(
+        Espaco.objects.all(), key=lambda e: (e.pk not in espacos_usados, e.nome)
+    )
+    return render(request, 'organizador/chamada_proposicoes.html', {
+        'evento': evento,
+        'chamada': chamada,
+        'form_chamada': ChamadaProposicoesForm(instance=chamada, prefix='chamada'),
+        'form_espaco': EspacoForm(prefix='espaco'),
+        'form_vaga': VagaForm(evento=evento, prefix='vaga'),
+        'espacos': espacos,
+        'espacos_usados': espacos_usados,
+        'nomes_conhecidos': propostas.nomes_conhecidos(),
+        'vagas': propostas.vagas_do_evento(evento),
+        'n_pendentes': propostas.contagem_pendentes([evento]),
+        'aberta': propostas.esta_aberta(evento),
+        'situacao': propostas.situacao(evento),
+    })
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def salvar_chamada(request, evento_id):
+    """Cria/atualiza a janela de proposições (e liga/desliga o aceite)."""
+    evento = _evento_gerenciavel(request, evento_id)
+    form = ChamadaProposicoesForm(
+        request.POST, instance=propostas.chamada_de(evento), prefix='chamada'
+    )
+    if form.is_valid():
+        chamada = form.save(commit=False)
+        chamada.evento = evento
+        chamada.save()
+        messages.success(
+            request,
+            "Chamada salva e aberta." if chamada.esta_aberta()
+            else "Chamada salva (fora da janela / desligada).",
+        )
+    else:
+        messages.error(request, f"Confira a chamada: {_erros_do_form(form)}")
+    return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def adicionar_espaco(request, evento_id):
+    """Cadastra um espaço no catálogo da escola (vale para os próximos eventos)."""
+    evento = _evento_gerenciavel(request, evento_id)
+    form = EspacoForm(request.POST, prefix='espaco')
+    if form.is_valid():
+        espaco = form.save()
+        messages.success(
+            request,
+            f"Espaço '{espaco.nome}' disponível no catálogo para todos os eventos.",
+        )
+    else:
+        messages.error(request, f"Confira o espaço: {_erros_do_form(form)}")
+    return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def excluir_espaco(request, evento_id, espaco_id):
+    """Remove um espaço do catálogo — só se nenhum evento o estiver usando."""
+    evento = _evento_gerenciavel(request, evento_id)
+    espaco = get_object_or_404(Espaco, id=espaco_id)
+    if Vaga.objects.filter(espaco=espaco).exists():
+        messages.error(
+            request,
+            f"'{espaco.nome}' está na grade de vagas de um evento: exclua as "
+            "vagas (ou as propostas) antes de tirá-lo do catálogo.",
+        )
+    else:
+        nome = espaco.nome
+        espaco.delete()
+        messages.success(request, f"Espaço '{nome}' removido do catálogo.")
+    return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def adicionar_vaga(request, evento_id):
+    """Cria uma vaga (dia + horário + espaço) que os proponentes podem reservar."""
+    evento = _evento_gerenciavel(request, evento_id)
+    form = VagaForm(request.POST, evento=evento, prefix='vaga')
+    if form.is_valid():
+        vaga = form.save(commit=False)
+        vaga.evento = evento
+        vaga.save()
+        messages.success(request, f"Vaga criada: {vaga}.")
+    else:
+        messages.error(request, f"Confira a vaga: {_erros_do_form(form)}")
+    return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def excluir_vaga(request, vaga_id):
+    """Remove uma vaga — só se não houver proposta ativa reservando-a."""
+    vaga = get_object_or_404(Vaga, id=vaga_id)
+    evento = _evento_gerenciavel(request, vaga.evento_id)
+    if vaga.propostas_ativas().exists():
+        messages.error(
+            request,
+            "Esta vaga tem proposta pendente ou aprovada: decida ou cancele "
+            "antes de excluí-la.",
+        )
+    else:
+        vaga.delete()
+        messages.success(request, "Vaga removida.")
+    return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+
+@login_required(login_url='/accounts/login/')
+def propostas_pendentes(request, evento_id):
+    """Propostas aguardando decisão do organizador."""
+    evento = _evento_gerenciavel(request, evento_id)
+    return render(request, 'organizador/propostas_pendentes.html', {
+        'evento': evento,
+        'lista': list(propostas.pendentes([evento]).prefetch_related('palestrantes')),
+        'tipos': TipoAtividade.objects.all().order_by('nome'),
+        'chamada': propostas.chamada_de(evento),
+        'aberta': propostas.esta_aberta(evento),
+    })
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def aprovar_proposta(request, atividade_id):
+    """Aprova a proposta (por padrão já publica na programação)."""
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    _evento_gerenciavel(request, atividade.evento_id)
+
+    # O form manda um hidden "0" e o checkbox "1": sem marcar, o value lido é 0
+    # (aprova mantendo rascunho); marcado, é 1 (aprova e publica).
+    publicar = request.POST.get('publicar') == '1'
+    tipo = None
+    tipo_id = (request.POST.get('tipo') or '').strip()
+    if tipo_id.isdigit():
+        tipo = TipoAtividade.objects.filter(pk=tipo_id).first()
+
+    try:
+        propostas.aprovar(atividade, request.user, publicar=publicar, tipo=tipo)
+    except PropostaBloqueada as erro:
+        messages.error(request, erro.messages[0])
+    else:
+        messages.success(
+            request,
+            "Proposta aprovada e publicada na programação." if publicar
+            else "Proposta aprovada, mantida como rascunho.",
+        )
+    return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def rejeitar_proposta(request, atividade_id):
+    """Rejeita a proposta (com motivo) e libera a vaga."""
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    _evento_gerenciavel(request, atividade.evento_id)
+    try:
+        propostas.rejeitar(atividade, request.user, request.POST.get('motivo'))
+    except PropostaBloqueada as erro:
+        messages.error(request, erro.messages[0])
+    else:
+        messages.success(request, "Proposta rejeitada e vaga liberada.")
+    return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)

@@ -343,6 +343,57 @@ class Atividade(models.Model):
     # não publicadas ficam fora da programação, da landing, do .ics e do PDF.
     publicada = models.BooleanField(default=True)
 
+    # ------------------------------------------------------------------
+    # Proposição de atividade (chamada de propostas)
+    # ------------------------------------------------------------------
+    # `proponente` só existe quando a atividade nasceu de uma proposta de
+    # participante; atividade criada pelo organizador fica com NULL.
+    proponente = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="propostas",
+    )
+    SITUACAO_ORGANIZADOR = "organizador"
+    SITUACAO_PENDENTE = "pendente"
+    SITUACAO_APROVADA = "aprovada"
+    SITUACAO_REJEITADA = "rejeitada"
+    SITUACAO_CHOICES = [
+        (SITUACAO_ORGANIZADOR, "Criada pelo organizador"),
+        (SITUACAO_PENDENTE, "Aguardando aprovação"),
+        (SITUACAO_APROVADA, "Proposta aprovada"),
+        (SITUACAO_REJEITADA, "Proposta rejeitada"),
+    ]
+    # Ciclo de vida da proposta. Serve só para separar "rascunho do
+    # organizador" de "proposta de participante": quem esconde do público
+    # continua sendo `publicada`.
+    situacao = models.CharField(
+        max_length=20, choices=SITUACAO_CHOICES,
+        default=SITUACAO_ORGANIZADOR, db_index=True,
+    )
+    # Vaga da grade de oferta reservada por esta proposta (first-come).
+    vaga = models.ForeignKey(
+        "Vaga", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="propostas",
+    )
+    # Tipo sugerido pelo proponente quando nenhum do catálogo servia: fica como
+    # texto até o organizador normalizar na aprovação (o catálogo de tipos é
+    # global e único, então não é criado direto pelo proponente).
+    tipo_sugerido = models.CharField(max_length=60, blank=True, default="")
+    motivo_rejeicao = models.TextField(blank=True, default="")
+    decidida_em = models.DateTimeField(null=True, blank=True)
+    decidida_por = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="propostas_decididas",
+    )
+
+    @property
+    def eh_proposta(self):
+        """A atividade veio de uma chamada de propostas (não do organizador)?"""
+        return self.situacao != self.SITUACAO_ORGANIZADOR
+
+    @property
+    def pendente(self):
+        return self.situacao == self.SITUACAO_PENDENTE
+
     @property
     def quando_legivel(self):
         """Data e hora curtinhas para a lista: `20/09 · 19h30`.
@@ -424,6 +475,120 @@ class Atividade(models.Model):
         verbose_name_plural = "Atividades"
 
 
+class ChamadaProposicoes(models.Model):
+    """Período em que participantes propõem atividades para um evento.
+
+    Um por evento (OneToOne). O organizador define a janela (início/fim) e pode
+    desligá-la antes do prazo com `aberta=False`. A checagem de "está aberta" é
+    sempre refeita no servidor — a tela escondida não é a regra.
+    """
+
+    evento = models.OneToOneField(
+        Evento, on_delete=models.CASCADE, related_name="chamada"
+    )
+    titulo = models.CharField(
+        max_length=255, default="Chamada de propostas de atividades"
+    )
+    descricao = models.TextField(blank=True, default="")
+    inicio = models.DateTimeField()
+    fim = models.DateTimeField()
+    aberta = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Chamada de proposições"
+        verbose_name_plural = "Chamadas de proposições"
+
+    def __str__(self):
+        return f"Chamada de {self.evento.title}"
+
+    def esta_aberta(self, agora=None):
+        """Aberto agora? (ligado E dentro da janela.)"""
+        agora = agora or timezone.now()
+        return bool(self.aberta and self.inicio <= agora <= self.fim)
+
+
+class Espaco(models.Model):
+    """Espaço físico da escola (sala/auditório) — catálogo REAPROVEITADO.
+
+    Não pertence a um evento: o organizador escolhe do catálogo ao montar a
+    grade de vagas, e o espaço que ele cria num evento já serve para os
+    próximos (é o que o evento usa que fica registrado — na `Vaga`). A
+    capacidade é propriedade da sala e sugere o nº de vagas da atividade.
+    """
+
+    nome = models.CharField(max_length=160, unique=True)
+    capacidade = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Espaço"
+        verbose_name_plural = "Espaços"
+
+    def __str__(self):
+        return self.nome
+
+
+class Vaga(models.Model):
+    """Janela reservável da grade de oferta (dia + horário + espaço).
+
+    O proponente escolhe uma vaga livre e a reserva acontece no envio da
+    proposta. `capacidade` diz quantas atividades cabem na mesma janela
+    (1 = exclusiva), que é o que garante "quem propõe primeiro leva".
+    """
+
+    evento = models.ForeignKey(
+        Evento, on_delete=models.CASCADE, related_name="vagas"
+    )
+    espaco = models.ForeignKey(
+        Espaco, on_delete=models.CASCADE, related_name="vagas"
+    )
+    inicio = models.DateTimeField()
+    fim = models.DateTimeField()
+    capacidade = models.PositiveIntegerField(default=1)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["espaco", "inicio", "fim"], name="unique_vaga_espaco_janela"
+            )
+        ]
+        ordering = ["inicio", "espaco__nome"]
+        verbose_name = "Vaga da chamada"
+        verbose_name_plural = "Vagas da chamada"
+
+    def __str__(self):
+        return f"{self.espaco.nome} · {timezone.localtime(self.inicio):%d/%m %H:%M}"
+
+    def propostas_ativas(self, ignorar=None):
+        """Propostas que ocupam a vaga (pendentes ou aprovadas).
+
+        Rejeitada não ocupa: assim a vaga volta a ficar livre sozinha quando o
+        organizador recusa a proposta. `ignorar` serve à edição, para a própria
+        proposta não contar como ocupante de si mesma.
+        """
+        ativas = self.propostas.filter(
+            situacao__in=[Atividade.SITUACAO_PENDENTE, Atividade.SITUACAO_APROVADA]
+        )
+        if getattr(ignorar, "pk", None):
+            ativas = ativas.exclude(pk=ignorar.pk)
+        return ativas
+
+    @property
+    def ocupadas(self):
+        return self.propostas_ativas().count()
+
+    @property
+    def vagas_restantes(self):
+        return max(0, self.capacidade - self.ocupadas)
+
+    @property
+    def livre(self):
+        return self.vagas_restantes > 0
 
 
 class Inscricao(models.Model):
