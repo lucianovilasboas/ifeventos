@@ -365,6 +365,7 @@ def propor_atividade(request, evento_id):
         'aberta': aberta,
         'motivo_fechado': propostas.motivo_fechada(evento),
         'restantes': propostas.restantes_para_propor(participante, evento),
+        'vistas_vaga': propostas.VISTAS_VAGA,
     })
 
 
@@ -418,6 +419,7 @@ def editar_proposta(request, atividade_id):
         'evento': evento,
         'form': form,
         'proposta': proposta,
+        'vistas_vaga': propostas.VISTAS_VAGA,
         # Palestrantes sem a flag global não cabem no select (que lista só quem
         # já é palestrante): eles voltam como "extras" selecionados.
         'palestrantes_extras': [

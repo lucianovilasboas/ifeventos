@@ -111,6 +111,12 @@ def vagas_livres(evento):
 # Evento muito longo geraria uma lista de dias impraticável no formulário.
 DIAS_MAXIMOS_NO_FORM = 60
 
+# Visões do campo de vaga no formulário da proposta (alternador Lista/Grade).
+VISTAS_VAGA = [
+    {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
+    {"valor": "grade", "rotulo": "Grade", "icone": "fa-solid fa-table-cells"},
+]
+
 
 def dias_do_evento(evento, limite=DIAS_MAXIMOS_NO_FORM):
     """Dias do evento como `(valor ISO, rótulo curto)` para os formulários."""

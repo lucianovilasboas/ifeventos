@@ -1273,3 +1273,31 @@ class AvisoTempoRealTests(BasePropostasTests):
         aviso.assert_any_call(
             "propostas_atualizadas", {"evento_id": self.evento.pk, "pendentes": 0}
         )
+
+
+class GradeDeVagasNoFormularioTests(BasePropostasTests):
+    """O campo "Dia, horário e espaço" tem duas visões: lista e grade."""
+
+    def _html(self):
+        self.client.force_login(self.pessoa)
+        return self.client.get(
+            reverse("participante:propor_atividade", args=[self.evento.id])
+        ).content.decode()
+
+    def test_tem_alternador_e_as_duas_visoes(self):
+        html = self._html()
+
+        self.assertIn('data-vista-grupo="proposta-vagas"', html)
+        self.assertIn('data-vista-painel="lista"', html)
+        # Sem JavaScript a grade fica fechada (só a lista aparece).
+        self.assertIn('data-vista-painel="grade" hidden', html)
+        self.assertIn('id="gradeVagas"', html)
+        self.assertIn("js/vista_switch.js", html)
+
+    def test_opcoes_do_select_trazem_os_dados_da_grade(self):
+        html = self._html()
+
+        self.assertIn(f'data-espaco="{self.espaco.nome}"', html)
+        self.assertIn("data-inicio=", html)
+        self.assertIn("data-fim=", html)
+        self.assertIn('data-cap="40"', html)

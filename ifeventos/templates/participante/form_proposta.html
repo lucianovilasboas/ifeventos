@@ -1,4 +1,5 @@
 {% extends 'dashboard_base.html' %}
+{% load static %}
 
 {% block title %}Propor atividade{% endblock %}
 
@@ -65,24 +66,51 @@
             </div>
 
             {% if form.vaga.field.queryset %}
-            <div class="row g-3">
-                <div class="col-12">
-                    <label class="form-label" for="id_vaga">
-                        {{ form.vaga.label }} <span class="ativ-req">*</span>
-                    </label>
-                    <select name="{{ form.vaga.name }}" id="id_vaga" class="form-select" required>
-                        <option value="">Selecione a vaga…</option>
-                        {% for vaga in form.vaga.field.queryset %}
-                        <option value="{{ vaga.pk }}"
-                                data-cap="{{ vaga.espaco.capacidade }}"
-                                data-local="{{ vaga.espaco.nome|escapejs }}"
-                                {% if form.vaga.value|stringformat:"s" == vaga.pk|stringformat:"s" %}selected{% endif %}>
-                            {{ vaga.espaco.nome }} · {{ vaga.inicio|date:"d/m/Y H:i" }}–{{ vaga.fim|date:"H:i" }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <small class="text-muted d-block" id="vagaAjuda">
-                        Escolha o dia, o horário e o espaço da sua atividade.
+            {% comment %}
+            O campo de vaga tem duas visões: a lista (o `<select>` de sempre, que
+            é o que o formulário envia) e uma grade de dias × horários montada
+            pelo JS a partir das opções. Só aparecem vagas livres, porque as
+            opções do select são exatamente essas.
+            {% endcomment %}
+            <div data-vista-grupo="proposta-vagas">
+                <div class="px-1 mb-3">
+                    {% include 'includes/vista_switch.html' with vistas=vistas_vaga vista_ativa='lista' %}
+                </div>
+
+                <div data-vista-painel="lista">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="id_vaga">
+                                {{ form.vaga.label }} <span class="ativ-req">*</span>
+                            </label>
+                            <select name="{{ form.vaga.name }}" id="id_vaga" class="form-select" required>
+                                <option value="">Selecione a vaga…</option>
+                                {% for vaga in form.vaga.field.queryset %}
+                                <option value="{{ vaga.pk }}"
+                                        data-cap="{{ vaga.espaco.capacidade }}"
+                                        data-local="{{ vaga.espaco.nome|escapejs }}"
+                                        data-espaco="{{ vaga.espaco.nome|escapejs }}"
+                                        data-inicio="{{ vaga.inicio|date:'c' }}"
+                                        data-fim="{{ vaga.fim|date:'c' }}"
+                                        {% if form.vaga.value|stringformat:"s" == vaga.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ vaga.espaco.nome }} · {{ vaga.inicio|date:"d/m/Y H:i" }}–{{ vaga.fim|date:"H:i" }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted d-block" id="vagaAjuda">
+                                Escolha o dia, o horário e o espaço da sua atividade.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div data-vista-painel="grade" hidden>
+                    <div class="grade-vagas-wrap">
+                        <div class="grade-vagas" id="gradeVagas" role="group"
+                             aria-label="Vagas livres por dia e horário"></div>
+                    </div>
+                    <small class="text-muted d-block">
+                        Toque numa vaga para reservá-la — a lista acima mostra a escolha.
                     </small>
                 </div>
             </div>
@@ -231,6 +259,8 @@
 {% endblock %}
 
 {% block scripts %}
+{# Alternador Lista/Grade do campo de vaga (memória por grupo + ?vista=). #}
+<script src="{% static 'js/vista_switch.js' %}?v={{ ASSET_VERSION }}"></script>
 <script>
 (function () {
     const vaga = document.querySelector('#id_vaga');
@@ -399,6 +429,154 @@
                 });
         }, 300);
     });
+})();
+
+(function () {
+    // Grade de vagas: montada a partir das OPÇÕES do select (que já são só as
+    // vagas livres). Clicar numa célula seleciona a opção e dispara `change`,
+    // então a dica e o pré-preenchimento de vagas seguem valendo.
+    var grade = document.querySelector('#gradeVagas');
+    var select = document.querySelector('#id_vaga');
+    if (!grade || !select) return;
+
+    var DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function chave(data) {
+        return data.getFullYear() + '-' + pad(data.getMonth() + 1) + '-' + pad(data.getDate());
+    }
+    function rotuloDia(data) {
+        return DIAS[data.getDay()] + ' ' + pad(data.getDate()) + '/' + pad(data.getMonth() + 1);
+    }
+    function hora(data) { return pad(data.getHours()) + ':' + pad(data.getMinutes()); }
+
+    function coletar() {
+        var itens = [];
+        Array.prototype.forEach.call(select.options, function (opcao) {
+            if (!opcao.value) return;
+            var inicio = new Date(opcao.getAttribute('data-inicio'));
+            var fim = new Date(opcao.getAttribute('data-fim'));
+            if (isNaN(inicio.getTime())) return;
+            itens.push({
+                valor: opcao.value,
+                dia: chave(inicio),
+                diaRotulo: rotuloDia(inicio),
+                hora: hora(inicio),
+                horaFim: isNaN(fim.getTime()) ? '' : hora(fim),
+                espaco: opcao.getAttribute('data-espaco') || '',
+                capacidade: parseInt(opcao.getAttribute('data-cap') || '0', 10),
+            });
+        });
+        return itens;
+    }
+
+    function botao(item) {
+        var el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'grade-vaga';
+        el.dataset.valor = item.valor;
+
+        var espaco = document.createElement('span');
+        espaco.className = 'grade-vaga-espaco';
+        espaco.textContent = item.espaco;
+
+        var faixa = document.createElement('span');
+        faixa.className = 'grade-vaga-hora';
+        faixa.textContent = item.hora + (item.horaFim ? '–' + item.horaFim : '');
+
+        el.append(espaco, faixa);
+
+        if (item.capacidade > 0) {
+            var cap = document.createElement('span');
+            cap.className = 'grade-vaga-cap';
+            cap.textContent = item.capacidade + ' lugares';
+            el.appendChild(cap);
+        }
+        return el;
+    }
+
+    function celula(itens) {
+        var td = document.createElement('td');
+        if (!itens.length) {
+            var vazio = document.createElement('span');
+            vazio.className = 'grade-livre';
+            vazio.textContent = '—';
+            td.appendChild(vazio);
+            return td;
+        }
+        itens.forEach(function (item) { td.appendChild(botao(item)); });
+        return td;
+    }
+
+    function montar() {
+        var itens = coletar();
+        grade.innerHTML = '';
+        if (!itens.length) return;
+
+        var dias = [], horarios = [], rotulos = {};
+        itens.forEach(function (item) {
+            if (dias.indexOf(item.dia) === -1) dias.push(item.dia);
+            if (horarios.indexOf(item.hora) === -1) horarios.push(item.hora);
+            rotulos[item.dia] = item.diaRotulo;
+        });
+        dias.sort();
+        horarios.sort();
+
+        var tabela = document.createElement('table');
+        tabela.className = 'grade-vagas-tabela';
+
+        var cabecalho = document.createElement('tr');
+        cabecalho.appendChild(document.createElement('th'));
+        dias.forEach(function (dia) {
+            var th = document.createElement('th');
+            th.scope = 'col';
+            th.textContent = rotulos[dia];
+            cabecalho.appendChild(th);
+        });
+        var thead = document.createElement('thead');
+        thead.appendChild(cabecalho);
+        tabela.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+        horarios.forEach(function (h) {
+            var linha = document.createElement('tr');
+            var th = document.createElement('th');
+            th.scope = 'row';
+            th.className = 'grade-hora';
+            th.textContent = h;
+            linha.appendChild(th);
+            dias.forEach(function (dia) {
+                linha.appendChild(celula(itens.filter(function (item) {
+                    return item.dia === dia && item.hora === h;
+                })));
+            });
+            tbody.appendChild(linha);
+        });
+        tabela.appendChild(tbody);
+
+        grade.appendChild(tabela);
+        marcar();
+    }
+
+    function marcar() {
+        Array.prototype.forEach.call(grade.querySelectorAll('.grade-vaga'), function (el) {
+            var escolhida = el.dataset.valor === select.value;
+            el.classList.toggle('is-escolhida', escolhida);
+            el.setAttribute('aria-pressed', escolhida ? 'true' : 'false');
+        });
+    }
+
+    grade.addEventListener('click', function (evento) {
+        var alvo = evento.target.closest('.grade-vaga');
+        if (!alvo) return;
+        select.value = alvo.dataset.valor;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        marcar();
+    });
+
+    select.addEventListener('change', marcar);
+
+    montar();
 })();
 </script>
 {% endblock scripts %}
