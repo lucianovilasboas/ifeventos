@@ -97,7 +97,12 @@
                 function (botao) {
                     botao.addEventListener("click", function (evento) {
                         evento.stopPropagation();
-                        if (estreito.matches && grupo.classList.contains("is-paralelo")) {
+                        // O modal só existe na programação pública. O painel do
+                        // participante e a grade do organizador usam esta mesma
+                        // grade SEM modal: neles, o clique precisa expandir na
+                        // própria célula (antes ele era engolido pelo
+                        // stopPropagation e o "+N" não fazia nada no celular).
+                        if (estreito.matches && modal && grupo.classList.contains("is-paralelo")) {
                             abrirModal(grupo);
                             return;
                         }

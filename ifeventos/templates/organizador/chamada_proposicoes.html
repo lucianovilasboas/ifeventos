@@ -73,16 +73,16 @@
 </div>
 
 <!-- ===================== ESPAÇOS ===================== -->
-<div class="app-panel mb-3">
+<div class="app-panel mb-3" id="espacos">
     <div class="ativ-sec-head">
         <h3>Espaços (catálogo da escola)</h3>
         <span>reaproveitados por todos os eventos</span>
     </div>
 
     {% if espacos %}
-    <div class="app-list mb-3">
+    <div class="mb-3">
         {% for espaco in espacos %}
-        <div class="app-item">
+        <div class="app-item" id="espaco-{{ espaco.id }}">
             <div class="dot" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">
                 <i class="fa-solid fa-door-open"></i>
             </div>
@@ -95,13 +95,23 @@
                     {% endif %}
                 </p>
             </div>
-            <form method="post" action="{% url 'organizador:excluir_espaco' evento.id espaco.id %}"
-                  onsubmit="return confirm('Tirar o espaço {{ espaco.nome|escapejs }} do catálogo?');">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Excluir espaço do catálogo">
-                    <i class="fa-solid fa-trash-can"></i>
+            <div class="d-flex gap-2 flex-shrink-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        title="Editar nome/capacidade"
+                        data-bs-toggle="modal" data-bs-target="#modalEspaco"
+                        data-acao="{% url 'organizador:editar_espaco' evento.id espaco.id %}"
+                        data-nome="{{ espaco.nome }}"
+                        data-capacidade="{{ espaco.capacidade }}">
+                    <i class="fa-solid fa-pen"></i>
                 </button>
-            </form>
+                <form method="post" action="{% url 'organizador:excluir_espaco' evento.id espaco.id %}"
+                      onsubmit="return confirm('Tirar o espaço {{ espaco.nome|escapejs }} do catálogo?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" title="Excluir espaço do catálogo">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </form>
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -109,29 +119,43 @@
     <p class="text-muted">Catálogo vazio — sem espaço não há vaga na grade.</p>
     {% endif %}
 
-    <form method="post" action="{% url 'organizador:adicionar_espaco' evento.id %}" class="row g-2 align-items-end">
-        {% csrf_token %}
-        <div class="col-12 col-md-6">
-            <label class="form-label" for="id_espaco-nome">{{ form_espaco.nome.label }}</label>
-            {{ form_espaco.nome }}
-            <datalist id="listaEspacos">
-                {% for nome in nomes_conhecidos %}<option value="{{ nome }}"></option>{% endfor %}
-            </datalist>
-            <small class="text-muted d-block">
-                Escolha um nome já usado na agenda ou cadastre um novo — ele fica
-                no catálogo para os próximos eventos.
-            </small>
-        </div>
-        <div class="col-8 col-md-3">
-            <label class="form-label" for="id_espaco-capacidade">{{ form_espaco.capacidade.label }}</label>
-            {{ form_espaco.capacidade }}
-        </div>
-        <div class="col-4 col-md-3">
-            <button class="btn btn-app-green btn-sm w-100">
-                <i class="fa-solid fa-plus"></i> Adicionar
-            </button>
-        </div>
-    </form>
+    <button class="btn btn-app-green btn-sm" type="button"
+            data-bs-toggle="collapse" data-bs-target="#formEspaco"
+            aria-expanded="{% if abrir == 'espaco' %}true{% else %}false{% endif %}"
+            aria-controls="formEspaco">
+        <i class="fa-solid fa-plus"></i> Adicionar espaço
+    </button>
+
+    <div class="collapse{% if abrir == 'espaco' %} show{% endif %}" id="formEspaco">
+        <form method="post" action="{% url 'organizador:adicionar_espaco' evento.id %}"
+              class="row g-3 align-items-start mt-3 pt-3 border-top">
+            {% csrf_token %}
+            <div class="col-12 col-md-7">
+                <label class="form-label" for="id_espaco-nome">{{ form_espaco.nome.label }}</label>
+                {{ form_espaco.nome }}
+                <datalist id="listaEspacos">
+                    {% for nome in nomes_conhecidos %}<option value="{{ nome }}"></option>{% endfor %}
+                </datalist>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="id_espaco-capacidade">{{ form_espaco.capacidade.label }}</label>
+                {{ form_espaco.capacidade }}
+            </div>
+            <div class="col-12 col-md-2">
+                {# Label-fantasma: mesma métrica do label real, para o botão nascer na linha do input. #}
+                <label class="form-label d-none d-md-inline-block" aria-hidden="true">&nbsp;</label>
+                <button class="btn btn-app-green btn-campo w-100 d-block">
+                    <i class="fa-solid fa-plus"></i> Adicionar
+                </button>
+            </div>
+            <div class="col-12">
+                <small class="text-muted">
+                    Escolha um nome já usado na agenda ou cadastre um novo — ele
+                    fica no catálogo para os próximos eventos.
+                </small>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- ===================== VAGAS ===================== -->
@@ -142,7 +166,7 @@
     </div>
 
     {% if vagas %}
-    <div class="app-list mb-3">
+    <div class="mb-3">
         {% for vaga in vagas %}
         <div class="app-item">
             <div class="dot" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)">
@@ -174,31 +198,102 @@
     <p class="text-muted">Nenhuma vaga na grade — sem vaga o participante não consegue propor.</p>
     {% endif %}
 
-    <form method="post" action="{% url 'organizador:adicionar_vaga' evento.id %}" class="row g-2 align-items-end">
-        {% csrf_token %}
-        <div class="col-12 col-md-4">
-            <label class="form-label" for="id_vaga-espaco">{{ form_vaga.espaco.label }}</label>
-            {{ form_vaga.espaco }}
+    <button class="btn btn-app-green btn-sm" type="button"
+            data-bs-toggle="collapse" data-bs-target="#formVaga"
+            aria-expanded="{% if abrir == 'vaga' %}true{% else %}false{% endif %}"
+            aria-controls="formVaga">
+        <i class="fa-solid fa-plus"></i> Adicionar vaga
+    </button>
+
+    <div class="collapse{% if abrir == 'vaga' %} show{% endif %}" id="formVaga">
+        <form method="post" action="{% url 'organizador:adicionar_vaga' evento.id %}"
+              class="row g-3 align-items-start mt-3 pt-3 border-top">
+            {% csrf_token %}
+            <div class="col-12 col-md-4">
+                <label class="form-label" for="id_vaga-espaco">{{ form_vaga.espaco.label }}</label>
+                {{ form_vaga.espaco }}
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label" for="id_vaga-inicio">{{ form_vaga.inicio.label }}</label>
+                {{ form_vaga.inicio }}
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label" for="id_vaga-fim">{{ form_vaga.fim.label }}</label>
+                {{ form_vaga.fim }}
+            </div>
+            <div class="col-12 col-sm-6 col-md-2">
+                <label class="form-label" for="id_vaga-capacidade">{{ form_vaga.capacidade.label }}</label>
+                {{ form_vaga.capacidade }}
+            </div>
+            <div class="col-12">
+                <small class="text-muted">
+                    "Atividades simultâneas" = quantas atividades cabem nesta
+                    janela do espaço (1 = exclusiva).
+                </small>
+            </div>
+            <div class="col-12 d-flex justify-content-end">
+                <button class="btn btn-app-green btn-campo">
+                    <i class="fa-solid fa-plus"></i> Adicionar vaga
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ===================== MODAL: EDITAR ESPAÇO ===================== -->
+<div class="modal fade" id="modalEspaco" tabindex="-1" aria-hidden="true"
+     aria-labelledby="modalEspacoTitulo">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalEspacoTitulo">Editar espaço</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="id_espaco_modal-nome">{{ form_espaco_modal.nome.label }}</label>
+                        {{ form_espaco_modal.nome }}
+                    </div>
+                    <div>
+                        <label class="form-label" for="id_espaco_modal-capacidade">{{ form_espaco_modal.capacidade.label }}</label>
+                        {{ form_espaco_modal.capacidade }}
+                        <small class="text-muted d-block">
+                            Renomear vale para as próximas atividades — as que já
+                            existem mantêm o local como foram criadas.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="btn btn-app btn-sm">
+                        <i class="fa-solid fa-floppy-disk"></i> Salvar
+                    </button>
+                </div>
+            </form>
         </div>
-        <div class="col-6 col-md-3">
-            <label class="form-label" for="id_vaga-inicio">{{ form_vaga.inicio.label }}</label>
-            {{ form_vaga.inicio }}
-        </div>
-        <div class="col-6 col-md-3">
-            <label class="form-label" for="id_vaga-fim">{{ form_vaga.fim.label }}</label>
-            {{ form_vaga.fim }}
-        </div>
-        <div class="col-6 col-md-2">
-            <label class="form-label" for="id_vaga-capacidade">{{ form_vaga.capacidade.label }}</label>
-            {{ form_vaga.capacidade }}
-            <small class="text-muted d-block">1 = exclusiva</small>
-        </div>
-        <div class="col-6 col-md-12 d-flex justify-content-end">
-            <button class="btn btn-app-green btn-sm">
-                <i class="fa-solid fa-plus"></i> Adicionar vaga
-            </button>
-        </div>
-    </form>
+    </div>
 </div>
 
 {% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // Um único modal para editar qualquer espaço: os dados do cartão chegam por
+    // data-atributos, então não há formulário por linha nem id duplicado.
+    var modal = document.getElementById('modalEspaco');
+    if (!modal) return;
+
+    modal.addEventListener('show.bs.modal', function (evento) {
+        var botao = evento.relatedTarget;
+        if (!botao) return;
+
+        modal.querySelector('form').action = botao.dataset.acao || '';
+        modal.querySelector('#id_espaco_modal-nome').value = botao.dataset.nome || '';
+        modal.querySelector('#id_espaco_modal-capacidade').value = botao.dataset.capacidade || '';
+    });
+})();
+</script>
+{% endblock scripts %}

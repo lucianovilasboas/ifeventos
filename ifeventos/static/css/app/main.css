@@ -173,6 +173,9 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   transition: background var(--motion-fast), transform var(--motion-fast),
               box-shadow var(--motion-fast), border-color var(--motion-fast);
 }
+/* Botão na MESMA linha de um `.form-control`: os campos têm `min-height: 46px`
+   (tokens.css, alvo de toque) e o botão, sem isso, ficava 6px mais baixo. */
+.btn-campo { min-height: 46px; }
 .btn-app-green:hover { background: var(--accent-soft) !important; filter: none; }
 .btn-app-green:active { transform: translateY(3px); box-shadow: none; }
 

@@ -346,6 +346,7 @@ def propor_atividade(request, evento_id):
         'chamada': propostas.chamada_de(evento),
         'aberta': aberta,
         'motivo_fechado': propostas.motivo_fechada(evento),
+        'restantes': propostas.restantes_para_propor(participante, evento),
     })
 
 

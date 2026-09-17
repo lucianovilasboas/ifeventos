@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404, render, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from eventos.models import Atividade, Inscricao, Participante
 from eventos import agenda
@@ -692,7 +693,12 @@ def chamada_proposicoes(request, evento_id):
         'chamada': chamada,
         'form_chamada': ChamadaProposicoesForm(instance=chamada, prefix='chamada'),
         'form_espaco': EspacoForm(prefix='espaco'),
+        # O modal de edição usa OUTRO prefixo para não colidir com os ids do
+        # formulário de "adicionar" (os dois convivem na mesma página).
+        'form_espaco_modal': EspacoForm(prefix='espaco_modal'),
         'form_vaga': VagaForm(evento=evento, prefix='vaga'),
+        # `?abrir=espaco|vaga` reabre o formulário depois de um erro de validação.
+        'abrir': (request.GET.get('abrir') or '').strip(),
         'espacos': espacos,
         'espacos_usados': espacos_usados,
         'nomes_conhecidos': propostas.nomes_conhecidos(),
@@ -737,6 +743,31 @@ def adicionar_espaco(request, evento_id):
             request,
             f"Espaço '{espaco.nome}' disponível no catálogo para todos os eventos.",
         )
+        return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+    # Deu erro: volta com o formulário ABERTO (o aviso sozinho não bastaria,
+    # o usuário teria de reabrir o collapse para corrigir).
+    messages.error(request, f"Confira o espaço: {_erros_do_form(form)}")
+    return redirect(
+        reverse('organizador:chamada_proposicoes', args=[evento.id])
+        + "?abrir=espaco#espacos"
+    )
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def editar_espaco(request, evento_id, espaco_id):
+    """Edita nome/capacidade de um espaço do catálogo.
+
+    Renomear NÃO reescreve o `local` das atividades já criadas (ele é texto,
+    copiado no momento da proposta) — vale para as próximas.
+    """
+    evento = _evento_gerenciavel(request, evento_id)
+    espaco = get_object_or_404(Espaco, id=espaco_id)
+    form = EspacoForm(request.POST, instance=espaco, prefix='espaco_modal')
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Espaço '{espaco.nome}' atualizado no catálogo.")
     else:
         messages.error(request, f"Confira o espaço: {_erros_do_form(form)}")
     return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
@@ -772,9 +803,13 @@ def adicionar_vaga(request, evento_id):
         vaga.evento = evento
         vaga.save()
         messages.success(request, f"Vaga criada: {vaga}.")
-    else:
-        messages.error(request, f"Confira a vaga: {_erros_do_form(form)}")
-    return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+        return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+    messages.error(request, f"Confira a vaga: {_erros_do_form(form)}")
+    return redirect(
+        reverse('organizador:chamada_proposicoes', args=[evento.id])
+        + "?abrir=vaga#vagas"
+    )
 
 
 @login_required(login_url='/accounts/login/')

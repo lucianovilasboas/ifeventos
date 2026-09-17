@@ -106,6 +106,33 @@ def vagas_livres(evento):
     return vagas_do_evento(evento, somente_livres=True)
 
 
+def propostas_ativas_de(usuario, evento):
+    """Propostas que ainda contam para o limite (pendentes ou aprovadas).
+
+    Rejeitada e cancelada não contam: a pessoa pode propor de novo.
+    """
+    if usuario is None or not getattr(usuario, "pk", None):
+        return Atividade.objects.none()
+    return Atividade.objects.filter(
+        evento=evento,
+        proponente=usuario,
+        situacao__in=[Atividade.SITUACAO_PENDENTE, Atividade.SITUACAO_APROVADA],
+    )
+
+
+def limite_por_proponente():
+    """Limite configurado por evento (0 = sem limite)."""
+    return int(getattr(settings, "MAX_PROPOSTAS_POR_PROPONENTE", 0) or 0)
+
+
+def restantes_para_propor(usuario, evento):
+    """Quantas propostas ainda cabem para esta pessoa (None = sem limite)."""
+    limite = limite_por_proponente()
+    if limite <= 0:
+        return None
+    return max(0, limite - propostas_ativas_de(usuario, evento).count())
+
+
 def nomes_conhecidos():
     """Nomes de espaço que o sistema já usa (catálogo + locais das atividades).
 
@@ -209,6 +236,14 @@ def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
     chamada = chamada_de(evento)
     if not (chamada and chamada.esta_aberta(agora)):
         raise PropostaBloqueada(motivo_fechada(evento, agora))
+
+    restantes = restantes_para_propor(usuario, evento)
+    if restantes is not None and restantes <= 0:
+        raise PropostaBloqueada(
+            f"Você já tem {propostas_ativas_de(usuario, evento).count()} propostas "
+            f"neste evento (limite de {limite_por_proponente()}). "
+            "Cancele uma para propor outra."
+        )
 
     if vaga is None or vaga.evento_id != evento.pk:
         raise PropostaBloqueada("Escolha uma vaga da grade de oferta do evento.")

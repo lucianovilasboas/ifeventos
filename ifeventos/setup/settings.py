@@ -455,6 +455,14 @@ AGENDA_ALIASES_LOCAL = {
     "Laboratório de Informática 1": "Laboratório de Informática",
 }
 
+# ---------------------------------------------------------------------------
+# Chamada de proposições de atividades
+# ---------------------------------------------------------------------------
+# Quantas propostas ATIVAS (aguardando aprovação ou já aprovadas) cada pessoa
+# pode manter por evento. 0 = sem limite. É um limite lógico, para conter abuso
+# — não há constraint no banco, então dois envios simultâneos podem passar de 1.
+MAX_PROPOSTAS_POR_PROPONENTE = config("MAX_PROPOSTAS_POR_PROPONENTE", default=0, cast=int)
+
 # Ao confirmar o e-mail (botão na página do link), o usuário já sai logado.
 # Sem isto ele confirma e volta para a tela de login, o que na prática faz
 # muita gente achar que a confirmação não funcionou.

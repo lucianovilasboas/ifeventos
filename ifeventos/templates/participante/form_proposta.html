@@ -27,6 +27,17 @@
 
 <div class="app-panel">
 
+    {% if restantes is not None %}
+    <div class="alert {% if restantes %}alert-info{% else %}alert-warning{% endif %}">
+        {% if restantes %}
+        Você ainda pode enviar {{ restantes }} proposta{{ restantes|pluralize }} neste evento.
+        {% else %}
+        Você atingiu o limite de propostas neste evento. Cancele uma em
+        <a href="{% url 'participante:minhas_propostas' %}">Minhas propostas</a> para enviar outra.
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if form.errors %}
     <div class="alert alert-danger">
         <strong>Confira os campos:</strong>

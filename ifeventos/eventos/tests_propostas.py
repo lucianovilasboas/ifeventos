@@ -8,7 +8,7 @@ aprovação/rejeição/cancelamento), a invisibilidade pública das propostas
 from datetime import datetime, time, timedelta
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -693,3 +693,147 @@ class CatalogoDeEspacosTests(BasePropostasTests):
         proposta = Atividade.objects.get(titulo="Mesa-redonda")
         self.assertEqual(proposta.palestrantes.count(), 3)
         self.assertIn(self.pessoa, proposta.palestrantes.all())
+
+
+class LimiteDePropostasTests(BasePropostasTests):
+    """Limite de propostas ativas por pessoa em cada evento (0 = sem limite)."""
+
+    def _outra_vaga(self):
+        return self._vaga(self.fim, self.fim + timedelta(hours=2))
+
+    @override_settings(MAX_PROPOSTAS_POR_PROPONENTE=0)
+    def test_sem_limite_por_padrao(self):
+        self._propor()
+
+        proposta = self._propor(vaga=self._outra_vaga(), titulo="Segunda")
+
+        self.assertEqual(proposta.situacao, Atividade.SITUACAO_PENDENTE)
+
+    @override_settings(MAX_PROPOSTAS_POR_PROPONENTE=1)
+    def test_limite_bloqueia_a_segunda(self):
+        self._propor()
+
+        with self.assertRaises(PropostaBloqueada) as contexto:
+            self._propor(vaga=self._outra_vaga(), titulo="Segunda")
+
+        self.assertIn("limite de 1", str(contexto.exception))
+
+    @override_settings(MAX_PROPOSTAS_POR_PROPONENTE=1)
+    def test_rejeitada_libera_o_limite(self):
+        proposta = self._propor()
+        propostas.rejeitar(proposta, self.org, "Fora do escopo.")
+
+        nova = self._propor(vaga=self._outra_vaga(), titulo="Segunda")
+
+        self.assertEqual(nova.situacao, Atividade.SITUACAO_PENDENTE)
+
+    @override_settings(MAX_PROPOSTAS_POR_PROPONENTE=2)
+    def test_restantes_para_propor(self):
+        self.assertEqual(
+            propostas.restantes_para_propor(self.pessoa, self.evento), 2
+        )
+
+        self._propor()
+
+        self.assertEqual(
+            propostas.restantes_para_propor(self.pessoa, self.evento), 1
+        )
+
+    @override_settings(MAX_PROPOSTAS_POR_PROPONENTE=1)
+    def test_formulario_avisa_o_limite(self):
+        self.client.force_login(self.pessoa)
+
+        html = self.client.get(
+            reverse("participante:propor_atividade", args=[self.evento.id])
+        ).content.decode()
+
+        self.assertIn("ainda pode enviar 1 proposta", html)
+
+
+class EdicaoDeEspacoTests(BasePropostasTests):
+    """O catálogo de espaços pode ser editado (nome e capacidade) pelo modal."""
+
+    def _url_editar(self):
+        return reverse("organizador:editar_espaco", args=[self.evento.id, self.espaco.id])
+
+    def test_organizador_edita_nome_e_capacidade(self):
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(
+            self._url_editar(),
+            {"espaco_modal-nome": "Auditório Nobre", "espaco_modal-capacidade": 200},
+        )
+
+        self.assertRedirects(
+            resposta,
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id]),
+        )
+        self.espaco.refresh_from_db()
+        self.assertEqual(self.espaco.nome, "Auditório Nobre")
+        self.assertEqual(self.espaco.capacidade, 200)
+
+    def test_editar_para_nome_existente_e_recusado(self):
+        Espaco.objects.create(nome="Quadra", capacidade=50)
+        self.client.force_login(self.org)
+
+        self.client.post(
+            self._url_editar(),
+            {"espaco_modal-nome": "quadra", "espaco_modal-capacidade": 10},
+        )
+
+        self.espaco.refresh_from_db()
+        self.assertEqual(self.espaco.nome, "Auditório")
+        self.assertEqual(self.espaco.capacidade, 40)
+
+    def test_cartao_traz_os_dados_do_modal_de_edicao(self):
+        self.client.force_login(self.org)
+
+        html = self.client.get(
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id])
+        ).content.decode()
+
+        self.assertIn('id="modalEspaco"', html)
+        self.assertIn(f'data-acao="{self._url_editar()}"', html)
+        self.assertIn('data-nome="Auditório"', html)
+        self.assertIn('data-capacidade="40"', html)
+        self.assertIn('id="id_espaco_modal-nome"', html)
+        # O formulário de edição não pode disputar id com o de "adicionar".
+        self.assertIn('id="id_espaco-nome"', html)
+
+    def test_formulario_de_espaco_abre_por_parametro(self):
+        self.client.force_login(self.org)
+
+        html = self.client.get(
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id])
+            + "?abrir=espaco"
+        ).content.decode()
+
+        self.assertIn('id="formEspaco"', html)
+        self.assertIn("collapse show", html)
+
+    def test_erro_ao_adicionar_reabre_o_formulario(self):
+        Espaco.objects.create(nome="Quadra", capacidade=50)
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(
+            reverse("organizador:adicionar_espaco", args=[self.evento.id]),
+            {"espaco-nome": "quadra", "espaco-capacidade": 10},
+        )
+
+        self.assertIn("?abrir=espaco#espacos", resposta["Location"])
+        self.assertEqual(Espaco.objects.count(), 2)
+
+    def test_quem_nao_gerencia_nao_edita(self):
+        outro = U.objects.create_user(
+            email="ninguem2@example.com", password=SENHA, cpf="39053344705"
+        )
+        self.client.force_login(outro)
+
+        resposta = self.client.post(
+            self._url_editar(),
+            {"espaco_modal-nome": "Hackeado", "espaco_modal-capacidade": 1},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.espaco.refresh_from_db()
+        self.assertEqual(self.espaco.nome, "Auditório")
