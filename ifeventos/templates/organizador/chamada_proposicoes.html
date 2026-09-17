@@ -1,4 +1,5 @@
 {% extends 'dashboard_base.html' %}
+{% load static %}
 
 {% block title %}Chamada de propostas | {{ evento.title }}{% endblock %}
 
@@ -83,9 +84,18 @@
     </div>
 
     {% if espacos %}
+    <div data-busca-lista>
+        {# A busca só aparece quando a lista já é longa o bastante para precisar dela. #}
+        {% if espacos|length > 6 %}
+        <div class="busca-lista">
+            <input type="search" data-busca placeholder="Buscar espaço pelo nome"
+                   aria-label="Buscar espaço pelo nome">
+        </div>
+        {% endif %}
+
     <div class="mb-3">
         {% for espaco in espacos %}
-        <div class="app-item" id="espaco-{{ espaco.id }}">
+        <div class="app-item" id="espaco-{{ espaco.id }}" data-busca-item>
             <div class="dot" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">
                 <i class="fa-solid fa-door-open"></i>
             </div>
@@ -117,6 +127,13 @@
             </div>
         </div>
         {% endfor %}
+    </div>
+
+        {% if espacos|length > 6 %}
+        <p class="busca-vazio" data-busca-vazio style="display:none">
+            Nenhum espaço encontrado com esse termo.
+        </p>
+        {% endif %}
     </div>
     {% else %}
     <p class="text-muted">Catálogo vazio — sem espaço não há vaga na grade.</p>
@@ -413,6 +430,8 @@
 {% endblock %}
 
 {% block scripts %}
+{# Busca na lista de espaços (cliente, ignora acento/caixa). #}
+<script src="{% static 'js/lista_busca.js' %}?v={{ ASSET_VERSION }}"></script>
 <script>
 (function () {
     // Um único modal para editar qualquer espaço: os dados do cartão chegam por

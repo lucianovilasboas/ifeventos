@@ -4,6 +4,9 @@ from .models import Evento
 from .models import Participante
 from .models import Atividade
 from .models import TipoAtividade
+from .models import ChamadaProposicoes
+from .models import Espaco
+from .models import Vaga
 from .models import Inscricao
 from .models import Certificado
 from .models import PresencaCancelada
@@ -123,8 +126,8 @@ class AtividadeAdmin(admin.ModelAdmin):
     get_participantes.short_description = "Participante(s)"    
     vagas_disponiveis.short_description = "# Vagas Disponíveis"
 
-    list_display = ('titulo', 'evento', 'codigo_confirmacao', 'get_palestrantes','get_participantes','vagas_disponiveis', 'tipo', 'n_vagas','data_hora_inicio','data_hora_inicio',)
-    list_filter = ('evento', 'tipo', 'data_hora_inicio')
+    list_display = ('titulo', 'evento', 'situacao', 'proponente', 'codigo_confirmacao', 'get_palestrantes','get_participantes','vagas_disponiveis', 'tipo', 'n_vagas','data_hora_inicio','data_hora_inicio',)
+    list_filter = ('evento', 'tipo', 'situacao', 'publicada', 'data_hora_inicio')
     search_fields = ('titulo', 'descricao', 'tipo')
     date_hierarchy = 'data_hora_inicio'
     ordering = ('data_hora_inicio',)
@@ -142,6 +145,40 @@ class AtividadeAdmin(admin.ModelAdmin):
 
     actions = [duplicar_atividades]  # Adicionando ações personalizadas
 
+
+
+@admin.register(Espaco)
+class EspacoAdmin(admin.ModelAdmin):
+    """Catálogo de espaços da escola (compartilhado pelos eventos)."""
+
+    list_display = ('nome', 'capacidade', 'id')
+    search_fields = ('nome',)
+    ordering = ('nome',)
+
+
+@admin.register(ChamadaProposicoes)
+class ChamadaProposicoesAdmin(admin.ModelAdmin):
+    """Período de proposições do evento."""
+
+    list_display = ('evento', 'titulo', 'inicio', 'fim', 'aberta')
+    list_filter = ('aberta', 'evento')
+    search_fields = ('evento__title', 'titulo')
+    ordering = ('-inicio',)
+
+
+@admin.register(Vaga)
+class VagaAdmin(admin.ModelAdmin):
+    """Grade de oferta: o que o proponente pode reservar."""
+
+    def get_ocupadas(self, obj):
+        return obj.ocupadas
+
+    get_ocupadas.short_description = "Ocupadas"
+
+    list_display = ('espaco', 'evento', 'inicio', 'fim', 'capacidade', 'get_ocupadas')
+    list_filter = ('evento', 'espaco')
+    search_fields = ('espaco__nome', 'evento__title')
+    ordering = ('inicio',)
 
 
 @admin.register(TipoAtividade)

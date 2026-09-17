@@ -456,6 +456,9 @@ class VagaForm(forms.ModelForm):
         # que faz "Auditório" ser o mesmo lugar em todos os eventos.
         self.evento = evento
         self.fields["espaco"].queryset = Espaco.objects.all()
+        # Sem a opção vazia: o espaço é obrigatório e o catálogo já está
+        # selecionado no primeiro item (o "---------" só poluía o select).
+        self.fields["espaco"].empty_label = None
         if not Espaco.objects.exists():
             self.fields["espaco"].help_text = (
                 "Cadastre um espaço antes de criar vagas."
