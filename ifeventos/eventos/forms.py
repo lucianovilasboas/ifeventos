@@ -1,6 +1,8 @@
 import re
 from datetime import date, time
 
+from django.utils import timezone
+
 from django import forms
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
@@ -452,6 +454,7 @@ class VagaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # O espaço vem do catálogo da escola (não é exclusivo do evento): é o
         # que faz "Auditório" ser o mesmo lugar em todos os eventos.
+        self.evento = evento
         self.fields["espaco"].queryset = Espaco.objects.all()
         if not Espaco.objects.exists():
             self.fields["espaco"].help_text = (
@@ -463,6 +466,45 @@ class VagaForm(forms.ModelForm):
         inicio, fim = dados.get("inicio"), dados.get("fim")
         if inicio and fim and fim <= inicio:
             self.add_error("fim", "O término precisa ser depois do início.")
+            return dados
+
+        if inicio and self.evento is not None:
+            dia = timezone.localtime(inicio).date()
+            if not (self.evento.data_inicio <= dia <= self.evento.data_fim):
+                self.add_error(
+                    "inicio", "O dia da vaga precisa estar dentro do período do evento."
+                )
+
+        espaco = dados.get("espaco")
+        if espaco and inicio and fim:
+            # A constraint é global (a sala não pode ter duas vagas idênticas):
+            # aqui a mensagem sai legível em vez do erro cru do banco.
+            repetida = Vaga.objects.filter(espaco=espaco, inicio=inicio, fim=fim)
+            if self.instance.pk:
+                repetida = repetida.exclude(pk=self.instance.pk)
+            if repetida.exists():
+                self.add_error(
+                    "inicio", "Já existe uma vaga deste espaço nessa janela."
+                )
+
+        if self.instance.pk and self.instance.tem_propostas_ativas:
+            ocupadas = self.instance.ocupadas
+            capacidade = dados.get("capacidade")
+            if capacidade is not None and capacidade < ocupadas:
+                self.add_error(
+                    "capacidade",
+                    f"Esta vaga tem {ocupadas} proposta(s) ativa(s): a capacidade "
+                    "não pode ficar menor que isso.",
+                )
+            for campo, novo in (
+                ("espaco", espaco), ("inicio", inicio), ("fim", fim),
+            ):
+                if novo is not None and novo != getattr(self.instance, campo):
+                    self.add_error(
+                        campo,
+                        "Esta vaga já tem proposta: espaço e horário ficam "
+                        "travados (a reserva da proposta depende deles).",
+                    )
         return dados
 
 

@@ -490,8 +490,8 @@ class TelasDoOrganizadorTests(BasePropostasTests):
             reverse("organizador:adicionar_vaga", args=[self.evento.id]),
             {
                 "vaga-espaco": espaco.pk,
-                "vaga-inicio": "2026-10-05T14:00",
-                "vaga-fim": "2026-10-05T16:00",
+                "vaga-inicio": f"{self.evento.data_inicio.isoformat()}T14:00",
+                "vaga-fim": f"{self.evento.data_inicio.isoformat()}T16:00",
                 "vaga-capacidade": 1,
             },
         )
@@ -954,3 +954,275 @@ class GradeEmLoteTests(BasePropostasTests):
 
         self.assertEqual(resposta.status_code, 403)
         self.assertEqual(self._total(), 1)
+
+
+class EdicaoDeVagaTests(BasePropostasTests):
+    """A vaga da grade pode ser editada (modal), com travas quando há proposta."""
+
+    def _url(self, vaga=None):
+        return reverse(
+            "organizador:editar_vaga",
+            args=[self.evento.id, (vaga or self.vaga).id],
+        )
+
+    def _dados(self, **extra):
+        inicio = extra.pop("inicio", self.vaga.inicio)
+        fim = extra.pop("fim", self.vaga.fim)
+        dados = {
+            "vaga_modal-espaco": self.vaga.espaco_id,
+            "vaga_modal-inicio": inicio.strftime("%Y-%m-%dT%H:%M"),
+            "vaga_modal-fim": fim.strftime("%Y-%m-%dT%H:%M"),
+            "vaga_modal-capacidade": self.vaga.capacidade,
+        }
+        dados.update(extra)
+        return dados
+
+    def test_organizador_edita_espaco_janela_e_capacidade(self):
+        outro = Espaco.objects.create(nome="Quadra", capacidade=50)
+        novo_inicio = self.inicio + timedelta(days=1)
+        novo_fim = self.fim + timedelta(days=1)
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{
+                "vaga_modal-espaco": outro.pk,
+                "vaga_modal-inicio": novo_inicio.strftime("%Y-%m-%dT%H:%M"),
+                "vaga_modal-fim": novo_fim.strftime("%Y-%m-%dT%H:%M"),
+                "vaga_modal-capacidade": 2,
+            }
+        ))
+
+        self.assertRedirects(
+            resposta,
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id]),
+        )
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.espaco, outro)
+        self.assertEqual(self.vaga.inicio, novo_inicio)
+        self.assertEqual(self.vaga.capacidade, 2)
+
+    def test_recusa_dia_fora_do_evento(self):
+        fora = datetime.combine(
+            self.evento.data_fim + timedelta(days=1), time(14, 0)
+        )
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{"vaga_modal-inicio": fora.strftime("%Y-%m-%dT%H:%M"),
+               "vaga_modal-fim": (fora + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")}
+        ))
+
+        self.assertIn("?abrir=vaga#vagas", resposta["Location"])
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.inicio, self.inicio)
+
+    def test_recusa_janela_duplicada_no_mesmo_espaco(self):
+        ja_existe = self._vaga(self.fim, self.fim + timedelta(hours=2))
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{"vaga_modal-inicio": ja_existe.inicio.strftime("%Y-%m-%dT%H:%M"),
+               "vaga_modal-fim": ja_existe.fim.strftime("%Y-%m-%dT%H:%M")}
+        ))
+
+        self.assertIn("?abrir=vaga#vagas", resposta["Location"])
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.inicio, self.inicio)
+
+    def test_inicio_depois_do_fim_e_recusado(self):
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{"vaga_modal-fim": self.inicio.strftime("%Y-%m-%dT%H:%M")}
+        ))
+
+        self.assertIn("?abrir=vaga#vagas", resposta["Location"])
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.fim, self.fim)
+
+    def test_bloqueia_espaco_e_horario_com_proposta_ativa(self):
+        self._propor()  # proposta pendente nesta vaga
+        outro = Espaco.objects.create(nome="Quadra", capacidade=50)
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{"vaga_modal-espaco": outro.pk}
+        ))
+
+        self.assertIn("?abrir=vaga#vagas", resposta["Location"])
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.espaco, self.espaco)
+
+    def test_permite_mudar_capacidade_com_proposta_ativa(self):
+        self._propor()
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{"vaga_modal-capacidade": 3}
+        ))
+
+        self.assertRedirects(
+            resposta,
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id]),
+        )
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.capacidade, 3)
+
+    def test_recusa_capacidade_menor_que_as_propostas_ativas(self):
+        self.vaga.capacidade = 2
+        self.vaga.save(update_fields=["capacidade"])
+        self._propor(vaga=self.vaga, titulo="A")
+        self._propor(vaga=self.vaga, titulo="B")
+        self.client.force_login(self.org)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{"vaga_modal-capacidade": 1}
+        ))
+
+        self.assertIn("?abrir=vaga#vagas", resposta["Location"])
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.capacidade, 2)
+
+    def test_cartao_traz_os_dados_do_modal(self):
+        self.client.force_login(self.org)
+
+        html = self.client.get(
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id])
+        ).content.decode()
+
+        self.assertIn('id="modalVaga"', html)
+        self.assertIn(f'data-acao="{self._url()}"', html)
+        self.assertIn(f'data-espaco="{self.espaco.pk}"', html)
+        self.assertIn('data-capacidade="1"', html)
+        self.assertIn('id="id_vaga_modal-espaco"', html)
+        self.assertIn('id="id_vaga_modal-inicio"', html)
+
+    def test_quem_nao_gerencia_nao_edita(self):
+        outro = U.objects.create_user(
+            email="ninguem4@example.com", password=SENHA, cpf="39053344705"
+        )
+        self.client.force_login(outro)
+
+        resposta = self.client.post(self._url(), self._dados(
+            **{"vaga_modal-capacidade": 9}
+        ))
+
+        self.assertEqual(resposta.status_code, 403)
+        self.vaga.refresh_from_db()
+        self.assertEqual(self.vaga.capacidade, 1)
+
+
+class PainelDaChamadaTests(BasePropostasTests):
+    """Resumo/indicadores da chamada (`propostas.resumo`) e a tela do painel."""
+
+    def _tres_propostas(self):
+        """Uma proposta em cada situação (pendente, aprovada, rejeitada)."""
+        segunda = self._vaga(self.fim, self.fim + timedelta(hours=2))
+        terceira = self._vaga(self.fim + timedelta(hours=2), self.fim + timedelta(hours=4))
+        pendente = self._propor(titulo="Pendente")
+        aprovada = self._propor(vaga=segunda, titulo="Aprovada")
+        rejeitada = self._propor(vaga=terceira, titulo="Rejeitada")
+        propostas.aprovar(aprovada, self.org)
+        propostas.rejeitar(rejeitada, self.org, "Fora do escopo.")
+        return pendente, aprovada, rejeitada
+
+    def _kpi(self, resumo, rotulo):
+        return next(k["valor"] for k in resumo["kpis"] if k["rotulo"] == rotulo)
+
+    def test_resumo_conta_por_situacao_e_taxa(self):
+        self._tres_propostas()
+
+        resumo = propostas.resumo(self.evento)
+
+        self.assertEqual(self._kpi(resumo, "Propostas"), 3)
+        self.assertEqual(self._kpi(resumo, "Aguardando"), 1)
+        self.assertEqual(self._kpi(resumo, "Aprovadas"), 1)
+        self.assertEqual(self._kpi(resumo, "Rejeitadas"), 1)
+        self.assertEqual(self._kpi(resumo, "Taxa de aprovação"), 50)
+
+    def test_resumo_vagas_e_ocupacao(self):
+        self._tres_propostas()
+
+        resumo = propostas.resumo(self.evento)
+
+        self.assertEqual(self._kpi(resumo, "Vagas na grade"), 3)
+        # Rejeitada libera a vaga: das 3, duas seguem ocupadas (pendente e aprovada).
+        self.assertEqual(self._kpi(resumo, "Vagas livres"), 1)
+        self.assertEqual(self._kpi(resumo, "Ocupação da grade"), 67)
+        self.assertEqual(len(resumo["vagas_livres"]), 1)
+        bloco = resumo["por_espaco"][0]
+        self.assertEqual(bloco["espaco"], self.espaco)
+        self.assertEqual(bloco["total"], 3)
+        self.assertEqual(bloco["livres"], 1)
+
+    def test_resumo_aponta_a_proposta_de_cada_vaga(self):
+        self._tres_propostas()
+
+        resumo = propostas.resumo(self.evento)
+
+        titulos = {
+            item["proposta"].titulo
+            for bloco in resumo["por_espaco"] for item in bloco["vagas"]
+            if item["proposta"]
+        }
+        # Só o que ocupa a vaga aparece: a rejeitada devolveu a janela à grade.
+        self.assertEqual(titulos, {"Pendente", "Aprovada"})
+
+    def test_capacidade_dois_conta_como_uma_vaga(self):
+        self.vaga.capacidade = 2
+        self.vaga.save(update_fields=["capacidade"])
+
+        self._propor(titulo="Primeira")
+        resumo = propostas.resumo(self.evento)
+        self.assertEqual(self._kpi(resumo, "Vagas livres"), 1)
+        self.assertEqual(len(resumo["vagas_livres"]), 1)
+
+        outra = U.objects.create_user(
+            email="outra_painel@example.com", password=SENHA, cpf="39053344705"
+        )
+        propostas.propor(
+            outra, self.evento, vaga=self.vaga, titulo="Segunda",
+            descricao="d", tipo=self.tipo,
+        )
+        resumo = propostas.resumo(self.evento)
+        self.assertEqual(self._kpi(resumo, "Vagas livres"), 0)
+        self.assertEqual(self._kpi(resumo, "Ocupação da grade"), 100)
+
+    def test_painel_responde_com_os_indicadores(self):
+        self._tres_propostas()
+        self.client.force_login(self.org)
+
+        resposta = self.client.get(
+            reverse("organizador:chamada_painel", args=[self.evento.id])
+        )
+        html = resposta.content.decode()
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(len(resposta.context["kpis"]), 8)
+        self.assertIn("Painel da chamada", html)
+        self.assertIn("Taxa de aprovação", html)
+        self.assertIn("Ocupação por espaço", html)
+        self.assertIn("Aprovada", html)
+
+    def test_painel_403_para_quem_nao_gerencia(self):
+        outro = U.objects.create_user(
+            email="ninguem5@example.com", password=SENHA, cpf="39053344705"
+        )
+        self.client.force_login(outro)
+
+        resposta = self.client.get(
+            reverse("organizador:chamada_painel", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_link_do_painel_no_cabecalho_da_chamada(self):
+        self.client.force_login(self.org)
+
+        html = self.client.get(
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id])
+        ).content.decode()
+
+        self.assertIn(
+            reverse("organizador:chamada_painel", args=[self.evento.id]), html
+        )

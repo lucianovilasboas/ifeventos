@@ -583,6 +583,15 @@ class Vaga(models.Model):
         return self.propostas_ativas().count()
 
     @property
+    def tem_propostas_ativas(self):
+        """Há proposta pendente/aprovada nesta vaga?
+
+        É o que trava mudar espaço/horário: a proposta copiou a janela e o
+        local quando foi enviada, então mexer na vaga desmancharia a reserva.
+        """
+        return self.propostas_ativas().exists()
+
+    @property
     def vagas_restantes(self):
         return max(0, self.capacidade - self.ocupadas)
 

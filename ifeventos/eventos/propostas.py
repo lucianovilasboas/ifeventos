@@ -512,6 +512,103 @@ def contagem_pendentes(eventos):
     return pendentes(eventos).count()
 
 
+def resumo(evento):
+    """Números da chamada para o painel do organizador.
+
+    Função pura (só consulta) para a tela e os testes contarem a mesma coisa:
+    indicadores, propostas por situação, ocupação por espaço e vagas livres.
+    """
+    vagas = list(evento.vagas.select_related("espaco").all())
+    propostas = list(
+        Atividade.objects.filter(evento=evento, proponente__isnull=False)
+        .select_related("proponente", "vaga", "vaga__espaco")
+        .order_by("-date_created", "-id")
+    )
+    total = len(propostas)
+
+    def quantas(situacao):
+        return sum(1 for proposta in propostas if proposta.situacao == situacao)
+
+    pendentes = quantas(Atividade.SITUACAO_PENDENTE)
+    aprovadas = quantas(Atividade.SITUACAO_APROVADA)
+    rejeitadas = quantas(Atividade.SITUACAO_REJEITADA)
+    decididas = aprovadas + rejeitadas
+
+    def fatia(quantidade):
+        return round(100 * quantidade / total) if total else 0
+
+    total_vagas = len(vagas)
+    livres = [vaga for vaga in vagas if vaga.livre]
+    ocupadas = total_vagas - len(livres)
+
+    kpis = [
+        {"rotulo": "Propostas", "valor": total, "icone": "fa-solid fa-lightbulb"},
+        {"rotulo": "Aguardando", "valor": pendentes,
+         "icone": "fa-solid fa-hourglass-half"},
+        {"rotulo": "Aprovadas", "valor": aprovadas,
+         "icone": "fa-solid fa-circle-check"},
+        {"rotulo": "Rejeitadas", "valor": rejeitadas,
+         "icone": "fa-solid fa-circle-xmark"},
+        {"rotulo": "Taxa de aprovação",
+         "valor": round(100 * aprovadas / decididas) if decididas else 0,
+         "sufixo": "%", "icone": "fa-solid fa-percent"},
+        {"rotulo": "Vagas na grade", "valor": total_vagas,
+         "icone": "fa-regular fa-clock"},
+        {"rotulo": "Vagas livres", "valor": len(livres),
+         "icone": "fa-solid fa-lock-open"},
+        {"rotulo": "Ocupação da grade",
+         "valor": round(100 * ocupadas / total_vagas) if total_vagas else 0,
+         "sufixo": "%", "icone": "fa-solid fa-gauge-high"},
+    ]
+
+    por_status = [
+        {"rotulo": "Aguardando aprovação", "total": pendentes,
+         "percentual": fatia(pendentes), "cor": "#f59e0b"},
+        {"rotulo": "Aprovadas", "total": aprovadas,
+         "percentual": fatia(aprovadas), "cor": "var(--accent)"},
+        {"rotulo": "Rejeitadas", "total": rejeitadas,
+         "percentual": fatia(rejeitadas), "cor": "#b91c1c"},
+    ]
+
+    por_espaco = {}
+    for vaga in vagas:
+        bloco = por_espaco.setdefault(
+            vaga.espaco_id,
+            {"espaco": vaga.espaco, "total": 0, "livres": 0, "vagas": []},
+        )
+        bloco["total"] += 1
+        if vaga.livre:
+            bloco["livres"] += 1
+        bloco["vagas"].append({
+            "vaga": vaga,
+            "proposta": next(
+                (
+                    proposta for proposta in propostas
+                    if proposta.vaga_id == vaga.pk
+                    and proposta.situacao in (
+                        Atividade.SITUACAO_PENDENTE, Atividade.SITUACAO_APROVADA,
+                    )
+                ),
+                None,
+            ),
+        })
+
+    return {
+        "kpis": kpis,
+        "por_status": por_status,
+        "por_espaco": sorted(
+            por_espaco.values(), key=lambda bloco: sem_acento(bloco["espaco"].nome)
+        ),
+        "vagas_livres": livres,
+        "propostas": propostas,
+        "total_propostas": total,
+        "total_vagas": total_vagas,
+        "chamada": chamada_de(evento),
+        "aberta": esta_aberta(evento),
+        "situacao": situacao(evento),
+    }
+
+
 def eventos_do_organizador(usuario):
     """Eventos que este usuário gerencia (os mesmos do painel do organizador)."""
     from .models import Evento

@@ -1,0 +1,207 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Painel da chamada | {{ evento.title }}{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        <i class="fa-solid fa-gauge-high"></i> Painel da chamada · <b>{{ evento.title }}</b>
+        {% if aberta %}
+        <span class="badge text-bg-success">aberta</span>
+        {% else %}
+        <span class="badge text-bg-secondary">fechada</span>
+        {% endif %}
+    </span>
+    <div class="d-flex gap-2">
+        <a href="{% url 'organizador:chamada_proposicoes' evento.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="fa-solid fa-bullhorn"></i> Chamada e grade
+        </a>
+        <a href="{% url 'organizador:propostas_pendentes' evento.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="fa-solid fa-inbox"></i> Propostas
+        </a>
+        <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+{% endblock action %}
+
+{% block content %}
+
+<p class="text-muted mb-3">
+    {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }} · {{ situacao }}
+</p>
+
+<!-- Indicadores -->
+<div class="row row-cols-2 row-cols-md-4 g-2 g-md-3 mb-3">
+    {% for k in kpis %}
+    <div class="col">
+        <div class="kpi-card">
+            <i class="{{ k.icone }}"></i>
+            <div>
+                <span class="kpi-valor">{{ k.valor }}{{ k.sufixo|default:"" }}</span>
+                <span class="kpi-rotulo">{{ k.rotulo }}</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-3">
+    <!-- Propostas por situação -->
+    <div class="col-12 col-lg-5">
+        <div class="painel-grafico h-100">
+            <h6>Propostas por situação</h6>
+            {% if total_propostas %}
+            {% for linha in por_status %}
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>{{ linha.rotulo }}</span>
+                    <b>{{ linha.total }} <span class="text-muted">({{ linha.percentual }}%)</span></b>
+                </div>
+                <div class="app-bar">
+                    <span style="width:{{ linha.percentual }}%;background:{{ linha.cor }}"></span>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted mb-0">
+                Nenhuma proposta recebida ainda. O banner da home leva os
+                participantes direto para o formulário enquanto a chamada estiver aberta.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Ocupação por espaço -->
+    <div class="col-12 col-lg-7">
+        <div class="painel-grafico h-100">
+            <h6>Ocupação por espaço</h6>
+            {% for bloco in por_espaco %}
+            <div class="{% if not forloop.last %}mb-3{% endif %}">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <b>{{ bloco.espaco.nome }}</b>
+                    <span class="badge-app">
+                        {{ bloco.total }} vaga(s) · {{ bloco.livres }} livre(s)
+                    </span>
+                </div>
+                <ul class="list-unstyled mb-0 mt-1">
+                    {% for item in bloco.vagas %}
+                    <li class="d-flex justify-content-between align-items-center gap-2 py-1"
+                        style="border-top:1px solid var(--border)">
+                        <span>
+                            {{ item.vaga.inicio|date:"d/m H:i" }}–{{ item.vaga.fim|date:"H:i" }}
+                            {% if item.vaga.capacidade > 1 %}
+                            <span class="text-muted">({{ item.vaga.ocupadas }}/{{ item.vaga.capacidade }})</span>
+                            {% endif %}
+                        </span>
+                        {% if item.proposta %}
+                        <span class="text-end">
+                            {{ item.proposta.titulo }}
+                            {% if item.proposta.situacao == 'pendente' %}
+                            <span class="badge text-bg-warning">aguardando</span>
+                            {% else %}
+                            <span class="badge text-bg-success">aprovada</span>
+                            {% endif %}
+                        </span>
+                        {% else %}
+                        <span class="text-muted">livre</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% empty %}
+            <p class="text-muted mb-0">
+                Nenhuma vaga na grade — monte a grade na tela da chamada.
+            </p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Vagas livres e propostas -->
+<div class="row g-3 mt-1">
+    <div class="col-12 col-lg-5">
+        <div class="painel-grafico h-100">
+            <h6>Vagas livres ({{ vagas_livres|length }})</h6>
+            {% if vagas_livres %}
+            <ul class="list-unstyled mb-0">
+                {% for vaga in vagas_livres %}
+                <li class="d-flex justify-content-between gap-2 py-1"
+                    style="border-top:1px solid var(--border)">
+                    <span>{{ vaga.espaco.nome }}</span>
+                    <span class="text-muted">
+                        {{ vaga.inicio|date:"d/m H:i" }}–{{ vaga.fim|date:"H:i" }}
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">
+                {% if total_vagas %}
+                Todas as vagas estão ocupadas por propostas.
+                {% else %}
+                A grade ainda não tem vagas.
+                {% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+        <div class="painel-grafico h-100">
+            <h6>Propostas recebidas ({{ total_propostas }})</h6>
+            {% if propostas %}
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Atividade</th>
+                            <th>Proponente</th>
+                            <th>Vaga</th>
+                            <th>Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for proposta in propostas|slice:":20" %}
+                        <tr>
+                            <td>{{ proposta.titulo }}</td>
+                            <td>
+                                {% if proposta.proponente %}
+                                {{ proposta.proponente.get_full_name }}
+                                {% else %}—{% endif %}
+                            </td>
+                            <td>
+                                {% if proposta.vaga %}
+                                {{ proposta.vaga.espaco.nome }} ·
+                                {{ proposta.vaga.inicio|date:"d/m H:i" }}
+                                {% else %}—{% endif %}
+                            </td>
+                            <td>
+                                {% if proposta.situacao == 'pendente' %}
+                                <span class="badge text-bg-warning">aguardando</span>
+                                {% elif proposta.situacao == 'aprovada' %}
+                                <span class="badge text-bg-success">aprovada</span>
+                                {% else %}
+                                <span class="badge text-bg-danger">rejeitada</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if total_propostas > 20 %}
+            <p class="text-muted mb-0 mt-2">
+                Mostrando as 20 mais recentes — a fila completa fica em "Propostas".
+            </p>
+            {% endif %}
+            {% else %}
+            <p class="text-muted mb-0">Nenhuma proposta ainda.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}

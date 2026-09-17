@@ -13,6 +13,9 @@
         {% endif %}
     </span>
     <div class="d-flex gap-2">
+        <a href="{% url 'organizador:chamada_painel' evento.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="fa-solid fa-gauge-high"></i> Painel
+        </a>
         <a href="{% url 'organizador:propostas_pendentes' evento.id %}" class="btn btn-sm btn-outline-primary">
             <i class="fa-solid fa-inbox"></i> Propostas
             {% if n_pendentes %}<span class="badge text-bg-danger">{{ n_pendentes }}</span>{% endif %}
@@ -179,18 +182,31 @@
                     {% if vaga.capacidade > 1 %}· {{ vaga.vagas_restantes }} livre(s){% endif %}
                 </p>
             </div>
-            {% if vaga.livre %}
-            <span class="badge-app" style="background:var(--accent-soft);color:var(--accent-ink)">livre</span>
-            {% else %}
-            <span class="badge-app" style="background:#fee2e2;color:#b91c1c">cheia</span>
-            {% endif %}
-            <form method="post" action="{% url 'organizador:excluir_vaga' vaga.id %}"
-                  onsubmit="return confirm('Excluir esta vaga?');">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" title="Excluir vaga">
-                    <i class="fa-solid fa-trash-can"></i>
+            <div class="d-flex gap-2 align-items-center flex-shrink-0">
+                {% if vaga.livre %}
+                <span class="badge-app" style="background:var(--accent-soft);color:var(--accent-ink)">livre</span>
+                {% else %}
+                <span class="badge-app" style="background:#fee2e2;color:#b91c1c">cheia</span>
+                {% endif %}
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        title="Editar vaga"
+                        data-bs-toggle="modal" data-bs-target="#modalVaga"
+                        data-acao="{% url 'organizador:editar_vaga' evento.id vaga.id %}"
+                        data-espaco="{{ vaga.espaco_id }}"
+                        data-inicio="{{ vaga.inicio|date:'Y-m-d' }}T{{ vaga.inicio|date:'H:i' }}"
+                        data-fim="{{ vaga.fim|date:'Y-m-d' }}T{{ vaga.fim|date:'H:i' }}"
+                        data-capacidade="{{ vaga.capacidade }}"
+                        data-ativas="{{ vaga.ocupadas }}">
+                    <i class="fa-solid fa-pen"></i>
                 </button>
-            </form>
+                <form method="post" action="{% url 'organizador:excluir_vaga' vaga.id %}"
+                      onsubmit="return confirm('Excluir esta vaga?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" title="Excluir vaga">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </form>
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -343,6 +359,57 @@
     </div>
 </div>
 
+<!-- ===================== MODAL: EDITAR VAGA ===================== -->
+<div class="modal fade" id="modalVaga" tabindex="-1" aria-hidden="true"
+     aria-labelledby="modalVagaTitulo">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalVagaTitulo">Editar vaga</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning d-none" data-aviso-ativas>
+                        Esta vaga já tem proposta: <b>espaço e horário ficam
+                        travados</b> (a reserva da proposta depende deles).
+                        Só a capacidade pode mudar.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="id_vaga_modal-espaco">{{ form_vaga_modal.espaco.label }}</label>
+                        {{ form_vaga_modal.espaco }}
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label" for="id_vaga_modal-inicio">{{ form_vaga_modal.inicio.label }}</label>
+                            {{ form_vaga_modal.inicio }}
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="id_vaga_modal-fim">{{ form_vaga_modal.fim.label }}</label>
+                            {{ form_vaga_modal.fim }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="id_vaga_modal-capacidade">{{ form_vaga_modal.capacidade.label }}</label>
+                            {{ form_vaga_modal.capacidade }}
+                            <small class="text-muted d-block">
+                                1 = exclusiva; maior permite atividades paralelas
+                                na mesma janela.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="btn btn-app btn-sm">
+                        <i class="fa-solid fa-floppy-disk"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -381,6 +448,30 @@
             });
             botao.textContent = marcar ? 'Limpar' : 'Marcar todos';
         });
+    });
+})();
+
+(function () {
+    // Modal da vaga: mesma ideia do espaço (data-*), com o aviso quando a vaga
+    // já tem proposta — a trava de espaço/horário é cobrada no servidor.
+    var modal = document.getElementById('modalVaga');
+    if (!modal) return;
+
+    modal.addEventListener('show.bs.modal', function (evento) {
+        var botao = evento.relatedTarget;
+        if (!botao) return;
+
+        modal.querySelector('form').action = botao.dataset.acao || '';
+        modal.querySelector('#id_vaga_modal-espaco').value = botao.dataset.espaco || '';
+        modal.querySelector('#id_vaga_modal-inicio').value = botao.dataset.inicio || '';
+        modal.querySelector('#id_vaga_modal-fim').value = botao.dataset.fim || '';
+        modal.querySelector('#id_vaga_modal-capacidade').value = botao.dataset.capacidade || '';
+
+        var aviso = modal.querySelector('[data-aviso-ativas]');
+        if (aviso) {
+            var ativas = parseInt(botao.dataset.ativas || '0', 10);
+            aviso.classList.toggle('d-none', !(ativas > 0));
+        }
     });
 })();
 </script>

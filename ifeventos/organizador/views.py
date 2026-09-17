@@ -697,6 +697,7 @@ def chamada_proposicoes(request, evento_id):
         # formulário de "adicionar" (os dois convivem na mesma página).
         'form_espaco_modal': EspacoForm(prefix='espaco_modal'),
         'form_vaga': VagaForm(evento=evento, prefix='vaga'),
+        'form_vaga_modal': VagaForm(evento=evento, prefix='vaga_modal'),
         'form_grade': GradeVagasForm(evento=evento, prefix='grade'),
         # `?abrir=espaco|vaga` reabre o formulário depois de um erro de validação.
         'abrir': (request.GET.get('abrir') or '').strip(),
@@ -844,6 +845,29 @@ def gerar_grade_lote(request, evento_id):
 
 @login_required(login_url='/accounts/login/')
 @require_POST
+def editar_vaga(request, evento_id, vaga_id):
+    """Edita uma vaga da grade (espaço, janela e capacidade).
+
+    Vaga com proposta pendente/aprovada fica com espaço e horário travados — a
+    proposta copiou a janela ao ser enviada (a trava é do `VagaForm`).
+    """
+    evento = _evento_gerenciavel(request, evento_id)
+    vaga = get_object_or_404(Vaga, id=vaga_id, evento=evento)
+    form = VagaForm(request.POST, instance=vaga, evento=evento, prefix='vaga_modal')
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Vaga atualizada: {vaga}.")
+        return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+    messages.error(request, f"Confira a vaga: {_erros_do_form(form)}")
+    return redirect(
+        reverse('organizador:chamada_proposicoes', args=[evento.id])
+        + "?abrir=vaga#vagas"
+    )
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
 def excluir_vaga(request, vaga_id):
     """Remove uma vaga — só se não houver proposta ativa reservando-a."""
     vaga = get_object_or_404(Vaga, id=vaga_id)
@@ -858,6 +882,16 @@ def excluir_vaga(request, vaga_id):
         vaga.delete()
         messages.success(request, "Vaga removida.")
     return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
+
+
+@login_required(login_url='/accounts/login/')
+def chamada_painel(request, evento_id):
+    """Painel de acompanhamento da chamada (só leitura)."""
+    evento = _evento_gerenciavel(request, evento_id)
+    return render(request, 'organizador/chamada_painel.html', {
+        'evento': evento,
+        **propostas.resumo(evento),
+    })
 
 
 @login_required(login_url='/accounts/login/')
