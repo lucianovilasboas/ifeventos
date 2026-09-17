@@ -89,6 +89,26 @@ eventos.
                                 {% else %}
                                 <span class="chip-vagas chip-lotado"><i class="fa-solid fa-ban"></i> Lotado</span>
                                 {% endif %}
+                                {% comment %}
+                                Ações do organizador na grade. Só aparecem quando quem
+                                incluiu o partial liga `mostrar_acoes` — a programação
+                                pública e o painel do participante usam o MESMO partial.
+                                {% endcomment %}
+                                {% if mostrar_acoes %}
+                                <span class="chip-acoes">
+                                    <a href="{% url 'organizador:criar_editar_atividade_editar' a.evento_id a.id %}"
+                                       class="chip-acao" title="Editar atividade"
+                                       aria-label="Editar {{ a.titulo }}">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </a>
+                                    <a href="{% url 'organizador:excluir_atividade' a.id %}"
+                                       class="chip-acao chip-acao-excluir" title="Excluir atividade"
+                                       aria-label="Excluir {{ a.titulo }}"
+                                       onclick="return confirm('Tem certeza que deseja excluir esta atividade?');">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </a>
+                                </span>
+                                {% endif %}
                             </div>
                             {% endfor %}
                             {% if grupo.list|length > 3 %}

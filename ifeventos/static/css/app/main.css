@@ -1315,6 +1315,22 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 .chip-fav:hover { color: #f59e0b; }
 .chip-fav.is-fav { color: #f59e0b; }
 
+/* Ações do organizador no chip da grade (editar/excluir). Só o painel do
+   organizador liga `mostrar_acoes` no include — nas outras telas não existem. */
+.agenda-chip .chip-acoes { display: flex; gap: 6px; margin-top: 4px; }
+.agenda-chip .chip-acao {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px;
+    border: 1px solid var(--border-ui);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 10px;
+    text-decoration: none;
+}
+.agenda-chip .chip-acao:hover { border-color: var(--accent); color: var(--accent-ink); }
+.agenda-chip .chip-acao-excluir:hover { border-color: #b91c1c; color: #b91c1c; }
+
 /* Abas de dia: só aparecem no celular (o JS controla o `hidden`). */
 .agenda-dias {
     display: flex;

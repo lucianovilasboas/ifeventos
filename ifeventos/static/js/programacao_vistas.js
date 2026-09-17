@@ -29,7 +29,15 @@
     }
 
     function iniciar() {
+        // Controles DENTRO do chip (estrela de favorito, editar, excluir) têm a
+        // própria ação: sem esta guarda, o clique neles também trocaria para a
+        // lista filtrada pelo título.
+        function ehControle(alvo) {
+            return !!alvo.closest("a, button, input, select, label");
+        }
+
         document.addEventListener("click", function (evento) {
+            if (ehControle(evento.target)) return;
             var chip = evento.target.closest("[data-agenda-chip]");
             if (chip) abrirNoLista(chip);
         });
@@ -38,6 +46,7 @@
         // teclado precisa do Enter/Espaço.
         document.addEventListener("keydown", function (evento) {
             if (evento.key !== "Enter" && evento.key !== " ") return;
+            if (ehControle(evento.target)) return;   // não rouba o Enter do link
             var chip = evento.target.closest("[data-agenda-chip]");
             if (!chip) return;
             evento.preventDefault();

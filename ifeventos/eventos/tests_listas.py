@@ -207,3 +207,74 @@ class LandingTotalAtividadesTests(TestCase):
         url = reverse("eventos:programacao", args=[self.evento.id])
         self.assertIn(f'href="{url}"', html)
         self.assertIn("Ver programação", html)
+
+
+class AcoesNaGradeTests(TestCase):
+    """Editar/Excluir nos chips da grade só na tela do organizador."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_grade@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.participante = U.objects.create_user(
+            email="part_grade@example.com", password=SENHA, cpf="11144477735"
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Palestra")
+        self.evento = Evento.objects.create(
+            title="Evento Grade", description="d", local="l",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 11),
+            categoria="formacao", organizador=self.org,
+        )
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Abertura", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+            n_vagas=10,
+        )
+
+    def _html(self, url):
+        return self.client.get(url).content.decode()
+
+    def test_grade_do_organizador_traz_editar_e_excluir(self):
+        self.client.force_login(self.org)
+
+        html = self._html(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        )
+
+        self.assertIn("chip-acoes", html)
+        self.assertIn(
+            reverse(
+                "organizador:criar_editar_atividade_editar",
+                args=[self.evento.id, self.atividade.id],
+            ),
+            html,
+        )
+        self.assertIn(
+            reverse("organizador:excluir_atividade", args=[self.atividade.id]), html
+        )
+
+    def test_programacao_publica_nao_traz_os_botoes(self):
+        html = self._html(reverse("eventos:programacao", args=[self.evento.id]))
+
+        self.assertNotIn("chip-acoes", html)
+
+    def test_painel_do_participante_nao_traz_os_botoes(self):
+        self.client.force_login(self.participante)
+
+        html = self._html(reverse("participante:dashboard"))
+
+        self.assertNotIn("chip-acoes", html)
+
+    def test_cabecalho_nao_tem_mais_ocupacao_por_sala(self):
+        self.client.force_login(self.org)
+
+        html = self._html(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        )
+
+        self.assertNotIn("Ocupação por sala", html)
+        self.assertNotIn(
+            reverse("organizador:ocupacao_salas", args=[self.evento.id]), html
+        )
