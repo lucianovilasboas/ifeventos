@@ -140,7 +140,10 @@
                             <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
                             <div class="lcard-foot">
                                 <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
-                                <button class="lcard-link" type="button" data-abrir="{{ ev.id }}">Ver detalhes →</button>
+                                <div class="lcard-acoes">
+                                    <button class="lcard-link" type="button" data-abrir="{{ ev.id }}">Ver detalhes →</button>
+                                    <a class="lcard-link" href="{% url 'eventos:programacao' ev.id %}">Ver programação →</a>
+                                </div>
                             </div>
                         </div>
                     </article>
@@ -181,7 +184,7 @@
                             <p class="lcard-desc">{{ ev.description|truncatechars:90 }}</p>
                             <div class="lcard-foot">
                                 <span class="lcard-loc"><i class="fa-solid fa-location-dot"></i> {{ ev.local }} · {{ ev.data_inicio|date:"d/m" }}–{{ ev.data_fim|date:"d/m/Y" }}</span>
-                                <a class="lcard-link" href="{% url 'eventos:programacao' ev.id %}">Ver detalhes →</a>
+                                <a class="lcard-link" href="{% url 'eventos:programacao' ev.id %}">Ver programação →</a>
                             </div>
                         </div>
                     </article>
@@ -306,6 +309,8 @@
         }
         function fecharModal() { modal.hidden = true; document.body.classList.remove('is-locked'); }
         document.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); abrirModal(b.dataset.abrir); }));
+        // Link direto para a programação: não deixa o clique abrir o modal junto.
+        document.querySelectorAll('a.lcard-link').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
         cards.forEach(c => c.addEventListener('click', () => abrirModal(c.dataset.evento)));
         cards.forEach(c => c.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === c) { e.preventDefault(); abrirModal(c.dataset.evento); } }));
         document.querySelectorAll('[data-fechar]').forEach(b => b.addEventListener('click', fecharModal));

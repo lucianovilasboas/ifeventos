@@ -419,10 +419,21 @@
   align-items: end;
   justify-content: space-between;
   gap: 16px;
+  row-gap: 10px;
+  flex-wrap: wrap;
   margin-top: auto;
   padding-top: 22px;
 }
 .lcard-loc { color: var(--muted); font-size: 13px; }
+/* Ações do card (Ver detalhes / Ver programação) ficam juntas, à direita. */
+.lcard-acoes {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
 .lcard-link {
   color: var(--fg-strong);
   font-family: var(--font-display);

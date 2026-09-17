@@ -201,3 +201,9 @@ class LandingTotalAtividadesTests(TestCase):
         html = resposta.content.decode()
         self.assertIn("2 atividades", html)   # card
         self.assertIn("nAtiv: 2", html)       # dados do modal (JS)
+
+    def test_card_tem_link_para_a_programacao(self):
+        html = self.client.get(reverse("eventos:eventos")).content.decode()
+        url = reverse("eventos:programacao", args=[self.evento.id])
+        self.assertIn(f'href="{url}"', html)
+        self.assertIn("Ver programação", html)
