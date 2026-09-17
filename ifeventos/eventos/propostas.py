@@ -355,6 +355,7 @@ def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
         # Aviso só DEPOIS do commit: se a transação voltar atrás, ninguém
         # recebe e-mail de uma proposta que não existe.
         transaction.on_commit(lambda: avisar_proposta_nova(atividade))
+        transaction.on_commit(lambda: avisar_mudanca(evento))
         return atividade
 
 
@@ -443,6 +444,7 @@ def aprovar(atividade, por, publicar=True, tipo=None):
     atividade.save(update_fields=_campos_decisao(atividade, tipo))
     promover_palestrante(atividade)
     transaction.on_commit(lambda: avisar_decisao(atividade, aprovada=True))
+    transaction.on_commit(lambda: avisar_mudanca(atividade.evento))
     return atividade
 
 
@@ -464,6 +466,7 @@ def rejeitar(atividade, por, motivo):
     atividade.decidida_por = por
     atividade.save(update_fields=_campos_decisao(atividade))
     transaction.on_commit(lambda: avisar_decisao(atividade, aprovada=False))
+    transaction.on_commit(lambda: avisar_mudanca(atividade.evento))
     return atividade
 
 
@@ -477,7 +480,9 @@ def cancelar(atividade):
         raise PropostaBloqueada(
             "A proposta já foi decidida pelo organizador: só ele pode alterá-la."
         )
+    evento = atividade.evento  # guardado antes: depois do delete não há linha
     atividade.delete()
+    transaction.on_commit(lambda: avisar_mudanca(evento))
 
 
 def promover_palestrante(atividade):
@@ -520,6 +525,21 @@ def avisar_proposta_nova(atividade):
             ),
         },
     )
+
+
+def avisar_mudanca(evento):
+    """Avisa as telas abertas que a fila de propostas mudou.
+
+    Payload mínimo de propósito (id do evento + quantos aguardam): este socket
+    emite para todo mundo, então nada de título/proponente aqui. Import local de
+    `services`, como em `crachas.py`, para não criar ciclo entre os módulos.
+    """
+    from .services import notify_socketio
+
+    return notify_socketio("propostas_atualizadas", {
+        "evento_id": evento.pk,
+        "pendentes": contagem_pendentes([evento]),
+    })
 
 
 def avisar_decisao(atividade, aprovada):

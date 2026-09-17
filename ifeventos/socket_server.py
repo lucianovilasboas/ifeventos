@@ -79,5 +79,17 @@ async def presenca_confirmada(sid, data):
     await sio.emit('presenca_confirmada', data)
 
 
+@sio.event
+async def propostas_atualizadas(sid, data):
+    """Repassa a mudança na fila de proposições (contador do painel).
+
+    Este servidor não tem salas nem autenticação, então o dado é anônimo de
+    propósito: id do evento e quantas propostas aguardam. Quem mostra os
+    detalhes é a tela do organizador, autenticada.
+    """
+    print(f"[🔔] Fila de propostas mudou (de {sid}): {data}")
+    await sio.emit('propostas_atualizadas', data)
+
+
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=8500)

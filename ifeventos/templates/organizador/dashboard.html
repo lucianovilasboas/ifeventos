@@ -191,6 +191,14 @@
         socket.on("event_removed", (data) => { console.log("Evento removido: " + data.title); });
         socket.on("activity_created", (data) => { console.log("Nova atividade: " + data.titulo); });
         socket.on("inscricao_created", (data) => { console.log("Nova inscrição em: " + data.atividade); });
+        // Fila de propostas: o contador do cartão do evento se atualiza sem
+        // recarregar (o aviso traz só o evento e o total de pendentes).
+        socket.on("propostas_atualizadas", (data) => {
+            document.querySelectorAll(`[data-pendentes-evento="${data.evento_id}"]`).forEach((el) => {
+                el.textContent = data.pendentes;
+                el.hidden = !data.pendentes;
+            });
+        });
     });
 </script>
 {% endblock scripts %}

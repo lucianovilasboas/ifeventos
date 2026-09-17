@@ -39,9 +39,11 @@
                 </a>
                 <a href="{% url 'organizador:chamada_proposicoes' evento.id %}" class="btn btn-sm btn-outline-primary btn-icon" title="Chamada de propostas de atividades{% if evento.tem_chamada %} (existe){% endif %}">
                     <i class="fa-solid fa-bullhorn"></i>
-                    {% if evento.n_pendentes %}
-                    <span class="badge rounded-pill bg-danger" style="position:absolute;top:-5px;right:-5px;font-size:9px">{{ evento.n_pendentes }}</span>
-                    {% endif %}
+                    {# O contador é atualizado em tempo real (propostas_atualizadas). #}
+                    <span class="badge rounded-pill bg-danger"
+                          data-pendentes-evento="{{ evento.id }}"
+                          style="position:absolute;top:-5px;right:-5px;font-size:9px"
+                          {% if not evento.n_pendentes %}hidden{% endif %}>{{ evento.n_pendentes }}</span>
                 </a>
             </div>
         </div>

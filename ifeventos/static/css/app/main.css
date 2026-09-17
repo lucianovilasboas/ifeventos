@@ -1444,14 +1444,25 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     margin-left: 4px;
 }
 
-/* Filtro por evento da dashboard do participante.
-   Sem um teto, o `<select>` assume a largura do maior título e fica "solto",
-   desalinhado da grade abaixo; no celular, encosta na borda. */
-.filtro-evento { max-width: 520px; }
-#filtro-evento {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
+/* Filtro por evento da dashboard do participante (chips-link). */
+.chips-evento { row-gap: 6px; }
+.chip-evento {
+    display: inline-flex; align-items: center;
+    padding: 6px 12px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.chip-evento:hover { border-color: var(--accent); color: var(--accent-ink); }
+.chip-evento.is-ativo {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent-ink);
 }
 
 /* =========================================================================

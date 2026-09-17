@@ -6,6 +6,7 @@ aprovação/rejeição/cancelamento), a invisibilidade pública das propostas
 """
 
 from datetime import datetime, time, timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -1225,4 +1226,50 @@ class PainelDaChamadaTests(BasePropostasTests):
 
         self.assertIn(
             reverse("organizador:chamada_painel", args=[self.evento.id]), html
+        )
+
+
+class AvisoTempoRealTests(BasePropostasTests):
+    """A fila de propostas avisa as telas abertas (contador do cartão)."""
+
+    def test_propor_avisa_quantos_aguardam(self):
+        with mock.patch("eventos.services.notify_socketio") as aviso, \
+                self.captureOnCommitCallbacks(execute=True):
+            self._propor()
+
+        aviso.assert_any_call(
+            "propostas_atualizadas", {"evento_id": self.evento.pk, "pendentes": 1}
+        )
+
+    def test_aprovar_avisa_com_zero_pendente(self):
+        proposta = self._propor()
+
+        with mock.patch("eventos.services.notify_socketio") as aviso, \
+                self.captureOnCommitCallbacks(execute=True):
+            propostas.aprovar(proposta, self.org)
+
+        aviso.assert_any_call(
+            "propostas_atualizadas", {"evento_id": self.evento.pk, "pendentes": 0}
+        )
+
+    def test_rejeitar_avisa(self):
+        proposta = self._propor()
+
+        with mock.patch("eventos.services.notify_socketio") as aviso, \
+                self.captureOnCommitCallbacks(execute=True):
+            propostas.rejeitar(proposta, self.org, "Fora do escopo.")
+
+        aviso.assert_any_call(
+            "propostas_atualizadas", {"evento_id": self.evento.pk, "pendentes": 0}
+        )
+
+    def test_cancelar_avisa_depois_de_apagar(self):
+        proposta = self._propor()
+
+        with mock.patch("eventos.services.notify_socketio") as aviso, \
+                self.captureOnCommitCallbacks(execute=True):
+            propostas.cancelar(proposta)
+
+        aviso.assert_any_call(
+            "propostas_atualizadas", {"evento_id": self.evento.pk, "pendentes": 0}
         )
