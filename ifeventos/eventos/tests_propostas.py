@@ -837,3 +837,120 @@ class EdicaoDeEspacoTests(BasePropostasTests):
         self.assertEqual(resposta.status_code, 403)
         self.espaco.refresh_from_db()
         self.assertEqual(self.espaco.nome, "Auditório")
+
+
+class GradeEmLoteTests(BasePropostasTests):
+    """Gerador de grade: dias × blocos × espaços, sem duplicar."""
+
+    def _url(self):
+        return reverse("organizador:gerar_grade_lote", args=[self.evento.id])
+
+    def _post(self, **dados):
+        base = {
+            "grade-dias": [self.evento.data_inicio.isoformat()],
+            "grade-blocos": "08:00-10:00",
+            "grade-espacos": [self.espaco.pk],
+            "grade-capacidade": 1,
+        }
+        base.update(dados)
+        return self.client.post(self._url(), base)
+
+    def _total(self):
+        return Vaga.objects.filter(evento=self.evento).count()
+
+    def test_gera_dias_vezes_blocos_vezes_espacos(self):
+        quadro = Espaco.objects.create(nome="Quadra", capacidade=10)
+        self.client.force_login(self.org)
+
+        resposta = self._post(**{
+            "grade-dias": [self.evento.data_inicio.isoformat()],
+            "grade-blocos": "08:00-10:00\n10:00-12:00",
+            "grade-espacos": [self.espaco.pk, quadro.pk],
+        })
+
+        self.assertRedirects(
+            resposta,
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id]),
+        )
+        # 1 dia × 2 blocos × 2 espaços = 4 novas + a vaga do setUp
+        self.assertEqual(self._total(), 5)
+        self.assertTrue(
+            Vaga.objects.filter(
+                evento=self.evento, espaco=quadro, inicio__hour=8
+            ).exists()
+        )
+
+    def test_aplica_a_capacidade_informada(self):
+        self.client.force_login(self.org)
+
+        self._post(**{"grade-capacidade": 3})
+
+        vaga = Vaga.objects.get(evento=self.evento, espaco=self.espaco, inicio__hour=8)
+        self.assertEqual(vaga.capacidade, 3)
+
+    def test_rodar_de_novo_nao_duplica(self):
+        self.client.force_login(self.org)
+        self._post()
+
+        resposta = self._post()  # segunda vez: só encontra o que já existe
+
+        self.assertRedirects(
+            resposta,
+            reverse("organizador:chamada_proposicoes", args=[self.evento.id]),
+        )
+        self.assertEqual(self._total(), 2)  # a do setUp + 1 gerada
+
+    def test_dia_fora_do_evento_recusa(self):
+        fora = (self.evento.data_fim + timedelta(days=1)).isoformat()
+        self.client.force_login(self.org)
+
+        resposta = self._post(**{"grade-dias": [fora]})
+
+        self.assertIn("?abrir=grade#vagas", resposta["Location"])
+        self.assertEqual(self._total(), 1)  # só a do setUp
+
+    def test_bloco_invalido_recusa(self):
+        self.client.force_login(self.org)
+
+        for bloco in ("abc", "25:00-26:00", "10:00-09:00"):
+            with self.subTest(bloco=bloco):
+                resposta = self._post(**{"grade-blocos": bloco})
+                self.assertIn("?abrir=grade#vagas", resposta["Location"])
+                self.assertEqual(self._total(), 1)
+
+    def test_sem_dia_e_sem_espaco_recusa(self):
+        self.client.force_login(self.org)
+
+        self.assertIn("?abrir=grade", self._post(**{"grade-dias": []})["Location"])
+        self.assertIn("?abrir=grade", self._post(**{"grade-espacos": []})["Location"])
+        self.assertEqual(self._total(), 1)
+
+    def test_vaga_ja_existente_de_outro_evento_e_pulada(self):
+        outro = Evento.objects.create(
+            title="Outro evento", description="d", local="Campus",
+            data_inicio=self.evento.data_inicio, data_fim=self.evento.data_fim,
+            organizador=self.org,
+        )
+        inicio = timezone.make_aware(
+            datetime.combine(self.evento.data_inicio, time(8, 0))
+        )
+        fim = timezone.make_aware(
+            datetime.combine(self.evento.data_inicio, time(10, 0))
+        )
+        Vaga.objects.create(evento=outro, espaco=self.espaco, inicio=inicio, fim=fim)
+        self.client.force_login(self.org)
+
+        self._post()  # mesma janela, outro evento
+
+        self.assertEqual(self._total(), 1)  # nada criado para este evento
+
+    def test_quem_nao_gerencia_recebe_403(self):
+        outro = U.objects.create_user(
+            email="ninguem3@example.com", password=SENHA, cpf="39053344705"
+        )
+        self.client.force_login(outro)
+
+        resposta = self._post()
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(self._total(), 1)

@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 import json
 from .forms import ParticipanteUpdateForm
 from eventos.forms import EventoForm, PalestranteForm, TipoAtividadeForm
-from eventos.forms import ChamadaProposicoesForm, EspacoForm, VagaForm
+from eventos.forms import ChamadaProposicoesForm, EspacoForm, GradeVagasForm, VagaForm
 from eventos.models import Evento
 from eventos.forms import AtividadeForm
 from eventos.models import Atividade
@@ -697,6 +697,7 @@ def chamada_proposicoes(request, evento_id):
         # formulário de "adicionar" (os dois convivem na mesma página).
         'form_espaco_modal': EspacoForm(prefix='espaco_modal'),
         'form_vaga': VagaForm(evento=evento, prefix='vaga'),
+        'form_grade': GradeVagasForm(evento=evento, prefix='grade'),
         # `?abrir=espaco|vaga` reabre o formulário depois de um erro de validação.
         'abrir': (request.GET.get('abrir') or '').strip(),
         'espacos': espacos,
@@ -810,6 +811,35 @@ def adicionar_vaga(request, evento_id):
         reverse('organizador:chamada_proposicoes', args=[evento.id])
         + "?abrir=vaga#vagas"
     )
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def gerar_grade_lote(request, evento_id):
+    """Cria vagas em lote (dias × blocos × espaços), sem duplicar o que existe."""
+    evento = _evento_gerenciavel(request, evento_id)
+    form = GradeVagasForm(request.POST, evento=evento, prefix='grade')
+    if not form.is_valid():
+        messages.error(request, f"Confira a grade: {_erros_do_form(form)}")
+        return redirect(
+            reverse('organizador:chamada_proposicoes', args=[evento.id])
+            + "?abrir=grade#vagas"
+        )
+
+    resultado = propostas.gerar_grade(
+        evento,
+        dias=form.cleaned_data['dias'],
+        blocos=form.cleaned_data['blocos'],
+        espacos=form.cleaned_data['espacos'],
+        capacidade=form.cleaned_data['capacidade'],
+    )
+    detalhe = (
+        f" — {resultado['existentes']} já existia(m)." if resultado['existentes'] else "."
+    )
+    messages.success(
+        request, f"{resultado['criadas']} vaga(s) criada(s){detalhe}"
+    )
+    return redirect('organizador:chamada_proposicoes', evento_id=evento.id)
 
 
 @login_required(login_url='/accounts/login/')

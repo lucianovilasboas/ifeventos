@@ -198,12 +198,79 @@
     <p class="text-muted">Nenhuma vaga na grade — sem vaga o participante não consegue propor.</p>
     {% endif %}
 
-    <button class="btn btn-app-green btn-sm" type="button"
-            data-bs-toggle="collapse" data-bs-target="#formVaga"
-            aria-expanded="{% if abrir == 'vaga' %}true{% else %}false{% endif %}"
-            aria-controls="formVaga">
-        <i class="fa-solid fa-plus"></i> Adicionar vaga
-    </button>
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-app btn-sm" type="button"
+                data-bs-toggle="collapse" data-bs-target="#formGrade"
+                aria-expanded="{% if abrir == 'grade' %}true{% else %}false{% endif %}"
+                aria-controls="formGrade">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar grade em lote
+        </button>
+        <button class="btn btn-app-green btn-sm" type="button"
+                data-bs-toggle="collapse" data-bs-target="#formVaga"
+                aria-expanded="{% if abrir == 'vaga' %}true{% else %}false{% endif %}"
+                aria-controls="formVaga">
+            <i class="fa-solid fa-plus"></i> Adicionar vaga
+        </button>
+    </div>
+
+    <div class="collapse{% if abrir == 'grade' %} show{% endif %}" id="formGrade">
+        <form method="post" action="{% url 'organizador:gerar_grade_lote' evento.id %}"
+              class="row g-3 align-items-start mt-3 pt-3 border-top">
+            {% csrf_token %}
+            <div class="col-12 col-md-6">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0 d-block">{{ form_grade.dias.label }}</label>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            data-marcar="grade-dias">Marcar todos</button>
+                </div>
+                <div class="grade-caixas mt-2">
+                    {% for escolha in form_grade.dias %}
+                    <div class="form-check">
+                        {{ escolha.tag }}
+                        <label class="form-check-label" for="{{ escolha.id_for_label }}">{{ escolha.choice_label }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0 d-block">{{ form_grade.espacos.label }}</label>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            data-marcar="grade-espacos">Marcar todos</button>
+                </div>
+                <div class="grade-caixas mt-2">
+                    {% for escolha in form_grade.espacos %}
+                    <div class="form-check">
+                        {{ escolha.tag }}
+                        <label class="form-check-label" for="{{ escolha.id_for_label }}">{{ escolha.choice_label }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="id_grade-blocos">{{ form_grade.blocos.label }}</label>
+                {{ form_grade.blocos }}
+                <small class="text-muted d-block">
+                    Um bloco por linha, no formato HH:MM-HH:MM. Ex.: 08:00-10:00
+                </small>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="id_grade-capacidade">{{ form_grade.capacidade.label }}</label>
+                {{ form_grade.capacidade }}
+                <small class="text-muted d-block">
+                    Vira a capacidade de cada vaga criada: 1 = exclusiva; maior
+                    permite atividades paralelas na mesma janela.
+                </small>
+            </div>
+            <div class="col-12 d-flex justify-content-end">
+                <button class="btn btn-app btn-campo">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar vagas
+                </button>
+            </div>
+        </form>
+    </div>
 
     <div class="collapse{% if abrir == 'vaga' %} show{% endif %}" id="formVaga">
         <form method="post" action="{% url 'organizador:adicionar_vaga' evento.id %}"
@@ -293,6 +360,27 @@
         modal.querySelector('form').action = botao.dataset.acao || '';
         modal.querySelector('#id_espaco_modal-nome').value = botao.dataset.nome || '';
         modal.querySelector('#id_espaco_modal-capacidade').value = botao.dataset.capacidade || '';
+    });
+})();
+
+(function () {
+    // "Marcar todos" / "Limpar" das caixas da grade em lote: o rótulo diz a
+    // próxima ação (marca tudo quando falta algum; limpa quando estão todos).
+    document.querySelectorAll('[data-marcar]').forEach(function (botao) {
+        botao.addEventListener('click', function () {
+            var caixas = document.querySelectorAll(
+                'input[name="' + botao.dataset.marcar + '"]'
+            );
+            if (!caixas.length) return;
+
+            var marcar = Array.prototype.some.call(caixas, function (caixa) {
+                return !caixa.checked;
+            });
+            Array.prototype.forEach.call(caixas, function (caixa) {
+                caixa.checked = marcar;
+            });
+            botao.textContent = marcar ? 'Limpar' : 'Marcar todos';
+        });
     });
 })();
 </script>

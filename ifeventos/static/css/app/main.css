@@ -176,6 +176,18 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 /* Botão na MESMA linha de um `.form-control`: os campos têm `min-height: 46px`
    (tokens.css, alvo de toque) e o botão, sem isso, ficava 6px mais baixo. */
 .btn-campo { min-height: 46px; }
+
+/* Seleção múltipla do gerador de grade (dias e espaços): caixa com rolagem
+   para a lista de espaços não esticar o formulário. */
+.grade-caixas {
+  display: flex; flex-wrap: wrap; gap: 4px 18px;
+  max-height: 150px; overflow-y: auto;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.grade-caixas .form-check { margin: 0; }
 .btn-app-green:hover { background: var(--accent-soft) !important; filter: none; }
 .btn-app-green:active { transform: translateY(3px); box-shadow: none; }
 

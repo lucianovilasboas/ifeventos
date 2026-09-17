@@ -1,7 +1,11 @@
+import re
+from datetime import date, time
+
 from django import forms
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
 from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
+from .propostas import dias_do_evento
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
@@ -593,3 +597,87 @@ class PropostaForm(forms.ModelForm):
         if self.cleaned_data.get("imagem"):
             atividade.imagem = self.cleaned_data["imagem"]
         return atividade
+
+
+class GradeVagasForm(forms.Form):
+    """Gera vagas em lote: dias do evento × blocos de horário × espaços.
+
+    Os blocos vêm numa caixa de texto (um por linha) porque é o formato mais
+    rápido de colar/editar uma grade de 2 a 6 blocos — e aceita vírgula como
+    separador, caso venham numa linha só.
+    """
+
+    BLOCO = re.compile(r"^(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})$")
+
+    dias = forms.MultipleChoiceField(
+        label="Dias do evento",
+        choices=[],
+        error_messages={"required": "Escolha pelo menos um dia."},
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+    blocos = forms.CharField(
+        label="Horários (um por linha)",
+        widget=forms.Textarea(attrs={
+            "class": "form-control", "rows": 4,
+            "placeholder": "08:00-10:00\n10:00-12:00\n14:00-16:00",
+        }),
+    )
+    espacos = forms.ModelMultipleChoiceField(
+        queryset=Espaco.objects.none(),
+        label="Espaços",
+        error_messages={"required": "Escolha pelo menos um espaço."},
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+    )
+    capacidade = forms.IntegerField(
+        label="Atividades simultâneas",
+        min_value=1,
+        initial=1,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+    )
+
+    def __init__(self, *args, evento=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.evento = evento
+        if evento is not None:
+            self.fields["dias"].choices = dias_do_evento(evento)
+        self.fields["espacos"].queryset = Espaco.objects.all()
+
+    def clean_dias(self):
+        """Só aceita dias DENTRO do período do evento (o POST pode vir forjado)."""
+        escolhidos = self.cleaned_data.get("dias") or []
+        dias = [date.fromisoformat(valor) for valor in escolhidos]
+        if self.evento is not None:
+            for dia in dias:
+                if not (self.evento.data_inicio <= dia <= self.evento.data_fim):
+                    raise forms.ValidationError(
+                        f"{dia.strftime('%d/%m/%Y')} está fora do período do evento."
+                    )
+        return dias
+
+    def clean_blocos(self):
+        texto = (self.cleaned_data.get("blocos") or "").replace(",", "\n")
+        blocos, vistas = [], set()
+        for numero, linha in enumerate(texto.splitlines(), start=1):
+            linha = linha.strip()
+            if not linha:
+                continue
+            achado = self.BLOCO.match(linha)
+            if not achado:
+                raise forms.ValidationError(
+                    f"Linha {numero}: use o formato HH:MM-HH:MM (ex.: 08:00-10:00)."
+                )
+            hora1, min1, hora2, min2 = (int(valor) for valor in achado.groups())
+            try:
+                inicio, fim = time(hora1, min1), time(hora2, min2)
+            except ValueError:
+                raise forms.ValidationError(f"Linha {numero}: horário inválido.")
+            if fim <= inicio:
+                raise forms.ValidationError(
+                    f"Linha {numero}: o término precisa ser depois do início."
+                )
+            if (inicio, fim) not in vistas:
+                vistas.add((inicio, fim))
+                blocos.append((inicio, fim))
+        if not blocos:
+            raise forms.ValidationError("Informe pelo menos um bloco de horário.")
+        return blocos

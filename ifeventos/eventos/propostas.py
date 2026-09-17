@@ -14,6 +14,7 @@ Quem "esconde" a proposta do público continua sendo `Atividade.publicada`
 apenas organiza o fluxo de aprovação.
 """
 
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from django.conf import settings
@@ -104,6 +105,66 @@ def vagas_do_evento(evento, somente_livres=False):
 
 def vagas_livres(evento):
     return vagas_do_evento(evento, somente_livres=True)
+
+
+# Evento muito longo geraria uma lista de dias impraticável no formulário.
+DIAS_MAXIMOS_NO_FORM = 60
+
+
+def dias_do_evento(evento, limite=DIAS_MAXIMOS_NO_FORM):
+    """Dias do evento como `(valor ISO, rótulo curto)` para os formulários."""
+    if evento is None or not getattr(evento, "pk", None):
+        return []
+    total = (evento.data_fim - evento.data_inicio).days
+    if total < 0:
+        return []
+    dias = []
+    for indice in range(min(total, limite - 1) + 1):
+        dia = evento.data_inicio + timedelta(days=indice)
+        rotulo = f"{agenda.DIAS_SEMANA[dia.weekday()]} {dia.strftime('%d/%m')}"
+        dias.append((dia.isoformat(), rotulo))
+    return dias
+
+
+def gerar_grade(evento, dias, blocos, espacos, capacidade=1):
+    """Cria vagas em lote: dias × blocos × espaços, sem duplicar.
+
+    `dias` são `date`, `blocos` é uma lista de `(time, time)` e `espacos` são
+    instâncias de `Espaco`. Vaga que já existe com o MESMO espaço+início+fim é
+    pulada e contada em "existentes" — a constraint `unique_vaga_espaco_janela`
+    é global (a sala não pode ter duas vagas idênticas), então rodar o gerador
+    de novo não duplica nada.
+
+    Devolve `{"criadas": int, "existentes": int}`.
+    """
+    fusos = timezone.get_current_timezone()
+    desejadas = {}
+    for dia in dias or []:
+        for inicio, fim in blocos or []:
+            for espaco in espacos or []:
+                chave = (
+                    espaco.pk,
+                    timezone.make_aware(datetime.combine(dia, inicio), fusos),
+                    timezone.make_aware(datetime.combine(dia, fim), fusos),
+                )
+                desejadas[chave] = espaco
+
+    if not desejadas:
+        return {"criadas": 0, "existentes": 0}
+
+    existentes = set(
+        Vaga.objects.filter(espaco__in=list(espacos)).values_list(
+            "espaco_id", "inicio", "fim"
+        )
+    )
+    novas = [
+        Vaga(evento=evento, espaco=espaco, inicio=inicio, fim=fim,
+             capacidade=capacidade)
+        for (espaco_id, inicio, fim), espaco in desejadas.items()
+        if (espaco_id, inicio, fim) not in existentes
+    ]
+    Vaga.objects.bulk_create(novas)
+    return {"criadas": len(novas), "existentes": len(desejadas) - len(novas)}
 
 
 def propostas_ativas_de(usuario, evento):
