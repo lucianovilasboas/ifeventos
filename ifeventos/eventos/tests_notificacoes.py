@@ -4,6 +4,9 @@ O envio de e-mail é *best-effort*: só acontece com `PROPOSTAS_NOTIFICAR_EMAIL`
 ligado (padrão desligado), roda no commit da transação e nunca derruba a ação
 principal. A busca de palestrante deixa escolher qualquer participante
 cadastrado, sem mexer na flag global de palestrante.
+
+O backend assíncrono é testado à parte: nos testes o Django força o `locmem`,
+então a classe é exercitada direto (sem tocar em SMTP de verdade).
 """
 
 from datetime import datetime, time, timedelta
@@ -11,11 +14,12 @@ from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.mail import EmailMessage
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from eventos import propostas
+from eventos import mail_backend, propostas
 from eventos.models import (
     Atividade,
     ChamadaProposicoes,
@@ -230,3 +234,49 @@ class BuscaDePalestranteTests(_BaseChamadaTests):
             maria,
             Atividade.objects.get(pk=proposta.pk).palestrantes.all(),
         )
+
+
+class AsyncEmailBackendTests(TestCase):
+    """O backend assíncrono despacha e devolve na hora; o envio real é ``_enviar``."""
+
+    def _mensagem(self, destino="alguem@example.com"):
+        return EmailMessage("Assunto", "Corpo", None, [destino])
+
+    def test_send_messages_delega_para_o_pool_sem_enviar_na_hora(self):
+        backend = mail_backend.AsyncEmailBackend()
+
+        with mock.patch("eventos.mail_backend._pool") as pool:
+            enviadas = backend.send_messages(
+                [self._mensagem("a@example.com"), self._mensagem("b@example.com")]
+            )
+
+        self.assertEqual(enviadas, 2)
+        pool.submit.assert_called_once()
+        _funcao, _kwargs, mensagens = pool.submit.call_args.args
+        self.assertEqual(len(mensagens), 2)
+
+    def test_send_messages_vazio_nao_despacha(self):
+        backend = mail_backend.AsyncEmailBackend()
+
+        with mock.patch("eventos.mail_backend._pool") as pool:
+            self.assertEqual(backend.send_messages([]), 0)
+
+        pool.submit.assert_not_called()
+
+    def test_enviar_usa_backend_smtp_proprio_e_fecha(self):
+        falso = mock.Mock()
+
+        with mock.patch(
+            "eventos.mail_backend.EmailBackend", return_value=falso
+        ) as classe:
+            mail_backend._enviar({"host": "smtp.gmail.com"}, [self._mensagem()])
+
+        classe.assert_called_once_with(host="smtp.gmail.com")
+        falso.send_messages.assert_called_once()
+        falso.close.assert_called_once()
+
+    def test_falha_no_envio_nao_levanta(self):
+        with mock.patch(
+            "eventos.mail_backend.EmailBackend", side_effect=OSError("smtp fora")
+        ):
+            mail_backend._enviar({}, [self._mensagem()])  # não pode levantar

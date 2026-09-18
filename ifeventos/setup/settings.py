@@ -288,10 +288,19 @@ if _temp_cors:
 
 # -- Configurações para envio de e-mail pelo Google --
 # -- adicionado por Luciano Vilas Boas --
-EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+# O backend padrão é o ASSÍNCRONO: o SMTP normal segura a requisição durante o
+# handshake TLS e nenhum e-mail do sistema (avisos, confirmação, reset) deve
+# ditar o tempo de resposta. O envio real continua SMTP — só sai numa thread.
+# Para voltar ao envio síncrono, aponte EMAIL_BACKEND para
+# "django.core.mail.backends.smtp.EmailBackend" no .env.
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND", default="eventos.mail_backend.AsyncEmailBackend"
+)
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com") 
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+# Sem timeout, um SMTP travado seguraria a thread de envio indefinidamente.
+EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", default=10, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER")   # Substitua pelo seu e-mail
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")  # Substitua pela senha do seu e-mail
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")  # Substitua pelo seu e-mail
