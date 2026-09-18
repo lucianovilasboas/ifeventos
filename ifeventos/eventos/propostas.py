@@ -194,6 +194,84 @@ def vagas_livres(evento):
     return vagas_do_evento(evento, somente_livres=True)
 
 
+def grade_de_propostas(evento, usuario=None):
+    """TODAS as vagas com as propostas ativas — o mapa de ocupação da grade.
+
+    Diferente de `vagas_livres`, as vagas já reservadas também aparecem: é o que
+    deixa o proponente ver, na própria tela, o que já foi proposto para aquele
+    horário/espaço e evitar conflito. `rejeitada` não ocupa (a vaga está livre),
+    então só pendente/aprovada (e atividade criada pelo organizador) entram.
+
+    Devolve uma lista de dicts, na ordem da grade:
+        {"vaga": Vaga, "propostas": [Atividade, ...], "minha": bool}
+
+    `minha` marca a vaga que tem proposta do próprio usuário (destaque na tela).
+    """
+    vagas = list(
+        Vaga.objects.filter(evento=evento)
+        .select_related("espaco")
+        .order_by("inicio", "espaco__nome")
+    )
+    por_vaga = {}
+    propostas = (
+        Atividade.objects.filter(evento=evento, vaga__isnull=False)
+        .exclude(situacao=Atividade.SITUACAO_REJEITADA)
+        .select_related("proponente", "tipo")
+        .prefetch_related("palestrantes")
+    )
+    for proposta in propostas:
+        por_vaga.setdefault(proposta.vaga_id, []).append(proposta)
+
+    meu_id = getattr(usuario, "pk", None)
+    return [
+        {
+            "vaga": vaga,
+            "propostas": por_vaga.get(vaga.pk, []),
+            "minha": any(
+                proposta.proponente_id == meu_id
+                for proposta in por_vaga.get(vaga.pk, [])
+            ),
+        }
+        for vaga in vagas
+    ]
+
+
+def grade_em_json(slots):
+    """Versão serializável de `grade_de_propostas` — é o que a grade do JS lê.
+
+    `ocupadas` vem do tamanho da lista (e não de `Vaga.ocupadas`) para não
+    disparar uma consulta por vaga: `propostas_ativas` é exatamente este
+    conjunto (tudo que aponta para a vaga, menos a rejeitada).
+    """
+    return [
+        {
+            "valor": slot["vaga"].pk,
+            "espaco": slot["vaga"].espaco.nome,
+            "inicio": slot["vaga"].inicio.isoformat(),
+            "fim": slot["vaga"].fim.isoformat(),
+            "capacidade": slot["vaga"].capacidade,
+            "ocupadas": len(slot["propostas"]),
+            "livre": len(slot["propostas"]) < slot["vaga"].capacidade,
+            "minha": slot["minha"],
+            "propostas": [
+                {
+                    "titulo": proposta.titulo,
+                    "proponente": (
+                        proposta.proponente.get_full_name()
+                        or proposta.proponente.email
+                    ) if proposta.proponente else "Organização",
+                    "palestrantes": [
+                        str(pessoa) for pessoa in proposta.palestrantes.all()
+                    ],
+                    "situacao": proposta.situacao,
+                }
+                for proposta in slot["propostas"]
+            ],
+        }
+        for slot in slots
+    ]
+
+
 # Evento muito longo geraria uma lista de dias impraticável no formulário.
 DIAS_MAXIMOS_NO_FORM = 60
 

@@ -65,19 +65,22 @@
                 <span class="ativ-contexto-data">{{ evento.data_inicio|date:"d/m/Y" }} a {{ evento.data_fim|date:"d/m/Y" }}</span>
             </div>
 
-            {% if form.vaga.field.queryset %}
+            {% if slots %}
             {% comment %}
-            O campo de vaga tem duas visões: a lista (o `<select>` de sempre, que
-            é o que o formulário envia) e uma grade de dias × horários montada
-            pelo JS a partir das opções. Só aparecem vagas livres, porque as
-            opções do select são exatamente essas.
+            A seção mostra TODAS as vagas da grade (não só as livres): as já
+            reservadas aparecem com o que foi proposto, para o proponente ver o
+            conflito antes de enviar. A lista mantém o `<select>` de livres (é o
+            que o formulário envia) e acrescenta a tabela de ocupação; a grade é
+            montada pelo JS a partir do mesmo mapa (`slots_json`).
             {% endcomment %}
+            {{ slots_json|json_script:"slotsGrade" }}
             <div data-vista-grupo="proposta-vagas">
                 <div class="px-1 mb-3">
                     {% include 'includes/vista_switch.html' with vistas=vistas_vaga vista_ativa='lista' %}
                 </div>
 
                 <div data-vista-painel="lista">
+                    {% if form.vaga.field.queryset %}
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label" for="id_vaga">
@@ -102,21 +105,77 @@
                             </small>
                         </div>
                     </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        Nenhuma vaga livre na grade deste evento. Fale com a organização.
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-3">
+                        <h6 class="mb-2">Ocupação da grade</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Dia e horário</th>
+                                        <th>Espaço</th>
+                                        <th>Propostas</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for slot in slots %}
+                                    <tr>
+                                        <td class="text-nowrap">
+                                            {{ slot.vaga.inicio|date:"d/m H:i" }}–{{ slot.vaga.fim|date:"H:i" }}
+                                        </td>
+                                        <td>
+                                            {{ slot.vaga.espaco.nome }}
+                                            {% if slot.vaga.capacidade > 1 %}
+                                            <span class="text-muted">({{ slot.propostas|length }}/{{ slot.vaga.capacidade }})</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% for p in slot.propostas %}
+                                            <div{% if not forloop.last %} class="mb-1"{% endif %}>
+                                                <b>{{ p.titulo }}</b>
+                                                {% if p.situacao == 'pendente' %}
+                                                <span class="badge text-bg-warning">aguardando</span>
+                                                {% elif p.situacao == 'aprovada' %}
+                                                <span class="badge text-bg-success">aprovada</span>
+                                                {% endif %}
+                                                {% if slot.minha and p.proponente_id == user.id %}
+                                                <span class="badge text-bg-info">sua</span>
+                                                {% endif %}
+                                                <div class="text-muted small">
+                                                    {{ p.proponente.get_full_name|default:"Organização" }}{% for pessoa in p.palestrantes.all %}{% if forloop.first %} · {% endif %}{{ pessoa }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                                                </div>
+                                            </div>
+                                            {% empty %}
+                                            <span class="text-muted">livre</span>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 <div data-vista-painel="grade" hidden>
                     <div class="grade-vagas-wrap">
                         <div class="grade-vagas" id="gradeVagas" role="group"
-                             aria-label="Vagas livres por dia e horário"></div>
+                             aria-label="Vagas da grade por dia e horário"></div>
                     </div>
-                    <small class="text-muted d-block">
-                        Toque numa vaga para reservá-la — a lista acima mostra a escolha.
+                    <small class="text-muted d-block mt-2">
+                        Toque numa vaga <b>livre</b> para reservá-la — os cartões
+                        tracejados já têm proposta (com título e quem propôs).
                     </small>
                 </div>
             </div>
             {% else %}
             <div class="alert alert-warning mb-0">
-                Nenhuma vaga livre na grade deste evento. Fale com a organização.
+                Nenhuma vaga na grade deste evento. Fale com a organização.
             </div>
             {% endif %}
         </section>
@@ -432,12 +491,15 @@
 })();
 
 (function () {
-    // Grade de vagas: montada a partir das OPÇÕES do select (que já são só as
-    // vagas livres). Clicar numa célula seleciona a opção e dispara `change`,
-    // então a dica e o pré-preenchimento de vagas seguem valendo.
+    // Grade de vagas: montada a partir do mapa de TODAS as vagas (`slotsGrade`).
+    // Vaga livre vira botão que seleciona a opção do select (dispara `change`,
+    // então a dica e o pré-preenchimento de vagas seguem valendo); vaga já
+    // reservada vira cartão tracejado, não clicável, mostrando o que foi
+    // proposto — o aviso de conflito antes do envio.
     var grade = document.querySelector('#gradeVagas');
     var select = document.querySelector('#id_vaga');
-    if (!grade || !select) return;
+    var fonte = document.querySelector('#slotsGrade');
+    if (!grade || !fonte) return;
 
     var DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -452,22 +514,32 @@
 
     function coletar() {
         var itens = [];
-        Array.prototype.forEach.call(select.options, function (opcao) {
-            if (!opcao.value) return;
-            var inicio = new Date(opcao.getAttribute('data-inicio'));
-            var fim = new Date(opcao.getAttribute('data-fim'));
+        JSON.parse(fonte.textContent).forEach(function (vaga) {
+            var inicio = new Date(vaga.inicio);
+            var fim = new Date(vaga.fim);
             if (isNaN(inicio.getTime())) return;
             itens.push({
-                valor: opcao.value,
+                valor: String(vaga.valor),
                 dia: chave(inicio),
                 diaRotulo: rotuloDia(inicio),
                 hora: hora(inicio),
                 horaFim: isNaN(fim.getTime()) ? '' : hora(fim),
-                espaco: opcao.getAttribute('data-espaco') || '',
-                capacidade: parseInt(opcao.getAttribute('data-cap') || '0', 10),
+                espaco: vaga.espaco || '',
+                capacidade: vaga.capacidade || 0,
+                ocupadas: vaga.ocupadas || 0,
+                livre: !!vaga.livre,
+                minha: !!vaga.minha,
+                propostas: vaga.propostas || [],
             });
         });
         return itens;
+    }
+
+    function faixaHora(item) {
+        var faixa = document.createElement('span');
+        faixa.className = 'grade-vaga-hora';
+        faixa.textContent = item.hora + (item.horaFim ? '–' + item.horaFim : '');
+        return faixa;
     }
 
     function botao(item) {
@@ -480,17 +552,45 @@
         espaco.className = 'grade-vaga-espaco';
         espaco.textContent = item.espaco;
 
-        var faixa = document.createElement('span');
-        faixa.className = 'grade-vaga-hora';
-        faixa.textContent = item.hora + (item.horaFim ? '–' + item.horaFim : '');
+        el.append(espaco, faixaHora(item));
 
-        el.append(espaco, faixa);
-
-        if (item.capacidade > 0) {
+        if (item.capacidade > 1) {
             var cap = document.createElement('span');
             cap.className = 'grade-vaga-cap';
-            cap.textContent = item.capacidade + ' lugares';
+            cap.textContent = item.ocupadas + '/' + item.capacidade + ' ocupadas';
             el.appendChild(cap);
+        } else if (item.capacidade > 0) {
+            var lugares = document.createElement('span');
+            lugares.className = 'grade-vaga-cap';
+            lugares.textContent = item.capacidade + ' lugares';
+            el.appendChild(lugares);
+        }
+        return el;
+    }
+
+    function cartao(item) {
+        var el = document.createElement('div');
+        el.className = 'grade-vaga grade-vaga-reservada';
+        if (item.minha) el.classList.add('is-minha');
+
+        var espaco = document.createElement('span');
+        espaco.className = 'grade-vaga-espaco';
+        espaco.textContent = item.espaco;
+
+        var titulo = document.createElement('span');
+        titulo.className = 'grade-vaga-titulo';
+        titulo.textContent = item.propostas.length ? item.propostas[0].titulo : 'Ocupado';
+
+        el.append(espaco, titulo, faixaHora(item));
+
+        if (item.propostas.length) {
+            var dono = document.createElement('span');
+            dono.className = 'grade-vaga-cap';
+            var nomes = item.propostas.map(function (p) { return p.proponente; }).join(', ');
+            dono.textContent = nomes + (item.propostas.length > 1
+                ? ' (+' + (item.propostas.length - 1) + ')'
+                : '');
+            el.appendChild(dono);
         }
         return el;
     }
@@ -504,7 +604,10 @@
             td.appendChild(vazio);
             return td;
         }
-        itens.forEach(function (item) { td.appendChild(botao(item)); });
+        itens.filter(function (item) { return item.livre; })
+            .forEach(function (item) { td.appendChild(botao(item)); });
+        itens.filter(function (item) { return !item.livre; })
+            .forEach(function (item) { td.appendChild(cartao(item)); });
         return td;
     }
 
@@ -559,22 +662,26 @@
     }
 
     function marcar() {
-        Array.prototype.forEach.call(grade.querySelectorAll('.grade-vaga'), function (el) {
-            var escolhida = el.dataset.valor === select.value;
-            el.classList.toggle('is-escolhida', escolhida);
-            el.setAttribute('aria-pressed', escolhida ? 'true' : 'false');
-        });
+        if (!select) return;
+        Array.prototype.forEach.call(
+            grade.querySelectorAll('.grade-vaga[data-valor]'),
+            function (el) {
+                var escolhida = el.dataset.valor === select.value;
+                el.classList.toggle('is-escolhida', escolhida);
+                el.setAttribute('aria-pressed', escolhida ? 'true' : 'false');
+            }
+        );
     }
 
     grade.addEventListener('click', function (evento) {
-        var alvo = evento.target.closest('.grade-vaga');
-        if (!alvo) return;
+        var alvo = evento.target.closest('.grade-vaga[data-valor]');
+        if (!alvo || !select) return;
         select.value = alvo.dataset.valor;
         select.dispatchEvent(new Event('change', { bubbles: true }));
         marcar();
     });
 
-    select.addEventListener('change', marcar);
+    if (select) select.addEventListener('change', marcar);
 
     montar();
 })();

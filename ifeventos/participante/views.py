@@ -358,6 +358,7 @@ def propor_atividade(request, evento_id):
     else:
         form = PropostaForm(evento=evento, usuario=participante)
 
+    slots = propostas.grade_de_propostas(evento, participante)
     return render(request, 'participante/form_proposta.html', {
         'evento': evento,
         'form': form,
@@ -366,6 +367,8 @@ def propor_atividade(request, evento_id):
         'motivo_fechado': propostas.motivo_fechada(evento),
         'restantes': propostas.restantes_para_propor(participante, evento),
         'vistas_vaga': propostas.VISTAS_VAGA,
+        'slots': slots,
+        'slots_json': propostas.grade_em_json(slots),
     })
 
 
@@ -415,6 +418,7 @@ def editar_proposta(request, atividade_id):
         form = PropostaForm(instance=proposta, evento=evento,
                             usuario=request.user, incluir_vaga=proposta.vaga)
 
+    slots = propostas.grade_de_propostas(evento, request.user)
     return render(request, 'participante/form_proposta.html', {
         'evento': evento,
         'form': form,
@@ -429,6 +433,8 @@ def editar_proposta(request, atividade_id):
         'chamada': propostas.chamada_de(evento),
         'aberta': True,
         'motivo_fechado': '',
+        'slots': slots,
+        'slots_json': propostas.grade_em_json(slots),
     })
 
 

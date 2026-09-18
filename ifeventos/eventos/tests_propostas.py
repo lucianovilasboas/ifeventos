@@ -1312,3 +1312,82 @@ class GradeDeVagasNoFormularioTests(BasePropostasTests):
         self.assertIn("data-inicio=", html)
         self.assertIn("data-fim=", html)
         self.assertIn('data-cap="40"', html)
+
+
+class OcupacaoDaGradeNoFormularioTests(BasePropostasTests):
+    """A tela de proposta mostra o que já foi proposto (conflito de horário/local)."""
+
+    def _outro_espaco_e_vaga(self):
+        espaco = Espaco.objects.create(nome="Sala 2", capacidade=30)
+        vaga = self._vaga(self.inicio, self.fim, espaco=espaco)
+        return vaga
+
+    def test_grade_traz_vaga_livre_e_reservada(self):
+        self._outro_espaco_e_vaga()
+        self._propor(titulo="Minha oficina")
+
+        slots = propostas.grade_de_propostas(self.evento, self.pessoa)
+
+        self.assertEqual(len(slots), 2)
+        reservado = next(s for s in slots if s["vaga"].pk == self.vaga.pk)
+        livre = next(s for s in slots if s["vaga"].pk != self.vaga.pk)
+        self.assertEqual([p.titulo for p in reservado["propostas"]], ["Minha oficina"])
+        self.assertTrue(reservado["minha"])
+        self.assertEqual(livre["propostas"], [])
+        self.assertFalse(livre["minha"])
+
+    def test_grade_ignora_proposta_rejeitada(self):
+        proposta = self._propor()
+        propostas.rejeitar(proposta, self.org, "Fora do escopo.")
+
+        slots = propostas.grade_de_propostas(self.evento, self.pessoa)
+
+        self.assertEqual(slots[0]["propostas"], [])
+
+    def test_grade_em_json_marca_livre_e_ocupacao(self):
+        self.vaga.capacidade = 2
+        self.vaga.save(update_fields=["capacidade"])
+        self._propor(titulo="Oficina 1")
+
+        itens = propostas.grade_em_json(
+            propostas.grade_de_propostas(self.evento, self.pessoa)
+        )
+
+        self.assertEqual(len(itens), 1)
+        item = itens[0]
+        self.assertEqual(item["ocupadas"], 1)
+        self.assertEqual(item["capacidade"], 2)
+        self.assertTrue(item["livre"])
+        self.assertTrue(item["minha"])
+        self.assertEqual(item["propostas"][0]["titulo"], "Oficina 1")
+        self.assertEqual(item["propostas"][0]["situacao"], Atividade.SITUACAO_PENDENTE)
+
+    def test_formulario_mostra_proposta_reservada_e_esconde_do_select(self):
+        self._propor(titulo="Robótica para todos")
+        outra = U.objects.create_user(
+            email="outra_prop@example.com", password=SENHA, cpf="39053344705",
+        )
+        self.client.force_login(outra)
+
+        html = self.client.get(
+            reverse("participante:propor_atividade", args=[self.evento.id])
+        ).content.decode()
+
+        self.assertIn("Robótica para todos", html)
+        self.assertIn("aguardando", html)
+        # A vaga cheia (capacidade 1) não entra no select — não dá para reservar.
+        # (`<option ... data-cap=...>` é o que identifica uma opção de VAGA; o
+        # select de tipo também tem `<option value="1">`.)
+        self.assertNotRegex(html, rf'<option value="{self.vaga.pk}"\s+data-cap=')
+
+    def test_edicao_marca_a_propria_proposta_como_sua(self):
+        proposta = self._propor(titulo="Minha oficina")
+        self.client.force_login(self.pessoa)
+
+        html = self.client.get(
+            reverse("participante:editar_proposta", args=[proposta.pk])
+        ).content.decode()
+
+        self.assertIn('text-bg-info">sua<', html)
+        self.assertIn("Minha oficina", html)
+        self.assertIn("is-minha", html)
