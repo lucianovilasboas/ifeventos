@@ -1,7 +1,7 @@
 # BACKLOG — Nossos Eventos (IF Eventos)
 
 Pendências combinadas e ainda **não** feitas, para consulta futura.
-Atualizado em **18/09/2026** · branch `feat/api-f2-chamada` em `ca6e6eb` (à frente da `main` em `a633ac7`) · **490 testes OK**. Aguardando autorização para o merge/push da API.
+Atualizado em **18/09/2026** · `main` em `d40590f` (= `origin/main`) · working tree limpo · **492 testes OK**. API da chamada mergeada e publicada; **deploy em produção pendente**.
 
 > Como este projeto trabalha: branch nova a partir da `main` → implementar → rodar a suíte
 > (`docker exec app_django bash -lc 'cd /ifeventos && python manage.py test -v 1'`) → **parar**
@@ -21,21 +21,18 @@ Atualizado em **18/09/2026** · branch `feat/api-f2-chamada` em `ca6e6eb` (à fr
 
 ## 2. Deploy pendente
 
-- Commits **`ca5e440`** (avisos por e-mail + busca de palestrante), **`99b7c0a`** (tempo real + chips),
-  **`9f4c063`** (editar/excluir nos chips da grade), **`9fae57c`** (grade de vagas na proposta, com o
-  visual da malha) e **`f244300`** (correção do estouro horizontal da dashboard no celular).
-- **API REST** (na `main`, ainda não deployada): **`6338fde`** (F1 — ciclo rascunho/proposta na
-  leitura), **`17ac10e`** (F3 — regra de conflito única + schema sem avisos) e **`a633ac7`** (F4 —
-  presença, crachá, QR, verificação e permissões). **Sem migration nova** neste lote.
-- **Chamada de proposições na API** (branch `feat/api-f2-chamada`, aguardando merge): **`d546a87`**
-  (F2) e **`ca6e6eb`** (`API.md`). Depois do merge, deploy normal.
-- Roteiro: backup do banco → `git pull && docker compose up -d --build` → conferir também os
-  endpoints novos (`/api/v1/docs/` abrindo, `GET /api/v1/eventos/<id>/chamada/` com token) → conferir:
-  filtro em chips no `/participante/dashboard/` **sem estouro horizontal no celular** (o nome longo do
-  evento quebra em duas linhas); badge do cartão do evento em `/organizador/dashboard/`
-  subindo **sem recarregar** (enviar uma proposta em outra aba); os chips da grade com Editar/Excluir
-  em `/organizador/atividades_evento/<id>/?vista=grade`; o alternador Lista/Grade no campo de vaga da
-  proposta; e o e-mail **não** saindo (flag desligada).
+- **Produção já está em `82a1634`**, que inclui o lote do site (`ca5e440`, `99b7c0a`, `9f4c063`,
+  `9fae57c`, `f244300`). O que falta subir é **só a API + docs** (`82a1634..d40590f`):
+  **`6338fde`** (F1), **`17ac10e`** (F3), **`a633ac7`** (F4), **`d546a87`** (F2 da chamada),
+  **`ca6e6eb`** (`API.md`), **`5511972`** (BACKLOG) e **`d40590f`** (fix da decisão terminal).
+- **Sem migration nova** no intervalo (confirmado com `makemigrations --check`), então o deploy é
+  só `git pull` + rebuild — não depende de nenhum passo de banco.
+- Roteiro (VM `ovm-1`, `/opt/docker/ifeventos`, container **`ifeventos_app`**):
+  1. backup do banco (já existe `backup_2026-09-17.sql` no diretório; gerar um novo se quiser);
+  2. `cd /opt/docker/ifeventos && git pull && docker compose up -d --build`;
+  3. conferir: `curl -s https://ifeventos.lucianovilasboas.com.br/api/v1/eventos/` (200), `/api/v1/docs/`
+     abrindo, `GET /api/v1/eventos/107/chamada/` com o token respondendo, e o site normal (home,
+     programação, dashboard). O e-mail deve continuar **não** saindo (flag desligada).
 
 ## 3. Operação no servidor (quando fizer sentido)
 
