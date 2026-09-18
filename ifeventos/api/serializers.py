@@ -398,10 +398,10 @@ class TipoAtividadeWriteSerializer(serializers.ModelSerializer):
 class InscricaoCreateSerializer(serializers.ModelSerializer):
     """Faz a self-inscrição do usuário autenticado.
 
-    Replica a regra de negócio da view `participante.inscrever` do site:
+    Mesma regra de negócio da view `participante.inscrever` do site:
     - já inscrito -> erro
     - sem vagas  -> erro
-    - conflito de horário -> erro
+    - conflito de horário -> erro (via `eventos.inscricoes.conflito_com_inscricoes`)
     `participante` é setado automaticamente a request.user.
     """
 
@@ -427,19 +427,17 @@ class InscricaoCreateSerializer(serializers.ModelSerializer):
                 "Lamentamos, mas essa atividade não possui mais vagas.", code="no_vacancy"
             )
 
-        # 3) Conflito de horário (igual à lógica do site)
-        from django.utils.timezone import localtime
+        # 3) Conflito de horário — mesma regra da tela (fonte única em
+        # `eventos.inscricoes`): antes a comparação estava duplicada aqui e
+        # podia divergir da tela a cada mudança.
+        from eventos.inscricoes import conflito_com_inscricoes
 
-        atividades_inscritas = Atividade.objects.filter(inscritos__participante=participante)
-        for insc in atividades_inscritas:
-            if (
-                localtime(atividade.data_hora_inicio) < localtime(insc.data_hora_fim)
-                and localtime(atividade.data_hora_fim) > localtime(insc.data_hora_inicio)
-            ):
-                raise serializers.ValidationError(
-                    f"Conflito de horário com '{insc.titulo}'.",
-                    code="time_conflict",
-                )
+        conflito = conflito_com_inscricoes(participante, atividade)
+        if conflito is not None:
+            raise serializers.ValidationError(
+                f"Conflito de horário com '{conflito.titulo}'.",
+                code="time_conflict",
+            )
 
         attrs["participante"] = participante
         return attrs

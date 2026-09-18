@@ -278,6 +278,9 @@ class MinhasInscricoesViewSet(viewsets.ModelViewSet):
 
     serializer_class = InscricaoSerializer
     permission_classes = [IsAuthenticated, IsDonoOuOrganizador]
+    # `queryset` base só para o drf-spectacular tipar o `{id}` do path (a
+    # listagem real sai do get_queryset, filtrada por usuário).
+    queryset = Inscricao.objects.none()
 
     def get_permissions(self):
         # DELETE (cancelar) é somente a própria inscrição; demais exigem
@@ -330,6 +333,7 @@ class MeusCertificadosViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = CertificadoSerializer
     permission_classes = [IsAuthenticated, IsDonoOuOrganizador]
+    queryset = Certificado.objects.none()  # idem: tipa o `{id}` na doc
 
     def get_queryset(self):
         qs = Certificado.objects.select_related("participante", "atividade", "evento")
@@ -425,6 +429,7 @@ class PresencaViewSet(viewsets.ModelViewSet):
     serializer_class = PresencaSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ["get", "post", "delete", "head", "options"]
+    queryset = Presenca.objects.none()  # idem: tipa o `{id}` na doc
 
     def get_queryset(self):
         qs = Presenca.objects.select_related(

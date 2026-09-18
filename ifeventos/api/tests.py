@@ -5,13 +5,20 @@ leitura, sem DELETE, POST idempotente por e-mail) e `local` em atividades
 (aceito, persistido e devolvido; `palestrantes` deixa de ser obrigatório).
 """
 
-from datetime import date, datetime, timezone as tz
+from datetime import date, datetime, timedelta, timezone as tz
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from eventos.models import Atividade, Evento, Participante, TipoAtividade
+from eventos.models import (
+    Atividade,
+    Certificado,
+    Evento,
+    Inscricao,
+    Participante,
+    TipoAtividade,
+)
 
 U = get_user_model()
 SENHA = "SenhaForte123!"
@@ -335,3 +342,101 @@ class AtividadeCicloApiTests(_BaseApiTests):
         self.assertEqual(dados["situacao"], "organizador")
         self.assertTrue(dados["publicada"])
         self.assertIsNone(dados["proponente"])
+
+
+class InscricaoApiTests(_BaseApiTests):
+    """Self-inscrição pela API: reusa a regra da tela (vagas/duplicidade/conflito)."""
+
+    def _atividade(self, titulo="Atividade", hora=8, minuto=0, duracao_min=60, n_vagas=10):
+        inicio = datetime(2026, 10, 1, hora, minuto, tzinfo=tz.utc)
+        return Atividade.objects.create(
+            evento=self.evento, titulo=titulo, descricao="d", local="Sala",
+            tipo=self.tipo, data_hora_inicio=inicio,
+            data_hora_fim=inicio + timedelta(minutes=duracao_min), n_vagas=n_vagas,
+        )
+
+    def _inscrever(self, atividade):
+        return self.client.post(
+            "/api/v1/minhas-inscricoes/", {"atividade": atividade.id}, format="json"
+        )
+
+    @staticmethod
+    def _mensagem(resposta):
+        """Texto do erro, seja resposta em lista (campo) ou dict (não-campo)."""
+        dados = resposta.json()
+        if isinstance(dados, dict):
+            dados = [item for valores in dados.values() for item in valores]
+        return " ".join(str(item) for item in dados)
+
+    def test_inscreve(self):
+        atividade = self._atividade()
+        self._autenticar(self.participante)
+
+        resposta = self._inscrever(atividade)
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertTrue(
+            Inscricao.objects.filter(
+                participante=self.participante, atividade=atividade
+            ).exists()
+        )
+
+    def test_duplicada_recusa(self):
+        atividade = self._atividade()
+        self._autenticar(self.participante)
+        self._inscrever(atividade)
+
+        resposta = self._inscrever(atividade)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("já está inscrito", self._mensagem(resposta))
+
+    def test_sem_vagas_recusa(self):
+        atividade = self._atividade(n_vagas=1)
+        outra = U.objects.create_user(
+            email="api_outra@example.com", password=SENHA, cpf="39053344705"
+        )
+        Inscricao.objects.create(participante=outra, atividade=atividade)
+        self._autenticar(self.participante)
+
+        resposta = self._inscrever(atividade)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("vagas", self._mensagem(resposta))
+
+    def test_conflito_de_horario_recusa(self):
+        primeira = self._atividade("Primeira", hora=8, duracao_min=60)
+        self._atividade("Segunda", hora=8, minuto=30, duracao_min=60)  # sobrepõe
+        self._autenticar(self.participante)
+        self._inscrever(primeira)
+
+        resposta = self._inscrever(Atividade.objects.get(titulo="Segunda"))
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Conflito de horário com 'Primeira'", self._mensagem(resposta))
+
+    def test_cancela_a_propria(self):
+        atividade = self._atividade()
+        self._autenticar(self.participante)
+        self._inscrever(atividade)
+        inscricao = Inscricao.objects.get(participante=self.participante)
+
+        resposta = self.client.delete(f"/api/v1/minhas-inscricoes/{inscricao.id}/")
+
+        self.assertEqual(resposta.status_code, 204)
+        self.assertFalse(Inscricao.objects.filter(pk=inscricao.pk).exists())
+
+    def test_cancelar_bloqueado_por_certificado_emitido(self):
+        atividade = self._atividade()
+        self._autenticar(self.participante)
+        self._inscrever(atividade)
+        inscricao = Inscricao.objects.get(participante=self.participante)
+        Certificado.objects.create(
+            participante=self.participante, atividade=atividade, evento=self.evento
+        )
+
+        resposta = self.client.delete(f"/api/v1/minhas-inscricoes/{inscricao.id}/")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("certificado", resposta.json()["detail"].lower())
+        self.assertTrue(Inscricao.objects.filter(pk=inscricao.pk).exists())
