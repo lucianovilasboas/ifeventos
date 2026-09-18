@@ -281,8 +281,8 @@ class AcoesNaGradeTests(TestCase):
         )
 
 
-class AvatarNaHomeTests(TestCase):
-    """A home mostra o avatar no topo quando o usuário está logado."""
+class MenuDoUsuarioNaHomeTests(TestCase):
+    """A home mostra o menu do usuário (avatar) no topo quando está logado."""
 
     def _acoes_do_topo(self, html):
         achado = re.search(
@@ -291,14 +291,14 @@ class AvatarNaHomeTests(TestCase):
         assert achado is not None, "grupo do topo não renderizou"
         return achado.group(1)
 
-    def test_anonimo_nao_mostra_avatar(self):
+    def test_anonimo_nao_mostra_menu(self):
         bloco = self._acoes_do_topo(
             self.client.get(reverse("eventos:eventos")).content.decode()
         )
 
-        self.assertNotIn("landing-avatar", bloco)
+        self.assertNotIn("menu-usuario", bloco)
 
-    def test_logado_mostra_avatar_no_topo(self):
+    def test_logado_mostra_menu_no_topo(self):
         pessoa = U.objects.create_user(
             email="avatar_home@example.com", password=SENHA, cpf="11144477735",
         )
@@ -308,4 +308,5 @@ class AvatarNaHomeTests(TestCase):
             self.client.get(reverse("eventos:eventos")).content.decode()
         )
 
-        self.assertIn("landing-avatar", bloco)
+        self.assertIn("menu-usuario", bloco)
+        self.assertIn("menu-usuario-gatilho", bloco)

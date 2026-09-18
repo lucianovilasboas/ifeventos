@@ -133,11 +133,11 @@ class FiltroDeEventoChipsTests(TestCase):
 
 
 class RotulosDaBarraInferiorTests(TestCase):
-    """A barra inferior do mobile não deixa nenhum item só com o ícone.
+    """A barra inferior do mobile fica só com destinos e todo item tem rótulo.
 
     O CSS esconde o rótulo completo no mobile e mostra o curto; sem o curto, o
-    item some. Aqui garante-se que todo link tem rótulo e que a alternância de
-    visão (organizador ↔ participante) tem tratamento próprio.
+    item some. O que depende da visão/conta foi para o menu do usuário, então a
+    barra não deve carregar Painel/Certificados/Propostas/Crachá/Sair.
     """
 
     def _bottomnav(self, html):
@@ -153,7 +153,7 @@ class RotulosDaBarraInferiorTests(TestCase):
         self.assertGreater(links, 0)
         self.assertEqual(links, rotulos, "algum item ficou sem rótulo")
 
-    def test_participante_todo_item_tem_rotulo(self):
+    def test_participante_barra_so_destinos(self):
         pessoa = U.objects.create_user(
             email="nav_participante@example.com", password=SENHA, cpf="11144477735",
         )
@@ -164,7 +164,10 @@ class RotulosDaBarraInferiorTests(TestCase):
         )
 
         self._todo_link_tem_rotulo(bloco)
-        self.assertNotIn("nav-modo", bloco)
+        self.assertIn("Início", bloco)
+        self.assertIn("Agenda", bloco)
+        for item_de_conta in ("Painel", "Certificados", "Propostas", "Crachá", "Sair"):
+            self.assertNotIn(item_de_conta, bloco)
 
     def test_anonimo_todo_item_tem_rotulo(self):
         bloco = self._bottomnav(
@@ -172,22 +175,51 @@ class RotulosDaBarraInferiorTests(TestCase):
         )
 
         self._todo_link_tem_rotulo(bloco)
-        self.assertNotIn("nav-modo", bloco)
 
-    def test_duplo_papel_tem_pilula_de_alternancia_no_fim(self):
+
+class MenuDoUsuarioTests(TestCase):
+    """O menu do avatar concentra o que depende da visão/da conta."""
+
+    def _menu(self, html):
+        achado = re.search(
+            r'<div class="menu-usuario"[^>]*>(.*?)</div>\s*</div>', html, re.S
+        )
+        assert achado is not None, "menu do usuário não renderizou"
+        return achado.group(1)
+
+    def test_anonimo_nao_tem_menu(self):
+        html = self.client.get(reverse("account_login")).content.decode()
+        self.assertNotIn("menu-usuario", html)
+
+    def test_participante_tem_atalhos_da_visao(self):
         pessoa = U.objects.create_user(
-            email="nav_duplo@example.com", password=SENHA, cpf="11144477735",
+            email="menu_part@example.com", password=SENHA, cpf="11144477735",
+        )
+        self.client.force_login(pessoa)
+
+        menu = self._menu(
+            self.client.get(reverse("participante:dashboard")).content.decode()
+        )
+
+        for item in ("Meu painel", "Certificados", "Propostas", "Crachás", "Meu perfil", "Sair"):
+            self.assertIn(item, menu)
+        self.assertNotIn("Trocar para", menu)
+
+    def test_duplo_papel_mostra_alternancia_para_o_outro_lado(self):
+        pessoa = U.objects.create_user(
+            email="menu_duplo@example.com", password=SENHA, cpf="11144477735",
             is_organizador=True, is_participante=True,
         )
         self.client.force_login(pessoa)
 
-        bloco = self._bottomnav(
+        no_participante = self._menu(
             self.client.get(reverse("participante:dashboard")).content.decode()
         )
+        self.assertIn("Trocar para Organizador", no_participante)
+        self.assertIn("Visão: Participante", no_participante)
 
-        self._todo_link_tem_rotulo(bloco)
-        self.assertEqual(bloco.count('class="nav-modo"'), 1)
-        self.assertIn('class="nav-divisor"', bloco)
-        # A alternância fica no grupo de conta: depois de Crachá e antes de Sair.
-        self.assertLess(bloco.index("meus-crachas"), bloco.index("nav-modo"))
-        self.assertLess(bloco.index("nav-modo"), bloco.index("logout"))
+        no_organizador = self._menu(
+            self.client.get(reverse("organizador:dashboard")).content.decode()
+        )
+        self.assertIn("Trocar para Participante", no_organizador)
+        self.assertIn("Visão: Organizador", no_organizador)

@@ -1,0 +1,67 @@
+{% comment %}
+Menu do usuário (contexto + conta), ancorado no avatar do topo.
+
+Concentra o que depende da visão/da conta — alternar visão, atalhos do papel e
+sair — e deixa a navegação de baixo só com Início e Agenda. O toggle é próprio
+(`js/menu_usuario.js`), então funciona também na landing, que não carrega
+Bootstrap.
+{% endcomment %}
+{% if request.user.is_authenticated %}
+<div class="menu-usuario" data-menu-usuario>
+    <button type="button" class="menu-usuario-gatilho" data-menu-gatilho
+            aria-haspopup="true" aria-expanded="false"
+            aria-label="Abrir menu da conta de {{ request.user.first_name|default:request.user.email }}">
+        <img src="{{ request.user.get_foto_url }}" alt="{{ request.user.first_name }}">
+    </button>
+
+    <div class="menu-usuario-painel" data-menu-painel hidden>
+        <div class="menu-usuario-topo">
+            <strong>{{ request.user.get_full_name|default:request.user.email }}</strong>
+            <span>{{ request.user.email }}</span>
+            <span class="menu-usuario-visao">
+                Visão: {% if request.resolver_match.namespace == 'organizador' %}Organizador{% elif request.resolver_match.namespace == 'participante' %}Participante{% else %}{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}{% endif %}
+            </span>
+        </div>
+
+        {% if request.user.is_organizador and request.user.is_participante %}
+        {% if request.resolver_match.namespace == 'participante' %}
+        <a class="menu-usuario-item menu-usuario-troca" href="{% url 'organizador:dashboard' %}">
+            <i class="fa-solid fa-right-left"></i> Trocar para Organizador
+        </a>
+        {% else %}
+        <a class="menu-usuario-item menu-usuario-troca" href="{% url 'participante:dashboard' %}">
+            <i class="fa-solid fa-right-left"></i> Trocar para Participante
+        </a>
+        {% endif %}
+        {% endif %}
+
+        <a class="menu-usuario-item" href="{% if request.user.is_participante and not request.user.is_organizador %}{% url 'participante:dashboard' %}{% elif request.user.is_organizador and not request.user.is_participante %}{% url 'organizador:dashboard' %}{% else %}{% if request.resolver_match.namespace == 'organizador' %}{% url 'organizador:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}{% endif %}">
+            <i class="fa-solid fa-gauge-high"></i> Meu painel
+        </a>
+
+        {% if request.user.is_participante %}
+        <a class="menu-usuario-item" href="{% url 'participante:meus_certificados' %}">
+            <i class="fa-solid fa-award"></i> Certificados
+        </a>
+        <a class="menu-usuario-item" href="{% url 'participante:minhas_propostas' %}">
+            <i class="fa-solid fa-lightbulb"></i> Propostas
+        </a>
+        {% endif %}
+
+        <a class="menu-usuario-item" href="{% url 'participante:meus_crachas' %}">
+            <i class="fa-solid fa-id-card"></i> Crachás
+        </a>
+
+        <button type="button" class="menu-usuario-item" data-menu-perfil
+                data-perfil-url="{% if request.user.is_participante and not request.user.is_organizador %}{% url 'participante:dashboard' %}{% elif request.user.is_organizador and not request.user.is_participante %}{% url 'organizador:dashboard' %}{% else %}{% if request.resolver_match.namespace == 'organizador' %}{% url 'organizador:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}{% endif %}">
+            <i class="fa-solid fa-user-pen"></i> Meu perfil
+        </button>
+
+        <div class="menu-usuario-sep" aria-hidden="true"></div>
+
+        <a class="menu-usuario-item menu-usuario-sair" href="{% url 'eventos:logout' %}">
+            <i class="fa-solid fa-right-from-bracket"></i> Sair
+        </a>
+    </div>
+</div>
+{% endif %}
