@@ -1,7 +1,7 @@
 # BACKLOG — Nossos Eventos (IF Eventos)
 
 Pendências combinadas e ainda **não** feitas, para consulta futura.
-Atualizado em **18/09/2026** · `main` em `dd3f143` (= `origin/main`) · working tree limpo · **492 testes OK**. API da chamada mergeada e publicada; **deploy em produção pendente**.
+Atualizado em **18/09/2026** · `main` em `a8d2900` (= `origin/main`) · working tree limpo · **492 testes OK**. API da chamada mergeada, publicada **e deployada em produção**.
 
 > Como este projeto trabalha: branch nova a partir da `main` → implementar → rodar a suíte
 > (`docker exec app_django bash -lc 'cd /ifeventos && python manage.py test -v 1'`) → **parar**
@@ -19,20 +19,16 @@ Atualizado em **18/09/2026** · `main` em `dd3f143` (= `origin/main`) · working
   definição de senha do allauth. **Só entra depois do SMTP validado.** Ressalvas: entregabilidade
   (spam), contas criadas por terceiros e limite de convites por proposta.
 
-## 2. Deploy pendente
+## 2. Deploy — procedimento (última execução: 18/09/2026, feita)
 
-- **Produção já está em `82a1634`**, que inclui o lote do site (`ca5e440`, `99b7c0a`, `9f4c063`,
-  `9fae57c`, `f244300`). O que falta subir é **só a API + docs** (tudo depois de `82a1634`, até o topo da `main`):
-  **`6338fde`** (F1), **`17ac10e`** (F3), **`a633ac7`** (F4), **`d546a87`** (F2 da chamada),
-  **`ca6e6eb`** (`API.md`), **`5511972`** (BACKLOG) e **`d40590f`** (fix da decisão terminal).
-- **Sem migration nova** no intervalo (confirmado com `makemigrations --check`), então o deploy é
-  só `git pull` + rebuild — não depende de nenhum passo de banco.
-- Roteiro (VM `ovm-1`, `/opt/docker/ifeventos`, container **`ifeventos_app`**):
-  1. backup do banco (já existe `backup_2026-09-17.sql` no diretório; gerar um novo se quiser);
-  2. `cd /opt/docker/ifeventos && git pull && docker compose up -d --build`;
-  3. conferir: `curl -s https://ifeventos.lucianovilasboas.com.br/api/v1/eventos/` (200), `/api/v1/docs/`
-     abrindo, `GET /api/v1/eventos/107/chamada/` com o token respondendo, e o site normal (home,
-     programação, dashboard). O e-mail deve continuar **não** saindo (flag desligada).
+Produção (`ovm-1` → `/opt/docker/ifeventos`, container **`ifeventos_app`**) está com a API da chamada
+no ar. O lote deployado **não tem migration**: é só `git pull` + rebuild, sem passo de banco.
+
+Para as próximas vezes:
+1. backup do banco (há um `backup_*.sql` no próprio diretório);
+2. `cd /opt/docker/ifeventos && git pull && docker compose up -d --build`;
+3. conferir o topo da `main` (`git log --oneline -1`), `/api/v1/docs/` abrindo e o site normal
+   (home, programação, dashboards). O e-mail deve continuar **desligado** (flag desligada).
 
 ### Verificação pós-deploy (roteiro)
 
@@ -41,8 +37,9 @@ Ao **reiniciar o MCP**, o `server.py` atualizado passa a expor as 19 tools da ch
 Até lá, a sessão em curso continua com as 34 antigas (o cliente guarda a lista do início da sessão).
 
 **Produção** (VM `ovm-1`, container `ifeventos_app`):
-- `git log --oneline -1` em `/opt/docker/ifeventos` deve mostrar o **topo da `main`**
-  (`dd3f143` quando este roteiro foi escrito; se houver commit novo, será ele).
+- `git log --oneline -1` em `/opt/docker/ifeventos` deve mostrar o **topo da `main`** (`a8d2900`
+  quando este roteiro foi escrito; se houver commit novo, será ele — o repo de prod pode ficar
+  atrás só em commits de doc, que não exigem rebuild).
 - HTTP com o token de serviço de prod: `/eventos/`, `/docs/`, `/espacos/`, `/propostas/` → 200;
   `/eventos/<id>/chamada/` → 200 com `aberta_agora` (ou 404 "sem chamada" — JSON, não HTML de rota
   inexistente).
@@ -108,6 +105,12 @@ excluir tudo; conferir `count=0` no fim. **NUNCA usar o evento 107** (SNCT 2026,
 
 ## 6. Fechado recentemente (para não reabrir)
 
+- **API da chamada em produção (18/09/2026)**: deploy do lote da API (F1, F3, F4, F2 da chamada,
+  `API.md` e o fix da decisão terminal) na VM `ovm-1`, **sem migration**. Verificado: `/api/v1/`
+  `eventos`, `docs`, `espacos`, `propostas` → 200; `obter_chamada(14)` com `aberta_agora=true`
+  (79 vagas livres) e as tools `mcp-eventos-prod_*` respondendo (painel do evento 14 com 80
+  vagas / 79 livres e 2 propostas). Em dev, o ciclo completo da chamada foi testado pelas tools
+  novas do MCP, com os dados temporários removidos no fim.
 - **API REST da chamada de proposições (F2)**: janela (`GET/PUT /eventos/{id}/chamada/`), painel
   (`/painel-chamada/`), catálogo de espaços, grade de vagas (com geração em lote idempotente),
   propostas (propor/editar/cancelar/aprovar/rejeitar) e `vaga` opcional no POST de atividade —
