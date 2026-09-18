@@ -24,7 +24,7 @@
             </a>
             <nav class="landing-nav" aria-label="Navegação principal">
                 {% if request.user.is_authenticated %}
-                {# Logado: navegação da conta + avatar #}
+                {# Logado: navegação da conta #}
                 <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span>Início</span></a>
 
                 {% if request.user.is_organizador and request.user.is_participante %}
@@ -43,14 +43,6 @@
                 <a href="{% url 'participante:meus_crachas' %}"><i class="fa-solid fa-id-card"></i><span>Crachá</span></a>
 
                 <a href="{% url 'eventos:logout' %}"><i class="fa-solid fa-right-from-bracket"></i><span>Sair</span></a>
-
-                {% if request.user.is_organizador and not request.user.is_participante %}
-                    <a class="landing-avatar" href="{% url 'organizador:dashboard' %}" title="{{ request.user.first_name }}">
-                {% else %}
-                    <a class="landing-avatar" href="{% url 'participante:dashboard' %}" title="{{ request.user.first_name }}">
-                {% endif %}
-                    <img src="{{ request.user.get_foto_url }}" alt="{{ request.user.first_name }}">
-                </a>
                 {% else %}
                 {# Não logado: Início, Agenda + botão Entrar #}
                 <a href="#inicio" aria-current="page">Início</a>
@@ -58,7 +50,18 @@
                 <a class="btn-land btn-primary-land" href="{% url 'account_login' %}"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
                 {% endif %}
             </nav>
-            {% include 'includes/pwa_install_button.html' %}
+            <div class="landing-topo-acoes">
+                {% include 'includes/pwa_install_button.html' %}
+                {% if request.user.is_authenticated %}
+                {% if request.user.is_organizador and not request.user.is_participante %}
+                    <a class="landing-avatar" href="{% url 'organizador:dashboard' %}" title="{{ request.user.first_name }}">
+                {% else %}
+                    <a class="landing-avatar" href="{% url 'participante:dashboard' %}" title="{{ request.user.first_name }}">
+                {% endif %}
+                    <img src="{{ request.user.get_foto_url }}" alt="{{ request.user.first_name }}">
+                </a>
+                {% endif %}
+            </div>
         </div>
     </header>
 

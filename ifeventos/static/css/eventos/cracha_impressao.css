@@ -304,6 +304,13 @@
 @media screen {
     .crachas-lista {
         gap: 18px;
+        /* Crachá centralizado na página (a impressão usa grid 2x2 e não muda). */
+        justify-content: center;
+    }
+
+    .cracha-acoes {
+        /* Botões "Visualizar crachá" / PDF centralizados sob o crachá. */
+        justify-content: center;
     }
 
     .crachas-lista .cracha {
@@ -442,7 +449,7 @@
    ------------------------------------------------------------------------- */
 
 .crachas-toolbar .crachas-dica {
-    flex-basis: 100%;
+    flex-basis: auto;
     margin: 2px 0 0;
 }
 

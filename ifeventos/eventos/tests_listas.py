@@ -1,5 +1,6 @@
 """Testes das listas de atividades ordenadas por data."""
 
+import re
 from datetime import date, datetime, timezone as tz
 
 from django.contrib.auth import get_user_model
@@ -278,3 +279,33 @@ class AcoesNaGradeTests(TestCase):
         self.assertNotIn(
             reverse("organizador:ocupacao_salas", args=[self.evento.id]), html
         )
+
+
+class AvatarNaHomeTests(TestCase):
+    """A home mostra o avatar no topo quando o usuário está logado."""
+
+    def _acoes_do_topo(self, html):
+        achado = re.search(
+            r'<div class="landing-topo-acoes">(.*?)</div>', html, re.S
+        )
+        assert achado is not None, "grupo do topo não renderizou"
+        return achado.group(1)
+
+    def test_anonimo_nao_mostra_avatar(self):
+        bloco = self._acoes_do_topo(
+            self.client.get(reverse("eventos:eventos")).content.decode()
+        )
+
+        self.assertNotIn("landing-avatar", bloco)
+
+    def test_logado_mostra_avatar_no_topo(self):
+        pessoa = U.objects.create_user(
+            email="avatar_home@example.com", password=SENHA, cpf="11144477735",
+        )
+        self.client.force_login(pessoa)
+
+        bloco = self._acoes_do_topo(
+            self.client.get(reverse("eventos:eventos")).content.decode()
+        )
+
+        self.assertIn("landing-avatar", bloco)
