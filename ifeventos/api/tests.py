@@ -11,12 +11,17 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from django.utils import timezone
+
+from eventos.crachas import gerar_token_atividade
 from eventos.models import (
     Atividade,
     Certificado,
     Evento,
     Inscricao,
     Participante,
+    Presenca,
+    PresencaCancelada,
     TipoAtividade,
 )
 
@@ -440,3 +445,306 @@ class InscricaoApiTests(_BaseApiTests):
         self.assertEqual(resposta.status_code, 400)
         self.assertIn("certificado", resposta.json()["detail"].lower())
         self.assertTrue(Inscricao.objects.filter(pk=inscricao.pk).exists())
+
+
+class PresencaApiTests(_BaseApiTests):
+    """Presença: a organização marca; a própria pessoa confirma pelo QR."""
+
+    def _atividade_agora(self, titulo="Agora"):
+        inicio = timezone.now() - timedelta(minutes=10)
+        return Atividade.objects.create(
+            evento=self.evento, titulo=titulo, descricao="d", local="Sala",
+            tipo=self.tipo, data_hora_inicio=inicio,
+            data_hora_fim=inicio + timedelta(hours=1), n_vagas=10,
+        )
+
+    def _marcar(self, atividade, pessoa, origem="manual"):
+        return self.client.post("/api/v1/presencas/", {
+            "atividade": atividade.id, "participante": pessoa.id, "origem": origem,
+        }, format="json")
+
+    def test_organizacao_marca_e_repetir_e_idempotente(self):
+        atividade = self._atividade_agora()
+        Inscricao.objects.create(participante=self.participante, atividade=atividade)
+        self._autenticar(self.organizador)
+
+        primeira = self._marcar(atividade, self.participante)
+        segunda = self._marcar(atividade, self.participante)
+
+        self.assertEqual(primeira.status_code, 201)
+        self.assertTrue(primeira.json()["criada"])
+        self.assertEqual(segunda.status_code, 200)
+        self.assertFalse(segunda.json()["criada"])
+        self.assertEqual(Presenca.objects.filter(atividade=atividade).count(), 1)
+
+    def test_quem_nao_organiza_recebe_403(self):
+        atividade = self._atividade_agora()
+        Inscricao.objects.create(participante=self.participante, atividade=atividade)
+        self._autenticar(self.participante)
+
+        resposta = self._marcar(atividade, self.participante)
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_pessoa_sem_vinculo_com_o_evento_nao_recebe_presenca(self):
+        atividade = self._atividade_agora()
+        de_fora = U.objects.create_user(
+            email="de_fora@example.com", password=SENHA, cpf="39053344705"
+        )
+        self._autenticar(self.organizador)
+
+        resposta = self._marcar(atividade, de_fora)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("vínculo", resposta.json()["detail"])
+
+    def test_pessoa_confirma_pelo_qr_da_atividade(self):
+        atividade = self._atividade_agora()
+        Inscricao.objects.create(participante=self.participante, atividade=atividade)
+        self._autenticar(self.participante)
+
+        resposta = self.client.post("/api/v1/presencas/", {
+            "token_atividade": gerar_token_atividade(atividade.id),
+        }, format="json")
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertTrue(resposta.json()["criada"])
+        self.assertTrue(
+            Presenca.objects.filter(
+                atividade=atividade, participante=self.participante
+            ).exists()
+        )
+
+    def test_desfazer_presenca_deixa_auditoria(self):
+        atividade = self._atividade_agora()
+        presenca = Presenca.objects.create(
+            atividade=atividade, participante=self.participante, papel="participante"
+        )
+        self._autenticar(self.organizador)
+
+        resposta = self.client.delete(f"/api/v1/presencas/{presenca.id}/")
+
+        self.assertEqual(resposta.status_code, 204)
+        self.assertFalse(Presenca.objects.filter(pk=presenca.pk).exists())
+        self.assertEqual(PresencaCancelada.objects.count(), 1)
+
+
+class CrachaApiTests(_BaseApiTests):
+    """Crachá derivado (lista, QR em PNG) e o PDF do evento."""
+
+    def setUp(self):
+        super().setUp()
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina", descricao="d", local="Sala",
+            tipo=self.tipo, data_hora_inicio=timezone.now(),
+            data_hora_fim=timezone.now() + timedelta(hours=1), n_vagas=10,
+        )
+        Inscricao.objects.create(participante=self.participante, atividade=self.atividade)
+
+    def test_lista_o_cracha_com_token_e_url(self):
+        self._autenticar(self.participante)
+
+        crachas = self.client.get("/api/v1/meus-crachas/").json()
+
+        self.assertEqual(len(crachas), 1)
+        cracha = crachas[0]
+        self.assertEqual(cracha["evento_id"], self.evento.id)
+        self.assertEqual(cracha["papel"], "participante")
+        self.assertTrue(cracha["token"])
+        # O QR abre o link curto público `/c/<token>`; o MESMO token é aceito
+        # pela rota de verificação da API (coberto em VerificacaoApiTests).
+        self.assertIn(cracha["token"], cracha["url"])
+        self.assertIn("qr.png", cracha["qr_png"])
+
+    def test_qr_do_cracha_em_png(self):
+        self._autenticar(self.participante)
+
+        resposta = self.client.get(f"/api/v1/meus-crachas/{self.evento.id}/qr.png")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "image/png")
+
+    def test_cracha_de_evento_sem_papel_da_404(self):
+        outro = Evento.objects.create(
+            title="Outro evento", description="d", local="Sala",
+            data_inicio=date(2026, 11, 1), data_fim=date(2026, 11, 2),
+            categoria="formacao", organizador=self.organizador,
+        )
+        self._autenticar(self.participante)
+
+        resposta = self.client.get(f"/api/v1/meus-crachas/{outro.id}/qr.png")
+
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_pdf_dos_crachas_e_do_organizador(self):
+        self._autenticar(self.organizador)
+
+        resposta = self.client.get(f"/api/v1/eventos/{self.evento.id}/crachas.pdf")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "application/pdf")
+
+    def test_pdf_dos_crachas_recusa_quem_nao_organiza(self):
+        self._autenticar(self.participante)
+
+        resposta = self.client.get(f"/api/v1/eventos/{self.evento.id}/crachas.pdf")
+
+        self.assertEqual(resposta.status_code, 403)
+
+
+class QrAtividadeApiTests(_BaseApiTests):
+    """QR de presença da atividade: organizador (ou palestrante) busca a imagem."""
+
+    def setUp(self):
+        super().setUp()
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina", descricao="d", local="Sala",
+            tipo=self.tipo, data_hora_inicio=timezone.now(),
+            data_hora_fim=timezone.now() + timedelta(hours=1), n_vagas=10,
+        )
+
+    def test_organizador_pega_o_qr_em_json_e_png(self):
+        self._autenticar(self.organizador)
+
+        dados = self.client.get(f"/api/v1/atividades/{self.atividade.id}/qrcode/")
+
+        self.assertEqual(dados.status_code, 200)
+        self.assertIn("url", dados.json())
+        self.assertTrue(dados.json()["png"].startswith("data:image"))
+
+        png = self.client.get(f"/api/v1/atividades/{self.atividade.id}/qrcode.png")
+        self.assertEqual(png.status_code, 200)
+        self.assertEqual(png["Content-Type"], "image/png")
+
+    def test_quem_nao_organiza_nem_palestra_recebe_403(self):
+        self._autenticar(self.participante)
+
+        resposta = self.client.get(f"/api/v1/atividades/{self.atividade.id}/qrcode/")
+
+        self.assertEqual(resposta.status_code, 403)
+
+
+class VerificacaoApiTests(_BaseApiTests):
+    """Verificação pública do token do crachá."""
+
+    def setUp(self):
+        super().setUp()
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina", descricao="d", local="Sala",
+            tipo=self.tipo, data_hora_inicio=timezone.now(),
+            data_hora_fim=timezone.now() + timedelta(hours=1), n_vagas=10,
+        )
+        Inscricao.objects.create(participante=self.participante, atividade=self.atividade)
+
+    def test_token_valido_responde_sem_dado_pessoal(self):
+        self._autenticar(self.participante)
+        token = self.client.get("/api/v1/meus-crachas/").json()[0]["token"]
+        self.client.force_authenticate(user=None)   # portaria confere deslogada
+
+        resposta = self.client.get(f"/api/v1/verificar/{token}/")
+
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertTrue(dados["valido"])
+        self.assertEqual(dados["papel"], "participante")
+        self.assertEqual(dados["evento_id"], self.evento.id)
+        self.assertNotIn("cpf", dados)
+        self.assertNotIn("email", dados)
+
+    def test_token_invalido_responde_falso(self):
+        resposta = self.client.get("/api/v1/verificar/isto-nao-e-um-token/")
+
+        self.assertGreaterEqual(resposta.status_code, 400)
+        self.assertFalse(resposta.json()["valido"])
+
+
+class PermissoesEscritaApiTests(_BaseApiTests):
+    """Quem pode escrever: só organizador, e só nos próprios eventos."""
+
+    def _dados_evento(self):
+        return {
+            "title": "Evento novo", "description": "d", "local": "Sala",
+            "data_inicio": "2026-11-01", "data_fim": "2026-11-02",
+        }
+
+    def test_anonimo_nao_cria_evento(self):
+        resposta = self.client.post("/api/v1/eventos/", self._dados_evento(), format="json")
+
+        self.assertIn(resposta.status_code, (401, 403))
+
+    def test_participante_nao_cria_evento(self):
+        self._autenticar(self.participante)
+
+        resposta = self.client.post("/api/v1/eventos/", self._dados_evento(), format="json")
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_organizador_nao_edita_evento_alheio(self):
+        outro = U.objects.create_user(
+            email="outro_org@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        alheio = Evento.objects.create(
+            title="Alheio", description="d", local="Sala",
+            data_inicio=date(2026, 11, 1), data_fim=date(2026, 11, 2),
+            categoria="formacao", organizador=outro,
+        )
+        self._autenticar(self.organizador)
+
+        resposta = self.client.patch(
+            f"/api/v1/eventos/{alheio.id}/", {"title": "Invadido"}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        alheio.refresh_from_db()
+        self.assertEqual(alheio.title, "Alheio")
+
+    def test_dono_edita_o_proprio_evento(self):
+        self._autenticar(self.organizador)
+
+        resposta = self.client.patch(
+            f"/api/v1/eventos/{self.evento.id}/", {"title": "Renomeado"}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.evento.refresh_from_db()
+        self.assertEqual(self.evento.title, "Renomeado")
+
+
+class AuthApiTests(_BaseApiTests):
+    """Token por e-mail+senha e cadastro de participante pela API."""
+
+    def test_token_com_credenciais(self):
+        resposta = self.client.post("/api/v1/auth/token/", {
+            "email": "api_org@example.com", "password": SENHA,
+        }, format="json")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta.json()["token"])
+        self.assertEqual(resposta.json()["user_id"], self.organizador.pk)
+
+    def test_token_com_senha_errada(self):
+        resposta = self.client.post("/api/v1/auth/token/", {
+            "email": "api_org@example.com", "password": "senha-errada",
+        }, format="json")
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_registro_cria_participante(self):
+        resposta = self.client.post("/api/v1/auth/registro/", {
+            "email": "novo_api@example.com", "password": SENHA,
+            "cpf": "11144477735", "first_name": "Novo",
+        }, format="json")
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertTrue(resposta.json()["token"])
+        novo = U.objects.get(email="novo_api@example.com")
+        self.assertTrue(novo.is_participante)
+        self.assertFalse(novo.is_organizador)
+
+    def test_registro_recusa_email_repetido(self):
+        resposta = self.client.post("/api/v1/auth/registro/", {
+            "email": "api_org@example.com", "password": SENHA, "cpf": "11144477735",
+        }, format="json")
+
+        self.assertEqual(resposta.status_code, 400)
