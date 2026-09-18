@@ -238,3 +238,100 @@ class MetadadosApiTests(_BaseApiTests):
         resposta = self.client.get(f"/api/v1/eventos/{self.evento.id}/")
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta.data["n_atividades"], 1)
+
+
+class AtividadeCicloApiTests(_BaseApiTests):
+    """O ciclo rascunho/proposta aparece na leitura; `publicada` é escrevível."""
+
+    def _proposta(self, situacao=Atividade.SITUACAO_PENDENTE, publicada=False, **extra):
+        dados = {
+            "evento": self.evento,
+            "titulo": "Proposta da comunidade",
+            "descricao": "d",
+            "local": "Sala 12",
+            "tipo": self.tipo,
+            "data_hora_inicio": datetime(2026, 10, 1, 8, 0, tzinfo=tz.utc),
+            "data_hora_fim": datetime(2026, 10, 1, 9, 0, tzinfo=tz.utc),
+            "n_vagas": 10,
+            "situacao": situacao,
+            "publicada": publicada,
+            "proponente": self.participante,
+        }
+        dados.update(extra)
+        return Atividade.objects.create(**dados)
+
+    def test_organizador_ve_o_ciclo_e_o_proponente(self):
+        atividade = self._proposta(tipo_sugerido="Oficina")
+        self._autenticar(self.organizador)
+
+        dados = self.client.get(f"/api/v1/atividades/{atividade.id}/").json()
+
+        self.assertFalse(dados["publicada"])
+        self.assertEqual(dados["situacao"], "pendente")
+        self.assertEqual(dados["situacao_rotulo"], "Aguardando aprovação")
+        self.assertEqual(dados["tipo_sugerido"], "Oficina")
+        self.assertEqual(dados["proponente"]["id"], self.participante.pk)
+        self.assertEqual(dados["motivo_rejeicao"], "")
+
+    def test_anonimo_nao_ve_o_proponente_nem_o_rascunho(self):
+        aprovada = self._proposta(publicada=True, situacao=Atividade.SITUACAO_APROVADA)
+        pendente = self._proposta(publicada=False)
+        self.client.force_authenticate(user=None)
+
+        publica = self.client.get(f"/api/v1/atividades/{aprovada.id}/")
+
+        self.assertEqual(publica.status_code, 200)
+        self.assertIsNone(publica.json()["proponente"], "propôs é dado pessoal")
+        self.assertEqual(
+            self.client.get(f"/api/v1/atividades/{pendente.id}/").status_code, 404
+        )
+
+    def test_proponente_ve_a_si_mesmo_na_atividade_aprovada(self):
+        aprovada = self._proposta(publicada=True, situacao=Atividade.SITUACAO_APROVADA)
+        self._autenticar(self.participante)
+
+        dados = self.client.get(f"/api/v1/atividades/{aprovada.id}/").json()
+
+        self.assertEqual(dados["proponente"]["id"], self.participante.pk)
+
+    def test_organizador_despublica_pela_api(self):
+        atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Publicada", descricao="d", local="Sala",
+            tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 1, 8, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 1, 9, 0, tzinfo=tz.utc),
+            n_vagas=10, publicada=True,
+        )
+        self._autenticar(self.organizador)
+
+        resposta = self.client.patch(
+            f"/api/v1/atividades/{atividade.id}/", {"publicada": False}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertFalse(resposta.json()["publicada"])
+        atividade.refresh_from_db()
+        self.assertFalse(atividade.publicada)
+        # Despublicada, sai do catálogo anônimo.
+        self.client.force_authenticate(user=None)
+        self.assertEqual(
+            self.client.get(f"/api/v1/atividades/{atividade.id}/").status_code, 404
+        )
+
+    def test_atividade_criada_pela_api_nasce_publicada_do_organizador(self):
+        """A API não cria rascunho nem proposta: o padrão do model vale."""
+        self._autenticar(self.organizador)
+
+        resposta = self.client.post(
+            "/api/v1/atividades/", self._dados_atividade(), format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertTrue(resposta.json()["publicada"])
+
+        # A resposta do POST é o serializer de ESCRITA (o contrato atual, que
+        # não mudou); o ciclo se confere na leitura.
+        dados = self.client.get(f"/api/v1/atividades/{resposta.json()['id']}/").json()
+        self.assertEqual(dados["situacao"], "organizador")
+        self.assertTrue(dados["publicada"])
+        self.assertIsNone(dados["proponente"])

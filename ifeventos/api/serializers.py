@@ -1,7 +1,16 @@
 from rest_framework import serializers
 
 from eventos import metadados as metadados_config
-from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca, TipoAtividade
+from eventos.models import (
+    Atividade,
+    Certificado,
+    Evento,
+    Inscricao,
+    Participante,
+    Presenca,
+    TipoAtividade,
+    Vaga,
+)
 from eventos.validators import apenas_digitos
 
 
@@ -134,11 +143,26 @@ class TipoAtividadeSerializer(serializers.ModelSerializer):
         fields = ["id", "nome"]
 
 
+class VagaResumoSerializer(serializers.ModelSerializer):
+    """A vaga da grade de oferta reservada por uma proposta/atividade."""
+
+    espaco = serializers.CharField(source="espaco.nome", read_only=True)
+
+    class Meta:
+        model = Vaga
+        fields = ["id", "espaco", "inicio", "fim", "capacidade"]
+
+
 class AtividadeSerializer(serializers.ModelSerializer):
     tipo = TipoAtividadeSerializer(read_only=True)
     palestrantes = ParticipanteResumoSerializer(many=True, read_only=True)
     vagas_disponiveis = serializers.IntegerField(read_only=True)
     imagem_url = serializers.SerializerMethodField()
+    # Ciclo de vida: o que separa rascunho, proposta e atividade publicada. Sem
+    # isto, quem consome a API recebia tudo misturado e sem como distinguir.
+    situacao_rotulo = serializers.CharField(source="get_situacao_display", read_only=True)
+    vaga = VagaResumoSerializer(read_only=True)
+    proponente = serializers.SerializerMethodField()
 
     class Meta:
         model = Atividade
@@ -156,7 +180,36 @@ class AtividadeSerializer(serializers.ModelSerializer):
             "vagas_disponiveis",
             "emite_certificado",
             "imagem_url",
+            # --- ciclo rascunho/proposta (novos) ---
+            "publicada",
+            "situacao",
+            "situacao_rotulo",
+            "proponente",
+            "vaga",
+            "tipo_sugerido",
+            "motivo_rejeicao",
         ]
+
+    def get_proponente(self, obj) -> dict | None:
+        """Quem propôs — só para quem organiza (ou para o próprio proponente).
+
+        É dado pessoal: o público enxerga a atividade aprovada, não a autoria
+        da proposta. `None` também quando a atividade não veio de proposta.
+        """
+        if not obj.proponente_id:
+            return None
+        request = self.context.get("request")
+        usuario = getattr(request, "user", None)
+        if usuario is None or not usuario.is_authenticated:
+            return None
+        organiza = (
+            usuario.is_staff
+            or usuario.is_superuser
+            or getattr(usuario, "is_organizador", False)
+        )
+        if not organiza and obj.proponente_id != usuario.pk:
+            return None
+        return ParticipanteResumoSerializer(obj.proponente).data
 
     def get_imagem_url(self, obj) -> str | None:
         if hasattr(obj, "get_url_imagem"):
@@ -295,7 +348,14 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
     `evento`, `tipo` e `palestrantes` são enviados por ID (como o AtividadeForm
     do site: palestrantes só podem ser is_palestrante=True). `n_inscricoes` é
     read-only (controlado pelo save() do model).
+
+    `id` entra como somente-leitura (mesmo motivo do EventoWriteSerializer): a
+    resposta do POST/PUT/PATCH precisa dizer QUAL atividade foi criada/alterada
+    — antes o cliente ficava sem saber (o MCP contornava comparando os ids antes
+    e depois).
     """
+
+    id = serializers.IntegerField(read_only=True)
 
     palestrantes = serializers.PrimaryKeyRelatedField(
         many=True,
@@ -307,6 +367,7 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Atividade
         fields = [
+            "id",
             "evento",
             "titulo",
             "descricao",
@@ -318,8 +379,14 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
             "n_vagas",
             "emite_certificado",
             "imagem",
+            # Publicar/despublicar pela API (espelha o botão do site). Opcional
+            # para não quebrar cliente que já cria atividade sem o campo.
+            "publicada",
         ]
-        extra_kwargs = {"imagem": {"required": False, "allow_null": True}}
+        extra_kwargs = {
+            "imagem": {"required": False, "allow_null": True},
+            "publicada": {"required": False},
+        }
 
 
 class TipoAtividadeWriteSerializer(serializers.ModelSerializer):
