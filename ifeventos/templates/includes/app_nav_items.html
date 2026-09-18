@@ -8,7 +8,7 @@ públicos e estáveis — o que depende da visão/conta vive no menu do usuário
     <a href="/eventos" class="{% if request.resolver_match.namespace == 'eventos' %}active{% endif %}">
         <i class="fa-solid fa-house-chimney"></i><span class="nav-rotulo">Início</span><span class="nav-rotulo-curto" aria-hidden="true">Início</span>
     </a>
-    <a href="/eventos#agenda">
+    <a href="{% url 'eventos:agenda' %}">
         <i class="fa-solid fa-calendar-days"></i><span class="nav-rotulo">Agenda</span><span class="nav-rotulo-curto" aria-hidden="true">Agenda</span>
     </a>
 {% else %}

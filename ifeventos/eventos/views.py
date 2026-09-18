@@ -76,6 +76,24 @@ def eventos_view(request):
     })
 
 
+def agenda_view(request):
+    """Botão "Agenda": vai direto à programação do evento da vez.
+
+    Evento da vez = o em andamento ou, se não houver, o próximo a começar (a
+    mesma regra do "próximo" da home). Sem evento futuro, volta para a lista de
+    eventos (#agenda) — não faz sentido abrir uma programação que não existe.
+    """
+    hoje = timezone.localdate()
+    evento = (
+        Evento.objects.filter(data_fim__gte=hoje)
+        .order_by("data_inicio", "id")
+        .first()
+    )
+    if evento is None:
+        return redirect(reverse("eventos:eventos") + "#agenda")
+    return redirect("eventos:programacao", evento_id=evento.id)
+
+
 def evento_programacao_view(request, evento_id):
     try:
         evento  = get_object_or_404(Evento, id=evento_id)

@@ -1,11 +1,12 @@
 """Testes das listas de atividades ordenadas por data."""
 
 import re
-from datetime import date, datetime, timezone as tz
+from datetime import date, datetime, timedelta, timezone as tz
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import Atividade, Evento, TipoAtividade
 
@@ -310,3 +311,70 @@ class MenuDoUsuarioNaHomeTests(TestCase):
 
         self.assertIn("menu-usuario", bloco)
         self.assertIn("menu-usuario-gatilho", bloco)
+
+
+class AgendaVaiParaAProgramacaoTests(TestCase):
+    """O botão "Agenda" abre a programação do evento da vez."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_agenda@example.com", password=SENHA, cpf="12345678909",
+        )
+        self.hoje = timezone.localdate()
+
+    def _evento(self, titulo, inicio, fim):
+        return Evento.objects.create(
+            title=titulo, description="d", local="Campus",
+            data_inicio=inicio, data_fim=fim, categoria="formacao",
+            organizador=self.org,
+        )
+
+    def test_evento_em_andamento_vai_para_a_programacao(self):
+        evento = self._evento(
+            "Em andamento", self.hoje - timedelta(days=1), self.hoje + timedelta(days=1)
+        )
+
+        resposta = self.client.get(reverse("eventos:agenda"))
+
+        self.assertRedirects(
+            resposta, reverse("eventos:programacao", args=[evento.id])
+        )
+
+    def test_prefere_andamento_a_futuro(self):
+        futuro = self._evento(
+            "Futuro", self.hoje + timedelta(days=5), self.hoje + timedelta(days=6)
+        )
+        agora = self._evento(
+            "Agora", self.hoje - timedelta(days=1), self.hoje
+        )
+
+        resposta = self.client.get(reverse("eventos:agenda"))
+
+        self.assertRedirects(
+            resposta, reverse("eventos:programacao", args=[agora.id])
+        )
+        self.assertNotEqual(resposta.url, reverse("eventos:programacao", args=[futuro.id]))
+
+    def test_sem_evento_futuro_cai_na_lista(self):
+        self._evento(
+            "Passado", self.hoje - timedelta(days=10), self.hoje - timedelta(days=8)
+        )
+
+        resposta = self.client.get(reverse("eventos:agenda"))
+
+        self.assertRedirects(
+            resposta,
+            reverse("eventos:eventos") + "#agenda",
+            fetch_redirect_response=False,
+        )
+
+    def test_barra_inferior_aponta_para_a_rota_agenda(self):
+        pessoa = U.objects.create_user(
+            email="nav_agenda@example.com", password=SENHA, cpf="11144477735",
+        )
+        self.client.force_login(pessoa)
+
+        html = self.client.get(reverse("participante:dashboard")).content.decode()
+
+        url = reverse("eventos:agenda")
+        self.assertIn(f'href="{url}"', html)

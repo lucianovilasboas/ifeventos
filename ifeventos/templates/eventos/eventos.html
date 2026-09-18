@@ -26,11 +26,11 @@
                 {% if request.user.is_authenticated %}
                 {# Logado: só destinos; contexto/conta fica no menu do avatar #}
                 <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span>Início</span></a>
-                <a href="#agenda"><i class="fa-solid fa-calendar-days"></i><span>Agenda</span></a>
+                <a href="{% url 'eventos:agenda' %}"><i class="fa-solid fa-calendar-days"></i><span>Agenda</span></a>
                 {% else %}
                 {# Não logado: Início, Agenda + botão Entrar #}
                 <a href="#inicio" aria-current="page">Início</a>
-                <a href="#agenda">Agenda</a>
+                <a href="{% url 'eventos:agenda' %}">Agenda</a>
                 <a class="btn-land btn-primary-land" href="{% url 'account_login' %}"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
                 {% endif %}
             </nav>
@@ -226,10 +226,10 @@
         {% if request.user.is_authenticated %}
         {# Só destinos públicos: o que depende da visão/conta está no menu do avatar. #}
         <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span class="nav-rotulo">Início</span><span class="nav-rotulo-curto" aria-hidden="true">Início</span></a>
-        <a href="#agenda"><i class="fa-solid fa-calendar-days"></i><span class="nav-rotulo">Agenda</span><span class="nav-rotulo-curto" aria-hidden="true">Agenda</span></a>
+        <a href="{% url 'eventos:agenda' %}"><i class="fa-solid fa-calendar-days"></i><span class="nav-rotulo">Agenda</span><span class="nav-rotulo-curto" aria-hidden="true">Agenda</span></a>
         {% else %}
         <a href="#inicio" aria-current="page"><i class="fa-solid fa-house-chimney"></i><span class="nav-rotulo">Início</span><span class="nav-rotulo-curto" aria-hidden="true">Início</span></a>
-        <a href="#agenda"><i class="fa-solid fa-calendar-days"></i><span class="nav-rotulo">Agenda</span><span class="nav-rotulo-curto" aria-hidden="true">Agenda</span></a>
+        <a href="{% url 'eventos:agenda' %}"><i class="fa-solid fa-calendar-days"></i><span class="nav-rotulo">Agenda</span><span class="nav-rotulo-curto" aria-hidden="true">Agenda</span></a>
         <a href="{% url 'account_login' %}"><i class="fa-solid fa-right-to-bracket"></i><span class="nav-rotulo">Entrar</span><span class="nav-rotulo-curto" aria-hidden="true">Entrar</span></a>
         {% endif %}
     </nav>
