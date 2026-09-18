@@ -239,6 +239,25 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 .grade-vaga.is-escolhida .grade-vaga-hora,
 .grade-vaga.is-escolhida .grade-vaga-cap { color: var(--accent-ink); }
 .grade-livre { color: var(--muted); }
+
+/* Vaga já reservada por uma proposta: não é clicável (o <div> não vira botão)
+   e o traço tracejado a distingue das livres de relance. */
+.grade-vaga.grade-vaga-reservada {
+    cursor: default;
+    border-style: dashed;
+    background: var(--surface-2, transparent);
+}
+.grade-vaga.grade-vaga-reservada:hover {
+    border-color: var(--border);
+    background: var(--surface-2, transparent);
+}
+.grade-vaga.grade-vaga-reservada.is-minha {
+    border-style: solid;
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.grade-vaga-titulo { display: block; font-weight: 700; font-size: var(--text-sm); }
+.grade-vaga-reservada.is-minha .grade-vaga-titulo { color: var(--accent-ink); }
 .btn-app-green:hover { background: var(--accent-soft) !important; filter: none; }
 .btn-app-green:active { transform: translateY(3px); box-shadow: none; }
 
