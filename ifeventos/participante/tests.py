@@ -1,5 +1,6 @@
 """Testes do painel do participante."""
 
+import re
 from datetime import date, datetime, timedelta, timezone as tz
 
 from django.contrib.auth import get_user_model
@@ -129,3 +130,64 @@ class FiltroDeEventoChipsTests(TestCase):
         self.assertIn(f'href="?evento={evento.id}"', html)
         self.assertIn("Atividade Evento Alfa", html)
         self.assertNotIn("Atividade Evento Beta", html)
+
+
+class RotulosDaBarraInferiorTests(TestCase):
+    """A barra inferior do mobile não deixa nenhum item só com o ícone.
+
+    O CSS esconde o rótulo completo no mobile e mostra o curto; sem o curto, o
+    item some. Aqui garante-se que todo link tem rótulo e que a alternância de
+    visão (organizador ↔ participante) tem tratamento próprio.
+    """
+
+    def _bottomnav(self, html):
+        achado = re.search(
+            r'<nav class="app-bottomnav">(.*?)</nav>', html, re.S
+        )
+        assert achado is not None, "barra inferior não renderizou"
+        return achado.group(1)
+
+    def _todo_link_tem_rotulo(self, bloco):
+        links = len(re.findall(r"<a\b", bloco))
+        rotulos = len(re.findall(r'class="nav-rotulo-curto"', bloco))
+        self.assertGreater(links, 0)
+        self.assertEqual(links, rotulos, "algum item ficou sem rótulo")
+
+    def test_participante_todo_item_tem_rotulo(self):
+        pessoa = U.objects.create_user(
+            email="nav_participante@example.com", password=SENHA, cpf="11144477735",
+        )
+        self.client.force_login(pessoa)
+
+        bloco = self._bottomnav(
+            self.client.get(reverse("participante:dashboard")).content.decode()
+        )
+
+        self._todo_link_tem_rotulo(bloco)
+        self.assertNotIn("nav-modo", bloco)
+
+    def test_anonimo_todo_item_tem_rotulo(self):
+        bloco = self._bottomnav(
+            self.client.get(reverse("account_login")).content.decode()
+        )
+
+        self._todo_link_tem_rotulo(bloco)
+        self.assertNotIn("nav-modo", bloco)
+
+    def test_duplo_papel_tem_pilula_de_alternancia_no_fim(self):
+        pessoa = U.objects.create_user(
+            email="nav_duplo@example.com", password=SENHA, cpf="11144477735",
+            is_organizador=True, is_participante=True,
+        )
+        self.client.force_login(pessoa)
+
+        bloco = self._bottomnav(
+            self.client.get(reverse("participante:dashboard")).content.decode()
+        )
+
+        self._todo_link_tem_rotulo(bloco)
+        self.assertEqual(bloco.count('class="nav-modo"'), 1)
+        self.assertIn('class="nav-divisor"', bloco)
+        # A alternância fica no grupo de conta: depois de Crachá e antes de Sair.
+        self.assertLess(bloco.index("meus-crachas"), bloco.index("nav-modo"))
+        self.assertLess(bloco.index("nav-modo"), bloco.index("logout"))

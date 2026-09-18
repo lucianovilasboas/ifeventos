@@ -503,6 +503,32 @@ body:has(.reset-password-container) .hero-ico { display: none; }
    topo em telas grandes, onde há espaço. */
 .nav-rotulo-curto { display: none; }
 
+/* Divisor entre os destinos e as ações de conta (alternar visão / sair). */
+.nav-divisor {
+  flex: 0 0 auto; align-self: center;
+  width: 1px; height: 26px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+/* Botão de alternância de visão (organizador ↔ participante). É um CONTROLE,
+   não um destino: ganha pílula contornada em accent, separado dos links pelo
+   divisor. O preenchimento accent-soft é do item ATIVO — por isso a pílula é
+   vazada (só borda/texto), para os dois estados não se confundirem. */
+.app-bottomnav a.nav-modo,
+.app-nav-desktop a.nav-modo {
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--accent-ink);
+}
+.app-bottomnav a.nav-modo:hover,
+.app-nav-desktop a.nav-modo:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
+}
+
 /* ---------- Botão de rolagem (topo ↔ fim) ----------
    Um botão só, discreto, encostado no canto direito: no topo ele leva ao fim,
    depois de rolar uma tela ele volta ao topo. Quem cria é o
@@ -776,6 +802,12 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
   /* Na bottom nav vale o rótulo curto (ver .nav-rotulo-curto acima) */
   .app-bottomnav .nav-rotulo { display: none; }
   .app-bottomnav .nav-rotulo-curto { display: inline; }
+
+  /* Com 6 itens (duplo papel) num aparelho de 360px, o padding lateral e a
+     folga do divisor roubavam ~1px por item e cortavam "PROPOSTAS". Encolher
+     os dois devolve o rótulo inteiro sem mexer na fonte. */
+  .app-bottomnav a { padding-left: 0; padding-right: 0; }
+  .app-bottomnav .nav-divisor { margin: 0; }
 
   /* A alça de redimensionamento do textarea é comportamento de desktop (vem
      do Bootstrap, `resize: vertical`): com o dedo ela só atrapalha e deixa a
