@@ -1,5 +1,6 @@
 from django.urls import path
 from eventos.views import eventos_view
+from eventos.views import agenda_view
 from eventos.views import logout_view
 from eventos.views import evento_programacao_view
 from eventos.views import roster_lookup
@@ -16,6 +17,9 @@ app_name = "eventos"  # Define o app_name para o namespace
 
 urlpatterns = [
     path("", eventos_view, name="eventos"),
+    # Botão "Agenda": resolve o evento da vez e cai na programação dele (ou na
+    # lista, quando não há evento futuro).
+    path("agenda/", agenda_view, name="agenda"),
     path("programacao/<int:evento_id>", evento_programacao_view, name="programacao"),
     path("programacao/<int:evento_id>/agenda.ics", agenda_ics_view, name="agenda_ics"),
     path("atividade/<int:atividade_id>/agenda.ics", atividade_ics_view, name="atividade_ics"),
