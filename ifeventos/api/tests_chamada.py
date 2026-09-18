@@ -530,6 +530,24 @@ class PropostaApiTests(_BaseChamadaApiTests):
         self.assertEqual(resposta.data["vaga"]["ocupadas"], 0)
         self.assertEqual(resposta.data["vaga"]["vagas_restantes"], 1)
 
+    def test_decisao_e_terminal(self):
+        self._autenticar(self.participante)
+        proposta = self._proposta().data
+        aprovar = f"/api/v1/propostas/{proposta['id']}/aprovar/"
+        rejeitar = f"/api/v1/propostas/{proposta['id']}/rejeitar/"
+
+        self._autenticar(self.organizador)
+        self.assertEqual(self.client.post(aprovar, {}, format="json").status_code, 200)
+
+        # Rejeitar o que já foi aprovado trocaria o estado em silêncio.
+        resposta = self.client.post(rejeitar, {"motivo": "Mudei"}, format="json")
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("detail", resposta.data)
+        self.assertEqual(
+            self.client.get(f"/api/v1/propostas/{proposta['id']}/").data["situacao"],
+            Atividade.SITUACAO_APROVADA,
+        )
+
     def test_atividade_criada_com_vaga_assume_a_janela_e_ocupa_a_vaga(self):
         self._autenticar(self.organizador)
         resposta = self.client.post(

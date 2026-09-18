@@ -254,6 +254,17 @@ class CicloDeVidaTests(BasePropostasTests):
         with self.assertRaises(PropostaBloqueada):
             propostas.aprovar(proposta, self.org)
 
+    def test_rejeitar_proposta_ja_aprovada_recusa(self):
+        proposta = self._propor()
+        propostas.aprovar(proposta, self.org)
+
+        with self.assertRaises(PropostaBloqueada) as contexto:
+            propostas.rejeitar(proposta, self.org, "Mudei de ideia.")
+
+        self.assertIn("não está mais aguardando", str(contexto.exception))
+        proposta.refresh_from_db()
+        self.assertEqual(proposta.situacao, Atividade.SITUACAO_APROVADA)
+
     def test_cancelar_apaga_e_libera_a_vaga(self):
         proposta = self._propor()
 

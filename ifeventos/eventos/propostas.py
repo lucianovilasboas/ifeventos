@@ -541,11 +541,17 @@ def aprovar(atividade, por, publicar=True, tipo=None):
 
 
 def rejeitar(atividade, por, motivo):
-    """Recusa a proposta (o motivo é obrigatório: é o retorno ao proponente).
+    """Recusa a proposta PENDENTE (o motivo é obrigatório: é o retorno ao proponente).
+
+    A decisão é terminal, como em `aprovar`: rejeitar o que já foi decidido
+    trocaria um "aprovada" por um "rejeitada" em silêncio — quem quer tirar uma
+    atividade já aprovada exclui a atividade, não a proposta.
 
     A vaga volta a ficar livre sozinha — `Vaga.ocupadas` conta apenas propostas
     pendentes ou aprovadas.
     """
+    if not atividade.pendente:
+        raise PropostaBloqueada("Esta proposta não está mais aguardando aprovação.")
     motivo = (motivo or "").strip()
     if not motivo:
         raise PropostaBloqueada(
