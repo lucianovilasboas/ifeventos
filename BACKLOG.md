@@ -1,7 +1,7 @@
 # BACKLOG — Nossos Eventos (IF Eventos)
 
 Pendências combinadas e ainda **não** feitas, para consulta futura.
-Atualizado em **17/09/2026** · `main` em `f244300` · working tree limpo · **423 testes OK**.
+Atualizado em **18/09/2026** · branch `feat/api-f2-chamada` em `ca6e6eb` (à frente da `main` em `a633ac7`) · **490 testes OK**. Aguardando autorização para o merge/push da API.
 
 > Como este projeto trabalha: branch nova a partir da `main` → implementar → rodar a suíte
 > (`docker exec app_django bash -lc 'cd /ifeventos && python manage.py test -v 1'`) → **parar**
@@ -24,8 +24,13 @@ Atualizado em **17/09/2026** · `main` em `f244300` · working tree limpo · **4
 - Commits **`ca5e440`** (avisos por e-mail + busca de palestrante), **`99b7c0a`** (tempo real + chips),
   **`9f4c063`** (editar/excluir nos chips da grade), **`9fae57c`** (grade de vagas na proposta, com o
   visual da malha) e **`f244300`** (correção do estouro horizontal da dashboard no celular).
-  **Sem migration nova** neste lote.
-- Roteiro: backup do banco → `git pull && docker compose up -d --build` → conferir:
+- **API REST** (na `main`, ainda não deployada): **`6338fde`** (F1 — ciclo rascunho/proposta na
+  leitura), **`17ac10e`** (F3 — regra de conflito única + schema sem avisos) e **`a633ac7`** (F4 —
+  presença, crachá, QR, verificação e permissões). **Sem migration nova** neste lote.
+- **Chamada de proposições na API** (branch `feat/api-f2-chamada`, aguardando merge): **`d546a87`**
+  (F2) e **`ca6e6eb`** (`API.md`). Depois do merge, deploy normal.
+- Roteiro: backup do banco → `git pull && docker compose up -d --build` → conferir também os
+  endpoints novos (`/api/v1/docs/` abrindo, `GET /api/v1/eventos/<id>/chamada/` com token) → conferir:
   filtro em chips no `/participante/dashboard/` **sem estouro horizontal no celular** (o nome longo do
   evento quebra em duas linhas); badge do cartão do evento em `/organizador/dashboard/`
   subindo **sem recarregar** (enviar uma proposta em outra aba); os chips da grade com Editar/Excluir
@@ -48,7 +53,7 @@ Atualizado em **17/09/2026** · `main` em `f244300` · working tree limpo · **4
 | Admin com inlines | Vagas dentro do Evento (e/ou da Chamada) em vez de registros soltos | pequeno |
 | Gráficos no painel da chamada | Hoje são KPIs/tabelas; dá para acrescentar Chart.js (donut de status, ocupação por espaço) | pequeno/médio |
 | Grade: excluir vagas em lote e salvar "layouts" | Complementos do gerador de grade | médio |
-| Paridade API/MCP das propostas | Criar/consultar proposta por API/MCP (hoje só pela tela) | médio |
+| MCP das propostas | Expor a chamada no servidor MCP (a API já está pronta) | médio |
 | Convite a palestrante | Ver seção 1 | médio |
 
 ## 5. Notas técnicas / armadilhas (para não tropeçar de novo)
@@ -76,11 +81,20 @@ Atualizado em **17/09/2026** · `main` em `f244300` · working tree limpo · **4
   resolvem (ver `.chip-evento` e o precedente `.app-hero .chip`). Há uma guarda em
   `.app-content-top { overflow-x: clip }` — prefira `clip` a `hidden` (não cria contêiner de rolagem,
   então não quebra `sticky` nem as áreas com `overflow-x: auto`).
+- **Quem decide proposta é qualquer `is_organizador`**, não só o dono do evento (regra do site,
+  `eventos.crachas.pode_gerenciar_evento`). A API espelha isso — de propósito: o token de serviço do
+  MCP não é dono dos eventos. Editar **conteúdo** (evento, atividade, vaga) é que é do dono.
 - **Dev local** (não é produção): o evento 107 (SNCT 2026) está com **160 vagas** e **1 proposta
   pendente** de teste. Não apagar.
 
 ## 6. Fechado recentemente (para não reabrir)
 
+- **API REST da chamada de proposições (F2)**: janela (`GET/PUT /eventos/{id}/chamada/`), painel
+  (`/painel-chamada/`), catálogo de espaços, grade de vagas (com geração em lote idempotente),
+  propostas (propor/editar/cancelar/aprovar/rejeitar) e `vaga` opcional no POST de atividade —
+  tudo delegando a `eventos.propostas` (regra única). Documentada em `API.md`. Antes disso, F1 (ciclo
+  rascunho/proposta na leitura), F3 (conflito único + schema limpo) e F4 (presença, crachá, QR,
+  verificação e permissões de escrita).
 - **Grade do organizador**: **Editar** e **Excluir** direto nos chips (`includes/agenda_grade.html`
   ganhou o parâmetro `mostrar_acoes`, ligado só por essa tela) e o botão **"Ocupação por sala" saiu**
   da tela de atividades (continua no cartão do evento, no dashboard).
