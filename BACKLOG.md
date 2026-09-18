@@ -22,7 +22,7 @@ Atualizado em **18/09/2026** · `main` em `d40590f` (= `origin/main`) · working
 ## 2. Deploy pendente
 
 - **Produção já está em `82a1634`**, que inclui o lote do site (`ca5e440`, `99b7c0a`, `9f4c063`,
-  `9fae57c`, `f244300`). O que falta subir é **só a API + docs** (`82a1634..d40590f`):
+  `9fae57c`, `f244300`). O que falta subir é **só a API + docs** (`82a1634..e612fd8`):
   **`6338fde`** (F1), **`17ac10e`** (F3), **`a633ac7`** (F4), **`d546a87`** (F2 da chamada),
   **`ca6e6eb`** (`API.md`), **`5511972`** (BACKLOG) e **`d40590f`** (fix da decisão terminal).
 - **Sem migration nova** no intervalo (confirmado com `makemigrations --check`), então o deploy é
@@ -33,6 +33,27 @@ Atualizado em **18/09/2026** · `main` em `d40590f` (= `origin/main`) · working
   3. conferir: `curl -s https://ifeventos.lucianovilasboas.com.br/api/v1/eventos/` (200), `/api/v1/docs/`
      abrindo, `GET /api/v1/eventos/107/chamada/` com o token respondendo, e o site normal (home,
      programação, dashboard). O e-mail deve continuar **não** saindo (flag desligada).
+
+### Verificação pós-deploy (roteiro)
+
+Ao **reiniciar o MCP**, o `server.py` atualizado passa a expor as 19 tools da chamada
+(`obter_chamada`, `configurar_chamada`, `gerar_grade_vagas`, `criar/aprovar/rejeitar_proposta`, ...).
+Até lá, a sessão em curso continua com as 34 antigas (o cliente guarda a lista do início da sessão).
+
+**Produção** (VM `ovm-1`, container `ifeventos_app`):
+- `git log --oneline -1` em `/opt/docker/ifeventos` deve mostrar **`e612fd8`**.
+- HTTP com o token de serviço de prod: `/eventos/`, `/docs/`, `/espacos/`, `/propostas/` → 200;
+  `/eventos/<id>/chamada/` → 200 com `aberta_agora` (ou 404 "sem chamada" — JSON, não HTML de rota
+  inexistente).
+- Site: home, `/eventos/`, dashboards; o e-mail continua **desligado**.
+- MCP de prod (só leitura): `listar_espacos`, `listar_vagas(evento_id)`, `obter_chamada(evento_id)`,
+  `listar_propostas(evento_id)`.
+
+**Dev** (depois de reiniciar o MCP): ciclo descartável evento → chamada → espaço → grade (rodar 2×, a
+segunda idempotente) → proposta → painel → aprovar (rejeitar já decidida → **400**) → remover →
+excluir tudo; conferir `count=0` no fim. **NUNCA usar o evento 107** (SNCT 2026, tem dados reais).
+
+**Rollback** (o lote não tem migration): `git reset --hard 82a1634 && docker compose up -d --build`.
 
 ## 3. Operação no servidor (quando fizer sentido)
 
