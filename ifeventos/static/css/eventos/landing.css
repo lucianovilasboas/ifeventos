@@ -102,6 +102,15 @@
 }
 .landing-avatar:hover { border-color: var(--accent); }
 
+/* Grupo à direita do header: botão de instalar + avatar. O avatar fica no topo
+   em TODAS as larguras — no mobile a navegação desce para a barra inferior, mas
+   o avatar permanece aqui. */
+.landing-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* ---------- Botões (herdam a linguagem do DS) ----- */
 .btn-land {
   min-height: 44px;
@@ -695,8 +704,7 @@ body.is-locked { overflow: hidden; }
   /* Empurra o conteúdo para não ficar atrás da bottom nav fixa */
   .landing-body { padding-bottom: 76px; }
 
-  /* O header no mobile mostra só a marca (a navegação vai para baixo).
-     Esconde a nav do topo e o avatar também vai para a bottom nav. */
+  /* O header no mobile mostra a marca e o avatar; a navegação vai para baixo. */
   .landing-nav { display: none; }
 
   /* Ativa a bottom nav no mobile (fixa embaixo) */
