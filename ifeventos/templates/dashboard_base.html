@@ -25,6 +25,8 @@
     <script src="{% static 'js/metadados_dependentes.js' %}?v={{ ASSET_VERSION }}" defer></script>
     {# Botão flutuante "voltar ao topo / ir para o final" (só em páginas longas) #}
     <script src="{% static 'js/botao_rolagem.js' %}?v={{ ASSET_VERSION }}" defer></script>
+    {# Menu do usuário (avatar): toggle próprio, alinhado ao da landing #}
+    <script src="{% static 'js/menu_usuario.js' %}?v={{ ASSET_VERSION }}" defer></script>
 </head>
 <body>
     <!-- Topbar app -->
@@ -34,9 +36,7 @@
             {% include 'includes/app_nav_items.html' %}
         </nav>
         {% include 'includes/pwa_install_button.html' %}
-        <a class="app-avatar" href="#" data-bs-toggle="modal" data-bs-target="#editProfileModal" title="{{ request.user.first_name }}">
-            <img src="{{ request.user.get_foto_url }}" alt="{{ request.user.first_name }}">
-        </a>
+        {% include 'includes/menu_usuario.html' %}
     </div>
 
     <!-- Conteúdo -->
