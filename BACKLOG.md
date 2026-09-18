@@ -1,7 +1,7 @@
 # BACKLOG — Nossos Eventos (IF Eventos)
 
 Pendências combinadas e ainda **não** feitas, para consulta futura.
-Atualizado em **18/09/2026** · `main` em `d40590f` (= `origin/main`) · working tree limpo · **492 testes OK**. API da chamada mergeada e publicada; **deploy em produção pendente**.
+Atualizado em **18/09/2026** · `main` em `dd3f143` (= `origin/main`) · working tree limpo · **492 testes OK**. API da chamada mergeada e publicada; **deploy em produção pendente**.
 
 > Como este projeto trabalha: branch nova a partir da `main` → implementar → rodar a suíte
 > (`docker exec app_django bash -lc 'cd /ifeventos && python manage.py test -v 1'`) → **parar**
@@ -22,7 +22,7 @@ Atualizado em **18/09/2026** · `main` em `d40590f` (= `origin/main`) · working
 ## 2. Deploy pendente
 
 - **Produção já está em `82a1634`**, que inclui o lote do site (`ca5e440`, `99b7c0a`, `9f4c063`,
-  `9fae57c`, `f244300`). O que falta subir é **só a API + docs** (`82a1634..e612fd8`):
+  `9fae57c`, `f244300`). O que falta subir é **só a API + docs** (tudo depois de `82a1634`, até o topo da `main`):
   **`6338fde`** (F1), **`17ac10e`** (F3), **`a633ac7`** (F4), **`d546a87`** (F2 da chamada),
   **`ca6e6eb`** (`API.md`), **`5511972`** (BACKLOG) e **`d40590f`** (fix da decisão terminal).
 - **Sem migration nova** no intervalo (confirmado com `makemigrations --check`), então o deploy é
@@ -41,7 +41,8 @@ Ao **reiniciar o MCP**, o `server.py` atualizado passa a expor as 19 tools da ch
 Até lá, a sessão em curso continua com as 34 antigas (o cliente guarda a lista do início da sessão).
 
 **Produção** (VM `ovm-1`, container `ifeventos_app`):
-- `git log --oneline -1` em `/opt/docker/ifeventos` deve mostrar **`e612fd8`**.
+- `git log --oneline -1` em `/opt/docker/ifeventos` deve mostrar o **topo da `main`**
+  (`dd3f143` quando este roteiro foi escrito; se houver commit novo, será ele).
 - HTTP com o token de serviço de prod: `/eventos/`, `/docs/`, `/espacos/`, `/propostas/` → 200;
   `/eventos/<id>/chamada/` → 200 com `aberta_agora` (ou 404 "sem chamada" — JSON, não HTML de rota
   inexistente).
