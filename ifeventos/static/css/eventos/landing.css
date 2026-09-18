@@ -569,6 +569,26 @@
 .landing-bottomnav a[aria-current="page"],
 .landing-bottomnav a.active { color: var(--accent-ink); background: var(--accent-soft); }
 .landing-bottomnav a:hover { color: var(--fg); }
+
+/* Divisor e botão de alternância de visão: mesmo padrão da barra do app —
+   pílula vazada em accent, para não se confundir com os links de navegação. */
+.landing-bottomnav .nav-divisor {
+  flex: 0 0 auto; align-self: center;
+  width: 1px; height: 26px;
+  background: var(--border);
+  margin: 0 2px;
+}
+.landing-bottomnav a.nav-modo {
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--accent-ink);
+}
+.landing-bottomnav a.nav-modo:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
+}
 body.is-locked { overflow: hidden; }
 
 /* Por padrão (desktop) a bottom nav escondida; ativa-se só no mobile */
