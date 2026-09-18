@@ -9,6 +9,7 @@ from rest_framework.routers import DefaultRouter
 from .auth import ObtainTokenView, RegistroView
 from .viewsets import (
     AtividadeViewSet,
+    EspacoViewSet,
     CrachasEventoPDFView,
     EventoViewSet,
     ImportarMetadadosView,
@@ -19,9 +20,11 @@ from .viewsets import (
     MinhasInscricoesViewSet,
     PalestranteViewSet,
     PresencaViewSet,
+    PropostaViewSet,
     QrAtividadePngView,
     QrCrachaPngView,
     TipoAtividadeViewSet,
+    VagaViewSet,
     VerificacaoView,
 )
 
@@ -34,6 +37,10 @@ router.register("minhas-inscricoes", MinhasInscricoesViewSet, basename="minha-in
 router.register("meus-certificados", MeusCertificadosViewSet, basename="meu-certificado")
 router.register("meus-crachas", MeusCrachasViewSet, basename="meu-cracha")
 router.register("presencas", PresencaViewSet, basename="presenca")
+# Chamada de proposições de atividades
+router.register("espacos", EspacoViewSet, basename="espaco")
+router.register("vagas", VagaViewSet, basename="vaga")
+router.register("propostas", PropostaViewSet, basename="proposta")
 
 urlpatterns = [
     path("auth/token/", ObtainTokenView.as_view(), name="token"),

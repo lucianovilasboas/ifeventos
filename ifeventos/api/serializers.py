@@ -4,6 +4,8 @@ from eventos import metadados as metadados_config
 from eventos.models import (
     Atividade,
     Certificado,
+    ChamadaProposicoes,
+    Espaco,
     Evento,
     Inscricao,
     Participante,
@@ -147,10 +149,13 @@ class VagaResumoSerializer(serializers.ModelSerializer):
     """A vaga da grade de oferta reservada por uma proposta/atividade."""
 
     espaco = serializers.CharField(source="espaco.nome", read_only=True)
+    ocupadas = serializers.IntegerField(read_only=True)
+    vagas_restantes = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Vaga
-        fields = ["id", "espaco", "inicio", "fim", "capacidade"]
+        fields = ["id", "espaco", "inicio", "fim", "capacidade", "ocupadas",
+                  "vagas_restantes"]
 
 
 class AtividadeSerializer(serializers.ModelSerializer):
@@ -349,6 +354,13 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
     do site: palestrantes só podem ser is_palestrante=True). `n_inscricoes` é
     read-only (controlado pelo save() do model).
 
+    `vaga` (opcional) reserva uma janela da grade de oferta: quando vem, o
+    local e o horário da atividade passam a ser os DA VAGA (não se digita um
+    horário que não bate com a reserva) e a vaga precisa estar livre. Assim a
+    API não cria atividade "por fora" da grade — que era o furo por onde duas
+    atividades podiam acabar na mesma sala/horário. Sem `vaga`, os três campos
+    continuam obrigatórios e valem como no formulário do site.
+
     `id` entra como somente-leitura (mesmo motivo do EventoWriteSerializer): a
     resposta do POST/PUT/PATCH precisa dizer QUAL atividade foi criada/alterada
     — antes o cliente ficava sem saber (o MCP contornava comparando os ids antes
@@ -364,6 +376,10 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
         required=False,
     )
 
+    vaga = serializers.PrimaryKeyRelatedField(
+        queryset=Vaga.objects.all(), required=False, allow_null=True
+    )
+
     class Meta:
         model = Atividade
         fields = [
@@ -374,6 +390,7 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
             "local",
             "tipo",
             "palestrantes",
+            "vaga",
             "data_hora_inicio",
             "data_hora_fim",
             "n_vagas",
@@ -386,7 +403,45 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "imagem": {"required": False, "allow_null": True},
             "publicada": {"required": False},
+            # Sem `vaga` os três são cobrados no validate; com `vaga` eles vêm dela.
+            "local": {"required": False},
+            "data_hora_inicio": {"required": False},
+            "data_hora_fim": {"required": False},
         }
+
+    def validate(self, attrs):
+        vaga = attrs.get("vaga", getattr(self.instance, "vaga", None))
+        if vaga is not None:
+            if vaga.propostas_ativas(ignorar=self.instance).count() >= vaga.capacidade:
+                raise serializers.ValidationError(
+                    {"vaga": f"A vaga de {vaga} já está ocupada. Escolha outra."}
+                )
+            # A vaga manda: local e janela saem dela (nada de horário divergente).
+            attrs["local"] = vaga.espaco.nome
+            attrs["data_hora_inicio"] = vaga.inicio
+            attrs["data_hora_fim"] = vaga.fim
+            return attrs
+
+        def atual(campo):
+            valor = attrs.get(campo)
+            if valor is None and self.instance is not None:
+                valor = getattr(self.instance, campo, None)
+            return valor
+
+        for campo, rotulo in (
+            ("local", "Informe o local (ou escolha uma vaga da grade)."),
+            ("data_hora_inicio", "Informe o início (ou escolha uma vaga da grade)."),
+            ("data_hora_fim", "Informe o término (ou escolha uma vaga da grade)."),
+        ):
+            if not atual(campo):
+                raise serializers.ValidationError({campo: rotulo})
+
+        inicio, fim = atual("data_hora_inicio"), atual("data_hora_fim")
+        if inicio and fim and fim <= inicio:
+            raise serializers.ValidationError(
+                {"data_hora_fim": "O término precisa ser depois do início."}
+            )
+        return attrs
 
 
 class TipoAtividadeWriteSerializer(serializers.ModelSerializer):
@@ -629,4 +684,183 @@ class ImportarMetadadosSerializer(serializers.Serializer):
         child=serializers.DictField(),
         allow_empty=False,
         help_text="Lista de {email, <chave>: valor}, igual às linhas do CSV.",
+    )
+
+
+class ChamadaProposicoesSerializer(serializers.ModelSerializer):
+    """Janela de proposições do evento (leitura).
+
+    `vagas_livres` vem junto de propósito: é o que a tela do proponente precisa
+    para montar a grade de escolha — e o endpoint é o mesmo que diz se a
+    chamada está aberta.
+    """
+
+    aberta_agora = serializers.SerializerMethodField()
+    vagas_livres = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChamadaProposicoes
+        fields = ["id", "titulo", "descricao", "inicio", "fim", "aberta",
+                  "aberta_agora", "vagas_livres"]
+
+    def get_aberta_agora(self, obj) -> bool:
+        return obj.esta_aberta()
+
+    def get_vagas_livres(self, obj) -> list:
+        from eventos import propostas
+
+        return VagaResumoSerializer(
+            propostas.vagas_livres(obj.evento), many=True
+        ).data
+
+
+class ChamadaProposicoesWriteSerializer(serializers.ModelSerializer):
+    """Abre/encerra a chamada (organizador dono do evento)."""
+
+    class Meta:
+        model = ChamadaProposicoes
+        fields = ["titulo", "descricao", "inicio", "fim", "aberta"]
+
+    def validate(self, attrs):
+        inicio = attrs.get("inicio") or getattr(self.instance, "inicio", None)
+        fim = attrs.get("fim") or getattr(self.instance, "fim", None)
+        if inicio and fim and fim <= inicio:
+            raise serializers.ValidationError(
+                {"fim": "O encerramento precisa ser depois da abertura."}
+            )
+        return attrs
+
+
+class EspacoSerializer(serializers.ModelSerializer):
+    """Espaço do catálogo da escola (leitura e escrita)."""
+
+    def validate_nome(self, value):
+        nome = " ".join((value or "").split())
+        if not nome:
+            raise serializers.ValidationError("Informe o nome do espaço.")
+        return nome
+
+    class Meta:
+        model = Espaco
+        fields = ["id", "nome", "capacidade"]
+
+
+class VagaSerializer(serializers.ModelSerializer):
+    """Vaga da grade: usa as MESMAS regras da tela (`propostas.validar_vaga`)."""
+
+    espaco_nome = serializers.CharField(source="espaco.nome", read_only=True)
+    ocupadas = serializers.IntegerField(read_only=True)
+    livre = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Vaga
+        fields = ["id", "evento", "espaco", "espaco_nome", "inicio", "fim",
+                  "capacidade", "ocupadas", "livre"]
+        extra_kwargs = {"capacidade": {"required": False}}
+
+    def validate(self, attrs):
+        from eventos import propostas
+
+        evento = attrs.get("evento") or getattr(self.instance, "evento", None)
+        espaco = attrs.get("espaco") or getattr(self.instance, "espaco", None)
+        inicio = attrs.get("inicio") or getattr(self.instance, "inicio", None)
+        fim = attrs.get("fim") or getattr(self.instance, "fim", None)
+        capacidade = attrs.get("capacidade", getattr(self.instance, "capacidade", 1))
+        erros = propostas.validar_vaga(
+            evento, espaco=espaco, inicio=inicio, fim=fim,
+            capacidade=capacidade, instancia=self.instance,
+        )
+        if erros:
+            raise serializers.ValidationError(erros)
+        return attrs
+
+
+class PropostaWriteSerializer(serializers.Serializer):
+    """Payload da proposta — o cadastro em si é feito por `propostas.propor`.
+
+    Os campos espelham o formulário do site. O horário/espaço NÃO vêm soltos:
+    vêm da vaga escolhida na grade (é o que garante "quem propõe primeiro leva").
+    """
+
+    vaga = serializers.PrimaryKeyRelatedField(queryset=Vaga.objects.all())
+    titulo = serializers.CharField(max_length=255)
+    descricao = serializers.CharField()
+    tipo = serializers.PrimaryKeyRelatedField(
+        queryset=TipoAtividade.objects.all(), required=False, allow_null=True
+    )
+    tipo_sugerido = serializers.CharField(
+        max_length=60, required=False, allow_blank=True
+    )
+    palestrantes = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Participante.objects.all(), required=False
+    )
+    n_vagas = serializers.IntegerField(required=False, min_value=0, default=0)
+    emite_certificado = serializers.BooleanField(required=False, default=False)
+    imagem = serializers.ImageField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        # Tipo: obrigatório na criação; na edição parcial só quando informado.
+        if not self.partial or "tipo" in attrs or "tipo_sugerido" in attrs:
+            if not attrs.get("tipo") and not (attrs.get("tipo_sugerido") or "").strip():
+                raise serializers.ValidationError(
+                    {"tipo": "Escolha um tipo da lista ou sugira um novo."}
+                )
+        vaga = attrs.get("vaga")
+        if vaga is not None and not vaga.livre:
+            raise serializers.ValidationError(
+                {"vaga": f"A vaga de {vaga} já está ocupada. Escolha outra."}
+            )
+        return attrs
+
+
+class DecisaoPropostaSerializer(serializers.Serializer):
+    """Corpo da aprovação: publicar (padrão sim) e o tipo oficial, se houver."""
+
+    publicar = serializers.BooleanField(required=False, default=True)
+    tipo = serializers.PrimaryKeyRelatedField(
+        queryset=TipoAtividade.objects.all(), required=False, allow_null=True
+    )
+
+
+class GradeVagasSerializer(serializers.Serializer):
+    """Payload do gerador de grade em lote (o mesmo da tela, estruturado).
+
+    Na tela os blocos vêm numa caixa de texto; aqui vêm como lista, mas o
+    parsing é o MESMO (`propostas.parse_blocos`) — nenhuma regra duplicada.
+    """
+
+    dias = serializers.ListField(child=serializers.DateField())
+    blocos = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Cada item no formato HH:MM-HH:MM (ex.: 08:00-10:00).",
+    )
+    espacos = serializers.PrimaryKeyRelatedField(
+        queryset=Espaco.objects.all(), many=True
+    )
+    capacidade = serializers.IntegerField(required=False, min_value=1, default=1)
+
+    def validate(self, attrs):
+        from eventos import propostas
+
+        evento = self.context.get("evento")
+        if not attrs.get("dias"):
+            raise serializers.ValidationError({"dias": "Escolha pelo menos um dia."})
+        if evento is not None:
+            for dia in attrs["dias"]:
+                if not (evento.data_inicio <= dia <= evento.data_fim):
+                    raise serializers.ValidationError(
+                        {"dias": f"{dia.strftime('%d/%m/%Y')} está fora do período do evento."}
+                    )
+        try:
+            attrs["blocos_limpos"] = propostas.parse_blocos("\n".join(attrs["blocos"]))
+        except ValueError as erro:
+            raise serializers.ValidationError({"blocos": str(erro)})
+        return attrs
+
+
+class RejeicaoPropostaSerializer(serializers.Serializer):
+    """Corpo da rejeição: o motivo é obrigatório (é o retorno ao proponente)."""
+
+    motivo = serializers.CharField(
+        help_text="Explicação que o proponente recebe (obrigatória)."
     )

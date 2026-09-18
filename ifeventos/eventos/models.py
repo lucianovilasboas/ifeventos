@@ -565,15 +565,15 @@ class Vaga(models.Model):
         return f"{self.espaco.nome} · {timezone.localtime(self.inicio):%d/%m %H:%M}"
 
     def propostas_ativas(self, ignorar=None):
-        """Propostas que ocupam a vaga (pendentes ou aprovadas).
+        """Atividades que ocupam a vaga (proposta pendente/aprovada ou do organizador).
 
-        Rejeitada não ocupa: assim a vaga volta a ficar livre sozinha quando o
-        organizador recusa a proposta. `ignorar` serve à edição, para a própria
-        proposta não contar como ocupante de si mesma.
+        Tudo que aponta para a vaga ocupa, menos a REJEITADA: assim a vaga volta
+        a ficar livre sozinha quando o organizador recusa a proposta, e uma
+        atividade que o organizador criou direto na vaga também a reserva (era
+        um furo: ela não contava e a vaga seguia "livre"). `ignorar` serve à
+        edição, para a própria atividade não contar como ocupante de si mesma.
         """
-        ativas = self.propostas.filter(
-            situacao__in=[Atividade.SITUACAO_PENDENTE, Atividade.SITUACAO_APROVADA]
-        )
+        ativas = self.propostas.exclude(situacao=Atividade.SITUACAO_REJEITADA)
         if getattr(ignorar, "pk", None):
             ativas = ativas.exclude(pk=ignorar.pk)
         return ativas

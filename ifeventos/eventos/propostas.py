@@ -14,7 +14,8 @@ Quem "esconde" a proposta do público continua sendo `Atividade.publicada`
 apenas organiza o fluxo de aprovação.
 """
 
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 
 from django.conf import settings
@@ -97,6 +98,91 @@ def chamadas_abertas(agora=None):
 # ---------------------------------------------------------------------------
 # Grade de oferta
 # ---------------------------------------------------------------------------
+
+# Um bloco de horário da grade: `08:00-10:00` (aceita `-`, `–` e espaços).
+BLOCO_RE = re.compile(r"^(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})$")
+
+
+def parse_blocos(texto):
+    """Converte os blocos digitados (um por linha) em `[(time, time), …]`.
+
+    Aceita vírgula no lugar de quebra de linha e ignora linhas vazias.
+    Levanta `ValueError` com a linha problemática — quem chama (formulário ou
+    API) mostra a mensagem no campo certo.
+    """
+    blocos, vistas = [], set()
+    for numero, linha in enumerate((texto or "").replace(",", "\n").splitlines(), start=1):
+        linha = linha.strip()
+        if not linha:
+            continue
+        achado = BLOCO_RE.match(linha)
+        if not achado:
+            raise ValueError(
+                f"Linha {numero}: use o formato HH:MM-HH:MM (ex.: 08:00-10:00)."
+            )
+        hora1, min1, hora2, min2 = (int(valor) for valor in achado.groups())
+        try:
+            inicio, fim = time(hora1, min1), time(hora2, min2)
+        except ValueError:
+            raise ValueError(f"Linha {numero}: horário inválido.")
+        if fim <= inicio:
+            raise ValueError(f"Linha {numero}: o término precisa ser depois do início.")
+        if (inicio, fim) not in vistas:
+            vistas.add((inicio, fim))
+            blocos.append((inicio, fim))
+    if not blocos:
+        raise ValueError("Informe pelo menos um bloco de horário.")
+    return blocos
+
+
+def validar_vaga(evento, *, espaco, inicio, fim, capacidade, instancia=None):
+    """Regras de uma vaga, compartilhadas pela TELA (`VagaForm`) e pela API.
+
+    Devolve `{campo: [mensagem]}` — quem chama decide como mostrar o erro.
+    `instancia` é a vaga sendo editada (para não acusá-la de duplicar a si
+    mesma e para as travas de "já tem proposta").
+    """
+    erros = {}
+
+    def erro(campo, mensagem):
+        erros.setdefault(campo, []).append(mensagem)
+
+    if inicio and fim and fim <= inicio:
+        erro("fim", "O término precisa ser depois do início.")
+        return erros
+
+    if inicio and evento is not None:
+        dia = timezone.localtime(inicio).date()
+        if not (evento.data_inicio <= dia <= evento.data_fim):
+            erro(
+                "inicio",
+                "O dia da vaga precisa estar dentro do período do evento.",
+            )
+
+    if espaco and inicio and fim:
+        repetida = Vaga.objects.filter(espaco=espaco, inicio=inicio, fim=fim)
+        if instancia is not None and instancia.pk:
+            repetida = repetida.exclude(pk=instancia.pk)
+        if repetida.exists():
+            erro("inicio", "Já existe uma vaga deste espaço nessa janela.")
+
+    if instancia is not None and instancia.pk and instancia.tem_propostas_ativas:
+        ocupadas = instancia.ocupadas
+        if capacidade is not None and capacidade < ocupadas:
+            erro(
+                "capacidade",
+                f"Esta vaga tem {ocupadas} proposta(s) ativa(s): a capacidade "
+                "não pode ficar menor que isso.",
+            )
+        for campo, novo in (("espaco", espaco), ("inicio", inicio), ("fim", fim)):
+            if novo is not None and novo != getattr(instancia, campo):
+                erro(
+                    campo,
+                    "Esta vaga já tem proposta: espaço e horário ficam "
+                    "travados (a reserva da proposta depende deles).",
+                )
+    return erros
+
 
 def vagas_do_evento(evento, somente_livres=False):
     """Vagas da grade, na ordem (dia/espaço). `somente_livres` esconde as cheias."""
@@ -486,6 +572,19 @@ def cancelar(atividade):
         raise PropostaBloqueada(
             "A proposta já foi decidida pelo organizador: só ele pode alterá-la."
         )
+    evento = atividade.evento  # guardado antes: depois do delete não há linha
+    atividade.delete()
+    transaction.on_commit(lambda: avisar_mudanca(evento))
+
+
+def remover(atividade):
+    """Remove a proposta em qualquer situação — ação do organizador.
+
+    `cancelar` é o autor desistindo de algo ainda pendente; aqui quem decide já
+    pode apagar a proposta mesmo depois da decisão (é o mesmo efeito de excluir
+    a atividade pela programação, que sempre foi permitido). Avisa a mudança
+    para quem acompanha a grade.
+    """
     evento = atividade.evento  # guardado antes: depois do delete não há linha
     atividade.delete()
     transaction.on_commit(lambda: avisar_mudanca(evento))

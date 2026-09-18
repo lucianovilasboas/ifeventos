@@ -1,4 +1,3 @@
-import re
 from datetime import date, time
 
 from django.utils import timezone
@@ -7,7 +6,7 @@ from django import forms
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
 from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
-from .propostas import dias_do_evento
+from .propostas import dias_do_evento, parse_blocos, validar_vaga
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
@@ -465,49 +464,19 @@ class VagaForm(forms.ModelForm):
             )
 
     def clean(self):
+        """As regras vivem em `propostas.validar_vaga` — a API usa as mesmas."""
         dados = super().clean()
-        inicio, fim = dados.get("inicio"), dados.get("fim")
-        if inicio and fim and fim <= inicio:
-            self.add_error("fim", "O término precisa ser depois do início.")
-            return dados
-
-        if inicio and self.evento is not None:
-            dia = timezone.localtime(inicio).date()
-            if not (self.evento.data_inicio <= dia <= self.evento.data_fim):
-                self.add_error(
-                    "inicio", "O dia da vaga precisa estar dentro do período do evento."
-                )
-
-        espaco = dados.get("espaco")
-        if espaco and inicio and fim:
-            # A constraint é global (a sala não pode ter duas vagas idênticas):
-            # aqui a mensagem sai legível em vez do erro cru do banco.
-            repetida = Vaga.objects.filter(espaco=espaco, inicio=inicio, fim=fim)
-            if self.instance.pk:
-                repetida = repetida.exclude(pk=self.instance.pk)
-            if repetida.exists():
-                self.add_error(
-                    "inicio", "Já existe uma vaga deste espaço nessa janela."
-                )
-
-        if self.instance.pk and self.instance.tem_propostas_ativas:
-            ocupadas = self.instance.ocupadas
-            capacidade = dados.get("capacidade")
-            if capacidade is not None and capacidade < ocupadas:
-                self.add_error(
-                    "capacidade",
-                    f"Esta vaga tem {ocupadas} proposta(s) ativa(s): a capacidade "
-                    "não pode ficar menor que isso.",
-                )
-            for campo, novo in (
-                ("espaco", espaco), ("inicio", inicio), ("fim", fim),
-            ):
-                if novo is not None and novo != getattr(self.instance, campo):
-                    self.add_error(
-                        campo,
-                        "Esta vaga já tem proposta: espaço e horário ficam "
-                        "travados (a reserva da proposta depende deles).",
-                    )
+        erros = validar_vaga(
+            self.evento,
+            espaco=dados.get("espaco"),
+            inicio=dados.get("inicio"),
+            fim=dados.get("fim"),
+            capacidade=dados.get("capacidade"),
+            instancia=self.instance,
+        )
+        for campo, mensagens in erros.items():
+            for mensagem in mensagens:
+                self.add_error(campo, mensagem)
         return dados
 
 
@@ -654,7 +623,6 @@ class GradeVagasForm(forms.Form):
     separador, caso venham numa linha só.
     """
 
-    BLOCO = re.compile(r"^(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})$")
 
     dias = forms.MultipleChoiceField(
         label="Dias do evento",
@@ -702,29 +670,8 @@ class GradeVagasForm(forms.Form):
         return dias
 
     def clean_blocos(self):
-        texto = (self.cleaned_data.get("blocos") or "").replace(",", "\n")
-        blocos, vistas = [], set()
-        for numero, linha in enumerate(texto.splitlines(), start=1):
-            linha = linha.strip()
-            if not linha:
-                continue
-            achado = self.BLOCO.match(linha)
-            if not achado:
-                raise forms.ValidationError(
-                    f"Linha {numero}: use o formato HH:MM-HH:MM (ex.: 08:00-10:00)."
-                )
-            hora1, min1, hora2, min2 = (int(valor) for valor in achado.groups())
-            try:
-                inicio, fim = time(hora1, min1), time(hora2, min2)
-            except ValueError:
-                raise forms.ValidationError(f"Linha {numero}: horário inválido.")
-            if fim <= inicio:
-                raise forms.ValidationError(
-                    f"Linha {numero}: o término precisa ser depois do início."
-                )
-            if (inicio, fim) not in vistas:
-                vistas.add((inicio, fim))
-                blocos.append((inicio, fim))
-        if not blocos:
-            raise forms.ValidationError("Informe pelo menos um bloco de horário.")
-        return blocos
+        """O parsing vive em `propostas.parse_blocos` — a API usa o mesmo."""
+        try:
+            return parse_blocos(self.cleaned_data.get("blocos"))
+        except ValueError as erro:
+            raise forms.ValidationError(str(erro))

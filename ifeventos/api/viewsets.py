@@ -6,7 +6,7 @@ from django.urls import reverse
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -27,7 +27,20 @@ from eventos.crachas import (
     verificar_token,
 )
 from eventos import metadados as metadados_config
-from eventos.models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca, TipoAtividade
+from eventos import propostas
+from eventos.models import (
+    Atividade,
+    Certificado,
+    ChamadaProposicoes,
+    Espaco,
+    Evento,
+    Inscricao,
+    Participante,
+    Presenca,
+    TipoAtividade,
+    Vaga,
+)
+from eventos.propostas import PropostaBloqueada
 
 from .permissions import (
     IsDonoEvento,
@@ -40,9 +53,14 @@ from .serializers import (
     AtividadeSerializer,
     AtividadeWriteSerializer,
     CertificadoSerializer,
+    ChamadaProposicoesSerializer,
+    ChamadaProposicoesWriteSerializer,
+    DecisaoPropostaSerializer,
     CrachaSerializer,
+    EspacoSerializer,
     EventoSerializer,
     EventoWriteSerializer,
+    GradeVagasSerializer,
     ImportarMetadadosSerializer,
     InscricaoCreateSerializer,
     InscricaoSerializer,
@@ -51,9 +69,13 @@ from .serializers import (
     PalestranteWriteSerializer,
     PresencaCreateSerializer,
     PresencaSerializer,
+    PropostaWriteSerializer,
+    RejeicaoPropostaSerializer,
     QrAtividadeSerializer,
     TipoAtividadeSerializer,
     TipoAtividadeWriteSerializer,
+    VagaResumoSerializer,
+    VagaSerializer,
     VerificacaoSerializer,
 )
 
@@ -73,6 +95,80 @@ class EventoViewSet(viewsets.ModelViewSet):
             .order_by("-data_inicio")
         )
 
+    # ------------------------------------------------------------------
+    # Chamada de proposições de atividades (a regra vive em eventos.propostas)
+    # ------------------------------------------------------------------
+    @extend_schema(responses=ChamadaProposicoesSerializer)
+    @action(detail=True, methods=["get", "put"], url_path="chamada", url_name="chamada")
+    def chamada(self, request, pk=None):
+        """Janela de proposições do evento.
+
+        GET (autenticado): a janela e as vagas livres — é o que o formulário do
+        proponente precisa. PUT (organizador dono): abre/atualiza/encerra.
+        """
+        evento = self.get_object()
+        chamada = propostas.chamada_de(evento)
+
+        if request.method == "GET":
+            if chamada is None:
+                return Response(
+                    {"detail": "Este evento ainda não abriu chamada de propostas."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            return Response(ChamadaProposicoesSerializer(chamada).data)
+
+        entrada = ChamadaProposicoesWriteSerializer(
+            instance=chamada, data=request.data, partial=True
+        )
+        entrada.is_valid(raise_exception=True)
+        chamada = entrada.save(evento=evento)
+        return Response(ChamadaProposicoesSerializer(chamada).data)
+
+    @extend_schema(responses={200: OpenApiResponse(description="Indicadores da chamada")})
+    @action(detail=True, methods=["get"], url_path="painel-chamada",
+            url_name="painel-chamada")
+    def painel_chamada(self, request, pk=None):
+        """Indicadores da chamada (organizador): KPIs, ocupação e vagas livres.
+
+        `eventos.propostas.resumo` é feito para template (devolve models), então
+        aqui ele é achatado em JSON. Para as propostas em si, use
+        `/propostas/?evento=<id>` — o painel só devolve os números.
+        """
+        evento = self.get_object()
+        dados = propostas.resumo(evento)
+        return Response({
+            "kpis": dados["kpis"],
+            "por_status": dados["por_status"],
+            "total_propostas": dados["total_propostas"],
+            "vagas_livres": VagaResumoSerializer(dados["vagas_livres"], many=True).data,
+            "por_espaco": [
+                {
+                    "espaco": bloco["espaco"].nome,
+                    "total": bloco["total"],
+                    "livres": bloco["livres"],
+                }
+                for bloco in dados["por_espaco"]
+            ],
+        })
+
+    @extend_schema(request=GradeVagasSerializer)
+    @action(detail=True, methods=["post"], url_path="vagas/gerar",
+            url_name="vagas-gerar")
+    def vagas_gerar(self, request, pk=None):
+        """Gera a grade em lote (dias × blocos × espaços), sem duplicar."""
+        evento = self.get_object()
+        entrada = GradeVagasSerializer(data=request.data, context={"evento": evento})
+        entrada.is_valid(raise_exception=True)
+        dados = entrada.validated_data
+        resultado = propostas.gerar_grade(
+            evento,
+            dias=dados["dias"],
+            blocos=dados["blocos_limpos"],
+            espacos=dados["espacos"],
+            capacidade=dados["capacidade"],
+        )
+        return Response(resultado, status=status.HTTP_201_CREATED)
+
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
             return EventoWriteSerializer
@@ -85,6 +181,12 @@ class EventoViewSet(viewsets.ModelViewSet):
         # Leitura: qualquer um. Escrita: exigir organizador e (no objeto) dono/superuser.
         if self.action in ("list", "retrieve"):
             return [AllowAny()]
+        if self.action == "chamada":
+            # A janela e as vagas livres interessam ao proponente logado; abrir
+            # e encerrar é do organizador dono (o padrão de escrita abaixo).
+            if self.request.method in SAFE_METHODS:
+                return [IsAuthenticated()]
+            return [IsOrganizador(), IsDonoEvento()]
         if self.action == "create":
             return [IsOrganizador()]
         return [IsOrganizador(), IsDonoEvento()]
@@ -677,3 +779,248 @@ class ImportarMetadadosView(APIView):
         entrada.is_valid(raise_exception=True)
         relatorio = importacao.importar_linhas(entrada.validated_data["linhas"])
         return Response(relatorio)
+
+
+# ---------------------------------------------------------------------------
+# Chamada de proposições — catálogo, grade e propostas
+#
+# As regras vivem em `eventos.propostas` (janela, vaga livre, conflitos, limite
+# por pessoa, e-mail/socket no commit). Aqui é a porta de entrada: a API e a
+# tela contam a mesma história.
+# ---------------------------------------------------------------------------
+
+
+class EspacoViewSet(viewsets.ModelViewSet):
+    """Catálogo de espaços da escola (reaproveitado pelos eventos)."""
+
+    queryset = Espaco.objects.all().order_by("nome")
+    serializer_class = EspacoSerializer
+    permission_classes = [AllowAny, IsOrganizador]
+    search_fields = ["nome"]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [AllowAny()]
+        return [IsOrganizador()]
+
+
+class VagaViewSet(viewsets.ModelViewSet):
+    """Grade de oferta: o que o proponente pode reservar."""
+
+    serializer_class = VagaSerializer
+    permission_classes = [IsAuthenticated, IsOrganizador]
+    queryset = Vaga.objects.none()  # idem: tipa o `{id}` na doc
+
+    def get_queryset(self):
+        base = (
+            Vaga.objects.select_related("espaco", "evento")
+            .order_by("inicio", "espaco__nome")
+        )
+        parametros = self.request.query_params
+        if parametros.get("evento"):
+            base = base.filter(evento_id=parametros["evento"])
+        if self.request.query_params.get("espaco"):
+            base = base.filter(espaco_id=parametros["espaco"])
+        return base
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [IsAuthenticated()]
+        if self.action == "create":
+            return [IsOrganizador()]
+        return [IsOrganizador(), IsDonoEvento()]
+
+    def get_object(self):
+        obj = super().get_object()
+        # Edição/exclusão exige dono do evento ou superuser.
+        if self.action in ("update", "partial_update", "destroy"):
+            self.check_object_permissions(self.request, obj)
+        return obj
+
+
+class PropostaViewSet(viewsets.ModelViewSet):
+    """Propostas de atividade: o participante propõe; o organizador decide.
+
+    - GET: o participante vê as próprias; quem organiza vê todas (com
+      `?evento=`, `?situacao=` e `?minhas=1`).
+    - POST: propõe (janela aberta, vaga livre, sem conflito — tudo do serviço).
+    - PATCH: o autor edita enquanto pendente e com a chamada aberta.
+    - DELETE: o autor cancela enquanto pendente.
+    - POST /aprovar/ e /rejeitar/: decisão do organizador (rejeitar exige motivo).
+    """
+
+    serializer_class = AtividadeSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
+    queryset = Atividade.objects.none()  # idem: tipa o `{id}` na doc
+
+    def _gerencia(self, evento) -> bool:
+        return pode_gerenciar_evento(self.request.user, evento)
+
+    def _ve_tudo(self) -> bool:
+        usuario = self.request.user
+        return bool(
+            usuario.is_staff
+            or usuario.is_superuser
+            or getattr(usuario, "is_organizador", False)
+        )
+
+    def get_queryset(self):
+        base = (
+            Atividade.objects.filter(proponente__isnull=False)
+            .select_related("evento", "tipo", "vaga", "vaga__espaco", "proponente")
+            .prefetch_related("palestrantes")
+            .order_by("-date_created", "-id")
+        )
+        parametros = self.request.query_params
+        if parametros.get("evento"):
+            base = base.filter(evento_id=parametros["evento"])
+        if parametros.get("situacao"):
+            base = base.filter(situacao=parametros["situacao"])
+        if parametros.get("minhas") in ("1", "true", "True"):
+            return base.filter(proponente=self.request.user)
+        if self._ve_tudo():
+            return base
+        return base.filter(proponente=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return PropostaWriteSerializer
+        return AtividadeSerializer
+
+    def _resposta(self, proposta):
+        return Response(
+            AtividadeSerializer(proposta, context={"request": self.request}).data
+        )
+
+    def create(self, request, *args, **kwargs):
+        entrada = PropostaWriteSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        dados = entrada.validated_data
+        evento = dados["vaga"].evento
+        try:
+            proposta = propostas.propor(
+                request.user, evento,
+                vaga=dados["vaga"],
+                titulo=dados["titulo"],
+                descricao=dados["descricao"],
+                tipo=dados.get("tipo"),
+                tipo_sugerido=dados.get("tipo_sugerido", ""),
+                palestrantes=dados.get("palestrantes") or [],
+                n_vagas=dados.get("n_vagas") or 0,
+                emite_certificado=dados.get("emite_certificado", False),
+                imagem=dados.get("imagem"),
+            )
+        except PropostaBloqueada as erro:
+            return Response(
+                {"detail": erro.messages[0]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(
+            AtividadeSerializer(proposta, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def update(self, request, *args, **kwargs):
+        proposta = self.get_object()
+        if proposta.proponente_id != request.user.pk and not self._gerencia(proposta.evento):
+            return Response(
+                {"detail": "Só quem propôs edita a proposta."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        entrada = PropostaWriteSerializer(data=request.data, partial=True)
+        entrada.is_valid(raise_exception=True)
+        dados = entrada.validated_data
+        try:
+            proposta = propostas.atualizar(
+                proposta,
+                vaga=dados.get("vaga") or proposta.vaga,
+                titulo=dados.get("titulo", proposta.titulo),
+                descricao=dados.get("descricao", proposta.descricao),
+                tipo=dados.get("tipo", proposta.tipo),
+                tipo_sugerido=dados.get("tipo_sugerido", proposta.tipo_sugerido),
+                palestrantes=(
+                    list(dados["palestrantes"]) if "palestrantes" in dados
+                    else list(proposta.palestrantes.all())
+                ),
+                n_vagas=dados.get("n_vagas", proposta.n_vagas),
+                emite_certificado=dados.get(
+                    "emite_certificado", proposta.emite_certificado
+                ),
+                imagem=dados.get("imagem"),
+            )
+        except PropostaBloqueada as erro:
+            return Response(
+                {"detail": erro.messages[0]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return self._resposta(proposta)
+
+    def destroy(self, request, *args, **kwargs):
+        """Quem propôs desiste enquanto pendente; quem gerencia apaga sempre.
+
+        O organizador já podia excluir a atividade pela programação, então
+        negar aqui só criava um 403 confuso. Depois de decidida, a palavra é
+        dele — é o que o próprio serviço documenta.
+        """
+        proposta = self.get_object()
+        if self._gerencia(proposta.evento):
+            propostas.remover(proposta)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        if proposta.proponente_id != request.user.pk:
+            return Response(
+                {"detail": "Só quem propôs pode cancelar a proposta."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            propostas.cancelar(proposta)
+        except PropostaBloqueada as erro:
+            return Response(
+                {"detail": erro.messages[0]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(request=DecisaoPropostaSerializer)
+    @action(detail=True, methods=["post"])
+    def aprovar(self, request, pk=None):
+        """Aprova a proposta (por padrão já publica na programação)."""
+        proposta = self.get_object()
+        if not self._gerencia(proposta.evento):
+            return Response(
+                {"detail": "Você não organiza este evento."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        entrada = DecisaoPropostaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        try:
+            propostas.aprovar(
+                proposta, request.user,
+                publicar=entrada.validated_data.get("publicar", True),
+                tipo=entrada.validated_data.get("tipo"),
+            )
+        except PropostaBloqueada as erro:
+            return Response(
+                {"detail": erro.messages[0]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return self._resposta(proposta)
+
+    @extend_schema(request=RejeicaoPropostaSerializer)
+    @action(detail=True, methods=["post"])
+    def rejeitar(self, request, pk=None):
+        """Rejeita a proposta (o motivo é obrigatório) e libera a vaga."""
+        proposta = self.get_object()
+        if not self._gerencia(proposta.evento):
+            return Response(
+                {"detail": "Você não organiza este evento."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        entrada = RejeicaoPropostaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        try:
+            propostas.rejeitar(
+                proposta, request.user, entrada.validated_data.get("motivo")
+            )
+        except PropostaBloqueada as erro:
+            return Response(
+                {"detail": erro.messages[0]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return self._resposta(proposta)
