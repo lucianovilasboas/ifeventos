@@ -66,6 +66,10 @@ no fim do ciclo, com a tag `v2.0.0`.
   (`?agrupar=`, padrão `curso_turma_ano`), gráficos por grupo, drill-down para o
   relatório por aluno já filtrado e export XLSX com **abas Resumo + Detalhe**
   (extensão `abas=` em `eventos/exportacao.py`).
+- **Relatório por tipo de atividade (Onda R3):** grade de atividades com KPIs,
+  gráficos e filtro por tipo (`?tipo=`), export CSV/XLSX/PDF; badge
+  "outro organizador" no cartão do evento e na tela de atividades quando o
+  evento pertence a outro organizador.
 
 ### Alterado
 

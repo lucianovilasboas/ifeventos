@@ -10,7 +10,7 @@ para os relatórios do organizador e a área do participante contarem a MESMA
 história. Funções puras: recebem o evento e devolvem dados — sem request.
 """
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from django.utils import timezone
 
@@ -292,6 +292,91 @@ def graficos_alunos(linhas):
             "tipo": "donut",
             "labels": ["Presentes", "Ausentes"],
             "series": [{"nome": "Marcações", "data": [presentes, ausentes], "cor": "paleta"}],
+        })
+    return graficos
+
+
+def resumo_por_atividade(evento, tipo_id=None):
+    """Linhas por atividade: inscritos, presentes, vagas e ocupação.
+
+    `tipo_id` opcional filtra por tipo de atividade; com ele os KPIs usam só
+    esse recorte. Ordena por data/hora (grade).
+    """
+    from eventos.models import Presenca
+
+    atividades = list(
+        evento.atividades.select_related("tipo").order_by("data_hora_inicio", "titulo")
+    )
+    if tipo_id:
+        atividades = [a for a in atividades if a.tipo_id == tipo_id]
+
+    presentes_por_atividade = Counter(
+        Presenca.objects.filter(atividade__evento=evento).values_list("atividade_id", flat=True)
+    )
+    linhas = []
+    for atividade in atividades:
+        inscritos = atividade.n_inscricoes or 0
+        vagas = atividade.n_vagas or 0
+        presentes = presentes_por_atividade.get(atividade.id, 0)
+        ocupacao = round(100 * inscritos / vagas) if vagas else 0
+        linhas.append({
+            "atividade": atividade,
+            "tipo": atividade.tipo.nome if atividade.tipo_id else "Sem tipo",
+            "inscritos": inscritos,
+            "presentes": presentes,
+            "vagas": vagas,
+            "ocupacao": ocupacao,
+            "emite_certificado": atividade.emite_certificado,
+        })
+    return linhas
+
+
+def kpis_atividades(linhas):
+    """Indicadores do topo do relatório por tipo de atividade."""
+    atividades = len(linhas)
+    inscritos = sum(linha["inscritos"] for linha in linhas)
+    vagas = sum(linha["vagas"] for linha in linhas)
+    presentes = sum(linha["presentes"] for linha in linhas)
+    tipos = len({linha["tipo"] for linha in linhas})
+    return [
+        {"rotulo": "Atividades", "valor": atividades, "icone": "fa-solid fa-calendar-days"},
+        {"rotulo": "Inscrições", "valor": inscritos, "icone": "fa-solid fa-clipboard-list"},
+        {"rotulo": "Vagas", "valor": vagas, "icone": "fa-solid fa-door-open"},
+        {"rotulo": "Presentes", "valor": presentes, "icone": "fa-solid fa-clipboard-check"},
+        {"rotulo": "Tipos", "valor": tipos, "icone": "fa-solid fa-tags"},
+    ]
+
+
+def graficos_atividades(linhas):
+    """Gráficos prontos (contrato do Chart.js) a partir das linhas por atividade."""
+    graficos = []
+    if not linhas:
+        return graficos
+
+    top = sorted(linhas, key=lambda l: (-l["inscritos"], l["atividade"].titulo or ""))[:10]
+    graficos.append({
+        "id": "atividades_ocupacao",
+        "titulo": "Inscritos × vagas por atividade (top 10)",
+        "tipo": "barh",
+        "labels": [l["atividade"].titulo for l in top],
+        "series": [
+            {"nome": "Inscritos", "data": [l["inscritos"] for l in top], "cor": "indigo"},
+            {"nome": "Vagas", "data": [l["vagas"] for l in top], "cor": "cinza"},
+        ],
+    })
+    if any(l["presentes"] for l in linhas):
+        top_presenca = sorted(linhas, key=lambda l: (-l["presentes"], l["atividade"].titulo or ""))[:10]
+        graficos.append({
+            "id": "atividades_comparecimento",
+            "titulo": "Comparecimento por atividade (top 10)",
+            "tipo": "bar",
+            "labels": [l["atividade"].titulo for l in top_presenca],
+            "series": [
+                {"nome": "Presentes", "data": [l["presentes"] for l in top_presenca], "cor": "verde"},
+                {"nome": "Ausentes",
+                 "data": [max(l["inscritos"] - l["presentes"], 0) for l in top_presenca],
+                 "cor": "vermelho"},
+            ],
         })
     return graficos
 

@@ -22,6 +22,7 @@ from relatorios.views import (
     graficos_curadoria,
     graficos_insights,
     RelatorioTurmasView,
+    RelatorioOficinasView,
 )
 from organizador.views import publicar_atividade
 from organizador.views import (
@@ -118,6 +119,7 @@ urlpatterns = [
     path("relatorios_graficos/<int:evento_id>/narrado/", narrativa_evento, name="narrativa_evento"),
     path("relatorio_alunos/<int:evento_id>/", RelatorioAlunosView.as_view(), name="relatorio_alunos"),
     path("relatorio_turmas/<int:evento_id>/", RelatorioTurmasView.as_view(), name="relatorio_turmas"),
+    path("relatorio_oficinas/<int:evento_id>/", RelatorioOficinasView.as_view(), name="relatorio_oficinas"),
     path("relatorio_alunos/<int:evento_id>/<int:participante_id>/", relatorio_aluno_detalhe, name="relatorio_aluno_detalhe"),
     path("relatorio_alunos/<int:evento_id>/curadoria/", graficos_curadoria, name="graficos_curadoria"),
     path("relatorio_alunos/<int:evento_id>/insights/", graficos_insights, name="graficos_insights"),

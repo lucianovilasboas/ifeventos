@@ -1,0 +1,96 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+{% block title %}Relatório por tipo de atividade | {{ evento.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fa-solid fa-tags"></i> Relatório por tipo de atividade</span>
+        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </h2>
+    <p class="text-muted mb-3">{{ evento.title }} · {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}</p>
+
+    <div class="row row-cols-2 row-cols-md-5 g-2 g-md-3 mb-3">
+        {% for k in kpis %}
+        <div class="col"><div class="kpi-card">
+            <i class="{{ k.icone }}"></i>
+            <div><span class="kpi-valor">{{ k.valor }}{{ k.sufixo|default:"" }}</span><span class="kpi-rotulo">{{ k.rotulo }}</span></div>
+        </div></div>
+        {% endfor %}
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <a href="{% url 'organizador:relatorio_oficinas' evento.id %}"
+           class="btn btn-sm {% if not tipo_atual %}btn-app{% else %}btn-outline-secondary{% endif %}">
+            <i class="fa-solid fa-calendar-days"></i> Todas
+        </a>
+        {% for tipo in tipos %}
+        <a href="{% url 'organizador:relatorio_oficinas' evento.id %}?tipo={{ tipo.id }}"
+           class="btn btn-sm {% if tipo_atual == tipo.id %}btn-app{% else %}btn-outline-secondary{% endif %}">
+            <i class="fa-solid fa-tag"></i> {{ tipo.nome }}
+        </a>
+        {% endfor %}
+        <span class="ms-auto text-muted small">Exportar:</span>
+        {% for e in export_urls %}
+        <a href="{{ e.url }}" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-download"></i> {{ e.rotulo }}</a>
+        {% endfor %}
+    </div>
+
+    <div class="row g-3 mb-3">
+        {% for g in graficos %}
+        <div class="col-12 col-lg-6">
+            <div class="painel-grafico" data-tipo="{{ g.tipo }}">
+                <h6>{{ g.titulo }}</h6>
+                <div class="grafico-area"><canvas data-grafico="{{ g.id }}"></canvas></div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12"><div class="app-panel"><p class="text-muted mb-0">Sem dados para gráficos.</p></div></div>
+        {% endfor %}
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Atividade</th>
+                    <th>Tipo</th>
+                    <th>Início</th>
+                    <th>Local</th>
+                    <th>Inscritos</th>
+                    <th>Vagas</th>
+                    <th>Ocupação (%)</th>
+                    <th>Presentes</th>
+                    <th>Certificado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in linhas %}
+                <tr>
+                    <td>{{ l.atividade.titulo }}</td>
+                    <td>{{ l.tipo }}</td>
+                    <td>{% if l.atividade.data_hora_inicio %}{{ l.atividade.data_hora_inicio|date:"d/m/Y H:i" }}{% endif %}</td>
+                    <td>{{ l.atividade.local|default:"" }}</td>
+                    <td>{{ l.inscritos }}</td>
+                    <td>{{ l.vagas }}</td>
+                    <td>{{ l.ocupacao }}%</td>
+                    <td>{{ l.presentes }}</td>
+                    <td>{% if l.emite_certificado %}<i class="fa-solid fa-circle-check text-success"></i> Sim{% else %}<i class="fa-solid fa-circle-xmark text-muted"></i> Não{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9" class="text-center text-muted">Nenhuma atividade encontrada.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{{ graficos|json_script:"dados-graficos" }}
+{% endblock content %}
+
+{% block scripts %}
+<script src="{% static 'vendor/chart.min.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/relatorios_graficos.js' %}?v={{ ASSET_VERSION }}"></script>
+{% endblock scripts %}
