@@ -142,6 +142,29 @@ class RelatorioParticipantesViewTests(BaseRelatorioTests):
         self.assertEqual(resposta.status_code, 200)
         self.assertIn("text/csv", resposta["Content-Type"])
 
+    def test_url_antiga_redireciona_301_para_participantes(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(
+            "/organizador/relatorio_alunos/%s/" % self.evento.id,
+            {"agrupar": "curso_turma_ano"},
+        )
+        self.assertEqual(resposta.status_code, 301)
+        self.assertEqual(
+            resposta["Location"],
+            self.url("relatorio_participantes", self.evento.id) + "?agrupar=curso_turma_ano",
+        )
+
+    def test_url_antiga_detalhe_redireciona_301(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(
+            "/organizador/relatorio_alunos/%s/%s/" % (self.evento.id, self.participante.id)
+        )
+        self.assertEqual(resposta.status_code, 301)
+        self.assertEqual(
+            resposta["Location"],
+            self.url("relatorio_participante_detalhe", self.evento.id, self.participante.id),
+        )
+
 
 class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
     def test_curadoria_fallback(self):
