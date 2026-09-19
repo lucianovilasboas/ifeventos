@@ -584,8 +584,12 @@ class RelatorioAlunosView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRe
     def _linhas(self, evento):
         from . import agregacoes
 
-        filtros = self._filtros()
-        return agregacoes.resumo_por_pessoa(evento, **filtros)
+        linhas = agregacoes.resumo_por_pessoa(evento, **self._filtros())
+        grupo = (self.request.GET.get("grupo") or "").strip()
+        if grupo:
+            agrupar = (self.request.GET.get("agrupar") or "").strip() or "curso_turma_ano"
+            linhas = [l for l in linhas if agregacoes.grupo_de(l, agrupar) == grupo]
+        return linhas
 
     def get_queryset(self):
         return self._linhas(self._evento())
@@ -727,3 +731,114 @@ async def graficos_insights(request, evento_id):
 
     graficos = dados.get("graficos") if isinstance(dados.get("graficos"), list) else []
     return JsonResponse(await agente_graficos.insights(evento, graficos))
+
+
+class RelatorioTurmasView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
+    """Relatório por turma/grupo: mesma regra do relatório por aluno, agrupada.
+
+    `?agrupar=` escolhe a chave de metadado (ex.: `turma`, `curso`) ou a
+    composição `curso_turma_ano` (padrão). Exporta o XLSX com duas abas
+    (Resumo + Detalhe); CSV/PDF saem só com o resumo.
+    """
+
+    template_name = "relatorios/turmas.html"
+    context_object_name = "grupos"
+    paginate_by = 20
+
+    def evento_do_relatorio(self):
+        from eventos.models import Evento
+
+        return Evento.objects.filter(id=self.kwargs.get("evento_id")).first()
+
+    def _evento(self):
+        from eventos.models import Evento
+
+        return get_object_or_404(Evento, id=self.kwargs["evento_id"])
+
+    def _agrupar(self):
+        valor = (self.request.GET.get("agrupar") or "").strip() or "curso_turma_ano"
+        chaves = [c["chave"] for c in campos_metadados()]
+        if valor in chaves or valor == "curso_turma_ano":
+            return valor
+        return "curso_turma_ano"
+
+    def _linhas(self, evento):
+        from . import agregacoes
+
+        return agregacoes.resumo_por_pessoa(evento)
+
+    def get_queryset(self):
+        from . import agregacoes
+
+        return agregacoes.resumo_por_grupo(self._linhas(self._evento()), self._agrupar())
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("export") in ("csv", "xlsx", "pdf"):
+            return self._exportar()
+        return super().get(request, *args, **kwargs)
+
+    def _exportar(self):
+        from eventos.exportacao import exportar
+
+        from . import agregacoes
+
+        evento = self._evento()
+        agrupar = self._agrupar()
+        linhas_pessoa = self._linhas(evento)
+        grupos = self.get_queryset()
+        colunas = self._selecionadas()
+
+        cab_resumo = ["Grupo", "Pessoas", "Inscrições", "Presenças",
+                      "Carga horária (h)", "Certificados", "Taxa presença (%)",
+                      "Taxa certificação (%)"]
+        linhas_resumo = [
+            [g["grupo"], g["pessoas"], g["inscricoes"], g["presencas"],
+             g["carga_horaria"], g["certificados"], g["taxa_presenca"],
+             g["taxa_certificacao"]]
+            for g in grupos
+        ]
+
+        cab_detalhe = (
+            ["Grupo", "Nome", "E-mail", "Inscrições", "Presenças", "Certificados"]
+            + [c["rotulo"] for c in colunas]
+        )
+        linhas_detalhe = []
+        for linha in linhas_pessoa:
+            pessoa = linha["pessoa"]
+            linhas_detalhe.append(
+                [agregacoes.grupo_de(linha, agrupar),
+                 (f"{pessoa.first_name} {pessoa.last_name}").strip(),
+                 pessoa.email, linha["n_inscricoes"], linha["n_presencas"],
+                 linha["n_certificados"]]
+                + [linha["metadados"].get(c["chave"], "") for c in colunas]
+            )
+
+        return exportar(
+            self.request.GET.get("export"),
+            f"relatorio_turmas_{evento.id}",
+            cab_resumo, linhas_resumo,
+            titulo=f"Relatório por turma — {evento.title}",
+            abas=[("Resumo", cab_resumo, linhas_resumo),
+                  ("Detalhe", cab_detalhe, linhas_detalhe)],
+        )
+
+    def get_context_data(self, **kwargs):
+        from . import agregacoes
+
+        context = super().get_context_data(**kwargs)
+        evento = self._evento()
+        agrupar = self._agrupar()
+        context["evento"] = evento
+        context["agrupar"] = agrupar
+        context["opcoes_agrupar"] = [
+            ("curso_turma_ano", "Curso + Turma + Ano"),
+        ] + [(c["chave"], c["rotulo"]) for c in campos_metadados()]
+        context["kpis"] = agregacoes.kpis_alunos(self._linhas(evento))
+        context["graficos"] = agregacoes.graficos_grupos(self.get_queryset())
+        context["total_grupos"] = len(self.get_queryset())
+        context.update(self.metadados_colunas())
+
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        context["querystring"] = params.urlencode()
+        return context

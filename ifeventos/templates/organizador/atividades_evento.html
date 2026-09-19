@@ -30,6 +30,9 @@
         <a href="{% url 'organizador:relatorio_alunos' evento.id %}" class="btn btn-outline-secondary">
             <i class="fa-solid fa-user-graduate"></i> Relatório por aluno
         </a>
+        <a href="{% url 'organizador:relatorio_turmas' evento.id %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-layer-group"></i> Relatório por turma
+        </a>
 
         {% comment %}
         Crachás do evento em PDF (4 por folha A4), no modelo definido aqui ao

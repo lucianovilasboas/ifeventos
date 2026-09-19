@@ -166,6 +166,14 @@ def atividades_da_pessoa(evento, pessoa):
     }
 
 
+def grupo_de(linha, agrupar="curso_turma_ano"):
+    """Rótulo do grupo de uma linha (mesma regra de `resumo_por_grupo`)."""
+    chaves = agrupar.split("_") if agrupar else []
+    partes = [str(linha["metadados"].get(chave, "") or "").strip() for chave in chaves]
+    partes = [p for p in partes if p]
+    return " · ".join(partes) if partes else "(sem grupo)"
+
+
 def resumo_por_grupo(linhas, agrupar="curso_turma_ano"):
     """Agrupa as linhas de `resumo_por_pessoa` por metadado.
 
@@ -203,6 +211,38 @@ def resumo_por_grupo(linhas, agrupar="curso_turma_ano"):
         )
         resultado.append(grupo)
     return sorted(resultado, key=lambda g: g["grupo"].lower())
+
+
+def graficos_grupos(grupos):
+    """Gráficos prontos (contrato do Chart.js) a partir das linhas por grupo."""
+    graficos = []
+    if not grupos:
+        return graficos
+
+    graficos.append({
+        "id": "grupos_pessoas",
+        "titulo": "Participantes por grupo",
+        "tipo": "bar",
+        "labels": [g["grupo"] for g in grupos],
+        "series": [{"nome": "Pessoas", "data": [g["pessoas"] for g in grupos], "cor": "indigo"}],
+    })
+    if any(g["presencas"] for g in grupos):
+        graficos.append({
+            "id": "grupos_presenca",
+            "titulo": "Taxa de presença por grupo",
+            "tipo": "bar",
+            "labels": [g["grupo"] for g in grupos],
+            "series": [{"nome": "Presença (%)", "data": [g["taxa_presenca"] for g in grupos], "cor": "verde"}],
+        })
+    if any(g["certificados"] for g in grupos):
+        graficos.append({
+            "id": "grupos_certificacao",
+            "titulo": "Taxa de certificação por grupo",
+            "tipo": "bar",
+            "labels": [g["grupo"] for g in grupos],
+            "series": [{"nome": "Certificação (%)", "data": [g["taxa_certificacao"] for g in grupos], "cor": "ambar"}],
+        })
+    return graficos
 
 
 def graficos_alunos(linhas):
