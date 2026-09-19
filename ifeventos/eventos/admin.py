@@ -11,6 +11,7 @@ from .models import Inscricao
 from .models import Certificado
 from .models import PresencaCancelada
 from .models import PessoaRoster
+from .models import ContextoIA
 from django.utils.html import format_html
 from django import forms
 from django.core.exceptions import ValidationError
@@ -355,5 +356,30 @@ class PessoaRosterAdmin(admin.ModelAdmin):
             if dados.get(campo["chave"])
         ]
         return " · ".join(partes)
+
+
+@admin.register(ContextoIA)
+class ContextoIAAdmin(admin.ModelAdmin):
+    """Edita QUAL modelo de LLM cada contexto usa (sem deploy).
+
+    Os campos de identificação (chave/rótulo/grupo/ordem/padrão) vêm do código
+    e ficam somente-leitura aqui; o comando `sincronizar_contextos_ia` mantém as
+    linhas em dia. O que se edita é o modelo, os ajustes e o liga/desliga.
+    """
+
+    list_display = ("grupo", "rotulo", "chave", "modelo_efetivo", "modelo",
+                    "ativo", "atualizado_em")
+    list_editable = ("modelo", "ativo")
+    list_filter = ("grupo", "ativo")
+    search_fields = ("chave", "rotulo", "modelo")
+    ordering = ("grupo", "ordem", "rotulo")
+    readonly_fields = ("chave", "rotulo", "grupo", "tipo_padrao", "ordem",
+                       "modelo_efetivo", "atualizado_em")
+
+    @admin.display(description="Modelo efetivo")
+    def modelo_efetivo(self, obj):
+        from . import ia_config
+
+        return ia_config.modelo_da_linha(obj)
 
 

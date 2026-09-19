@@ -13,15 +13,13 @@ idempotência por título + início). Sem IA, cai num plano básico determiníst
 import re
 from datetime import timedelta
 
-from django.conf import settings
 from asgiref.sync import sync_to_async
 
 from . import importacao_assistida
 from . import services
 from . import contexto_ia
+from . import ia_config
 from .models import TipoAtividade, sem_acento
-
-MODELO = settings.IA_MODELO_CLASSIFICACAO
 
 # Tetos para não deixar o modelo (ou o usuário) criar um plano gigante.
 MAX_ATIVIDADES = 8
@@ -173,16 +171,15 @@ async def gerar_plano(titulo, descricao, categoria, evento, observacoes=""):
     dossie_texto = contexto_ia.resumo_texto(dados_dossie)
     try:
         client = services.get_openai_client()
+        kwargs = await ia_config.chamada_kwargs_async("copiloto_evento", max_tokens=1500, temperature=0.4)
         resposta = await client.chat.completions.create(
-            model=MODELO,
             messages=[{"role": "system", "content": _prompt(
                 titulo, descricao, categoria, evento, observacoes, dossie_texto, tipos
             )}],
-            max_tokens=1500,
-            temperature=0.4,
             response_format={"type": "json_object"},
+            **kwargs,
         )
-        services.registrar_uso_ia("copiloto_evento", MODELO, resposta)
+        services.registrar_uso_ia("copiloto_evento", kwargs["model"], resposta)
         import json as _json
 
         dados = _json.loads(resposta.choices[0].message.content or "{}")

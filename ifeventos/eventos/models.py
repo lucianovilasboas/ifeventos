@@ -870,3 +870,68 @@ class PresencaCancelada(models.Model):
     def __str__(self):
         quando = self.cancelada_em.strftime("%d/%m/%Y %H:%M") if self.cancelada_em else "—"
         return f"{self.pessoa_nome or '—'} em {self.atividade_titulo or '—'} (desfeita em {quando})"
+
+
+class ContextoIA(models.Model):
+    """Modelo de LLM configurável por contexto (editável no admin).
+
+    Cada ponto do sistema que chama a IA tem uma `chave` fixa, registrada em
+    `eventos/ia_config.py`. Aqui o admin escolhe QUAL modelo usar em cada
+    contexto, sem deploy. `modelo` vazio = usa o padrão de `settings`
+    (`IA_MODELO_TEXTO`/`IA_MODELO_CLASSIFICACAO`, conforme `tipo_padrao`).
+
+    A chave/rótulo/grupo/ordem vêm do código (comando `sincronizar_contextos_ia`);
+    aqui só se edita o modelo e os ajustes.
+    """
+
+    GRUPO_GERAL = "geral"
+    GRUPO_PARTICIPANTE = "participante"
+    GRUPO_ORGANIZADOR = "organizador"
+    GRUPO_GRAFICOS = "graficos"
+    GRUPO_CHOICES = [
+        (GRUPO_GERAL, "Geral"),
+        (GRUPO_PARTICIPANTE, "Participante"),
+        (GRUPO_ORGANIZADOR, "Organizador"),
+        (GRUPO_GRAFICOS, "Gráficos"),
+    ]
+
+    TIPO_TEXTO = "texto"
+    TIPO_CLASSIFICACAO = "classificacao"
+    TIPO_CHOICES = [
+        (TIPO_TEXTO, "Redação (texto)"),
+        (TIPO_CLASSIFICACAO, "Classificação"),
+    ]
+
+    chave = models.SlugField(max_length=60, unique=True, verbose_name="Chave")
+    rotulo = models.CharField(max_length=120, verbose_name="Rótulo")
+    grupo = models.CharField(
+        max_length=20, choices=GRUPO_CHOICES, default=GRUPO_GERAL, verbose_name="Grupo"
+    )
+    tipo_padrao = models.CharField(
+        max_length=20, choices=TIPO_CHOICES, default=TIPO_CLASSIFICACAO,
+        verbose_name="Padrão quando vazio",
+        help_text="Qual padrão do ambiente usar quando o modelo não for informado.",
+    )
+    modelo = models.CharField(
+        max_length=80, blank=True, default="", verbose_name="Modelo de LLM",
+        help_text="Ex.: gpt-4o, gpt-4o-mini, gpt-5.6-luna. Vazio = padrão do ambiente.",
+    )
+    temperatura = models.FloatField(
+        null=True, blank=True, verbose_name="Temperatura",
+        help_text="Opcional. Vazio = usa o valor do código.",
+    )
+    max_tokens = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Máx. tokens",
+        help_text="Opcional. Vazio = usa o valor do código.",
+    )
+    ativo = models.BooleanField(default=True, verbose_name="Ativo")
+    ordem = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+
+    class Meta:
+        ordering = ["grupo", "ordem", "rotulo"]
+        verbose_name = "Contexto de IA"
+        verbose_name_plural = "Contextos de IA"
+
+    def __str__(self):
+        return f"{self.rotulo} ({self.chave})"

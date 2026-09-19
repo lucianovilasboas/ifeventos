@@ -48,6 +48,11 @@ no fim do ciclo, com a tag `v2.0.0`.
   importação assistida (normalização de tipo/local, detecção de imagens e
   duplicatas, criação confirmada de itens fora do catálogo), pelo copiloto de
   evento, pela triagem e pelo concierge.
+- **Modelos de LLM configuráveis no admin (Onda R0b):** `ContextoIA` permite
+  escolher o modelo (e temperatura/max_tokens) de **cada contexto** de IA, sem
+  deploy; fallback para os padrões do ambiente (`IA_MODELO_TEXTO` /
+  `IA_MODELO_CLASSIFICACAO`). Comando `sincronizar_contextos_ia` mantém os
+  contextos em dia.
 
 ### Alterado
 

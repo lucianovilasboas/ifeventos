@@ -13,17 +13,15 @@ IFEventos, adaptado ao participante e às regras de privacidade.
 import json
 import logging
 
-from django.conf import settings
 from django.utils import timezone
 from asgiref.sync import sync_to_async
 
 from . import services
 from . import contexto_ia
+from . import ia_config
 from .models import Atividade, Evento, sem_acento
 
 logger = logging.getLogger("eventos.ia")
-
-MODELO = settings.IA_MODELO_CLASSIFICACAO
 
 MAX_MENSAGEM = 600
 MAX_ITENS = 60
@@ -180,13 +178,12 @@ async def responder(mensagem, historico=None):
         messages = [{"role": "system", "content": _prompt(itens, campus)}]
         messages += _normaliza_historico(historico)
         messages.append({"role": "user", "content": mensagem})
+        kwargs = await ia_config.chamada_kwargs_async("concierge", max_tokens=500, temperature=0.2)
         resposta = await client.chat.completions.create(
-            model=MODELO,
             messages=messages,
-            max_tokens=500,
-            temperature=0.2,
+            **kwargs,
         )
-        services.registrar_uso_ia("concierge", MODELO, resposta)
+        services.registrar_uso_ia("concierge", kwargs["model"], resposta)
         texto = (resposta.choices[0].message.content or "").strip()
         if texto:
             return {"resposta": texto, "origem": "ia", "aviso": ""}
