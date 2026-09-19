@@ -696,16 +696,67 @@ async def graficos_curadoria(request, evento_id):
     from eventos.crachas import pode_gerenciar_evento
     from eventos.models import Evento
 
-    from . import agente_graficos, agregacoes
+    from . import agente_graficos
+
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        dados = {}
 
     evento = await sync_to_async(get_object_or_404)(Evento, id=evento_id)
     if not await sync_to_async(pode_gerenciar_evento)(request.user, evento):
         return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
 
-    linhas = await sync_to_async(agregacoes.resumo_por_pessoa)(evento)
-    disponiveis = agregacoes.graficos_alunos(linhas)
-    perfil = {"pessoas": len(linhas), "graficos": [g["id"] for g in disponiveis]}
+    pagina = (dados.get("pagina") or "alunos").strip()
+    disponiveis = await sync_to_async(_graficos_da_pagina)(evento, pagina)
+    perfil = {"graficos": [g["id"] for g in disponiveis]}
     return JsonResponse(await agente_graficos.curar(evento, disponiveis, perfil))
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def grafico_por_descricao(request, evento_id):
+    """Devolve o gráfico que atende à descrição em linguagem natural (NL→spec).
+
+    Recebe `{"texto": "ocupação por sala"}` e devolve `{"id", "titulo", ...}`
+    do gráfico escolhido no catálogo da página. Nunca inventa gráfico nem dado.
+    """
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+
+    from eventos.crachas import pode_gerenciar_evento
+    from eventos.models import Evento
+
+    from . import agente_graficos
+
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        dados = {}
+
+    evento = await sync_to_async(get_object_or_404)(Evento, id=evento_id)
+    if not await sync_to_async(pode_gerenciar_evento)(request.user, evento):
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    pagina = (dados.get("pagina") or "alunos").strip()
+    disponiveis = await sync_to_async(_graficos_da_pagina)(evento, pagina)
+    texto = dados.get("texto") or ""
+    return JsonResponse(await agente_graficos.grafico_por_descricao(
+        evento, disponiveis, texto
+    ))
+
+
+def _graficos_da_pagina(evento, pagina):
+    """Gráficos disponíveis para a curadoria/texto em uma página de relatório."""
+    from . import agregacoes
+
+    if pagina == "turmas":
+        linhas = agregacoes.resumo_por_pessoa(evento)
+        return agregacoes.graficos_grupos(agregacoes.resumo_por_grupo(linhas))
+    if pagina == "oficinas":
+        return agregacoes.graficos_atividades(agregacoes.resumo_por_atividade(evento))
+    linhas = agregacoes.resumo_por_pessoa(evento)
+    return agregacoes.graficos_alunos(linhas)
 
 
 @csrf_exempt

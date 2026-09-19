@@ -3,6 +3,7 @@
 {% block title %}Relatório por tipo de atividade | {{ evento.title }}{% endblock %}
 
 {% block content %}
+{{ graficos|json_script:"dados-graficos" }}
 <div class="container-fluid px-0">
     <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span><i class="fa-solid fa-tags"></i> Relatório por tipo de atividade</span>
@@ -38,12 +39,16 @@
         {% endfor %}
     </div>
 
-    <div class="row g-3 mb-3">
+    <!-- IA: curadoria + insights + texto para gráfico -->
+    {% include "relatorios/_ia_graficos.html" with pagina_ia="oficinas" grade_id="#gradeGraficos" %}
+
+    <div class="row g-3 mb-3" id="gradeGraficos">
         {% for g in graficos %}
-        <div class="col-12 col-lg-6">
+        <div class="col-12 col-lg-6" data-grafico-card="{{ g.id }}">
             <div class="painel-grafico" data-tipo="{{ g.tipo }}">
                 <h6>{{ g.titulo }}</h6>
                 <div class="grafico-area"><canvas data-grafico="{{ g.id }}"></canvas></div>
+                <p class="text-muted small mb-0 mt-1" data-insight="{{ g.id }}"></p>
             </div>
         </div>
         {% empty %}
@@ -87,7 +92,6 @@
     </div>
 </div>
 
-{{ graficos|json_script:"dados-graficos" }}
 {% endblock content %}
 
 {% block scripts %}

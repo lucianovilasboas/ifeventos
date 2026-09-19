@@ -4,6 +4,7 @@
 {% block title %}Relatório por aluno | {{ evento.title }}{% endblock %}
 
 {% block content %}
+{{ graficos|json_script:"dados-graficos" }}
 <div class="container-fluid px-0">
     <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span><i class="fa-solid fa-user-graduate"></i> Relatório por aluno</span>
@@ -59,22 +60,8 @@
         </div>
     </form>
 
-    <!-- IA: curadoria + insights -->
-    <div class="app-panel p-3 mb-3">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fa-solid fa-robot"></i> <b>Gráficos com IA</b>
-                <span class="text-muted small">— curadoria e insights a partir dos números</span></span>
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCuradoria">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> Sugerir gráficos
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnInsights">
-                    <i class="fa-solid fa-lightbulb"></i> Insights
-                </button>
-            </div>
-        </div>
-        <p class="text-muted small mb-0 mt-2" id="iaStatus"></p>
-    </div>
+    <!-- IA: curadoria + insights + texto para gráfico -->
+    {% include "relatorios/_ia_graficos.html" with pagina_ia="alunos" grade_id="#gradeGraficos" %}
 
     <!-- Gráficos -->
     <div class="row g-3 mb-3" id="gradeGraficos">
@@ -96,66 +83,9 @@
     </div>
 </div>
 
-{{ graficos|json_script:"dados-graficos" }}
 {% endblock content %}
 
 {% block scripts %}
 <script src="{% static 'vendor/chart.min.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="{% static 'js/relatorios_graficos.js' %}?v={{ ASSET_VERSION }}"></script>
-<script>
-(function () {
-    const urlCuradoria = "{% url 'organizador:graficos_curadoria' evento.id %}";
-    const urlInsights = "{% url 'organizador:graficos_insights' evento.id %}";
-    const csrf = "{{ csrf_token }}";
-    const status = document.getElementById("iaStatus");
-    const graficos = JSON.parse(document.getElementById("dados-graficos").textContent || "[]");
-
-    function esc(t) { const d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
-
-    // Curadoria: pede à IA os ids; o servidor já mandou TODOS os gráficos, então
-    // aqui só escondemos os que não foram escolhidos (nada é recalculado).
-    document.getElementById("btnCuradoria").addEventListener("click", function () {
-        this.disabled = true;
-        status.textContent = "Escolhendo os gráficos...";
-        fetch(urlCuradoria, { method: "POST", headers: { "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" } })
-            .then(r => r.json())
-            .then(dados => {
-                if (dados.erro) { status.textContent = dados.erro; return; }
-                const escolhidos = new Set(dados.ids || []);
-                document.querySelectorAll("[data-grafico-card]").forEach(card => {
-                    card.hidden = escolhidos.size > 0 && !escolhidos.has(card.getAttribute("data-grafico-card"));
-                });
-                status.textContent = dados.legenda || "Seleção aplicada.";
-            })
-            .catch(() => { status.textContent = "Falha na curadoria."; })
-            .finally(() => { this.disabled = false; });
-    });
-
-    // Insights: manda os dados dos gráficos visíveis e recebe um texto por gráfico.
-    document.getElementById("btnInsights").addEventListener("click", function () {
-        this.disabled = true;
-        status.textContent = "Gerando insights...";
-        const visiveis = graficos.filter(g => {
-            const card = document.querySelector('[data-grafico-card="' + g.id + '"]');
-            return !card || !card.hidden;
-        });
-        fetch(urlInsights, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" },
-            body: JSON.stringify({ graficos: visiveis })
-        })
-            .then(r => r.json())
-            .then(dados => {
-                if (dados.erro) { status.textContent = dados.erro; return; }
-                (dados.insights || []).forEach(item => {
-                    const alvo = document.querySelector('[data-insight="' + item.id + '"]');
-                    if (alvo) alvo.innerHTML = '<i class="fa-solid fa-lightbulb"></i> ' + esc(item.texto);
-                });
-                status.textContent = dados.aviso || "Insights gerados.";
-            })
-            .catch(() => { status.textContent = "Falha ao gerar insights."; })
-            .finally(() => { this.disabled = false; });
-    });
-})();
-</script>
 {% endblock scripts %}
