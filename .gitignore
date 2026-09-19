@@ -54,9 +54,6 @@ ifeventos/console_last.txt
 *.png
 !ifeventos/static/**/*.png
 
-# ---------- Projeto separado (tem repositório próprio) ----------
-mychatbot/
-
 # ---------- Rascunhos e ferramentas locais ----------
 scripts_test/
 PLANO_*.md
