@@ -29,6 +29,9 @@ no fim do ciclo, com a tag `v2.0.0`.
 - **Copiloto de criação de evento (Onda 2):** a partir de um resumo, propõe
   descrição, tema, blocos de horário e uma programação inicial; as atividades
   são criadas como rascunho com um clique (reusa a importação).
+- **Relatórios narrados (Onda 3):** leitura do copiloto no painel de relatórios
+  — resumo e ações recomendadas a partir dos indicadores já calculados, com
+  fallback determinístico.
 
 ### Alterado
 
