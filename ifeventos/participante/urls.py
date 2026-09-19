@@ -11,6 +11,7 @@ from .views import (
 )
 from eventos.services import ia_mensagem_view, sugerir_tipo_ajax
 from .views import MeusCertificadosView, MeusCrachasView
+from .views import assistente, assistente_responder
 
 app_name = 'participante' 
 
@@ -30,6 +31,10 @@ urlpatterns = [
 
     # -- Meus Certificados --
     path("meus-certificados/", MeusCertificadosView.as_view(), name="meus_certificados"),
+
+    # -- Assistente (concierge da programação) --
+    path("assistente/", assistente, name="assistente"),
+    path("assistente/responder/", assistente_responder, name="assistente_responder"),
 
     # -- Meus Crachás (crachá com QR para confirmar presença) --
     path("meus-crachas/", MeusCrachasView.as_view(), name="meus_crachas"),

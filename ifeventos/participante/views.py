@@ -487,3 +487,30 @@ def buscar_participante(request):
         }
         for pessoa in pessoas
     ]})
+
+
+# -- Concierge do participante (chat sobre a programação) --
+@login_required(login_url='/accounts/login/')
+def assistente(request):
+    """Tela do assistente (chat). A resposta vem do endpoint async abaixo."""
+    return render(request, "participante/assistente.html")
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def assistente_responder(request):
+    """Responde à pergunta do participante, ancorado na programação real."""
+    from eventos import concierge
+
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    resultado = await concierge.responder(
+        dados.get("mensagem"), dados.get("historico")
+    )
+    status = 400 if resultado.get("erro") else 200
+    return JsonResponse(resultado, status=status)

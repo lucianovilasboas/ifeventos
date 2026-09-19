@@ -36,6 +36,9 @@ no fim do ciclo, com a tag `v2.0.0`.
   agora, a seguir e alertas) com leitura do dia gerada por IA.
 - **Comunicação assistida (Onda 3):** rascunhos de post/e-mail para divulgação
   a partir dos dados do evento (nada é enviado automaticamente).
+- **Concierge do participante (Onda 4):** chat que responde dúvidas sobre a
+  programação ancorado nas atividades publicadas (com fallback objetivo e sem
+  PII). Porta o padrão de conversa do `mychatbot` para dentro do IFEventos.
 
 ### Alterado
 
