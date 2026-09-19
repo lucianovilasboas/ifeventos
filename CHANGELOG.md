@@ -53,6 +53,10 @@ no fim do ciclo, com a tag `v2.0.0`.
   deploy; fallback para os padrões do ambiente (`IA_MODELO_TEXTO` /
   `IA_MODELO_CLASSIFICACAO`). Comando `sincronizar_contextos_ia` mantém os
   contextos em dia.
+- **Parâmetros por família de modelo + modelos no admin (Onda R0c):** uso de
+  `max_completion_tokens` e omissão de `temperature` em modelos novos
+  (`gpt-5*`/o-series), com retry de segurança central (`services.gerar_chat`);
+  datalist dos modelos de chat da OpenAI no admin (endpoint cacheado).
 
 ### Alterado
 

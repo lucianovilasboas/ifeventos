@@ -18,7 +18,6 @@ from asgiref.sync import sync_to_async
 
 from . import services
 from . import contexto_ia
-from . import ia_config
 from .models import Atividade, Evento, sem_acento
 
 logger = logging.getLogger("eventos.ia")
@@ -174,16 +173,12 @@ async def responder(mensagem, historico=None):
     itens = await sync_to_async(catalogo)()
     campus = contexto_ia.resumo_texto(await sync_to_async(contexto_ia.dossie)())
     try:
-        client = services.get_openai_client()
         messages = [{"role": "system", "content": _prompt(itens, campus)}]
         messages += _normaliza_historico(historico)
         messages.append({"role": "user", "content": mensagem})
-        kwargs = await ia_config.chamada_kwargs_async("concierge", max_tokens=500, temperature=0.2)
-        resposta = await client.chat.completions.create(
-            messages=messages,
-            **kwargs,
+        resposta = await services.gerar_chat(
+            "concierge", messages=messages, max_tokens=500, temperature=0.2
         )
-        services.registrar_uso_ia("concierge", kwargs["model"], resposta)
         texto = (resposta.choices[0].message.content or "").strip()
         if texto:
             return {"resposta": texto, "origem": "ia", "aviso": ""}

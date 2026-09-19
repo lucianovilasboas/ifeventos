@@ -9,7 +9,6 @@ import json
 import logging
 
 from . import services
-from . import ia_config
 
 logger = logging.getLogger("eventos.ia")
 
@@ -82,14 +81,13 @@ async def gerar_rascunho(evento, canal="post", objetivo=""):
     """Gera um rascunho de divulgação (IA) com fallback determinístico."""
     canal = canal if canal in CANAIS else "post"
     try:
-        client = services.get_openai_client()
-        kwargs = await ia_config.chamada_kwargs_async("comunicacao", max_tokens=700, temperature=0.5)
-        resposta = await client.chat.completions.create(
+        resposta = await services.gerar_chat(
+            "comunicacao",
             messages=[{"role": "system", "content": _prompt(evento, canal, objetivo)}],
             response_format={"type": "json_object"},
-            **kwargs,
+            max_tokens=700,
+            temperature=0.5,
         )
-        services.registrar_uso_ia("comunicacao", kwargs["model"], resposta)
         dados = json.loads(resposta.choices[0].message.content or "{}")
         corpo = str(dados.get("corpo") or "").strip()[:2500]
         assunto = " ".join(str(dados.get("assunto") or "").split())[:160]
