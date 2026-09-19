@@ -21,6 +21,8 @@ from eventos.propostas import PropostaBloqueada
 from eventos import triagem
 from eventos import importacao_assistida
 from eventos import copiloto_evento
+from eventos import operacao
+from eventos import comunicacao
 from django.db.models import Count, Exists, OuterRef, Q
 from asgiref.sync import sync_to_async, async_to_sync
 
@@ -1119,3 +1121,47 @@ def aplicar_plano_evento(request, evento_id):
 
     relatorio = importar_linhas(evento, linhas, publicada=False)
     return JsonResponse({"relatorio": relatorio})
+
+
+# -- Briefing operacional (execução, no dia) --
+@login_required(login_url='/accounts/login/')
+def briefing_operacional(request, evento_id):
+    """Painel de operação do evento: agora, a seguir e alertas."""
+    evento = _evento_gerenciavel(request, evento_id)
+    contexto = {"evento": evento, **operacao.resumo(evento)}
+    return render(request, "organizador/operacao.html", contexto)
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def briefing_leitura(request, evento_id):
+    """Leitura rápida do estado atual do evento (IA)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+    return JsonResponse(await operacao.leitura_do_dia(evento))
+
+
+# -- Comunicação assistida (rascunhos de divulgação) --
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def gerar_divulgacao(request, evento_id):
+    """Gera rascunho de post/e-mail para divulgação do evento (IA)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        dados = {}
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+    return JsonResponse(await comunicacao.gerar_rascunho(
+        evento,
+        canal=(dados.get("canal") or "post").strip(),
+        objetivo=(dados.get("objetivo") or "").strip(),
+    ))

@@ -9,6 +9,7 @@ from .views import profile
 from .views import importar_metadados, modelo_metadados_csv
 from .views import importar_programacao
 from .views import copiloto_evento_plano, aplicar_plano_evento
+from .views import briefing_operacional, briefing_leitura, gerar_divulgacao
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
 from relatorios.views import OcupacaoSalasView
@@ -58,6 +59,9 @@ urlpatterns = [
     path('evento/<int:evento_id>/importar-programacao/', importar_programacao, name='importar_programacao'),
     path('copiloto/<int:evento_id>/', copiloto_evento_plano, name='copiloto_evento'),
     path('evento/<int:evento_id>/aplicar-plano/', aplicar_plano_evento, name='aplicar_plano_evento'),
+    path('evento/<int:evento_id>/operacao/', briefing_operacional, name='briefing_operacional'),
+    path('evento/<int:evento_id>/operacao/leitura/', briefing_leitura, name='briefing_leitura'),
+    path('evento/<int:evento_id>/divulgacao/', gerar_divulgacao, name='gerar_divulgacao'),
 
     path('criar_atividade/', criar_atividade, name='criar_atividade'), # criar atividade via modal
 

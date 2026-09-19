@@ -1,0 +1,129 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}Operação | {{ evento.title }}{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        <i class="fa-solid fa-tower-broadcast"></i> Operação do evento · <b>{{ evento.title }}</b>
+    </span>
+    <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Atividades
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="container mt-2">
+
+    <div class="app-panel p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fa-solid fa-robot"></i> <b>Leitura do dia</b></span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLeitura">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar leitura
+            </button>
+        </div>
+        <div id="leituraResultado" class="mt-2 text-muted small" hidden></div>
+    </div>
+
+    <div class="row row-cols-2 row-cols-md-3 g-2 g-md-3 mb-3">
+        <div class="col"><div class="kpi-card"><i class="fa-solid fa-list-check"></i>
+            <div><span class="kpi-valor">{{ total_atividades }}</span><span class="kpi-rotulo">Atividades</span></div>
+        </div></div>
+        <div class="col"><div class="kpi-card"><i class="fa-solid fa-calendar-day"></i>
+            <div><span class="kpi-valor">{{ atividades_hoje }}</span><span class="kpi-rotulo">Hoje</span></div>
+        </div></div>
+        <div class="col"><div class="kpi-card"><i class="fa-solid fa-tower-broadcast"></i>
+            <div><span class="kpi-valor">{{ em_curso|length }}</span><span class="kpi-rotulo">Em curso</span></div>
+        </div></div>
+    </div>
+
+    {% if alertas %}
+    <div class="alert alert-warning">
+        <b><i class="fa-solid fa-triangle-exclamation"></i> Alertas</b>
+        <ul class="mb-0 mt-1">
+            {% for a in alertas %}<li>{{ a }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <div class="alert alert-success mb-3"><i class="fa-solid fa-circle-check"></i> Nenhum alerta no momento.</div>
+    {% endif %}
+
+    <div class="app-panel p-3 mb-3">
+        <h6 class="mb-2"><i class="fa-solid fa-play"></i> Acontecendo agora</h6>
+        {% if em_curso %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Atividade</th><th>Local</th><th>Inscritos</th><th>Presentes</th><th>Taxa</th></tr></thead>
+                <tbody>
+                    {% for f in em_curso %}
+                    <tr>
+                        <td>{{ f.atividade.titulo }}</td>
+                        <td>{{ f.atividade.local|default:"—" }}</td>
+                        <td>{{ f.inscritos }}</td>
+                        <td>{{ f.presentes }}</td>
+                        <td>{{ f.taxa }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Nenhuma atividade em curso neste momento.</p>
+        {% endif %}
+    </div>
+
+    <div class="app-panel p-3">
+        <h6 class="mb-2"><i class="fa-solid fa-forward"></i> A seguir (próximas 6h)</h6>
+        {% if a_seguir %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Atividade</th><th>Quando</th><th>Local</th><th>Inscritos</th></tr></thead>
+                <tbody>
+                    {% for f in a_seguir %}
+                    <tr>
+                        <td>{{ f.atividade.titulo }}</td>
+                        <td>{{ f.atividade.quando_legivel }}</td>
+                        <td>{{ f.atividade.local|default:"—" }}</td>
+                        <td>{{ f.inscritos }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Nada nas próximas 6 horas.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+(function () {
+    const botao = document.getElementById("btnLeitura");
+    if (!botao) return;
+    const caixa = document.getElementById("leituraResultado");
+    botao.addEventListener("click", function () {
+        const original = botao.innerHTML;
+        botao.disabled = true;
+        botao.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        caixa.hidden = false;
+        caixa.textContent = "Analisando o estado atual...";
+        fetch("{% url 'organizador:briefing_leitura' evento.id %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token }}", "X-Requested-With": "XMLHttpRequest" }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.erro) { caixa.textContent = data.erro; return; }
+            let texto = data.leitura || "";
+            if (data.aviso) texto += " (" + data.aviso + ")";
+            caixa.textContent = texto;
+        })
+        .catch(() => { caixa.textContent = "Falha ao gerar a leitura."; })
+        .finally(() => { botao.disabled = false; botao.innerHTML = original; });
+    });
+})();
+</script>
+{% endblock scripts %}

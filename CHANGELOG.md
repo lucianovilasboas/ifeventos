@@ -32,6 +32,10 @@ no fim do ciclo, com a tag `v2.0.0`.
 - **Relatórios narrados (Onda 3):** leitura do copiloto no painel de relatórios
   — resumo e ações recomendadas a partir dos indicadores já calculados, com
   fallback determinístico.
+- **Briefing operacional (Onda 3):** página de operação do evento (acontecendo
+  agora, a seguir e alertas) com leitura do dia gerada por IA.
+- **Comunicação assistida (Onda 3):** rascunhos de post/e-mail para divulgação
+  a partir dos dados do evento (nada é enviado automaticamente).
 
 ### Alterado
 
