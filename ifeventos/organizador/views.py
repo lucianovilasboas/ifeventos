@@ -19,8 +19,9 @@ from eventos.models import ChamadaProposicoes, Espaco, TipoAtividade, Vaga
 from eventos import propostas
 from eventos.propostas import PropostaBloqueada
 from eventos import triagem
+from eventos import importacao_assistida
 from django.db.models import Count, Exists, OuterRef, Q
-from asgiref.sync import sync_to_async
+from asgiref.sync import sync_to_async, async_to_sync
 
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -969,3 +970,103 @@ async def triagem_propostas(request, evento_id):
     forcar = (request.GET.get("forcar") or request.POST.get("forcar")) == "1"
     resultado = await triagem.analisar_evento(evento, forcar=forcar)
     return JsonResponse(resultado)
+
+
+# -- Importação assistida da programação (copiloto do organizador) --
+@login_required(login_url='/accounts/login/')
+def importar_programacao(request, evento_id):
+    """Assistente de importação da programação a partir de uma planilha.
+
+    Etapas: upload → sugestão de mapeamento (IA + sinônimos) → revisão/prévia →
+    confirmação. Nada é gravado antes da confirmação; o arquivo lido fica no
+    cache entre as etapas (token).
+    """
+    evento = _evento_gerenciavel(request, evento_id)
+    tipos = list(TipoAtividade.objects.order_by("nome"))
+    contexto = {
+        "evento": evento,
+        "campos": importacao_assistida.CAMPOS,
+        "tipos": tipos,
+    }
+    template = "organizador/importar_programacao.html"
+
+    if request.method == "GET":
+        return render(request, template, contexto)
+
+    acao = (request.POST.get("acao") or "").strip()
+    token = (request.POST.get("token") or "").strip()
+
+    # Etapa 1: upload + sugestão de mapeamento.
+    if acao == "preview":
+        arquivo = request.FILES.get("arquivo")
+        if not arquivo:
+            contexto["erro"] = "Selecione um arquivo (.csv, .xls ou .xlsx)."
+            return render(request, template, contexto)
+        try:
+            cabecalhos, linhas = importacao_assistida.ler_upload(arquivo)
+        except Exception as erro:  # noqa: BLE001 - arquivo do usuário: devolve amigável
+            contexto["erro"] = "Não consegui ler o arquivo (%s)." % erro
+            return render(request, template, contexto)
+        if not linhas:
+            contexto["erro"] = "O arquivo não tem linhas de dados."
+            return render(request, template, contexto)
+
+        token = importacao_assistida.novo_token()
+        importacao_assistida.guardar(token, {"cabecalhos": cabecalhos, "linhas": linhas})
+        sugestao = async_to_sync(importacao_assistida.sugerir_mapeamento)(
+            cabecalhos, linhas[:5], tipos, evento
+        )
+        canonicas = importacao_assistida.aplicar_mapeamento(
+            linhas, sugestao["mapeamento"], evento
+        )
+        contexto.update({
+            "token": token,
+            "cabecalhos": cabecalhos,
+            "mapeamento": sugestao["mapeamento"],
+            "campos_mapeamento": importacao_assistida.campos_com_selecao(sugestao["mapeamento"]),
+            "origem": sugestao["origem"],
+            "aviso_ia": sugestao["aviso"],
+            "total_linhas": len(linhas),
+            "previa": importacao_assistida.previsualizar(evento, canonicas),
+            "previa_canonicas": canonicas[:10],
+        })
+        return render(request, template, contexto)
+
+    # Etapas 2 e 3: refazer a prévia ou importar (reusam o arquivo no cache).
+    dados = importacao_assistida.recuperar(token)
+    if not dados:
+        contexto["erro"] = "A sessão de importação expirou. Envie o arquivo de novo."
+        return render(request, template, contexto)
+
+    cabecalhos, linhas = dados["cabecalhos"], dados["linhas"]
+    mapeamento = {
+        canonico: (request.POST.get("map_%s" % canonico) or "").strip()
+        for canonico, _rotulo, _obrig, _ajuda in importacao_assistida.CAMPOS
+    }
+    mapeamento = {chave: valor for chave, valor in mapeamento.items() if valor}
+    erros, avisos = importacao_assistida.validar_mapeamento(mapeamento, cabecalhos)
+
+    contexto.update({
+        "token": token,
+        "cabecalhos": cabecalhos,
+        "mapeamento": mapeamento,
+        "campos_mapeamento": importacao_assistida.campos_com_selecao(mapeamento),
+        "total_linhas": len(linhas),
+        "erros_mapeamento": erros,
+        "avisos_mapeamento": avisos,
+    })
+    if erros:
+        return render(request, template, contexto)
+
+    canonicas = importacao_assistida.aplicar_mapeamento(linhas, mapeamento, evento)
+
+    if acao == "importar":
+        from eventos.importacao_programacao import importar_linhas
+
+        contexto["relatorio"] = importar_linhas(evento, canonicas)
+        contexto["concluido"] = True
+        return render(request, template, contexto)
+
+    contexto["previa"] = importacao_assistida.previsualizar(evento, canonicas)
+    contexto["previa_canonicas"] = canonicas[:10]
+    return render(request, template, contexto)

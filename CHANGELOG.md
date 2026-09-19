@@ -19,6 +19,13 @@ no fim do ciclo, com a tag `v2.0.0`.
 - **Configuração central de IA:** `IA_ATIVA` (interruptor geral) e
   `IA_MODELO_TEXTO` / `IA_MODELO_CLASSIFICACAO` (antes espalhados no código).
 - **Log de uso de IA:** `eventos.ia` registra operação, modelo e tokens.
+- **Pré-triagem de propostas (Onda 1):** sugestão de decisão com score,
+  justificativa, tipo do catálogo, conflitos e quase-duplicatas; a IA nunca
+  decide — pré-preenche os formulários de aprovar/rejeitar.
+- **Importação assistida da programação (Onda 2):** upload de planilha
+  (`.csv/.xls/.xlsx`), mapeamento automático das colunas (IA + sinônimos),
+  prévia sem gravar e confirmação antes de importar; reaproveita a idempotência
+  por título + início de `importacao_programacao`.
 
 ### Alterado
 

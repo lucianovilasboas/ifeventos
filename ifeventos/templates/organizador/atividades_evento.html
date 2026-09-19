@@ -21,6 +21,9 @@
         <a href="{% url 'organizador:criar_editar_atividade_criar' evento.id %}" class="btn btn-app">
             <i class="fa-solid fa-plus"></i> Criar Nova Atividade
         </a>
+        <a href="{% url 'organizador:importar_programacao' evento.id %}" class="btn btn-outline-primary">
+            <i class="fa-solid fa-file-import"></i> Importar programação
+        </a>
         <a href="#" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalPalestrante">
             <i class="fa-solid fa-user-tie"></i> Adicionar Novo Palestrante
         </a>
