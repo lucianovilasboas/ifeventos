@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 import json
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import ListView, View
+from django.views.generic import ListView, TemplateView, View
 from django.shortcuts import render
 from django.shortcuts import get_object_or_404
 from asgiref.sync import sync_to_async
@@ -841,4 +841,87 @@ class RelatorioTurmasView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRe
         params = self.request.GET.copy()
         params.pop("page", None)
         context["querystring"] = params.urlencode()
+        return context
+
+
+class RelatorioOficinasView(_PermissaoEventoMixin, LoginRequiredMixin, TemplateView):
+    """Relatório por tipo de atividade: grade de atividades, KPIs e gráficos.
+
+    `?tipo=` filtra por tipo de atividade; `?export=` gera CSV/XLSX/PDF.
+    """
+
+    template_name = "relatorios/oficinas.html"
+
+    def evento_do_relatorio(self):
+        from eventos.models import Evento
+
+        return Evento.objects.filter(id=self.kwargs.get("evento_id")).first()
+
+    def _evento(self):
+        from eventos.models import Evento
+
+        return get_object_or_404(Evento, id=self.kwargs["evento_id"])
+
+    def _tipo(self):
+        valor = (self.request.GET.get("tipo") or "").strip()
+        if valor and valor.isdigit():
+            return int(valor)
+        return None
+
+    def _linhas(self, evento):
+        from . import agregacoes
+
+        return agregacoes.resumo_por_atividade(evento, tipo_id=self._tipo())
+
+    def _exportar(self):
+        from eventos.exportacao import exportar
+
+        from django.utils.timezone import localtime
+
+        linhas = self._linhas(self._evento())
+        cab = ["Atividade", "Tipo", "Início", "Local", "Inscritos", "Vagas",
+               "Ocupação (%)", "Presentes", "Certificado"]
+        dados = [
+            [l["atividade"].titulo, l["tipo"],
+             localtime(l["atividade"].data_hora_inicio).strftime("%d/%m/%Y %H:%M")
+             if l["atividade"].data_hora_inicio else "",
+             l["atividade"].local or "", l["inscritos"], l["vagas"], l["ocupacao"],
+             l["presentes"], "Sim" if l["emite_certificado"] else "Não"]
+            for l in linhas
+        ]
+        return exportar(
+            self.request.GET.get("export"),
+            f"relatorio_oficinas_{self._evento().id}",
+            cab, dados,
+            titulo=f"Relatório por tipo de atividade — {self._evento().title}",
+        )
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("export") in ("csv", "xlsx", "pdf"):
+            return self._exportar()
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from . import agregacoes
+
+        from eventos.models import TipoAtividade
+
+        context = super().get_context_data(**kwargs)
+        evento = self._evento()
+        linhas = self._linhas(evento)
+        context["evento"] = evento
+        context["linhas"] = linhas
+        context["kpis"] = agregacoes.kpis_atividades(linhas)
+        context["graficos"] = agregacoes.graficos_atividades(linhas)
+        context["tipos"] = list(
+            TipoAtividade.objects.filter(
+                id__in=evento.atividades.values_list("tipo_id", flat=True)
+            ).order_by("nome")
+        )
+        context["tipo_atual"] = self._tipo()
+        context["export_urls"] = [
+            {"rotulo": "CSV", "url": f"?export=csv"},
+            {"rotulo": "XLSX", "url": f"?export=xlsx"},
+            {"rotulo": "PDF", "url": f"?export=pdf"},
+        ]
         return context

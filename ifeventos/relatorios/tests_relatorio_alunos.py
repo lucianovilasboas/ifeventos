@@ -232,3 +232,62 @@ class RelatorioTurmasTests(BaseRelatorioTests):
 
         workbook = load_workbook(BytesIO(resposta.content))
         self.assertEqual(workbook.sheetnames, ["Resumo", "Detalhe"])
+
+
+class RelatorioOficinasTests(BaseRelatorioTests):
+    """F4: relatório por tipo de atividade."""
+
+    def test_pagina_renderiza(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(self.url("relatorio_oficinas", self.evento.id))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Oficina A")
+        self.assertContains(resposta, "Oficina")
+
+    def test_filtro_por_tipo(self):
+        outro_tipo = TipoAtividade.objects.create(nome="Palestra")
+        Atividade.objects.create(
+            evento=self.evento, titulo="Palestra X", descricao="d", tipo=outro_tipo,
+            n_vagas=5, data_hora_inicio=timezone.now(),
+            data_hora_fim=timezone.now() + timedelta(hours=1),
+        )
+        self.client.force_login(self.org)
+        resposta = self.client.get(
+            self.url("relatorio_oficinas", self.evento.id) + f"?tipo={self.tipo.id}"
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Oficina A")
+        self.assertNotContains(resposta, "Palestra X")
+
+    def test_export_xlsx(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(self.url("relatorio_oficinas", self.evento.id) + "?export=xlsx")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("spreadsheetml", resposta["Content-Type"])
+
+        from openpyxl import load_workbook
+        from io import BytesIO
+
+        workbook = load_workbook(BytesIO(resposta.content))
+        self.assertEqual(workbook.sheetnames, ["Resumo"])
+
+    def test_participante_recebe_403(self):
+        self.client.force_login(self.participante)
+        resposta = self.client.get(self.url("relatorio_oficinas", self.evento.id))
+        self.assertEqual(resposta.status_code, 403)
+
+
+class BadgeOutroOrganizadorTests(BaseRelatorioTests):
+    """R3: badge 'evento de outro organizador' nas telas do organizador."""
+
+    def test_badge_aparece_para_outro_organizador(self):
+        self.client.force_login(self.outro)
+        resposta = self.client.get(self.url("atividades_evento", self.evento.id))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "outro organizador")
+
+    def test_badge_ausente_para_dono(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(self.url("atividades_evento", self.evento.id))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(resposta, "outro organizador")
