@@ -161,7 +161,7 @@ class AtividadeForm(forms.ModelForm):
         labels = {
             'titulo': 'Título',
             'descricao': 'Descrição',
-            'local': 'Local',
+            'local': 'Espaço',
             'data_hora_inicio': 'Início',
             'data_hora_fim': 'Término',
             'n_vagas': 'Vagas',
@@ -173,14 +173,34 @@ class AtividadeForm(forms.ModelForm):
                 'placeholder': 'Ex.: Oficina de fotografia'}),
             'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
                 'placeholder': 'O que vai acontecer, para quem e o que a pessoa leva de lá.'}),
-            'local': forms.TextInput(attrs={'class': 'form-control', 'list': 'listaLocais',
-                'placeholder': 'Ex.: Auditório, Sala 12 (vazio = local do evento)'}),
+            'local': forms.Select(attrs={'class': 'form-select'}),
             'data_hora_inicio': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'data_hora_fim': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'n_vagas': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
             'emite_certificado': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
             'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # "Espaço" vem do catálogo da escola (Espaco), como na chamada. O valor
+        # é gravado em `local` (texto) — sem migration. Inclui o valor atual da
+        # atividade (legado) para não perdê-lo ao editar.
+        nomes = list(Espaco.objects.order_by("nome").values_list("nome", flat=True))
+        atual = (getattr(self.instance, "local", "") or "").strip()
+        if atual and atual not in nomes:
+            nomes.append(atual)
+            nomes.sort(key=sem_acento)
+        self.fields["local"].choices = (
+            [("", "— usar o espaço do evento —")] + [(nome, nome) for nome in nomes]
+        )
+        # `choices` no campo não propaga sozinho para o widget (que nasceu sem
+        # choices no Meta): sem isto o <select> renderiza vazio.
+        self.fields["local"].widget.choices = self.fields["local"].choices
+        self.fields["local"].help_text = (
+            "Escolha um espaço do catálogo da escola ou deixe vazio para usar o "
+            "espaço do evento."
+        )
 
     def clean(self):
         """Impede término anterior ao início (nada validava isso antes)."""

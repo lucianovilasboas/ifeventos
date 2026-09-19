@@ -1,7 +1,8 @@
-"""Testes do formulário de atividade: local (datalist + criar), palestrantes e prévia."""
+"""Testes do formulário de atividade: espaço (catálogo + criar), palestrantes e prévia."""
 
 from datetime import timedelta
 
+from django import forms
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -15,9 +16,25 @@ SENHA = "SenhaForte123!"
 
 
 class AtividadeFormTests(TestCase):
-    def test_local_usa_datalist(self):
-        form = AtividadeForm()
-        self.assertEqual(form.fields["local"].widget.attrs.get("list"), "listaLocais")
+    def test_espaco_e_select_do_catalogo(self):
+        Espaco.objects.create(nome="Auditório", capacidade=40)
+        campo = AtividadeForm().fields["local"]
+
+        self.assertEqual(campo.label, "Espaço")
+        self.assertIsInstance(campo.widget, forms.Select)
+        valores = [valor for valor, _rotulo in campo.choices]
+        self.assertIn("", valores)
+        self.assertIn("Auditório", valores)
+        # O widget precisa das opções (não basta o campo): senão o <select> sai vazio.
+        self.assertIn("Auditório", [valor for valor, _rotulo in campo.widget.choices])
+
+    def test_espaco_inclui_valor_legado_do_objeto(self):
+        from eventos.models import Atividade
+
+        atividade = Atividade(local="Sala Antiga")
+        campo = AtividadeForm(instance=atividade).fields["local"]
+        valores = [valor for valor, _rotulo in campo.choices]
+        self.assertIn("Sala Antiga", valores)
 
     def test_palestrantes_so_quem_tem_a_flag(self):
         palestrante = U.objects.create_user(
@@ -33,13 +50,13 @@ class AtividadeFormTests(TestCase):
         self.assertNotIn(participante, queryset)
 
 
-class AdicionarLocalTests(TestCase):
+class AdicionarEspacoTests(TestCase):
     def setUp(self):
         self.org = U.objects.create_user(
             email="org_local@example.com", password=SENHA, cpf="12345678909",
             is_organizador=True,
         )
-        self.url = reverse("organizador:adicionar_local")
+        self.url = reverse("organizador:adicionar_espaco_ajax")
 
     def test_exige_login(self):
         resposta = self.client.post(self.url, {"local-nome": "Sala 3"})
@@ -74,14 +91,16 @@ class FormAtividadeViewTests(TestCase):
             organizador=self.org,
         )
 
-    def test_renderiza_datalist_e_placeholder(self):
+    def test_renderiza_select_de_espaco_e_placeholder(self):
         self.client.force_login(self.org)
         Espaco.objects.create(nome="Laboratório 1", capacidade=30)
         resposta = self.client.get(reverse(
             "organizador:criar_editar_atividade_criar", args=[self.evento.id]
         ))
         self.assertEqual(resposta.status_code, 200)
-        self.assertContains(resposta, 'id="listaLocais"')
+        self.assertNotContains(resposta, "listaLocais")
+        self.assertContains(resposta, 'id="listaEspacos"')
         self.assertContains(resposta, "Laboratório 1")
+        self.assertContains(resposta, "Espaço")
         self.assertContains(resposta, "atividade-sem-imagem.png")
         self.assertContains(resposta, 'id="id_local-nome"')

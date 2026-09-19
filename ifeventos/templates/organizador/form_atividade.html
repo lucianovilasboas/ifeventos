@@ -76,10 +76,7 @@
                                 </button>
                             </div>
                             {{ form_ativ.local }}
-                            <datalist id="listaLocais">
-                                {% for local in locais %}<option value="{{ local }}"></option>{% endfor %}
-                            </datalist>
-                            <small class="text-muted d-block">Escolha um local existente ou deixe vazio para usar o local do evento.</small>
+                            <small class="text-muted d-block">Escolha um espaço do catálogo da escola ou deixe vazio para usar o espaço do evento.</small>
                         </div>
                     </div>
                 </section>
@@ -207,7 +204,7 @@
 <!-- Modais inicio --> 
 {% include 'includes/modal_novo_palestrante.html' %}
 {% include 'includes/modal_novo_tipo_atividade.html' %}
-{% include 'includes/modal_novo_local.html' with form_local=form_local %}
+{% include 'includes/modal_novo_espaco.html' with form_local=form_local %}
 <!-- Modais fim -->
 
 
@@ -384,12 +381,12 @@
             });
         });
 
-        // Adicionar Local (Espaço)
+        // Adicionar Espaço (catálogo da escola)
         document.getElementById("formLocal").addEventListener("submit", function (event) {
             event.preventDefault();
 
             let formData = new FormData(this);
-            fetch("{% url 'organizador:adicionar_local' %}", {
+            fetch("{% url 'organizador:adicionar_espaco_ajax' %}", {
                 method: "POST",
                 headers: {
                     "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
@@ -399,22 +396,21 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    let lista = document.getElementById("listaLocais");
-                    if (lista) {
-                        lista.appendChild(new Option(data.nome, data.nome));
+                    let select = document.getElementById("id_local");
+                    if (select) {
+                        select.appendChild(new Option(data.nome, data.nome, true, true));
+                        select.value = data.nome;
                     }
-                    let campo = document.getElementById("id_local");
-                    if (campo) { campo.value = data.nome; }
                     var modal = bootstrap.Modal.getInstance(document.getElementById("modalLocal"));
                     modal.hide();
                     this.reset();
-                    message_("Novo local adicionado ao catálogo.");
+                    message_("Novo espaço adicionado ao catálogo.");
                 } else {
                     msg = ""
                     for (let key in data.errors) {
                         msg += `${key}: ${data.errors[key]}\n`;
                     }
-                    message_("Erro ao adicionar local. \n" + msg, "danger");
+                    message_("Erro ao adicionar espaço. \n" + msg, "danger");
                 }
             });
         });
