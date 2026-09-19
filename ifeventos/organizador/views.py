@@ -15,7 +15,7 @@ from eventos.forms import ChamadaProposicoesForm, EspacoForm, GradeVagasForm, Va
 from eventos.models import Evento
 from eventos.forms import AtividadeForm
 from eventos.models import Atividade
-from eventos.models import ChamadaProposicoes, Espaco, TipoAtividade, Vaga, sem_acento
+from eventos.models import ChamadaProposicoes, Espaco, TipoAtividade, Vaga
 from eventos import propostas
 from eventos.propostas import PropostaBloqueada
 from eventos import triagem
@@ -339,7 +339,8 @@ def criar_atividade(request):
 
     return render(request, 'organizador/form_atividade.html', {
         'form_ativ': form, 'evento': evento,
-        'locais': _locais_disponiveis(), 'form_local': EspacoForm(prefix="local"),
+        'nomes_conhecidos': propostas.nomes_conhecidos(),
+        'form_local': EspacoForm(prefix="local"),
     })
 
 
@@ -387,7 +388,7 @@ def criar_editar_atividade(request, evento_id, atividade_id=None):
         'form_ativ': form,
         'evento': evento,
         'atividade': atividade,  # Para o template saber se é criação ou edição
-        'locais': _locais_disponiveis(),
+        'nomes_conhecidos': propostas.nomes_conhecidos(),
         'form_local': EspacoForm(prefix="local"),
     })
 
@@ -412,7 +413,8 @@ def editar_atividade(request, atividade_id):
 
     return render(request, 'organizador/form_atividade.html', {
         'form_ativ': form, 'atividade': atividade, 'evento': evento,
-        'locais': _locais_disponiveis(), 'form_local': EspacoForm(prefix="local"),
+        'nomes_conhecidos': propostas.nomes_conhecidos(),
+        'form_local': EspacoForm(prefix="local"),
     })
 
 
@@ -468,8 +470,8 @@ def adicionar_tipo_atividade(request):
 
 
 @login_required(login_url='/accounts/login/')
-def adicionar_local(request):
-    """Cadastra um local (Espaço) no catálogo da escola via modal da atividade."""
+def adicionar_espaco_ajax(request):
+    """Cadastra um espaço no catálogo da escola via modal do formulário de atividade."""
     if request.method == "POST":
         form = EspacoForm(request.POST, prefix="local")
         if form.is_valid():
@@ -477,15 +479,6 @@ def adicionar_local(request):
             return JsonResponse({"success": True, "id": espaco.id, "nome": espaco.nome})
         return JsonResponse({"success": False, "errors": form.errors})
     return JsonResponse({"success": False, "message": "Método inválido"})
-
-
-def _locais_disponiveis():
-    """Locais sugeridos no formulário: catálogo da escola + locais já usados."""
-    nomes = list(Espaco.objects.order_by("nome").values_list("nome", flat=True))
-    for nome in propostas.nomes_conhecidos():
-        if nome not in nomes:
-            nomes.append(nome)
-    return sorted(nomes, key=lambda n: sem_acento(n))
 
 
 
