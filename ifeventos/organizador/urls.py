@@ -7,6 +7,7 @@ from .views import atividades_evento, criar_atividade, editar_atividade, excluir
 from .views import criar_editar_atividade
 from .views import profile
 from .views import importar_metadados, modelo_metadados_csv
+from .views import importar_programacao
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
 from relatorios.views import OcupacaoSalasView
@@ -51,6 +52,8 @@ urlpatterns = [
 
 
     path('atividades_evento/<int:evento_id>/', atividades_evento, name='atividades_evento'), 
+
+    path('evento/<int:evento_id>/importar-programacao/', importar_programacao, name='importar_programacao'),
 
     path('criar_atividade/', criar_atividade, name='criar_atividade'), # criar atividade via modal
 
