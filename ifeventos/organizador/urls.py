@@ -16,6 +16,12 @@ from relatorios.views import ListaPresencaView
 from relatorios.views import OcupacaoSalasView
 from relatorios.views import RelatoriosGraficosView
 from relatorios.views import narrativa_evento
+from relatorios.views import (
+    RelatorioAlunosView,
+    relatorio_aluno_detalhe,
+    graficos_curadoria,
+    graficos_insights,
+)
 from organizador.views import publicar_atividade
 from organizador.views import (
     adicionar_espaco,
@@ -109,6 +115,10 @@ urlpatterns = [
     path("ocupacao_salas/<int:evento_id>/", OcupacaoSalasView.as_view(), name="ocupacao_salas"),
     path("relatorios_graficos/<int:evento_id>/", RelatoriosGraficosView.as_view(), name="relatorios_graficos"),
     path("relatorios_graficos/<int:evento_id>/narrado/", narrativa_evento, name="narrativa_evento"),
+    path("relatorio_alunos/<int:evento_id>/", RelatorioAlunosView.as_view(), name="relatorio_alunos"),
+    path("relatorio_alunos/<int:evento_id>/<int:participante_id>/", relatorio_aluno_detalhe, name="relatorio_aluno_detalhe"),
+    path("relatorio_alunos/<int:evento_id>/curadoria/", graficos_curadoria, name="graficos_curadoria"),
+    path("relatorio_alunos/<int:evento_id>/insights/", graficos_insights, name="graficos_insights"),
     path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
 
 

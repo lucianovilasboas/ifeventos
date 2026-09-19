@@ -1,0 +1,161 @@
+{% extends 'dashboard_base.html' %}
+{% load metadados_extras %}
+{% load static %}
+{% block title %}Relatório por aluno | {{ evento.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fa-solid fa-user-graduate"></i> Relatório por aluno</span>
+        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </h2>
+    <p class="text-muted mb-3">{{ evento.title }} · {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}</p>
+
+    <!-- KPIs -->
+    <div class="row row-cols-2 row-cols-md-5 g-2 g-md-3 mb-3">
+        {% for k in kpis %}
+        <div class="col">
+            <div class="kpi-card">
+                <i class="{{ k.icone }}"></i>
+                <div>
+                    <span class="kpi-valor">{{ k.valor }}{{ k.sufixo|default:"" }}</span>
+                    <span class="kpi-rotulo">{{ k.rotulo }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Filtros -->
+    <form method="get" class="mb-3" data-busca-ajax>
+        {% for col in colunas_metadados %}<input type="hidden" name="campos" value="{{ col.chave }}">{% endfor %}
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="f-q">Buscar</label>
+                <input type="search" id="f-q" name="q" value="{{ q }}" data-busca autocomplete="off"
+                       class="form-control" placeholder="Nome, e-mail, matrícula, curso, turma…">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="f-presenca">Presença</label>
+                <select id="f-presenca" name="presenca" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="com" {% if presenca == 'com' %}selected{% endif %}>Com presença</option>
+                    <option value="sem" {% if presenca == 'sem' %}selected{% endif %}>Sem presença</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="f-cert">Certificado</label>
+                <select id="f-cert" name="certificado" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="sim" {% if certificado == 'sim' %}selected{% endif %}>Com certificado</option>
+                    <option value="nao" {% if certificado == 'nao' %}selected{% endif %}>Sem certificado</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-grid">
+                <button class="btn btn-app"><i class="fa-solid fa-filter"></i> Filtrar</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- IA: curadoria + insights -->
+    <div class="app-panel p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fa-solid fa-robot"></i> <b>Gráficos com IA</b>
+                <span class="text-muted small">— curadoria e insights a partir dos números</span></span>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCuradoria">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Sugerir gráficos
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnInsights">
+                    <i class="fa-solid fa-lightbulb"></i> Insights
+                </button>
+            </div>
+        </div>
+        <p class="text-muted small mb-0 mt-2" id="iaStatus"></p>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="row g-3 mb-3" id="gradeGraficos">
+        {% for g in graficos %}
+        <div class="col-12 col-lg-6" data-grafico-card="{{ g.id }}">
+            <div class="painel-grafico" data-tipo="{{ g.tipo }}">
+                <h6>{{ g.titulo }}</h6>
+                <div class="grafico-area"><canvas data-grafico="{{ g.id }}"></canvas></div>
+                <p class="text-muted small mb-0 mt-1" data-insight="{{ g.id }}"></p>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12"><div class="app-panel"><p class="text-muted mb-0">Sem dados para gráficos.</p></div></div>
+        {% endfor %}
+    </div>
+
+    <div id="resultado-alunos" aria-live="polite">
+        {% include "relatorios/_resultado_alunos.html" %}
+    </div>
+</div>
+
+{{ graficos|json_script:"dados-graficos" }}
+{% endblock content %}
+
+{% block scripts %}
+<script src="{% static 'vendor/chart.min.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/relatorios_graficos.js' %}?v={{ ASSET_VERSION }}"></script>
+<script>
+(function () {
+    const urlCuradoria = "{% url 'organizador:graficos_curadoria' evento.id %}";
+    const urlInsights = "{% url 'organizador:graficos_insights' evento.id %}";
+    const csrf = "{{ csrf_token }}";
+    const status = document.getElementById("iaStatus");
+    const graficos = JSON.parse(document.getElementById("dados-graficos").textContent || "[]");
+
+    function esc(t) { const d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
+
+    // Curadoria: pede à IA os ids; o servidor já mandou TODOS os gráficos, então
+    // aqui só escondemos os que não foram escolhidos (nada é recalculado).
+    document.getElementById("btnCuradoria").addEventListener("click", function () {
+        this.disabled = true;
+        status.textContent = "Escolhendo os gráficos...";
+        fetch(urlCuradoria, { method: "POST", headers: { "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" } })
+            .then(r => r.json())
+            .then(dados => {
+                if (dados.erro) { status.textContent = dados.erro; return; }
+                const escolhidos = new Set(dados.ids || []);
+                document.querySelectorAll("[data-grafico-card]").forEach(card => {
+                    card.hidden = escolhidos.size > 0 && !escolhidos.has(card.getAttribute("data-grafico-card"));
+                });
+                status.textContent = dados.legenda || "Seleção aplicada.";
+            })
+            .catch(() => { status.textContent = "Falha na curadoria."; })
+            .finally(() => { this.disabled = false; });
+    });
+
+    // Insights: manda os dados dos gráficos visíveis e recebe um texto por gráfico.
+    document.getElementById("btnInsights").addEventListener("click", function () {
+        this.disabled = true;
+        status.textContent = "Gerando insights...";
+        const visiveis = graficos.filter(g => {
+            const card = document.querySelector('[data-grafico-card="' + g.id + '"]');
+            return !card || !card.hidden;
+        });
+        fetch(urlInsights, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" },
+            body: JSON.stringify({ graficos: visiveis })
+        })
+            .then(r => r.json())
+            .then(dados => {
+                if (dados.erro) { status.textContent = dados.erro; return; }
+                (dados.insights || []).forEach(item => {
+                    const alvo = document.querySelector('[data-insight="' + item.id + '"]');
+                    if (alvo) alvo.innerHTML = '<i class="fa-solid fa-lightbulb"></i> ' + esc(item.texto);
+                });
+                status.textContent = dados.aviso || "Insights gerados.";
+            })
+            .catch(() => { status.textContent = "Falha ao gerar insights."; })
+            .finally(() => { this.disabled = false; });
+    });
+})();
+</script>
+{% endblock scripts %}

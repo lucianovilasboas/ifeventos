@@ -57,6 +57,11 @@ no fim do ciclo, com a tag `v2.0.0`.
   `max_completion_tokens` e omissão de `temperature` em modelos novos
   (`gpt-5*`/o-series), com retry de segurança central (`services.gerar_chat`);
   datalist dos modelos de chat da OpenAI no admin (endpoint cacheado).
+- **Relatório por aluno + permissão dos relatórios (Onda R1):** página por
+  pessoa (KPIs, tabela, gráficos, filtros e export) com a regra única em
+  `relatorios/agregacoes.py`; os relatórios existentes passam a exigir
+  `pode_gerenciar_evento` (fecha vazamento de PII); IA de **curadoria** e
+  **insights** dos gráficos.
 
 ### Alterado
 
