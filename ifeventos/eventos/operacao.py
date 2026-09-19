@@ -13,7 +13,6 @@ from django.utils import timezone
 from asgiref.sync import sync_to_async
 
 from . import services
-from . import ia_config
 from .agenda import choques
 
 logger = logging.getLogger("eventos.ia")
@@ -130,17 +129,16 @@ def leitura_basica(dados):
 async def leitura_do_dia(evento, momento=None):
     dados = await sync_to_async(resumo)(evento, momento)
     try:
-        client = services.get_openai_client()
-        kwargs = await ia_config.chamada_kwargs_async("briefing_operacional", max_tokens=120, temperature=0.2)
-        resposta = await client.chat.completions.create(
+        resposta = await services.gerar_chat(
+            "briefing_operacional",
             messages=[{"role": "system", "content":
                 "Você é o copiloto operacional de um evento de um campus do IFMG. "
                 "Escreva UMA frase objetiva sobre o estado atual do evento, em português, "
                 "sem inventar dados. Se houver alertas, cite o mais importante.\n\n"
                 + _contexto_texto(dados)}],
-            **kwargs,
+            max_tokens=120,
+            temperature=0.2,
         )
-        services.registrar_uso_ia("briefing_operacional", kwargs["model"], resposta)
         leitura = " ".join((resposta.choices[0].message.content or "").split())[:400]
         if leitura:
             return {"leitura": leitura, "alertas": dados["alertas"], "origem": "ia", "aviso": ""}

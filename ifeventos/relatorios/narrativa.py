@@ -11,7 +11,6 @@ import json
 import logging
 
 from eventos import services
-from eventos import ia_config
 
 from . import graficos as agregacoes
 
@@ -150,14 +149,13 @@ async def narrar(evento):
     """Narra os relatórios do evento (IA) com fallback determinístico."""
     dados = await _fatos_async(evento)
     try:
-        client = services.get_openai_client()
-        kwargs = await ia_config.chamada_kwargs_async("relatorio_narrado", max_tokens=700, temperature=0.3)
-        resposta = await client.chat.completions.create(
+        resposta = await services.gerar_chat(
+            "relatorio_narrado",
             messages=[{"role": "system", "content": _prompt(dados)}],
             response_format={"type": "json_object"},
-            **kwargs,
+            max_tokens=700,
+            temperature=0.3,
         )
-        services.registrar_uso_ia("relatorio_narrado", kwargs["model"], resposta)
         bruto = json.loads(resposta.choices[0].message.content or "{}")
         resumo = " ".join(str(bruto.get("resumo") or "").split())[:900]
         destaques = _limpar_lista(bruto.get("destaques"))

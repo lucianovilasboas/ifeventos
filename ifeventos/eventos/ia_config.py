@@ -17,8 +17,23 @@ Uso típico nos módulos de IA::
 from django.conf import settings
 from django.core.cache import cache
 
+import re
+
 CACHE_KEY = "ia_config_contextos"
 CACHE_TTL = 3600  # segurança; o admin invalida na hora
+
+MODELOS_CACHE_KEY = "ia_openai_modelos"
+MODELOS_TTL = 3600
+
+# Modelos novos (gpt-5*, o-series) usam `max_completion_tokens` e não aceitam
+# `temperature` custom. Os demais usam `max_tokens` e temperature normal.
+_RE_MODELO_COMPLETION = re.compile(r"^(gpt-5|o[1-9])")
+
+# Fragmentos que indicam modelo que NÃO é de chat (fica fora do datalist).
+_MODELO_NAO_CHAT = (
+    "embedding", "whisper", "tts", "dall-e", "moderation", "realtime",
+    "transcribe", "audio", "image", "davinci", "babbage",
+)
 
 
 # Registro dos contextos conhecidos pelo CÓDIGO. A `chave` é o que os módulos
@@ -151,25 +166,79 @@ class ContextoIAInativo(RuntimeError):
     """Contexto de IA desligado no admin — os chamadores caem no fallback."""
 
 
+def perfil_modelo(nome):
+    """Parâmetros aceitos por família de modelo.
+
+    Modelos novos (`gpt-5*`, `o1/o3/o4*`) usam `max_completion_tokens` e
+    recusam `temperature` custom; os demais usam `max_tokens` e temperature.
+    """
+    nome = (nome or "").strip().lower()
+    if _RE_MODELO_COMPLETION.match(nome):
+        return {"token_param": "max_completion_tokens", "aceita_temperature": False}
+    return {"token_param": "max_tokens", "aceita_temperature": True}
+
+
 def chamada_kwargs(chave, *, max_tokens=None, temperature=None):
     """Monta os kwargs de `chat.completions.create` para o contexto.
 
     O que o admin definir vence; o que não estiver lá usa os defaults que o
-    módulo passou (`max_tokens`/`temperature` do código). Levanta
+    módulo passou (`max_tokens`/`temperature` do código). O nome do parâmetro de
+    limite e a aceitação de `temperature` dependem da família do modelo. Levanta
     `ContextoIAInativo` quando o contexto está desligado.
     """
     cfg = config(chave)
     if not cfg["ativo"]:
         raise ContextoIAInativo("Contexto de IA desativado: %s" % chave)
 
+    perfil = perfil_modelo(cfg["modelo"])
     kwargs = {"model": cfg["modelo"]}
     limite = cfg["max_tokens"] or max_tokens
     if limite:
-        kwargs["max_tokens"] = limite
+        kwargs[perfil["token_param"]] = limite
     temp = cfg["temperatura"] if cfg["temperatura"] is not None else temperature
-    if temp is not None:
+    if temp is not None and perfil["aceita_temperature"]:
         kwargs["temperature"] = temp
     return kwargs
+
+
+def modelos_openai(forcar=False):
+    """Lista os modelos de chat da OpenAI (cacheada). Erro → lista vazia.
+
+    Usada no datalist do admin. Nunca levanta: sem chave, sem rede ou com a IA
+    desligada, devolve `[]` (o campo continua sendo texto livre).
+    """
+    if not forcar:
+        try:
+            cacheado = cache.get(MODELOS_CACHE_KEY)
+        except Exception:  # noqa: BLE001
+            cacheado = None
+        if cacheado is not None:
+            return cacheado
+
+    modelos = []
+    try:
+        if getattr(settings, "IA_ATIVA", True) and settings.OPENAI_API_KEY:
+            import openai
+
+            cliente = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            for item in cliente.models.list().data:
+                nome = getattr(item, "id", "") or ""
+                if not nome or any(t in nome.lower() for t in _MODELO_NAO_CHAT):
+                    continue
+                modelos.append({
+                    "id": nome,
+                    "created": getattr(item, "created", None),
+                    "owned_by": getattr(item, "owned_by", ""),
+                })
+            modelos.sort(key=lambda m: m["id"])
+    except Exception:  # noqa: BLE001 - listagem é acessória
+        modelos = []
+
+    try:
+        cache.set(MODELOS_CACHE_KEY, modelos, MODELOS_TTL)
+    except Exception:  # noqa: BLE001
+        pass
+    return modelos
 
 
 async def chamada_kwargs_async(chave, *, max_tokens=None, temperature=None):
