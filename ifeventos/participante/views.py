@@ -514,3 +514,11 @@ async def assistente_responder(request):
     )
     status = 400 if resultado.get("erro") else 200
     return JsonResponse(resultado, status=status)
+
+
+@login_required(login_url='/accounts/login/')
+def assistente_sugestoes(request):
+    """Sugestões para o autocomplete do assistente (atividades, eventos e FAQ)."""
+    from eventos import concierge
+
+    return JsonResponse({"sugestoes": concierge.sugestoes(request.GET.get("q", ""))})

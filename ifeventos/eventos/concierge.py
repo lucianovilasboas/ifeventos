@@ -18,7 +18,7 @@ from django.utils import timezone
 from asgiref.sync import sync_to_async
 
 from . import services
-from .models import Atividade
+from .models import Atividade, Evento, sem_acento
 
 logger = logging.getLogger("eventos.ia")
 
@@ -27,6 +27,17 @@ MODELO = settings.IA_MODELO_CLASSIFICACAO
 MAX_MENSAGEM = 600
 MAX_ITENS = 60
 MAX_HISTORICO = 6
+
+# Perguntas frequentes usadas no autocomplete (e como exemplos no chat).
+FAQ = [
+    "O que tem hoje?",
+    "O que tem na quinta à tarde?",
+    "Quais atividades ainda têm vagas?",
+    "Onde é a oficina de robótica?",
+    "Como faço minha inscrição?",
+    "Como tiro meu certificado?",
+    "Onde fica o auditório?",
+]
 
 
 def catalogo(agora=None, limite=MAX_ITENS):
@@ -61,13 +72,61 @@ def contexto_texto(itens):
     )
 
 
+def sugestoes(consulta, limite=8):
+    """Sugestões para o autocomplete do chat (atividades, eventos e FAQ).
+
+    Com menos de 2 caracteres devolve as perguntas frequentes e alguns títulos
+    próximos. A busca no banco usa `icontains`; as duplicatas são removidas sem
+    diferenciar acento/caixa.
+    """
+    consulta = " ".join((consulta or "").split())
+    itens, vistos = [], set()
+
+    def adicionar(texto):
+        texto = " ".join(str(texto or "").split())
+        chave = sem_acento(texto)
+        if texto and chave not in vistos:
+            vistos.add(chave)
+            itens.append(texto)
+
+    if len(consulta) < 2:
+        for pergunta in FAQ:
+            adicionar(pergunta)
+        for atividade in catalogo(limite=4):
+            adicionar(atividade["titulo"])
+        return itens[:limite]
+
+    termo = sem_acento(consulta)
+    for pergunta in FAQ:
+        if termo in sem_acento(pergunta):
+            adicionar(pergunta)
+
+    agora = timezone.now()
+    titulos = (
+        Atividade.objects.filter(
+            publicada=True, data_hora_fim__gte=agora, titulo__icontains=consulta
+        )
+        .order_by("data_hora_inicio")
+        .values_list("titulo", flat=True)[:6]
+    )
+    for titulo in titulos:
+        adicionar(titulo)
+    for titulo in Evento.objects.filter(title__icontains=consulta).values_list(
+        "title", flat=True
+    )[:4]:
+        adicionar(titulo)
+    return itens[:limite]
+
+
 def _prompt(itens):
     return """Você é o assistente do portal de eventos do IFMG Campus Ponte Nova.
 
 Responda à pergunta do participante usando SOMENTE as atividades publicadas
 listadas abaixo. Se a resposta não estiver na lista, diga que não encontrou na
-programação e sugira ver a agenda em /eventos/. Não invente atividades, horários
-ou locais. Não peça nem informe dados pessoais. Seja curto, direto e cordial.
+programação e sugira ver a agenda. Não invente atividades, horários ou locais.
+Não peça nem informe dados pessoais. Seja curto (no máximo 4 linhas) e cordial.
+Quando citar uma página do portal, inclua o endereço (ex.: a agenda é /eventos/;
+certificados, /participante/meus-certificados/).
 
 Programação publicada:
 {programacao}""".format(programacao=contexto_texto(itens))

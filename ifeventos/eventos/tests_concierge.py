@@ -71,6 +71,24 @@ class CatalogoTests(_FixturesMixin, TestCase):
         self.assertIn("Não encontrei", resultado["resposta"])
 
 
+class SugestoesTests(_FixturesMixin, TestCase):
+    def test_curto_devolve_faq(self):
+        sugestoes = concierge.sugestoes("")
+        self.assertTrue(any("certificado" in s.lower() for s in sugestoes))
+
+    def test_por_titulo_de_atividade(self):
+        sugestoes = concierge.sugestoes("robótica")
+        self.assertIn("Oficina de Robótica", sugestoes)
+
+    def test_por_evento(self):
+        sugestoes = concierge.sugestoes("Mostra")
+        self.assertIn("Mostra de Tecnologia", sugestoes)
+
+    def test_sem_duplicatas(self):
+        sugestoes = concierge.sugestoes("oficina")
+        self.assertEqual(len(sugestoes), len(set(s.lower() for s in sugestoes)))
+
+
 class ResponderTests(_FixturesMixin, TransactionTestCase):
     def test_mensagem_vazia(self):
         resultado = async_to_sync(concierge.responder)("   ")
@@ -111,3 +129,15 @@ class ConciergeViewTests(_FixturesMixin, TransactionTestCase):
             )
         self.assertEqual(resposta.status_code, 200)
         self.assertIn("resposta", resposta.json())
+
+    def test_sugestoes_endpoint(self):
+        self.client.force_login(self.pessoa)
+        resposta = self.client.get(
+            reverse("participante:assistente_sugestoes"), {"q": "robótica"}
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("Oficina de Robótica", resposta.json()["sugestoes"])
+
+    def test_sugestoes_exige_login(self):
+        resposta = self.client.get(reverse("participante:assistente_sugestoes"))
+        self.assertEqual(resposta.status_code, 302)
