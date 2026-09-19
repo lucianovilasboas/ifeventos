@@ -21,8 +21,25 @@
 
 {% block content %}
 
-{% for proposta in lista %}
+{% if lista %}
 <div class="app-panel mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <button type="button" id="btnTriagem" class="btn btn-app btn-sm">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Analisar com IA
+            </button>
+            <button type="button" id="btnTriagemForcar" class="btn btn-outline-secondary btn-sm d-none">
+                <i class="fa-solid fa-rotate"></i> Reanalisar
+            </button>
+            <span id="triagemStatus" class="text-muted small ms-2"></span>
+        </div>
+        <span class="text-muted small">Sugestões de apoio — a decisão é sua.</span>
+    </div>
+</div>
+{% endif %}
+
+{% for proposta in lista %}
+<div class="app-panel mb-3" data-proposta-id="{{ proposta.id }}">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div style="flex:1;min-width:0">
             <h5 class="mb-1">{{ proposta.titulo }}</h5>
@@ -50,6 +67,8 @@
         </div>
         <span class="badge text-bg-warning">aguardando</span>
     </div>
+
+    <div class="triagem-painel" data-triagem="{{ proposta.id }}"></div>
 
     <hr>
 
@@ -106,3 +125,108 @@
 {% endfor %}
 
 {% endblock %}
+
+{% block scripts %}
+{% if lista %}
+<script>
+(function () {
+    const url = "{% url 'organizador:triagem_propostas' evento.id %}";
+    const csrftoken = "{{ csrf_token }}";
+    const CORES = { aprovar: "var(--accent)", revisar: "#f59e0b", rejeitar: "#b91c1c" };
+    const ROTULOS = { aprovar: "tende a aprovar", revisar: "revisar", rejeitar: "tende a rejeitar" };
+    const btn = document.getElementById("btnTriagem");
+    const btnForcar = document.getElementById("btnTriagemForcar");
+    const status = document.getElementById("triagemStatus");
+
+    function esc(texto) {
+        const div = document.createElement("div");
+        div.textContent = texto == null ? "" : texto;
+        return div.innerHTML;
+    }
+
+    function render(item) {
+        const painel = document.querySelector('[data-triagem="' + item.proposta_id + '"]');
+        if (!painel) return;
+        const cor = CORES[item.decisao] || "#6b7280";
+        const alertas = (item.alertas || []).map(function (a) {
+            return "<li>" + esc(a) + "</li>";
+        }).join("");
+        const duplicatas = (item.duplicata_de || []).length
+            ? '<p class="mb-1"><i class="fa-solid fa-clone"></i> Parecida com a(s) proposta(s) #' + item.duplicata_de.join(", #") + "</p>"
+            : "";
+        const tipo = item.tipo_sugerido_nome
+            ? '<p class="mb-1"><i class="fa-solid fa-tag"></i> Tipo sugerido: <b>' + esc(item.tipo_sugerido_nome) + "</b></p>"
+            : "";
+        painel.innerHTML =
+            '<div class="triagem-resultado" style="border-left:3px solid ' + cor + ';padding:8px 12px;margin:8px 0;background:var(--surface-soft,rgba(0,0,0,.03));border-radius:6px">' +
+                '<p class="mb-1">' +
+                    '<span class="badge" style="background:' + cor + ';color:#fff">' + (item.score || 0) + "/100</span> " +
+                    "<b>" + esc(ROTULOS[item.decisao] || item.decisao) + "</b> " +
+                    '<span class="text-muted small">(' + esc(item.origem) + ")</span>" +
+                "</p>" +
+                '<p class="mb-1">' + esc(item.justificativa) + "</p>" +
+                tipo + duplicatas +
+                (alertas ? '<ul class="mb-1 small">' + alertas + "</ul>" : "") +
+                '<div class="d-flex gap-2 flex-wrap">' +
+                    '<button type="button" class="btn btn-outline-secondary btn-sm" data-aplicar="aprovar" data-id="' + item.proposta_id + '">Usar na aprovação</button>' +
+                    '<button type="button" class="btn btn-outline-danger btn-sm" data-aplicar="motivo" data-id="' + item.proposta_id + '">Usar como motivo</button>' +
+                "</div>" +
+            "</div>";
+    }
+
+    document.addEventListener("click", function (ev) {
+        const alvo = ev.target.closest("[data-aplicar]");
+        if (!alvo) return;
+        const id = alvo.getAttribute("data-id");
+        if (alvo.getAttribute("data-aplicar") === "aprovar") {
+            const select = document.getElementById("tipo-" + id);
+            const item = window.__triagemItens && window.__triagemItens[id];
+            if (select && item && item.tipo_sugerido_id) select.value = String(item.tipo_sugerido_id);
+            const form = select ? select.closest("form") : null;
+            if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+            const textarea = document.getElementById("motivo-" + id);
+            const item = window.__triagemItens && window.__triagemItens[id];
+            if (textarea && item) {
+                textarea.value = item.motivo_rejeicao_sugerido || item.justificativa || "";
+                textarea.scrollIntoView({ behavior: "smooth", block: "center" });
+                textarea.focus();
+            }
+        }
+    });
+
+    async function analisar(forcar) {
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btnForcar.disabled = true;
+        status.textContent = "Analisando propostas...";
+        try {
+            const resposta = await fetch(url + (forcar ? "?forcar=1" : ""), {
+                method: "POST",
+                headers: { "X-CSRFToken": csrftoken, "X-Requested-With": "XMLHttpRequest" }
+            });
+            const dados = await resposta.json();
+            if (!resposta.ok) throw new Error(dados.erro || "Falha na análise.");
+            window.__triagemItens = {};
+            (dados.itens || []).forEach(function (item) {
+                window.__triagemItens[item.proposta_id] = item;
+                render(item);
+            });
+            status.textContent = (dados.aviso || "Análise concluída.") +
+                " (" + (dados.itens || []).length + " proposta(s))";
+            btnForcar.classList.remove("d-none");
+        } catch (erro) {
+            status.textContent = "Não foi possível analisar: " + erro.message;
+        } finally {
+            btn.innerHTML = original;
+            btn.disabled = false;
+            btnForcar.disabled = false;
+        }
+    }
+
+    btn.addEventListener("click", function () { analisar(false); });
+    btnForcar.addEventListener("click", function () { analisar(true); });
+})();
+</script>
+{% endif %}
+{% endblock scripts %}

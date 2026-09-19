@@ -23,6 +23,11 @@ from eventos.pwa import manifest_view, offline_view, service_worker_view
 from django.conf import settings
 from django.conf.urls.static import static
 
+# Marca o admin com o nome e a versão do produto (o Django não lê settings aqui).
+admin.site.site_header = f"Nossos Eventos — Administração ({settings.APP_VERSION_LABEL})"
+admin.site.site_title = "Nossos Eventos"
+admin.site.index_title = f"Administração · versão {settings.APP_VERSION_LABEL}"
+
 urlpatterns = [
 
     path("", eventos_view, name="home"), 

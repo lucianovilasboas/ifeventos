@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import threading
 import openai
@@ -13,6 +14,26 @@ from asgiref.sync import sync_to_async
 import socketio
 
 from .models import sem_acento
+
+
+logger = logging.getLogger("eventos.ia")
+
+
+def registrar_uso_ia(operacao, modelo, resposta):
+    """Registra uma chamada de IA (modelo e tokens) para custo/auditoria.
+
+    Nunca levanta exceção: log é acessório e não pode derrubar a operação.
+    """
+    try:
+        uso = getattr(resposta, "usage", None)
+        logger.info(
+            "ia operacao=%s modelo=%s tokens_prompt=%s tokens_resposta=%s",
+            operacao, modelo,
+            getattr(uso, "prompt_tokens", "?"),
+            getattr(uso, "completion_tokens", "?"),
+        )
+    except Exception:  # pragma: no cover - log nunca quebra o fluxo
+        pass
 
 
 
@@ -32,6 +53,10 @@ def get_openai_client():
     """
     global _client
     if _client is None:
+        if not getattr(settings, "IA_ATIVA", True):
+            raise RuntimeError(
+                "Recursos de IA desligados (IA_ATIVA=False)."
+            )
         if not settings.OPENAI_API_KEY:
             raise RuntimeError(
                 "OPENAI_API_KEY não configurada: os recursos de IA estão indisponíveis."
@@ -52,10 +77,11 @@ async def gerar_mensagem_para_usuario(tipo_usuario):
     try:
         client = get_openai_client()
         response = await client.chat.completions.create(
-            model="gpt-4o",
+            model=settings.IA_MODELO_TEXTO,
             messages=[{"role": "system", "content": prompt}],
             max_tokens=70
         )
+        registrar_uso_ia("mensagem_usuario", settings.IA_MODELO_TEXTO, response)
         return response.choices[0].message.content
     except Exception as e:
         return f"Não foi possível gerar uma mensagem no momento. Erro: {str(e)}"
@@ -126,10 +152,11 @@ async def gerar_descricao_evento(titulo, data_inicio, data_fim, local, tipo):
     try:
         client = get_openai_client()
         response = await client.chat.completions.create(
-            model="gpt-4o",
+            model=settings.IA_MODELO_TEXTO,
             messages=[{"role": "system", "content": prompt}],
             max_tokens = 120
         )
+        registrar_uso_ia("descricao_evento", settings.IA_MODELO_TEXTO, response)
         return response.choices[0].message.content.strip()
     except Exception as e:
         return "Não foi possível gerar uma descrição no momento. Tente novamente mais tarde."
@@ -162,9 +189,10 @@ async def gerar_conteudo_ajax(request):
 # -- Sugestão de categoria (tema) de um evento --
 # -- Adicionado por Luciano Vilas Boas --
 
-# Modelo usado só para classificar. A descrição do evento usa gpt-4o; para
-# escolher/propor um tema, o mini é suficiente, mais rápido e mais barato.
-CATEGORIA_MODELO = "gpt-4o-mini"
+# Modelo usado só para classificar. A descrição do evento usa o modelo de
+# texto; para escolher/propor um tema, o de classificação é suficiente, mais
+# rápido e mais barato. Lido de settings para centralizar a configuração.
+CATEGORIA_MODELO = settings.IA_MODELO_CLASSIFICACAO
 
 # Quantas sugestões devolver no máximo (o usuário pediu "duas ou três").
 CATEGORIA_MAX_SUGESTOES = 3
@@ -280,6 +308,7 @@ Responda SOMENTE com um JSON neste formato:
             temperature=0,
             response_format={"type": "json_object"},
         )
+        registrar_uso_ia("sugerir_categoria", CATEGORIA_MODELO, resposta)
         dados = json.loads(resposta.choices[0].message.content or "{}")
         itens = dados.get("sugestoes") or []
 
@@ -410,7 +439,7 @@ def notify_socketio(event_type, data):
 # Sugestão de tipo de atividade (chamada de propostas)
 # ---------------------------------------------------------------------------
 
-TIPO_MODELO = "gpt-4o-mini"
+TIPO_MODELO = settings.IA_MODELO_CLASSIFICACAO
 
 # Duas sugestões bastam: o proponente escolhe uma ou escreve a dele.
 TIPO_MAX_SUGESTOES = 2
@@ -509,6 +538,7 @@ Responda SOMENTE com um JSON neste formato:
             temperature=0,
             response_format={"type": "json_object"},
         )
+        registrar_uso_ia("sugerir_tipo", TIPO_MODELO, resposta)
         dados = json.loads(resposta.choices[0].message.content or "{}")
 
         sugestoes, vistas = [], set()
