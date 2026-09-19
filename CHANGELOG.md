@@ -43,6 +43,11 @@ no fim do ciclo, com a tag `v2.0.0`.
   máquina de escrever, autocomplete da programação, links clicáveis (internos na
   mesma aba; externos em nova aba) e layout com campo fixo e rolagem só nas
   respostas.
+- **Copilotos ancorados no banco:** dossiê de contexto (`eventos/contexto_ia.py`)
+  com catálogo de tipos/espaços, campos do formulário e convenções, usado pela
+  importação assistida (normalização de tipo/local, detecção de imagens e
+  duplicatas, criação confirmada de itens fora do catálogo), pelo copiloto de
+  evento, pela triagem e pelo concierge.
 
 ### Alterado
 

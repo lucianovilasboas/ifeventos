@@ -141,7 +141,7 @@ class SugerirMapeamentoTests(_FixturesMixin, TransactionTestCase):
         cabecalhos = ["titulo", "local", "tipo"]
         with mock.patch("eventos.services.get_openai_client", side_effect=RuntimeError("x")):
             resultado = async_to_sync(imp.sugerir_mapeamento)(
-                cabecalhos, [], [self.tipo], self.evento
+                cabecalhos, [], self.evento
             )
         self.assertEqual(resultado["origem"], "sinonimos")
         self.assertEqual(resultado["mapeamento"]["titulo"], "titulo")
@@ -151,7 +151,7 @@ class SugerirMapeamentoTests(_FixturesMixin, TransactionTestCase):
         fake = _FakeOpenAI('{"mapeamento": {"titulo": "assunto", "local": "onde"}}')
         with mock.patch("eventos.services.get_openai_client", return_value=fake):
             resultado = async_to_sync(imp.sugerir_mapeamento)(
-                cabecalhos, [{"assunto": "X", "onde": "Y"}], [self.tipo], self.evento
+                cabecalhos, [{"assunto": "X", "onde": "Y"}], self.evento
             )
         self.assertEqual(resultado["origem"], "ia")
         self.assertEqual(resultado["mapeamento"], {"titulo": "assunto", "local": "onde"})
@@ -197,3 +197,57 @@ class ImportacaoViewTests(_FixturesMixin, TransactionTestCase):
         self.assertTrue(resposta.context["concluido"])
         self.assertEqual(resposta.context["relatorio"]["criadas"], 1)
         self.assertEqual(Atividade.objects.filter(evento=self.evento).count(), 1)
+
+
+class AncoragemTests(_FixturesMixin, TestCase):
+    """Contexto do banco e normalizações que ancoram o copiloto."""
+
+    def test_dossie_tem_catalogos_sem_pii(self):
+        from eventos import contexto_ia
+
+        dados = contexto_ia.dossie(self.evento)
+        self.assertIn("tipos", dados)
+        self.assertIn("espacos", dados)
+
+        texto = contexto_ia.resumo_texto(dados)
+        self.assertNotIn("org_imp@example.com", texto)
+        self.assertNotIn("12345678909", texto)
+
+    def test_sanitizar_normalizacoes(self):
+        limpo = imp.sanitizar_normalizacoes({
+            "tipo": {"  Palestra  ": "Palestra"}, "local": {"Auditório": "Auditório"},
+        })
+        self.assertEqual(limpo["tipo"], {"Palestra": "Palestra"})
+
+    def test_aplicar_mapeamento_aplica_normalizacao(self):
+        linhas = [{"t": "Oficina X", "tp": "palestra", "lc": "lab 1"}]
+        mapeamento = {"titulo": "t", "tipo": "tp", "local": "lc"}
+        canonicas = imp.aplicar_mapeamento(
+            linhas, mapeamento, self.evento,
+            {"tipo": {"palestra": "Palestra"}, "local": {"lab 1": "Laboratório 1"}},
+        )
+        self.assertEqual(canonicas[0]["tipo"], "Palestra")
+        self.assertEqual(canonicas[0]["local"], "Laboratório 1")
+
+    def test_detectar_imagens(self):
+        linhas = [
+            {"titulo": "A", "foto": "https://drive.google.com/file/d/abc"},
+            {"titulo": "B", "foto": ""},
+        ]
+        achadas = imp.detectar_imagens(linhas, {"imagem": "foto"})
+        self.assertEqual(len(achadas), 1)
+        self.assertIn("drive.google", achadas[0]["url"])
+
+    def test_detectar_duplicatas(self):
+        Atividade.objects.create(
+            evento=self.evento, titulo="Oficina X", descricao="d", tipo=self.tipo,
+            n_vagas=1, data_hora_inicio=timezone.now(), data_hora_fim=timezone.now(),
+        )
+        repetidos = imp.detectar_duplicatas([{"titulo": "Oficina X"}], self.evento)
+        self.assertEqual(repetidos, ["Oficina X"])
+
+    def test_valores_faltantes(self):
+        canonicas = [{"titulo": "A", "tipo": "Novo Tipo", "local": "Sala Nova"}]
+        faltantes = imp.valores_faltantes(canonicas, self.evento)
+        self.assertIn("Novo Tipo", faltantes["tipos"])
+        self.assertIn("Sala Nova", faltantes["locais"])
