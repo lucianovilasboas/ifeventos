@@ -29,12 +29,10 @@ from asgiref.sync import sync_to_async
 from . import propostas as propostas_mod
 from . import services
 from . import contexto_ia
+from . import ia_config
 from .models import Atividade, TipoAtividade, sem_acento
 
 logger = logging.getLogger("eventos.ia")
-
-# Modelo de classificação (o mesmo da sugestão de tipo/tema).
-TRIAGEM_MODELO = services.TIPO_MODELO
 
 # Quantas propostas por chamada à OpenAI (dossiês longos demais por lote).
 TRIAGEM_LOTE = 20
@@ -320,14 +318,13 @@ def sanitizar_item(bruto, dossie, ids_tipos):
 async def _chamar_ia(dossies, evento, tipos, dossie_texto=""):
     """Pede ao modelo a análise de um lote de dossiês. Levanta em caso de erro."""
     client = services.get_openai_client()
+    kwargs = await ia_config.chamada_kwargs_async("triagem_propostas", max_tokens=2000, temperature=0)
     resposta = await client.chat.completions.create(
-        model=TRIAGEM_MODELO,
         messages=[{"role": "system", "content": _prompt(dossies, evento, tipos, dossie_texto)}],
-        max_tokens=2000,
-        temperature=0,
         response_format={"type": "json_object"},
+        **kwargs,
     )
-    services.registrar_uso_ia("triagem_propostas", TRIAGEM_MODELO, resposta)
+    services.registrar_uso_ia("triagem_propostas", kwargs["model"], resposta)
     dados = json.loads(resposta.choices[0].message.content or "{}")
     return dados.get("itens") or []
 

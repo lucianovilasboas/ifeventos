@@ -18,7 +18,6 @@ import tempfile
 import uuid
 from datetime import datetime
 
-from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from asgiref.sync import sync_to_async
@@ -26,6 +25,7 @@ from asgiref.sync import sync_to_async
 from . import importacao_programacao
 from . import services
 from . import contexto_ia
+from . import ia_config
 from .models import sem_acento
 
 # Prefixo da chave de cache onde o arquivo lido fica entre as etapas.
@@ -306,21 +306,18 @@ async def sugerir_mapeamento(cabecalhos, linhas, evento):
     dados_ia = {}
     try:
         client = services.get_openai_client()
+        kwargs = await ia_config.chamada_kwargs_async("importacao_mapeamento", max_tokens=1200, temperature=0)
         resposta = await client.chat.completions.create(
-            model=settings.IA_MODELO_CLASSIFICACAO,
             messages=[{"role": "system", "content": _prompt_mapeamento(
                 cabecalhos,
                 _amostras_json(linhas),
                 json.dumps(valores_distintos(linhas, cabecalhos), ensure_ascii=False),
                 dossie_texto,
             )}],
-            max_tokens=1200,
-            temperature=0,
             response_format={"type": "json_object"},
+            **kwargs,
         )
-        services.registrar_uso_ia(
-            "importacao_mapeamento", settings.IA_MODELO_CLASSIFICACAO, resposta
-        )
+        services.registrar_uso_ia("importacao_mapeamento", kwargs["model"], resposta)
         dados_ia = json.loads(resposta.choices[0].message.content or "{}")
         for canonico, coluna in sanitizar_mapeamento_ia(dados_ia, cabecalhos).items():
             if canonico not in mapa:

@@ -10,15 +10,12 @@ determinístico montado a partir dos mesmos números.
 import json
 import logging
 
-from django.conf import settings
-
 from eventos import services
+from eventos import ia_config
 
 from . import graficos as agregacoes
 
 logger = logging.getLogger("eventos.ia")
-
-MODELO = settings.IA_MODELO_CLASSIFICACAO
 
 
 def _por_id(lista, chave):
@@ -154,14 +151,13 @@ async def narrar(evento):
     dados = await _fatos_async(evento)
     try:
         client = services.get_openai_client()
+        kwargs = await ia_config.chamada_kwargs_async("relatorio_narrado", max_tokens=700, temperature=0.3)
         resposta = await client.chat.completions.create(
-            model=MODELO,
             messages=[{"role": "system", "content": _prompt(dados)}],
-            max_tokens=700,
-            temperature=0.3,
             response_format={"type": "json_object"},
+            **kwargs,
         )
-        services.registrar_uso_ia("relatorio_narrado", MODELO, resposta)
+        services.registrar_uso_ia("relatorio_narrado", kwargs["model"], resposta)
         bruto = json.loads(resposta.choices[0].message.content or "{}")
         resumo = " ".join(str(bruto.get("resumo") or "").split())[:900]
         destaques = _limpar_lista(bruto.get("destaques"))

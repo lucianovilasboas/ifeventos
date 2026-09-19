@@ -8,13 +8,10 @@ modelo simples é montado com os dados do evento.
 import json
 import logging
 
-from django.conf import settings
-
 from . import services
+from . import ia_config
 
 logger = logging.getLogger("eventos.ia")
-
-MODELO = settings.IA_MODELO_CLASSIFICACAO
 
 CANAIS = {"post": "Post para redes/WhatsApp", "email": "E-mail"}
 
@@ -86,14 +83,13 @@ async def gerar_rascunho(evento, canal="post", objetivo=""):
     canal = canal if canal in CANAIS else "post"
     try:
         client = services.get_openai_client()
+        kwargs = await ia_config.chamada_kwargs_async("comunicacao", max_tokens=700, temperature=0.5)
         resposta = await client.chat.completions.create(
-            model=MODELO,
             messages=[{"role": "system", "content": _prompt(evento, canal, objetivo)}],
-            max_tokens=700,
-            temperature=0.5,
             response_format={"type": "json_object"},
+            **kwargs,
         )
-        services.registrar_uso_ia("comunicacao", MODELO, resposta)
+        services.registrar_uso_ia("comunicacao", kwargs["model"], resposta)
         dados = json.loads(resposta.choices[0].message.content or "{}")
         corpo = str(dados.get("corpo") or "").strip()[:2500]
         assunto = " ".join(str(dados.get("assunto") or "").split())[:160]
