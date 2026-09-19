@@ -1,8 +1,12 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, View
 from django.shortcuts import render
 from django.shortcuts import get_object_or_404
+from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas
 from eventos.models import Inscricao, Atividade
 
@@ -478,3 +482,22 @@ class RelatoriosGraficosView(LoginRequiredMixin, View):
             "graficos": agregacoes.graficos(evento),
             "heatmap": agregacoes.heatmap(evento),
         })
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def narrativa_evento(request, evento_id):
+    """Narra os relatórios do evento (resumo + ações). Só sugere; não altera nada."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+
+    from eventos.crachas import pode_gerenciar_evento
+    from eventos.models import Evento
+
+    from . import narrativa
+
+    evento = await sync_to_async(get_object_or_404)(Evento, id=evento_id)
+    if not await sync_to_async(pode_gerenciar_evento)(request.user, evento):
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    return JsonResponse(await narrativa.narrar(evento))
