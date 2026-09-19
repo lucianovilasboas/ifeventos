@@ -62,6 +62,10 @@ no fim do ciclo, com a tag `v2.0.0`.
   `relatorios/agregacoes.py`; os relatórios existentes passam a exigir
   `pode_gerenciar_evento` (fecha vazamento de PII); IA de **curadoria** e
   **insights** dos gráficos.
+- **Relatório por turma (Onda R2):** agrupamento configurável
+  (`?agrupar=`, padrão `curso_turma_ano`), gráficos por grupo, drill-down para o
+  relatório por aluno já filtrado e export XLSX com **abas Resumo + Detalhe**
+  (extensão `abas=` em `eventos/exportacao.py`).
 
 ### Alterado
 

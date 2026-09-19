@@ -172,3 +172,63 @@ class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
             self.url("graficos_curadoria", self.evento.id)
         )
         self.assertEqual(resposta.status_code, 403)
+
+
+class RelatorioTurmasTests(BaseRelatorioTests):
+    def setUp(self):
+        super().setUp()
+        from eventos.models import ParticipanteMetadados
+
+        ParticipanteMetadados.objects.update_or_create(
+            participante=self.participante,
+            defaults={"dados": {"vinculo": "Aluno", "curso": "Informática",
+                                "turma": "Turma 1", "matricula": "12345"}},
+        )
+
+    def test_pagina_renderiza_e_grupo(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(self.url("relatorio_turmas", self.evento.id))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Relatório por turma")
+        self.assertContains(resposta, "Informática · Turma 1")
+
+    def test_invariante_soma_dos_grupos(self):
+        linhas = agregacoes.resumo_por_pessoa(self.evento)
+        grupos = agregacoes.resumo_por_grupo(linhas)
+        self.assertEqual(
+            sum(g["pessoas"] for g in grupos), len(linhas)
+        )
+        self.assertEqual(
+            sum(g["presencas"] for g in grupos),
+            sum(l["n_presencas"] for l in linhas),
+        )
+
+    def test_grupo_de(self):
+        linha = next(
+            l for l in agregacoes.resumo_por_pessoa(self.evento)
+            if l["pessoa"].id == self.participante.id
+        )
+        self.assertEqual(agregacoes.grupo_de(linha, "curso_turma_ano"), "Informática · Turma 1")
+        self.assertEqual(agregacoes.grupo_de(linha, "curso"), "Informática")
+
+    def test_drill_down_filtra_alunos(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(
+            self.url("relatorio_alunos", self.evento.id)
+            + "?agrupar=curso_turma_ano&grupo="
+            + __import__("urllib.parse", fromlist=["quote"]).quote("Informática · Turma 1")
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, self.participante.email)
+
+    def test_export_xlsx_tem_duas_abas(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(self.url("relatorio_turmas", self.evento.id) + "?export=xlsx")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("spreadsheetml", resposta["Content-Type"])
+
+        from openpyxl import load_workbook
+        from io import BytesIO
+
+        workbook = load_workbook(BytesIO(resposta.content))
+        self.assertEqual(workbook.sheetnames, ["Resumo", "Detalhe"])
