@@ -31,6 +31,9 @@
                     <span class="badge rounded-pill bg-danger" style="position:absolute;top:-5px;right:-5px;font-size:9px">{{ evento.get_n_inscricoes }}</span>
                     {% endif %}
                 </a>
+                <a href="{% url 'organizador:relatorio_alunos' evento.id %}" class="btn btn-sm btn-outline-secondary btn-icon" title="Relatório por aluno">
+                    <i class="fa-solid fa-user-graduate"></i>
+                </a>
                 <a href="{% url 'organizador:ocupacao_salas' evento.id %}?next={% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-success btn-icon" title="Ocupação por salas">
                     <i class="fa-solid fa-chart-simple"></i>
                 </a>

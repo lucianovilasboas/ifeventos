@@ -27,6 +27,9 @@
         <a href="{% url 'organizador:briefing_operacional' evento.id %}" class="btn btn-outline-dark">
             <i class="fa-solid fa-tower-broadcast"></i> Operação
         </a>
+        <a href="{% url 'organizador:relatorio_alunos' evento.id %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-user-graduate"></i> Relatório por aluno
+        </a>
 
         {% comment %}
         Crachás do evento em PDF (4 por folha A4), no modelo definido aqui ao
