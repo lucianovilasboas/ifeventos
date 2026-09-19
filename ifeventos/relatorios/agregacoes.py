@@ -139,7 +139,7 @@ def resumo_por_pessoa(evento, termo="", presenca=None, certificado=None):
 
 
 def atividades_da_pessoa(evento, pessoa):
-    """Atividades do evento com o que a pessoa fez em cada uma (detalhe do aluno)."""
+    """Atividades do evento com o que a pessoa fez em cada uma (detalhe do participante)."""
     inscricoes = {
         i.atividade_id: i
         for i in Inscricao.objects.filter(
@@ -245,7 +245,7 @@ def graficos_grupos(grupos):
     return graficos
 
 
-def graficos_alunos(linhas):
+def graficos_participantes(linhas):
     """Gráficos prontos (contrato do Chart.js) a partir das linhas por pessoa."""
     from collections import Counter
 
@@ -255,7 +255,7 @@ def graficos_alunos(linhas):
         )
         itens = valores.most_common(limite)
         return {
-            "id": "alunos_%s" % campo,
+            "id": "participantes_%s" % campo,
             "titulo": titulo,
             "tipo": tipo,
             "labels": [nome for nome, _ in itens],
@@ -273,7 +273,7 @@ def graficos_alunos(linhas):
     top = sorted(linhas, key=lambda l: (-l["carga_horaria"], l["pessoa"].first_name or ""))[:10]
     if any(linha["carga_horaria"] for linha in top):
         graficos.append({
-            "id": "alunos_carga",
+            "id": "participantes_carga",
             "titulo": "Carga horária por participante (top 10)",
             "tipo": "barh",
             "labels": [
@@ -287,7 +287,7 @@ def graficos_alunos(linhas):
     ausentes = sum(max(linha["n_inscricoes"] - linha["n_presencas"], 0) for linha in linhas)
     if presentes or ausentes:
         graficos.append({
-            "id": "alunos_presenca",
+            "id": "participantes_presenca",
             "titulo": "Presenças × ausências",
             "tipo": "donut",
             "labels": ["Presentes", "Ausentes"],
@@ -381,8 +381,8 @@ def graficos_atividades(linhas):
     return graficos
 
 
-def kpis_alunos(linhas):
-    """Indicadores do topo do relatório por aluno."""
+def kpis_participantes(linhas):
+    """Indicadores do topo do relatório por participante."""
     pessoas = len(linhas)
     presencas = sum(linha["n_presencas"] for linha in linhas)
     inscricoes = sum(linha["n_inscricoes"] for linha in linhas)

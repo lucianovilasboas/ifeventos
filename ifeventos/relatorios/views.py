@@ -548,14 +548,14 @@ async def narrativa_evento(request, evento_id):
     return JsonResponse(await narrativa.narrar(evento))
 
 
-class RelatorioAlunosView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
-    """Relatório por aluno: uma linha por pessoa com papel no evento.
+class RelatorioParticipantesView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
+    """Relatório por participante: uma linha por pessoa com papel no evento.
 
     Página com KPIs, tabela (busca/paginação) e gráficos; a exportação CSV/XLSX/
     PDF é secundária. A regra dos números vive em `relatorios/agregacoes.py`.
     """
 
-    template_name = "relatorios/alunos.html"
+    template_name = "relatorios/participantes.html"
     context_object_name = "linhas"
     paginate_by = 20
 
@@ -578,7 +578,7 @@ class RelatorioAlunosView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRe
 
     def get_template_names(self):
         if self.request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return ["relatorios/_resultado_alunos.html"]
+            return ["relatorios/_resultado_participantes.html"]
         return [self.template_name]
 
     def _linhas(self, evento):
@@ -620,8 +620,8 @@ class RelatorioAlunosView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRe
             )
         return exportar(
             self.request.GET.get("export"),
-            f"relatorio_alunos_{evento.id}", cabecalhos, linhas,
-            titulo=f"Relatório por aluno — {evento.title}",
+            f"relatorio_participantes_{evento.id}", cabecalhos, linhas,
+            titulo=f"Relatório por participante — {evento.title}",
         )
 
     def get_context_data(self, **kwargs):
@@ -634,8 +634,8 @@ class RelatorioAlunosView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRe
         context["q"] = self._filtros()["termo"]
         context["presenca"] = self._filtros()["presenca"]
         context["certificado"] = self._filtros()["certificado"]
-        context["kpis"] = agregacoes.kpis_alunos(linhas)
-        context["graficos"] = agregacoes.graficos_alunos(linhas)
+        context["kpis"] = agregacoes.kpis_participantes(linhas)
+        context["graficos"] = agregacoes.graficos_participantes(linhas)
         context["total_pessoas"] = len(linhas)
         context.update(self.metadados_colunas())
 
@@ -646,7 +646,7 @@ class RelatorioAlunosView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRe
 
 
 @login_required(login_url='/accounts/login/')
-def relatorio_aluno_detalhe(request, evento_id, participante_id):
+def relatorio_participante_detalhe(request, evento_id, participante_id):
     """Detalhe individual: o que a pessoa fez no evento (somente leitura)."""
     from eventos.crachas import pode_gerenciar_evento
     from eventos.models import Evento, Participante
@@ -674,7 +674,7 @@ def relatorio_aluno_detalhe(request, evento_id, participante_id):
         (l for l in agregacoes.resumo_por_pessoa(evento) if l["pessoa"].id == pessoa.id),
         None,
     )
-    return render(request, "relatorios/alunos_detalhe.html", {
+    return render(request, "relatorios/participantes_detalhe.html", {
         "evento": evento,
         "pessoa": pessoa,
         "metadados": agregacoes._metadados(pessoa),
@@ -707,8 +707,8 @@ async def graficos_curadoria(request, evento_id):
     if not await sync_to_async(pode_gerenciar_evento)(request.user, evento):
         return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
 
-    pagina = (dados.get("pagina") or "alunos").strip()
-    disponiveis = await sync_to_async(_graficos_da_pagina)(evento, pagina)
+    pagina = (dados.get("pagina") or "participantes").strip()
+    disponiveis = await sync_to_async(_graficos_da_pagina)(evento, pagina, request)
     perfil = {"graficos": [g["id"] for g in disponiveis]}
     return JsonResponse(await agente_graficos.curar(evento, disponiveis, perfil))
 
@@ -738,25 +738,80 @@ async def grafico_por_descricao(request, evento_id):
     if not await sync_to_async(pode_gerenciar_evento)(request.user, evento):
         return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
 
-    pagina = (dados.get("pagina") or "alunos").strip()
-    disponiveis = await sync_to_async(_graficos_da_pagina)(evento, pagina)
+    pagina = (dados.get("pagina") or "participantes").strip()
+    catalogo = await sync_to_async(_catalogo_para_texto)(evento, pagina, request)
     texto = dados.get("texto") or ""
-    return JsonResponse(await agente_graficos.grafico_por_descricao(
-        evento, disponiveis, texto
-    ))
+    escolha = await agente_graficos.grafico_por_descricao(evento, catalogo, texto)
+    resultado = dict(escolha)
+    if escolha.get("id"):
+        resultado["grafico"] = await sync_to_async(_montar_grafico_escolhido)(
+            evento, pagina, request, escolha["id"]
+        )
+    return JsonResponse(resultado)
 
 
-def _graficos_da_pagina(evento, pagina):
-    """Gráficos disponíveis para a curadoria/texto em uma página de relatório."""
+def _graficos_da_pagina(evento, pagina, request=None):
+    """Gráficos da página de relatório, respeitando os filtros da URL.
+
+    Assim a IA (curadoria/insights) só vê gráficos coerentes com o que está na
+    tela: `?tipo=` (oficinas), `?agrupar=/?grupo=` (turmas) e os filtros de
+    texto/presença/certificado (participantes).
+    """
     from . import agregacoes
 
+    def parametros():
+        if request is None:
+            return {}
+        return {"termo": (request.GET.get("q") or "").strip(),
+                "presenca": request.GET.get("presenca") or "",
+                "certificado": request.GET.get("certificado") or ""}
+
     if pagina == "turmas":
+        agrupar = (request.GET.get("agrupar") if request else "") or "curso_turma_ano"
         linhas = agregacoes.resumo_por_pessoa(evento)
-        return agregacoes.graficos_grupos(agregacoes.resumo_por_grupo(linhas))
+        return agregacoes.graficos_grupos(agregacoes.resumo_por_grupo(linhas, agrupar))
     if pagina == "oficinas":
-        return agregacoes.graficos_atividades(agregacoes.resumo_por_atividade(evento))
-    linhas = agregacoes.resumo_por_pessoa(evento)
-    return agregacoes.graficos_alunos(linhas)
+        tipo = (request.GET.get("tipo") if request else "") or None
+        tipo_id = int(tipo) if str(tipo).isdigit() else None
+        return agregacoes.graficos_atividades(
+            agregacoes.resumo_por_atividade(evento, tipo_id=tipo_id)
+        )
+    linhas = agregacoes.resumo_por_pessoa(evento, **parametros())
+    grupo = (request.GET.get("grupo") if request else "") or ""
+    if grupo:
+        agrupar = (request.GET.get("agrupar") if request else "") or "curso_turma_ano"
+        linhas = [l for l in linhas if agregacoes.grupo_de(l, agrupar) == grupo]
+    return agregacoes.graficos_participantes(linhas)
+
+
+def _catalogo_para_texto(evento, pagina, request):
+    """Catálogo unificado do text-to-chart: gráficos do evento + da página.
+
+    Devolve specs `{id, titulo, tipo, fonte}` (fonte: evento|pagina) para o
+    agente escolher; o gráfico é montado depois por `_montar_grafico_escolhido`.
+    """
+    from . import graficos as graficos_evento
+
+    specs = {}
+    for g in graficos_evento.graficos(evento):
+        specs.setdefault(g["id"], {"id": g["id"], "titulo": g["titulo"],
+                                   "tipo": g.get("tipo", "bar"), "fonte": "evento"})
+    for g in _graficos_da_pagina(evento, pagina, request):
+        specs.setdefault(g["id"], {"id": g["id"], "titulo": g["titulo"],
+                                   "tipo": g.get("tipo", "bar"), "fonte": "pagina"})
+    return list(specs.values())
+
+
+def _montar_grafico_escolhido(evento, pagina, request, spec_id):
+    """Monta o gráfico escolhido no catálogo unificado (evento ou página)."""
+    from . import graficos as graficos_evento
+
+    if spec_id in {g["id"] for g in graficos_evento.graficos(evento)}:
+        return graficos_evento.grafico_por_id(evento, spec_id)
+    for g in _graficos_da_pagina(evento, pagina, request):
+        if g["id"] == spec_id:
+            return g
+    return None
 
 
 @csrf_exempt
@@ -785,7 +840,7 @@ async def graficos_insights(request, evento_id):
 
 
 class RelatorioTurmasView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
-    """Relatório por turma/grupo: mesma regra do relatório por aluno, agrupada.
+    """Relatório por turma/grupo: mesma regra do relatório por participante, agrupada.
 
     `?agrupar=` escolhe a chave de metadado (ex.: `turma`, `curso`) ou a
     composição `curso_turma_ano` (padrão). Exporta o XLSX com duas abas
@@ -884,7 +939,7 @@ class RelatorioTurmasView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRe
         context["opcoes_agrupar"] = [
             ("curso_turma_ano", "Curso + Turma + Ano"),
         ] + [(c["chave"], c["rotulo"]) for c in campos_metadados()]
-        context["kpis"] = agregacoes.kpis_alunos(self._linhas(evento))
+        context["kpis"] = agregacoes.kpis_participantes(self._linhas(evento))
         context["graficos"] = agregacoes.graficos_grupos(self.get_queryset())
         context["total_grupos"] = len(self.get_queryset())
         context.update(self.metadados_colunas())

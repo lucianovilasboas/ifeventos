@@ -143,4 +143,8 @@
     } else {
         iniciar();
     }
+
+    // Exposto para o painel de IA (text-to-chart) montar gráficos dinâmicos
+    // num canvas novo, anexado à grade pela própria página.
+    window.RelatoriosGraficos = { montar: montar };
 })();

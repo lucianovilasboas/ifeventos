@@ -47,7 +47,7 @@
 
             <!-- Lista -->
             <div data-vista-painel="lista">
-                <div class="app-list px-1">
+                <div class="app-list">
                 {% regroup inscricoes by dia as dias %}
                 {% for dia in dias %}
                 <h6 class="dia-cabecalho">{{ dia.grouper }} <span>{{ dia.list|length }} atividade{{ dia.list|length|pluralize }}</span></h6>
@@ -145,7 +145,7 @@
 
             <!-- Lista -->
             <div data-vista-painel="lista">
-                <div class="app-list px-1">
+                <div class="app-list">
                 {% for atividade in atividades %}
                 <div class="app-item" data-titulo="{{ atividade.titulo }}">
                     <div class="dot" style="background:linear-gradient(135deg,var(--app-green),var(--app-green-d))">

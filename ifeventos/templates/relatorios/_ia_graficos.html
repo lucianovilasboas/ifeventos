@@ -1,119 +1,188 @@
 {% comment %}
 Bloco de IA dos relatórios: curadoria, insights e gráfico por descrição.
 
-Reutilizado nas páginas por aluno, por turma e por tipo. Recebe do contexto:
+Reutilizado nas páginas por participante, por turma e por tipo. Recebe do contexto:
   - `evento` (objeto);
-  - `pagina_ia` (alunos|turmas|oficinas) — qual catálogo o servidor consulta;
+  - `pagina_ia` (participantes|turmas|oficinas) — qual catálogo o servidor consulta;
   - `grade_id` (id do container com os cartões de gráfico, para esconder os que
-    a curadoria não escolheu).
+    a curadoria não escolheu e anexar gráficos gerados).
 {% endcomment %}
-<div class="app-panel p-3 mb-3">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div class="app-panel p-3 mb-3 ia-graficos">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
         <span><i class="fa-solid fa-robot"></i> <b>Gráficos com IA</b>
-            <span class="text-muted small">— curadoria, insights e gráfico a partir da descrição</span></span>
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-ia-curadoria>
+            <span class="text-muted small d-block d-md-inline">— curadoria, insights e gráfico a partir da descrição</span></span>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-campo" data-ia-curadoria>
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Sugerir gráficos
             </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-ia-insights>
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-campo" data-ia-insights>
                 <i class="fa-solid fa-lightbulb"></i> Insights
             </button>
         </div>
     </div>
-    <div class="input-group input-group-sm mt-2">
+
+    <div class="ia-linha">
         <input type="text" class="form-control" data-ia-texto
                placeholder="Descreva o gráfico: ex.: ocupação por sala, inscrições por tipo…"
                aria-label="Descreva o gráfico desejado">
-        <button type="button" class="btn btn-app btn-sm" data-ia-criar>
+        <button type="button" class="btn btn-app btn-campo" data-ia-criar>
             <i class="fa-solid fa-wand-magic-sparkles"></i> Criar gráfico
         </button>
     </div>
-    <p class="text-muted small mb-0 mt-2" data-ia-status></p>
+
+    <div class="ia-callout mt-2" data-ia-status role="status" aria-live="polite" hidden></div>
 </div>
 
 <script>
 (function () {
+    // O partial é incluído ANTES da grade de gráficos, então os elementos só
+    // existem depois do DOM estar pronto; a inicialização espera por isso.
+    function iniciar() {
     const pagina = "{{ pagina_ia }}";
     const gradeId = "{{ grade_id }}";
     const urlCuradoria = "{% url 'organizador:graficos_curadoria' evento.id %}";
     const urlGrafico = "{% url 'organizador:grafico_por_descricao' evento.id %}";
     const urlInsights = "{% url 'organizador:graficos_insights' evento.id %}";
     const csrf = "{{ csrf_token }}";
+    // Os filtros da URL (tipo/agrupar/grupo/q…) são repassados à IA para ela só
+    // enxergar gráficos coerentes com a tela.
+    const query = window.location.search || "";
     const status = document.querySelector("[data-ia-status]");
     const graficos = JSON.parse(document.getElementById("dados-graficos").textContent || "[]");
+    const grade = document.querySelector(gradeId);
 
     function esc(t) { const d = document.createElement("div"); d.textContent = t == null ? "" : t; return d.innerHTML; }
+
+    function callout(mensagem, classe) {
+        status.hidden = false;
+        status.className = "ia-callout mt-2 " + (classe || "");
+        status.textContent = mensagem;
+    }
+
     function post(url, corpo) {
-        return fetch(url, {
+        return fetch(url + query, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" },
             body: corpo ? JSON.stringify(corpo) : undefined,
         }).then(r => r.json());
     }
 
+    function destacar(card) {
+        if (!card) return;
+        card.hidden = false;
+        card.classList.remove("grafico-destaque");
+        // Reforça o destaque: remove e readiciona a classe para re-disparar a
+        // animação mesmo se o card já estiver destacado.
+        void card.offsetWidth;
+        card.classList.add("grafico-destaque");
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    // Curadoria: reordena a grade na ordem escolhida e esconde o resto.
     document.querySelectorAll("[data-ia-curadoria]").forEach(botao => {
         botao.addEventListener("click", function () {
             this.disabled = true;
-            status.textContent = "Escolhendo os gráficos...";
+            callout("Escolhendo os gráficos…", "ia-carregando");
             post(urlCuradoria, { pagina: pagina })
                 .then(dados => {
-                    if (dados.erro) { status.textContent = dados.erro; return; }
-                    const escolhidos = new Set(dados.ids || []);
-                    document.querySelectorAll(gradeId + " [data-grafico-card]").forEach(card => {
-                        card.hidden = escolhidos.size > 0 && !escolhidos.has(card.getAttribute("data-grafico-card"));
+                    if (dados.erro) { callout(dados.erro, "ia-erro"); return; }
+                    const escolhidos = (dados.ids || []).filter(id =>
+                        document.querySelector('[data-grafico-card="' + id + '"]')
+                    );
+                    escolhidos.forEach((id, indice) => {
+                        const card = document.querySelector('[data-grafico-card="' + id + '"]');
+                        grade.appendChild(card); // move para o fim na ordem
                     });
-                    status.textContent = dados.legenda || "Seleção aplicada.";
+                    document.querySelectorAll(gradeId + " [data-grafico-card]").forEach(card => {
+                        card.hidden = escolhidos.length > 0 && escolhidos.indexOf(card.getAttribute("data-grafico-card")) === -1;
+                    });
+                    if (escolhidos.length === 0) {
+                        callout("Nenhum gráfico selecionado. " + (dados.legenda || ""), "ia-info");
+                    } else {
+                        callout((dados.legenda || "Seleção aplicada."), "ia-sucesso");
+                    }
                 })
-                .catch(() => { status.textContent = "Falha na curadoria."; })
+                .catch(() => callout("Falha na curadoria.", "ia-erro"))
                 .finally(() => { this.disabled = false; });
         });
     });
 
+    // Insights: manda os dados dos gráficos visíveis e recebe um texto por gráfico.
     document.querySelectorAll("[data-ia-insights]").forEach(botao => {
         botao.addEventListener("click", function () {
             this.disabled = true;
-            status.textContent = "Gerando insights...";
+            callout("Gerando insights…", "ia-carregando");
             const visiveis = graficos.filter(g => {
                 const card = document.querySelector('[data-grafico-card="' + g.id + '"]');
                 return !card || !card.hidden;
             });
             post(urlInsights, { graficos: visiveis })
                 .then(dados => {
-                    if (dados.erro) { status.textContent = dados.erro; return; }
+                    if (dados.erro) { callout(dados.erro, "ia-erro"); return; }
                     (dados.insights || []).forEach(item => {
                         const alvo = document.querySelector('[data-insight="' + item.id + '"]');
                         if (alvo) alvo.innerHTML = '<i class="fa-solid fa-lightbulb"></i> ' + esc(item.texto);
                     });
-                    status.textContent = dados.aviso || "Insights gerados.";
+                    callout(dados.aviso || "Insights gerados.", dados.aviso ? "ia-info" : "ia-sucesso");
                 })
-                .catch(() => { status.textContent = "Falha ao gerar insights."; })
+                .catch(() => callout("Falha ao gerar insights.", "ia-erro"))
                 .finally(() => { this.disabled = false; });
         });
     });
 
-    // Text-to-chart: escolhe um gráfico do catálogo da página e o destaca
-    // (rola até ele). O servidor devolve o id; os dados já vieram na página.
+    // Text-to-chart: adiciona um gráfico novo (se não estiver na página) ou
+    // destaca o existente.
     document.querySelectorAll("[data-ia-criar]").forEach(botao => {
         botao.addEventListener("click", function () {
             const texto = document.querySelector("[data-ia-texto]").value;
-            if (!texto.trim()) { status.textContent = "Descreva o gráfico primeiro."; return; }
+            if (!texto.trim()) { callout("Descreva o gráfico primeiro.", "ia-info"); return; }
             this.disabled = true;
-            status.textContent = "Procurando o gráfico...";
+            callout("Procurando o gráfico…", "ia-carregando");
             post(urlGrafico, { pagina: pagina, texto: texto })
                 .then(dados => {
-                    if (dados.erro) { status.textContent = dados.erro; return; }
-                    if (!dados.id) { status.textContent = dados.aviso || "Nenhum gráfico encontrado."; return; }
-                    const card = document.querySelector('[data-grafico-card="' + dados.id + '"]');
-                    if (card) {
-                        card.hidden = false;
-                        card.scrollIntoView({ behavior: "smooth", block: "center" });
-                        card.classList.add("grafico-destaque");
+                    if (dados.erro) { callout(dados.erro, "ia-erro"); return; }
+                    const grafico = dados.grafico;
+                    if (!grafico || !grafico.id) {
+                        callout(dados.aviso || "Nenhum gráfico encontrado.", "ia-info");
+                        return;
                     }
-                    status.textContent = dados.legenda || (dados.aviso || "Gráfico encontrado.");
+                    const cardExistente = document.querySelector('[data-grafico-card="' + grafico.id + '"]');
+                    if (cardExistente) {
+                        destacar(cardExistente);
+                        callout((dados.legenda || "Gráfico encontrado.") + " (já estava na página)", "ia-sucesso");
+                        return;
+                    }
+                    // Adiciona um card novo com o gráfico montado pelo servidor.
+                    const card = document.createElement("div");
+                    card.className = "col-12 col-lg-6";
+                    card.setAttribute("data-grafico-card", grafico.id);
+                    card.innerHTML =
+                        '<div class="painel-grafico" data-tipo="' + esc(grafico.tipo || "bar") + '">' +
+                        '<div class="d-flex justify-content-between align-items-start gap-2">' +
+                        '<h6 class="mb-0">' + esc(grafico.titulo || "Gráfico") + '</h6>' +
+                        '<span class="badge bg-primary-subtle text-primary ia-selo">Gerado por IA</span>' +
+                        '</div>' +
+                        '<div class="grafico-area"><canvas data-grafico></canvas></div>' +
+                        '<p class="text-muted small mb-0 mt-1" data-insight="' + esc(grafico.id) + '"></p>' +
+                        '</div>';
+                    grade.appendChild(card);
+                    const canvas = card.querySelector("canvas");
+                    if (window.RelatoriosGraficos) {
+                        window.RelatoriosGraficos.montar(grafico, canvas);
+                    }
+                    graficos.push(grafico);
+                    destacar(card);
+                    callout(dados.legenda || "Gráfico gerado.", "ia-sucesso");
                 })
-                .catch(() => { status.textContent = "Falha ao buscar o gráfico."; })
+                .catch(erro => callout("Falha ao gerar o gráfico: " + (erro && erro.message ? erro.message : erro), "ia-erro"))
                 .finally(() => { this.disabled = false; });
         });
     });
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", iniciar);
+    } else {
+        iniciar();
+    }
 })();
 </script>
