@@ -20,6 +20,7 @@ from eventos import propostas
 from eventos.propostas import PropostaBloqueada
 from eventos import triagem
 from eventos import importacao_assistida
+from eventos import copiloto_evento
 from django.db.models import Count, Exists, OuterRef, Q
 from asgiref.sync import sync_to_async, async_to_sync
 
@@ -1070,3 +1071,51 @@ def importar_programacao(request, evento_id):
     contexto["previa"] = importacao_assistida.previsualizar(evento, canonicas)
     contexto["previa_canonicas"] = canonicas[:10]
     return render(request, template, contexto)
+
+
+# -- Copiloto de criação de evento (plano de programação) --
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def copiloto_evento_plano(request, evento_id):
+    """Recebe um resumo e devolve um plano inicial do evento (JSON)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    plano = await copiloto_evento.gerar_plano(
+        (dados.get("titulo") or "").strip(),
+        (dados.get("descricao") or "").strip(),
+        (dados.get("categoria") or "").strip(),
+        evento,
+        (dados.get("observacoes") or "").strip(),
+    )
+    return JsonResponse(plano)
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def aplicar_plano_evento(request, evento_id):
+    """Cria as atividades do plano como RASCUNHO (reusa a importação)."""
+    from eventos.importacao_programacao import importar_linhas
+
+    evento = _evento_gerenciavel(request, evento_id)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    plano = dados.get("plano") if isinstance(dados.get("plano"), dict) else dados
+    linhas = copiloto_evento.plano_para_linhas(plano, evento)
+    if not linhas:
+        return JsonResponse({"erro": "Nenhuma atividade para criar."}, status=400)
+
+    relatorio = importar_linhas(evento, linhas, publicada=False)
+    return JsonResponse({"relatorio": relatorio})

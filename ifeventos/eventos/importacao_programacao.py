@@ -56,8 +56,13 @@ def _booleano(valor):
     return (valor or "").strip().lower() in VERDADEIROS
 
 
-def importar_linhas(evento, linhas):
-    """Núcleo: linhas já lidas (dict, chaves normalizadas) -> relatório."""
+def importar_linhas(evento, linhas, publicada=True):
+    """Núcleo: linhas já lidas (dict, chaves normalizadas) -> relatório.
+
+    `publicada=False` cria as atividades como rascunho (usado pelo copiloto, que
+    propõe um plano inicial para revisão). Na atualização de uma linha existente
+    a visibilidade não é alterada.
+    """
     relatorio = {"total": len(linhas or []), "criadas": 0, "atualizadas": 0,
                  "erros": 0, "linhas": []}
 
@@ -120,7 +125,8 @@ def importar_linhas(evento, linhas):
         if atividade is None:
             atividade = Atividade.objects.create(
                 evento=evento, titulo=titulo,
-                data_hora_inicio=inicio, data_hora_fim=fim, **dados,
+                data_hora_inicio=inicio, data_hora_fim=fim,
+                publicada=publicada, **dados,
             )
             terminar("criadas")
         else:
