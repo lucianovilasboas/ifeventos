@@ -1,0 +1,57 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+
+{% block title %}Minhas palestras | Nossos Eventos{% endblock %}
+
+{% block action %}
+<h2><i class="fa-solid fa-person-chalkboard"></i> Minhas palestras</h2>
+{% endblock action %}
+
+{% block content %}
+
+{% if atividades %}
+<p class="text-muted">
+    As atividades em que você é palestrante. Abra o QR de presença para mostrar
+    na sala e os participantes confirmarem a presença.
+</p>
+
+<div class="row g-3">
+    {% for atividade in atividades %}
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="app-panel h-100">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <h5 class="mb-1">{{ atividade.titulo }}</h5>
+                {% if not atividade.publicada %}
+                <span class="badge bg-warning text-dark" title="Rascunho: não aparece na programação pública">
+                    <i class="fa-solid fa-pen-ruler"></i> Rascunho
+                </span>
+                {% endif %}
+            </div>
+            <p class="small text-muted mb-2">
+                <i class="fa-solid fa-calendar-days"></i> {{ atividade.evento.title }}
+            </p>
+            <ul class="list-unstyled small mb-3">
+                <li><i class="fa-solid fa-clock"></i> {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }}
+                    {% if atividade.data_hora_fim %}— {{ atividade.data_hora_fim|date:"H:i" }}{% endif %}</li>
+                <li><i class="fa-solid fa-location-dot"></i> {{ atividade.local|default:atividade.evento.local }}</li>
+                <li><i class="fa-solid fa-tag"></i> {{ atividade.tipo.nome|default:"Sem tipo" }}</li>
+                <li><i class="fa-solid fa-users"></i> {{ atividade.n_inscricoes }} inscrito(s) · {{ atividade.n_vagas }} vaga(s)</li>
+            </ul>
+            <a href="{% url 'participante:minha_palestra_qr' atividade.id %}" class="btn btn-sm btn-app">
+                <i class="fa-solid fa-qrcode"></i> QR de presença
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="app-panel">
+    <p class="text-muted mb-0">
+        <i class="fa-solid fa-circle-info"></i>
+        Você ainda não é palestrante em nenhuma atividade. Quando um organizador
+        adicionar você como palestrante, suas atividades aparecem aqui.
+    </p>
+</div>
+{% endif %}
+
+{% endblock content %}

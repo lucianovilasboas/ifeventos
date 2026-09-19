@@ -13,6 +13,7 @@ from eventos.services import ia_mensagem_view, sugerir_tipo_ajax
 from .views import MeusCertificadosView, MeusCrachasView
 from .views import assistente, assistente_responder
 from .views import assistente_sugestoes
+from .views import MinhasPalestrasView, minha_palestra_qr
 
 app_name = 'participante' 
 
@@ -40,6 +41,10 @@ urlpatterns = [
 
     # -- Meus Crachás (crachá com QR para confirmar presença) --
     path("meus-crachas/", MeusCrachasView.as_view(), name="meus_crachas"),
+
+    # -- Minhas palestras (palestrante, só ver + QR sem PII) --
+    path("minhas-palestras/", MinhasPalestrasView.as_view(), name="minhas_palestras"),
+    path("minhas-palestras/<int:atividade_id>/qr/", minha_palestra_qr, name="minha_palestra_qr"),
 
     # -- Chamada de proposições (proponente) --
     path("propostas/", minhas_propostas, name="minhas_propostas"),

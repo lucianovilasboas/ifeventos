@@ -271,6 +271,12 @@ class AtividadeViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         if self.action == "create":
             return [IsOrganizador()]
+        if self.action == "qrcode":
+            # O QR é leitura e a checagem fina (dono do evento OU palestrante) é
+            # feita no corpo da action (`pode_exibir_qr_atividade`). Sem isto, o
+            # palestrante — que tem o QR liberado na tela — esbarrava no
+            # IsDonoEvento e recebia 403 da API.
+            return [IsOrganizador()]
         return [IsOrganizador(), IsDonoEvento()]
 
     def get_object(self):

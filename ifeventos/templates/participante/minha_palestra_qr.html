@@ -1,0 +1,100 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+
+{% block title %}QR de presença | {{ atividade.titulo }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v={{ ASSET_VERSION }}">
+{% endblock extra_css %}
+
+{% block action %}
+<div class="pagina-topo">
+    <h2><i class="fa-solid fa-qrcode"></i> QR de presença da atividade</h2>
+    <a class="btn btn-sm btn-outline-secondary" id="btnVoltar"
+       href="{% url 'participante:minhas_palestras' %}">
+        <i class="fa-solid fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+
+<div class="qrd-grade qrd-grade--palestrante">
+
+    <div class="qrd">
+        <h3 class="qrd-atividade">{{ atividade.titulo }}</h3>
+        <p class="qrd-evento">
+            {{ evento.title }} ·
+            {{ atividade.data_hora_inicio|date:"d/m/Y H:i" }}
+            {% if atividade.data_hora_fim %}— {{ atividade.data_hora_fim|date:"H:i" }}{% endif %}
+        </p>
+
+        <div class="qrd-janela" id="janela">Verificando a janela de confirmação…</div>
+
+        <div class="qrd-quadro">
+            <img id="qr-img" alt="QR de presença da atividade" width="320" height="320">
+        </div>
+
+        <p class="qrd-validade">
+            Este código se renova sozinho a cada <strong id="renovacao">—</strong>.
+            Assim, uma foto compartilhada do QR deixa de funcionar.
+        </p>
+
+        <p class="qrd-instrucao">
+            Mostre esta tela para a turma: cada pessoa aponta a câmera do próprio
+            celular para cá e confirma a presença dela. Ninguém precisa instalar nada.
+        </p>
+
+        <p class="qrd-url" id="qr-url"></p>
+    </div>
+
+</div>
+
+{% endblock content %}
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const urlDoQr = "{% url 'atividade-qrcode' atividade.id %}";
+        const img = document.getElementById('qr-img');
+        const linhaJanela = document.getElementById('janela');
+        const linhaRenovacao = document.getElementById('renovacao');
+        const linhaUrl = document.getElementById('qr-url');
+        let relogio = null;
+
+        function agendar(segundos) {
+            clearTimeout(relogio);
+            relogio = setTimeout(renovar, Math.max(15, segundos) * 1000);
+        }
+
+        async function renovar() {
+            try {
+                const resposta = await fetch(urlDoQr, {
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store',
+                });
+                if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+
+                const dados = await resposta.json();
+                img.src = dados.png;
+                linhaUrl.textContent = dados.url;
+                linhaRenovacao.textContent = Math.round(dados.renovar_em_segundos / 60) + ' min';
+
+                const janela = dados.janela;
+                linhaJanela.className = 'qrd-janela ' + (janela.aberta ? 'aberta' : 'fechada');
+                linhaJanela.textContent = janela.aberta
+                    ? 'Confirmação aberta agora'
+                    : (janela.motivo || 'Fora da janela de confirmação');
+
+                agendar(dados.renovar_em_segundos);
+            } catch (erro) {
+                linhaJanela.className = 'qrd-janela fechada';
+                linhaJanela.textContent = 'Não consegui renovar o código (' + erro.message + '). Tentando de novo…';
+                agendar(15);
+            }
+        }
+
+        renovar();
+    });
+</script>
+{% endblock scripts %}

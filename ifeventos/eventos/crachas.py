@@ -880,6 +880,20 @@ def pode_gerenciar_evento(usuario, evento):
     return bool(evento and evento.organizador_id == usuario.id)
 
 
+def atividades_do_palestrante(usuario):
+    """Atividades em que a pessoa é palestrante, da próxima para a passada.
+
+    Sem filtro de evento nem de publicação: o palestrante vê as próprias
+    atividades (inclusive rascunho, pois ele trabalhou nelas).
+    """
+    if not usuario or not getattr(usuario, "is_authenticated", False):
+        return []
+    return list(
+        usuario.atividades.select_related("evento", "tipo")
+        .order_by("data_hora_inicio", "id")
+    )
+
+
 def pode_exibir_qr_atividade(usuario, atividade):
     """Quem pode exibir o QR de presença da atividade.
 

@@ -522,3 +522,43 @@ def assistente_sugestoes(request):
     from eventos import concierge
 
     return JsonResponse({"sugestoes": concierge.sugestoes(request.GET.get("q", ""))})
+
+
+# -- Minhas palestras (área restrita do palestrante, sem PII) --
+class MinhasPalestrasView(LoginRequiredMixin, TemplateView):
+    """Atividades em que a pessoa é palestrante (só ver + QR).
+
+    Sem lista de inscritos com e-mail/CPF: o palestrante vê a atividade e o QR
+    de presença para mostrar na sala — nada além disso.
+    """
+
+    template_name = "participante/minhas_palestras.html"
+
+    def get_context_data(self, **kwargs):
+        from eventos.crachas import atividades_do_palestrante
+
+        contexto = super().get_context_data(**kwargs)
+        contexto["atividades"] = atividades_do_palestrante(self.request.user)
+        contexto["logo_url"] = url_da_logo()
+        return contexto
+
+
+@login_required(login_url='/accounts/login/')
+def minha_palestra_qr(request, atividade_id):
+    """QR de presença da atividade, para quem PALESTRA nela (sem painel de nomes).
+
+    Diferente da tela do organizador: aqui não sai a lista de quem confirmou
+    (PII) nem o botão de desfazer. Só o código, que se renova sozinho.
+    """
+    from django.http import HttpResponseForbidden
+
+    from eventos.crachas import pode_exibir_qr_atividade
+
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    if not pode_exibir_qr_atividade(request.user, atividade):
+        return HttpResponseForbidden("Você não organiza este evento nem palestra nesta atividade.")
+    return render(request, "participante/minha_palestra_qr.html", {
+        "atividade": atividade,
+        "evento": atividade.evento,
+        "logo_url": url_da_logo(),
+    })

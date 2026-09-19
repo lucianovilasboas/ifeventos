@@ -70,6 +70,10 @@ no fim do ciclo, com a tag `v2.0.0`.
   gráficos e filtro por tipo (`?tipo=`), export CSV/XLSX/PDF; badge
   "outro organizador" no cartão do evento e na tela de atividades quando o
   evento pertence a outro organizador.
+- **Minhas palestras (Onda R4):** seção no participante com as atividades em
+  que a pessoa é palestrante e o QR de presença para mostrar na sala — sem
+  lista de inscritos (PII). Correção pré-existente: o endpoint da API do QR
+  usava `IsDonoEvento` e barrava o palestrante, mesmo com a tela liberada.
 
 ### Alterado
 
