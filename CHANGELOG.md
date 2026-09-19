@@ -46,6 +46,9 @@ no fim do ciclo, com a tag `v2.0.0`.
 
 ### Alterado
 
+- Tela de atividades do organizador: removidos os atalhos “Adicionar novo
+  palestrante” e “Adicionar novo tipo de atividade” (seguem disponíveis ao
+  criar/editar a atividade).
 - `eventos/services.py` passa a ler os modelos de `settings` e a respeitar
   `IA_ATIVA`; sem chave de API ou com a IA desligada, cai no fallback
   determinístico.
