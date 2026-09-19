@@ -1015,12 +1015,15 @@ def importar_programacao(request, evento_id):
             return render(request, template, contexto)
 
         token = importacao_assistida.novo_token()
-        importacao_assistida.guardar(token, {"cabecalhos": cabecalhos, "linhas": linhas})
         sugestao = async_to_sync(importacao_assistida.sugerir_mapeamento)(
-            cabecalhos, linhas[:5], tipos, evento
+            cabecalhos, linhas, evento
         )
+        normalizacoes = sugestao["normalizacoes"]
+        importacao_assistida.guardar(token, {
+            "cabecalhos": cabecalhos, "linhas": linhas, "normalizacoes": normalizacoes,
+        })
         canonicas = importacao_assistida.aplicar_mapeamento(
-            linhas, sugestao["mapeamento"], evento
+            linhas, sugestao["mapeamento"], evento, normalizacoes
         )
         contexto.update({
             "token": token,
@@ -1029,6 +1032,12 @@ def importar_programacao(request, evento_id):
             "campos_mapeamento": importacao_assistida.campos_com_selecao(sugestao["mapeamento"]),
             "origem": sugestao["origem"],
             "aviso_ia": sugestao["aviso"],
+            "avisos_ia": sugestao["avisos"],
+            "dossie_info": sugestao["dossie"],
+            "normalizacoes": normalizacoes,
+            "imagens": importacao_assistida.detectar_imagens(linhas, sugestao["mapeamento"]),
+            "duplicatas": importacao_assistida.detectar_duplicatas(canonicas, evento),
+            "faltantes": importacao_assistida.valores_faltantes(canonicas, evento),
             "total_linhas": len(linhas),
             "previa": importacao_assistida.previsualizar(evento, canonicas),
             "previa_canonicas": canonicas[:10],
@@ -1042,6 +1051,7 @@ def importar_programacao(request, evento_id):
         return render(request, template, contexto)
 
     cabecalhos, linhas = dados["cabecalhos"], dados["linhas"]
+    normalizacoes = dados.get("normalizacoes") or {"tipo": {}, "local": {}}
     mapeamento = {
         canonico: (request.POST.get("map_%s" % canonico) or "").strip()
         for canonico, _rotulo, _obrig, _ajuda in importacao_assistida.CAMPOS
@@ -1054,6 +1064,7 @@ def importar_programacao(request, evento_id):
         "cabecalhos": cabecalhos,
         "mapeamento": mapeamento,
         "campos_mapeamento": importacao_assistida.campos_com_selecao(mapeamento),
+        "normalizacoes": normalizacoes,
         "total_linhas": len(linhas),
         "erros_mapeamento": erros,
         "avisos_mapeamento": avisos,
@@ -1061,10 +1072,25 @@ def importar_programacao(request, evento_id):
     if erros:
         return render(request, template, contexto)
 
-    canonicas = importacao_assistida.aplicar_mapeamento(linhas, mapeamento, evento)
+    canonicas = importacao_assistida.aplicar_mapeamento(
+        linhas, mapeamento, evento, normalizacoes
+    )
+    contexto["imagens"] = importacao_assistida.detectar_imagens(linhas, mapeamento)
+    contexto["duplicatas"] = importacao_assistida.detectar_duplicatas(canonicas, evento)
+    contexto["faltantes"] = importacao_assistida.valores_faltantes(canonicas, evento)
 
     if acao == "importar":
         from eventos.importacao_programacao import importar_linhas
+
+        # Cria tipos/espaços marcados pelo organizador antes de importar.
+        for nome in request.POST.getlist("criar_tipo"):
+            nome = " ".join(nome.split())[:255]
+            if nome and not TipoAtividade.objects.filter(nome__iexact=nome).exists():
+                TipoAtividade.objects.create(nome=nome)
+        for nome in request.POST.getlist("criar_espaco"):
+            nome = " ".join(nome.split())[:160]
+            if nome and not Espaco.objects.filter(nome__iexact=nome).exists():
+                Espaco.objects.create(nome=nome)
 
         contexto["relatorio"] = importar_linhas(evento, canonicas)
         contexto["concluido"] = True

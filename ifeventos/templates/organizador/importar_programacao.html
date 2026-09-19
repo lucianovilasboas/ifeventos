@@ -106,6 +106,63 @@
                 {% for a in avisos_mapeamento %}<div>{{ a }}</div>{% endfor %}
             </div>
             {% endif %}
+
+            <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
+                <p class="text-muted small mb-2">
+                    <i class="fa-solid fa-database"></i> Contexto do banco usado:
+                    <b>{{ dossie_info.tipos|length }}</b> tipo(s) e
+                    <b>{{ dossie_info.espacos|length }}</b> espaço(s) no catálogo.
+                </p>
+
+                {% if normalizacoes.tipo or normalizacoes.local %}
+                <p class="small mb-1"><b>Normalizações sugeridas</b></p>
+                <ul class="small mb-2">
+                    {% for de, para in normalizacoes.tipo.items %}<li>tipo: “{{ de }}” → <b>{{ para }}</b></li>{% endfor %}
+                    {% for de, para in normalizacoes.local.items %}<li>local: “{{ de }}” → <b>{{ para }}</b></li>{% endfor %}
+                </ul>
+                {% endif %}
+
+                {% if avisos_ia %}
+                <div class="alert alert-warning py-2 small mb-2">
+                    {% for a in avisos_ia %}<div>{{ a }}</div>{% endfor %}
+                </div>
+                {% endif %}
+
+                {% if duplicatas %}
+                <div class="alert alert-warning py-2 small mb-2">
+                    <b><i class="fa-solid fa-clone"></i> Já existem no evento:</b>
+                    {{ duplicatas|join:", " }}
+                </div>
+                {% endif %}
+
+                {% if imagens %}
+                <div class="alert alert-info py-2 small mb-2">
+                    <b><i class="fa-solid fa-image"></i> {{ imagens|length }} imagem(ns) encontrada(s)</b> —
+                    a importação não baixa imagens; use os links para anexar depois.
+                    <ul class="mb-0">
+                        {% for img in imagens %}<li>linha {{ img.linha }}: <a href="{{ img.url }}" target="_blank" rel="noopener">{{ img.url }}</a></li>{% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if faltantes.tipos or faltantes.locais %}
+                <div class="alert alert-secondary py-2 small mb-0">
+                    <b><i class="fa-solid fa-plus"></i> Itens fora do catálogo</b> — marque para criar ao importar:
+                    {% for nome in faltantes.tipos %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="criar_tipo" value="{{ nome }}" id="ct-{{ forloop.counter }}">
+                        <label class="form-check-label" for="ct-{{ forloop.counter }}">Criar tipo <b>{{ nome }}</b></label>
+                    </div>
+                    {% endfor %}
+                    {% for nome in faltantes.locais %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="criar_espaco" value="{{ nome }}" id="ce-{{ forloop.counter }}">
+                        <label class="form-check-label" for="ce-{{ forloop.counter }}">Criar espaço <b>{{ nome }}</b></label>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
         </div>
 
         <div class="d-flex gap-2 mb-3">

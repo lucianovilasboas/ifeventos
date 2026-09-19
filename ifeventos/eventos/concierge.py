@@ -18,6 +18,7 @@ from django.utils import timezone
 from asgiref.sync import sync_to_async
 
 from . import services
+from . import contexto_ia
 from .models import Atividade, Evento, sem_acento
 
 logger = logging.getLogger("eventos.ia")
@@ -118,7 +119,7 @@ def sugestoes(consulta, limite=8):
     return itens[:limite]
 
 
-def _prompt(itens):
+def _prompt(itens, campus=""):
     return """Você é o assistente do portal de eventos do IFMG Campus Ponte Nova.
 
 Responda à pergunta do participante usando SOMENTE as atividades publicadas
@@ -128,8 +129,12 @@ Não peça nem informe dados pessoais. Seja curto (no máximo 4 linhas) e cordia
 Quando citar uma página do portal, inclua o endereço (ex.: a agenda é /eventos/;
 certificados, /participante/meus-certificados/).
 
+=== CONTEXTO DO CAMPUS (catálogos) ===
+{campus}
+=== FIM DO CONTEXTO ===
+
 Programação publicada:
-{programacao}""".format(programacao=contexto_texto(itens))
+{programacao}""".format(campus=campus or "(sem catálogo)", programacao=contexto_texto(itens))
 
 
 def resposta_basica(itens, mensagem=""):
@@ -169,9 +174,10 @@ async def responder(mensagem, historico=None):
         return {"erro": "Escreva uma pergunta.", "origem": None}
 
     itens = await sync_to_async(catalogo)()
+    campus = contexto_ia.resumo_texto(await sync_to_async(contexto_ia.dossie)())
     try:
         client = services.get_openai_client()
-        messages = [{"role": "system", "content": _prompt(itens)}]
+        messages = [{"role": "system", "content": _prompt(itens, campus)}]
         messages += _normaliza_historico(historico)
         messages.append({"role": "user", "content": mensagem})
         resposta = await client.chat.completions.create(

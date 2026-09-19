@@ -28,6 +28,7 @@ from asgiref.sync import sync_to_async
 
 from . import propostas as propostas_mod
 from . import services
+from . import contexto_ia
 from .models import Atividade, TipoAtividade, sem_acento
 
 logger = logging.getLogger("eventos.ia")
@@ -219,9 +220,13 @@ def decisao_heuristica(dossie):
 # Camada 2 — sugestão por IA
 # ---------------------------------------------------------------------------
 
-def _prompt(dossies, evento, tipos):
+def _prompt(dossies, evento, tipos, dossie_texto=""):
     catalogo = ", ".join("%s (id %s)" % (t.nome, t.pk) for t in tipos) or "(nenhum)"
     return """Você ajuda a ORGANIZAR (não decide) a pré-triagem das propostas de atividades de um evento de um campus do IFMG.
+
+=== CONTEXTO DO BANCO ===
+{dossie}
+=== FIM DO CONTEXTO ===
 
 Evento: {titulo}
 Categoria/tema do evento: {categoria}
@@ -248,6 +253,7 @@ Responda SOMENTE com JSON neste formato:
 {{"itens": [{{"proposta_id": 1, "score": 80, "decisao": "aprovar",
   "justificativa": "...", "tipo_sugerido_id": null, "qualidade_descricao": "boa",
   "motivo_rejeicao_sugerido": ""}}]}}""".format(
+        dossie=dossie_texto,
         titulo=evento.title,
         categoria=evento.get_categoria_display(),
         catalogo=catalogo,
@@ -311,12 +317,12 @@ def sanitizar_item(bruto, dossie, ids_tipos):
     return item
 
 
-async def _chamar_ia(dossies, evento, tipos):
+async def _chamar_ia(dossies, evento, tipos, dossie_texto=""):
     """Pede ao modelo a análise de um lote de dossiês. Levanta em caso de erro."""
     client = services.get_openai_client()
     resposta = await client.chat.completions.create(
         model=TRIAGEM_MODELO,
-        messages=[{"role": "system", "content": _prompt(dossies, evento, tipos)}],
+        messages=[{"role": "system", "content": _prompt(dossies, evento, tipos, dossie_texto)}],
         max_tokens=2000,
         temperature=0,
         response_format={"type": "json_object"},
@@ -378,12 +384,15 @@ async def analisar_evento(evento, forcar=False):
     tipos = await sync_to_async(list)(TipoAtividade.objects.order_by("nome"))
     ids_tipos = {tipo.pk for tipo in tipos}
     nome_por_id = {tipo.pk: tipo.nome for tipo in tipos}
+    dossie_texto = contexto_ia.resumo_texto(
+        await sync_to_async(contexto_ia.dossie)(evento)
+    )
 
     itens, aviso = [], ""
     try:
         for inicio in range(0, len(dossies), TRIAGEM_LOTE):
             lote = dossies[inicio:inicio + TRIAGEM_LOTE]
-            retorno = await _chamar_ia(lote, evento, tipos)
+            retorno = await _chamar_ia(lote, evento, tipos, dossie_texto)
             por_id = {
                 item.get("proposta_id"): item
                 for item in retorno if isinstance(item, dict)

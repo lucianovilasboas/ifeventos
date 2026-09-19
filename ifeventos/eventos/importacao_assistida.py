@@ -11,6 +11,7 @@ Sem IA, o mapeamento cai num dicionário de sinônimos (determinístico). Nada �
 gravado sem a confirmação do organizador.
 """
 
+import json
 import os
 import re
 import tempfile
@@ -20,9 +21,11 @@ from datetime import datetime
 from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
+from asgiref.sync import sync_to_async
 
 from . import importacao_programacao
 from . import services
+from . import contexto_ia
 from .models import sem_acento
 
 # Prefixo da chave de cache onde o arquivo lido fica entre as etapas.
@@ -46,6 +49,7 @@ CAMPOS = [
     ("n_vagas", "Nº de vagas", False, "Número inteiro."),
     ("emite_certificado", "Emite certificado", False, "Sim/Não."),
     ("palestrantes", "Palestrantes (e-mail)", False, "E-mails separados por ; ou ,."),
+    ("imagem", "Imagem (URL)", False, "Link da foto (Google Drive etc.); será listado, não baixado."),
 ]
 
 CAMPOS_CANONICOS = {chave for chave, _, _, _ in CAMPOS}
@@ -186,33 +190,44 @@ def validar_mapeamento(mapeamento, cabecalhos):
 # Mapeamento por IA (opcional; a rede de segurança é o dicionário acima)
 # ---------------------------------------------------------------------------
 
-def _prompt_mapeamento(cabecalhos, amostras, tipos, evento):
+def _prompt_mapeamento(cabecalhos, amostras, valores, dossie_texto):
     campos = "\n".join("- %s: %s %s" % (chave, ajuda, "(obrigatório)" if obrig else "")
                        for chave, _rot, obrig, ajuda in CAMPOS)
     return """Você ajuda a importar a programação de um evento de um campus do IFMG.
+Antes de decidir, use como VERDADE o contexto do banco de dados abaixo (catálogo
+de tipos, espaços, locais e convenções do campus). Prefira sempre o que já existe.
 
-Evento: {titulo} (tema: {categoria})
-Tipos de atividade já cadastrados: {tipos}
+=== CONTEXTO DO BANCO ===
+{dossie}
+=== FIM DO CONTEXTO ===
 
 Colunas do arquivo enviado: {cabecalhos}
 
 Amostra das primeiras linhas (JSON):
 {amostras}
 
+Valores distintos por coluna (para reconhecer tipo/espaço):
+{valores}
+
 Campos de destino possíveis:
 {campos}
 
-Mapeie cada coluna do arquivo para UM campo de destino, quando houver
-correspondência clara. NÃO invente colunas que não existem. Ignore colunas que
-não correspondem a nenhum campo.
+Tarefas:
+1. "mapeamento": mapeie cada coluna para UM campo de destino (ou omita se não houver correspondência).
+2. "normalizacoes": para os campos "tipo" e "local", traduza os valores da planilha
+   para o catálogo acima (nomes exatos). Quando não existir equivalente, proponha um
+   nome novo, curto e claro.
+3. "avisos": lista de observações (coluna sem uso, valor ambíguo, possível duplicata).
 
 Responda SOMENTE com JSON neste formato:
-{{"mapeamento": {{"<campo_destino>": "<coluna_do_arquivo>"}}}}""".format(
-        titulo=evento.title,
-        categoria=evento.get_categoria_display(),
-        tipos=", ".join(t.nome for t in tipos) or "(nenhum)",
+{{"mapeamento": {{"<campo_destino>": "<coluna_do_arquivo>"}},
+  "normalizacoes": {{"tipo": {{"<valor_planilha>": "<tipo do catálogo>"}},
+                     "local": {{"<valor_planilha>": "<espaço do catálogo>"}}}},
+  "avisos": ["<aviso>"]}}""".format(
+        dossie=dossie_texto,
         cabecalhos=", ".join(cabecalhos),
         amostras=amostras,
+        valores=valores,
         campos=campos,
     )
 
@@ -236,40 +251,97 @@ def sanitizar_mapeamento_ia(dados, cabecalhos):
     return limpo
 
 
-async def sugerir_mapeamento(cabecalhos, amostras, tipos, evento):
-    """Mapeamento sugerido: sinônimos primeiro; IA completa o que faltar.
+def valores_distintos(linhas, cabecalhos, limite=12):
+    """Valores distintos por coluna (para o modelo reconhecer tipo/espaço)."""
+    resultado = {}
+    for coluna in cabecalhos:
+        vistos, valores = set(), []
+        for linha in linhas or []:
+            valor = " ".join(str(linha.get(coluna, "") or "").split())
+            chave = valor.lower()
+            if valor and chave not in vistos:
+                vistos.add(chave)
+                valores.append(valor)
+                if len(valores) >= limite:
+                    break
+        if valores:
+            resultado[coluna] = valores
+    return resultado
 
-    Devolve `{"mapeamento": {...}, "origem": "ia"|"sinonimos"|None, "aviso": str}`.
+
+def sanitizar_normalizacoes(dados):
+    """Valida as normalizações tipo/local vindas da IA."""
+    limpo = {"tipo": {}, "local": {}}
+    if not isinstance(dados, dict):
+        return limpo
+    for campo in ("tipo", "local"):
+        tabela = dados.get(campo)
+        if not isinstance(tabela, dict):
+            continue
+        for origem, destino in tabela.items():
+            origem = " ".join(str(origem or "").split())[:120]
+            destino = " ".join(str(destino or "").split())[:120]
+            if origem and destino:
+                limpo[campo][origem] = destino
+    return limpo
+
+
+def _amostras_json(linhas, quantidade=8):
+    return json.dumps((linhas or [])[:quantidade], ensure_ascii=False)
+
+
+async def sugerir_mapeamento(cabecalhos, linhas, evento):
+    """Mapeamento sugerido, ancorado no banco (catálogo de tipos/espaços).
+
+    Sinônimos primeiro; a IA completa o mapeamento e propõe **normalizações** de
+    tipo/local + avisos. Devolve:
+        {"mapeamento", "normalizacoes", "avisos", "dossie", "origem", "aviso"}
     """
     mapa = mapear_por_sinonimos(cabecalhos)
-    faltam_colunas = [c for c in cabecalhos if c not in mapa.values()]
-    faltam_campos = [c for c in CAMPOS_CANONICOS if c not in mapa]
+    dados_dossie = await sync_to_async(contexto_ia.dossie)(evento)
+    dossie_texto = contexto_ia.resumo_texto(dados_dossie)
+    normalizacoes, avisos = {"tipo": {}, "local": {}}, []
     origem, aviso = "sinonimos", ""
 
-    if faltam_colunas and faltam_campos:
-        try:
-            client = services.get_openai_client()
-            resposta = await client.chat.completions.create(
-                model=settings.IA_MODELO_CLASSIFICACAO,
-                messages=[{"role": "system", "content": _prompt_mapeamento(
-                    cabecalhos, amostras, tipos, evento
-                )}],
-                max_tokens=800,
-                temperature=0,
-                response_format={"type": "json_object"},
-            )
-            services.registrar_uso_ia(
-                "importacao_mapeamento", settings.IA_MODELO_CLASSIFICACAO, resposta
-            )
-            dados = __import__("json").loads(resposta.choices[0].message.content or "{}")
-            for canonico, coluna in sanitizar_mapeamento_ia(dados, cabecalhos).items():
-                if canonico not in mapa:
-                    mapa[canonico] = coluna
-            origem = "ia"
-        except Exception as erro:  # noqa: BLE001 - IA é acessória
-            aviso = "A IA não está disponível agora; usei o mapeamento por sinônimos (%s)." % erro
+    dados_ia = {}
+    try:
+        client = services.get_openai_client()
+        resposta = await client.chat.completions.create(
+            model=settings.IA_MODELO_CLASSIFICACAO,
+            messages=[{"role": "system", "content": _prompt_mapeamento(
+                cabecalhos,
+                _amostras_json(linhas),
+                json.dumps(valores_distintos(linhas, cabecalhos), ensure_ascii=False),
+                dossie_texto,
+            )}],
+            max_tokens=1200,
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+        services.registrar_uso_ia(
+            "importacao_mapeamento", settings.IA_MODELO_CLASSIFICACAO, resposta
+        )
+        dados_ia = json.loads(resposta.choices[0].message.content or "{}")
+        for canonico, coluna in sanitizar_mapeamento_ia(dados_ia, cabecalhos).items():
+            if canonico not in mapa:
+                mapa[canonico] = coluna
+        normalizacoes = sanitizar_normalizacoes(dados_ia.get("normalizacoes"))
+        avisos = [" ".join(str(a).split())[:200] for a in (dados_ia.get("avisos") or []) if str(a).strip()][:6]
+        origem = "ia"
+    except Exception as erro:  # noqa: BLE001 - IA é acessória
+        aviso = "A IA não está disponível agora; usei o mapeamento por sinônimos (%s)." % erro
 
-    return {"mapeamento": mapa, "origem": origem, "aviso": aviso}
+    return {
+        "mapeamento": mapa,
+        "normalizacoes": normalizacoes,
+        "avisos": avisos,
+        "dossie": {
+            "tipos": [t["nome"] for t in dados_dossie.get("tipos", [])],
+            "espacos": [e["nome"] for e in dados_dossie.get("espacos", [])],
+        },
+        "origem": origem,
+        "aviso": aviso,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -342,8 +414,11 @@ def montar_linha(canonica, evento):
     }
 
 
-def aplicar_mapeamento(linhas, mapeamento, evento):
-    """Aplica o mapeamento {campo: coluna} e devolve as linhas canônicas."""
+def aplicar_mapeamento(linhas, mapeamento, evento, normalizacoes=None):
+    """Aplica o mapeamento {campo: coluna} e as normalizações tipo/local."""
+    normalizacoes = normalizacoes or {}
+    tabela_tipo = normalizacoes.get("tipo") or {}
+    tabela_local = normalizacoes.get("local") or {}
     canonicas = []
     for linha in linhas or []:
         base = {
@@ -351,8 +426,70 @@ def aplicar_mapeamento(linhas, mapeamento, evento):
             for canonico, origem in (mapeamento or {}).items()
             if origem
         }
+        tipo = (base.get("tipo") or "").strip()
+        if tipo and tipo in tabela_tipo:
+            base["tipo"] = tabela_tipo[tipo]
+        local = (base.get("local") or "").strip()
+        if local and local in tabela_local:
+            base["local"] = tabela_local[local]
         canonicas.append(montar_linha(base, evento))
     return canonicas
+
+
+def detectar_imagens(linhas, mapeamento):
+    """Lista links de imagem detectados (coluna mapeada para 'imagem' ou heurística).
+
+    Não baixa nada: devolve `[{"linha": n, "url": ...}]` para o organizador ver.
+    """
+    colunas = []
+    if (mapeamento or {}).get("imagem"):
+        colunas.append(mapeamento["imagem"])
+    for coluna in (mapeamento or {}).values():
+        if coluna and re.search(r"foto|imagem|image|url|link|drive", _norm(coluna)):
+            if coluna not in colunas:
+                colunas.append(coluna)
+    if not colunas:
+        return []
+
+    achadas = []
+    for indice, linha in enumerate(linhas or [], start=1):
+        for coluna in colunas:
+            valor = " ".join(str(linha.get(coluna, "") or "").split())
+            if valor and re.search(r"https?://|drive\.google|\.(png|jpe?g|webp|gif)\b", valor, re.I):
+                achadas.append({"linha": indice, "url": valor[:300]})
+    return achadas
+
+
+def detectar_duplicatas(canonicas, evento):
+    """Títulos que já existem no evento (aviso antes de importar)."""
+    existentes = {
+        sem_acento(titulo)
+        for titulo in evento.atividades.values_list("titulo", flat=True)
+    }
+    repetidos = []
+    for linha in canonicas or []:
+        titulo = linha.get("titulo", "")
+        if titulo and sem_acento(titulo) in existentes and titulo not in repetidos:
+            repetidos.append(titulo)
+    return repetidos
+
+
+def valores_faltantes(canonicas, evento):
+    """Tipos e locais usados nas linhas que NÃO existem no catálogo (para criar)."""
+    dados = contexto_ia.dossie(evento)
+    nomes_tipos = {sem_acento(t["nome"]) for t in dados.get("tipos", [])}
+    nomes_locais = {sem_acento(n) for n in dados.get("locais_conhecidos", [])}
+    nomes_locais |= {sem_acento(e["nome"]) for e in dados.get("espacos", [])}
+
+    tipos, locais = [], []
+    for linha in canonicas or []:
+        tipo = (linha.get("tipo") or "").strip()
+        if tipo and sem_acento(tipo) not in nomes_tipos and tipo not in tipos:
+            tipos.append(tipo)
+        local = (linha.get("local") or "").strip()
+        if local and sem_acento(local) not in nomes_locais and local not in locais:
+            locais.append(local)
+    return {"tipos": tipos, "locais": locais}
 
 
 def previsualizar(evento, linhas_canonicas):

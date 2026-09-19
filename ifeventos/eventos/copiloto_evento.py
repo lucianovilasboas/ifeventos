@@ -18,6 +18,7 @@ from asgiref.sync import sync_to_async
 
 from . import importacao_assistida
 from . import services
+from . import contexto_ia
 from .models import TipoAtividade, sem_acento
 
 MODELO = settings.IA_MODELO_CLASSIFICACAO
@@ -53,8 +54,14 @@ def quantos_dias(evento):
     return max(1, total + 1)
 
 
-def _prompt(titulo, descricao, categoria, evento, observacoes, tipos):
+def _prompt(titulo, descricao, categoria, evento, observacoes, dossie_texto, tipos):
     return """Você é o copiloto de um organizador de eventos de um campus do IFMG.
+Use como VERDADE o contexto do banco de dados abaixo (tipos, espaços, campos e
+convenções da escola): proponha a programação reaproveitando o que já existe.
+
+=== CONTEXTO DO BANCO ===
+{dossie}
+=== FIM DO CONTEXTO ===
 
 Título do evento: {titulo}
 Categoria/tema informada: {categoria}
@@ -62,19 +69,21 @@ Local: {local}
 Período: {inicio} a {fim} ({dias} dia(s))
 Descrição atual: {descricao}
 Observações do organizador: {observacoes}
-Tipos de atividade no catálogo: {tipos}
 
 Monte um plano inicial. Regras:
 1. "descricao": um parágrafo atrativo, em português, convidando a participar.
 2. "categoria": um tema curto (1 a 3 palavras). Reuse a categoria informada quando fizer sentido.
 3. "blocos": até {max_blocos} blocos no formato "HH:MM-HH:MM".
 4. "atividades": até {max_atividades} atividades. Cada uma com "titulo", "descricao"
-   curta, "tipo" (de preferência um tipo do catálogo) e "turno" ("manhã", "tarde" ou "noite").
+   curta, "tipo" (prefira um tipo do catálogo), "turno" ("manhã", "tarde" ou "noite"),
+   "local" (prefira um espaço do catálogo) e "n_vagas" (inteiro; considere a capacidade).
 5. Não invente datas exatas; use só o turno.
 
 Responda SOMENTE com JSON neste formato:
 {{"descricao": "...", "categoria": "...", "blocos": ["08:00-10:00"],
-  "atividades": [{{"titulo": "...", "descricao": "...", "tipo": "...", "turno": "manhã"}}]}}""".format(
+  "atividades": [{{"titulo": "...", "descricao": "...", "tipo": "...",
+                   "turno": "manhã", "local": "...", "n_vagas": 30}}]}}""".format(
+        dossie=dossie_texto,
         titulo=titulo or "(sem título)",
         categoria=categoria or "(não informada)",
         local=evento.local or "(não informado)",
@@ -83,7 +92,6 @@ Responda SOMENTE com JSON neste formato:
         dias=quantos_dias(evento),
         descricao=descricao or "(sem descrição)",
         observacoes=observacoes or "(nenhuma)",
-        tipos=", ".join(t.nome for t in tipos) or "(nenhum)",
         max_blocos=MAX_BLOCOS,
         max_atividades=MAX_ATIVIDADES,
     )
@@ -115,11 +123,17 @@ def sanitizar_plano(dados, evento, tipos):
             continue
         tipo = _limpar_nome(item.get("tipo"), 80)
         canonico = nomes_tipos.get(sem_acento(tipo))
+        try:
+            n_vagas = max(0, int(item.get("n_vagas")))
+        except (TypeError, ValueError):
+            n_vagas = 0
         atividades.append({
             "titulo": titulo,
             "descricao": " ".join(str(item.get("descricao") or "").split())[:400],
             "tipo": canonico or tipo,
             "turno": normalizar_turno(item.get("turno")) or "manha",
+            "local": _limpar_nome(item.get("local"), 160),
+            "n_vagas": n_vagas,
         })
         if len(atividades) >= MAX_ATIVIDADES:
             break
@@ -155,12 +169,14 @@ async def gerar_plano(titulo, descricao, categoria, evento, observacoes=""):
     Devolve `{"descricao", "categoria", "blocos", "atividades", "origem", "aviso"}`.
     """
     tipos = await sync_to_async(list)(TipoAtividade.objects.order_by("nome"))
+    dados_dossie = await sync_to_async(contexto_ia.dossie)(evento)
+    dossie_texto = contexto_ia.resumo_texto(dados_dossie)
     try:
         client = services.get_openai_client()
         resposta = await client.chat.completions.create(
             model=MODELO,
             messages=[{"role": "system", "content": _prompt(
-                titulo, descricao, categoria, evento, observacoes, tipos
+                titulo, descricao, categoria, evento, observacoes, dossie_texto, tipos
             )}],
             max_tokens=1500,
             temperature=0.4,
@@ -200,6 +216,9 @@ def plano_para_linhas(plano, evento):
     """
     linhas = []
     total_dias = quantos_dias(evento)
+    dados = contexto_ia.dossie(evento)
+    nomes_locais = {sem_acento(n): n for n in dados.get("locais_conhecidos", [])}
+    nomes_locais.update({sem_acento(e["nome"]): e["nome"] for e in dados.get("espacos", [])})
     for indice, atividade in enumerate(plano.get("atividades") or []):
         titulo = _limpar_nome(atividade.get("titulo"))
         if not titulo:
@@ -211,14 +230,16 @@ def plano_para_linhas(plano, evento):
         inicio = "%s %s" % (dia.strftime("%d/%m/%Y"), limites[0])
         fim = "%s %s" % (dia.strftime("%d/%m/%Y"), limites[1])
         tipo = _tipo_existente(atividade.get("tipo"))
+        local_sugerido = _limpar_nome(atividade.get("local"), 160)
+        local = nomes_locais.get(sem_acento(local_sugerido), local_sugerido)
         linhas.append({
             "titulo": titulo,
             "descricao": atividade.get("descricao", ""),
             "tipo": tipo.nome if tipo else "",
-            "local": "",
+            "local": local,
             "inicio": inicio,
             "fim": fim,
-            "n_vagas": "",
+            "n_vagas": str(atividade.get("n_vagas") or ""),
             "emite_certificado": "",
             "palestrantes": "",
         })
