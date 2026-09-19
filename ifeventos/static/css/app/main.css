@@ -311,6 +311,13 @@ body:has(.reset-password-container) .hero-ico { display: none; }
    Mesmo gutter do `.app-list`/`.app-sec`: 16px no celular, 24px no desktop. */
 .app-page { padding-left: var(--gutter-phone); padding-right: var(--gutter-phone); }
 
+/* Quando o `.app-page` envolve componentes que já têm o gutter próprio, o
+   respiro não pode somar (ex.: páginas que misturam `.app-panel` + `.app-list`,
+   como "Minhas propostas" e a programação pública). */
+.app-page .app-list,
+.app-page .app-stats,
+.app-page .cards-h { padding-left: 0; padding-right: 0; }
+
 /* Busca dentro de uma lista de atividades (filtro no cliente, sem paginação). */
 .busca-lista { margin-bottom: var(--space-3); }
 .busca-lista input {

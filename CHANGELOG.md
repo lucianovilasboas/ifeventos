@@ -95,6 +95,13 @@ no fim do ciclo, com a tag `v2.0.0`.
   - **Redirecionamento 301** das URLs antigas `relatorio_alunos/...` para
     `relatorio_participantes/...` (com query string preservada), para links e
     bookmarks antigos não caírem em 404 após o rename.
+- **Gutter padronizado nas telas antigas (dev.19):** todos os painéis das telas
+  internas passam a guardar o mesmo respiro lateral (16px celular / 24px
+  desktop). Aplicado em: painel da chamada, chamada de propostas, propostas
+  pendentes, minhas propostas, propor atividade, minhas palestras, assistente,
+  crachás (só o topo), programação pública e formulários de evento/atividade/
+  perfil. O `.app-page` agora neutraliza o gutter de `.app-list/.app-stats/
+  .cards-h` aninhados, evitando padding duplicado.
 
 ### Alterado
 

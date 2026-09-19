@@ -27,6 +27,7 @@
 {% endblock action %}
 
 {% block content %}
+<div class="app-page">
 
 <p class="text-muted mb-3">
     {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }} · {{ situacao }}
@@ -204,4 +205,5 @@
     </div>
 </div>
 
+</div>
 {% endblock %}

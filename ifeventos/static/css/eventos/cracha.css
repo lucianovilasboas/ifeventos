@@ -16,6 +16,22 @@
     margin-bottom: 20px;
 }
 
+/* Respiro lateral padrão do topo (título/botão/dica) em tela. A LISTA de
+   crachás fica full-bleed de propósito: o crachá tem 100mm fixos e, num
+   celular, o gutter roubaria espaço da impressão. */
+@media screen {
+    .crachas-toolbar {
+        padding-left: var(--gutter-phone);
+        padding-right: var(--gutter-phone);
+    }
+}
+@media screen and (min-width: 992px) {
+    .crachas-toolbar {
+        padding-left: var(--gutter-desktop);
+        padding-right: var(--gutter-desktop);
+    }
+}
+
 .crachas-toolbar p {
     margin: 0;
     color: var(--muted);
