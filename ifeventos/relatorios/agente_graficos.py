@@ -2,7 +2,7 @@
 
 O organizador pode pedir "quais gráficos mostrar?" (curadoria) ou um "insight"
 sobre os gráficos já exibidos. O agente só **escolhe do catálogo** de gráficos
-que o servidor sabe montar (`agregacoes.graficos_alunos`/`graficos.py`) e
+que o servidor sabe montar (`agregacoes.graficos_participantes`/`graficos.py`) e
 comenta os números que já existem — nunca inventa agregação nem dado. Sem IA,
 cai num fallback determinístico.
 """

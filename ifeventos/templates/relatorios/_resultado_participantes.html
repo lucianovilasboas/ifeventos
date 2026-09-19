@@ -1,7 +1,7 @@
 {% load metadados_extras %}
 {% comment %}
   Trecho trocado por AJAX pela busca. Não inclui o formulário nem o wrapper
-  #resultado-alunos (o input precisa continuar vivo).
+  #resultado-participantes (o input precisa continuar vivo).
 {% endcomment %}
 
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -56,7 +56,7 @@
                 <td>{{ linha.n_certificados }}</td>
                 {% for col in colunas_metadados %}<td>{{ linha.metadados|meta:col.chave }}</td>{% endfor %}
                 <td>
-                    <a href="{% url 'organizador:relatorio_aluno_detalhe' evento.id linha.pessoa.id %}"
+                    <a href="{% url 'organizador:relatorio_participante_detalhe' evento.id linha.pessoa.id %}"
                        class="btn btn-sm btn-outline-primary" title="Detalhe">
                         <i class="fa-solid fa-eye"></i>
                     </a>

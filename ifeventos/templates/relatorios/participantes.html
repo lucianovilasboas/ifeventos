@@ -1,13 +1,13 @@
 {% extends 'dashboard_base.html' %}
 {% load metadados_extras %}
 {% load static %}
-{% block title %}Relatório por aluno | {{ evento.title }}{% endblock %}
+{% block title %}Relatório por participante | {{ evento.title }}{% endblock %}
 
 {% block content %}
 {{ graficos|json_script:"dados-graficos" }}
-<div class="container-fluid px-0">
+<div class="app-page">
     <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span><i class="fa-solid fa-user-graduate"></i> Relatório por aluno</span>
+        <span><i class="fa-solid fa-users"></i> Relatório por participante</span>
         <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
             <i class="fa fa-arrow-left"></i> Voltar
         </a>
@@ -61,7 +61,7 @@
     </form>
 
     <!-- IA: curadoria + insights + texto para gráfico -->
-    {% include "relatorios/_ia_graficos.html" with pagina_ia="alunos" grade_id="#gradeGraficos" %}
+    {% include "relatorios/_ia_graficos.html" with pagina_ia="participantes" grade_id="#gradeGraficos" %}
 
     <!-- Gráficos -->
     <div class="row g-3 mb-3" id="gradeGraficos">
@@ -78,8 +78,8 @@
         {% endfor %}
     </div>
 
-    <div id="resultado-alunos" aria-live="polite">
-        {% include "relatorios/_resultado_alunos.html" %}
+    <div id="resultado-participantes" aria-live="polite">
+        {% include "relatorios/_resultado_participantes.html" %}
     </div>
 </div>
 

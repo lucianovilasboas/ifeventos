@@ -1,4 +1,4 @@
-"""Testes do relatório por aluno (F1/F3), da permissão (F0) e da IA dos gráficos."""
+"""Testes do relatório por participante (F1/F3), da permissão (F0) e da IA dos gráficos."""
 
 from datetime import timedelta
 import json
@@ -118,18 +118,18 @@ class AgregacoesTests(BaseRelatorioTests):
         self.assertEqual(len(agregacoes.resumo_por_pessoa(self.evento, termo="zzz")), 0)
 
 
-class RelatorioAlunosViewTests(BaseRelatorioTests):
+class RelatorioParticipantesViewTests(BaseRelatorioTests):
     def test_pagina_renderiza(self):
         self.client.force_login(self.org)
-        resposta = self.client.get(self.url("relatorio_alunos", self.evento.id))
+        resposta = self.client.get(self.url("relatorio_participantes", self.evento.id))
         self.assertEqual(resposta.status_code, 200)
-        self.assertContains(resposta, "Relatório por aluno")
+        self.assertContains(resposta, "Relatório por participante")
         self.assertContains(resposta, self.participante.email)
 
     def test_detalhe_renderiza(self):
         self.client.force_login(self.org)
         resposta = self.client.get(
-            self.url("relatorio_aluno_detalhe", self.evento.id, self.participante.id)
+            self.url("relatorio_participante_detalhe", self.evento.id, self.participante.id)
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, self.participante.email)
@@ -137,7 +137,7 @@ class RelatorioAlunosViewTests(BaseRelatorioTests):
     def test_export_csv(self):
         self.client.force_login(self.org)
         resposta = self.client.get(
-            self.url("relatorio_alunos", self.evento.id) + "?export=csv"
+            self.url("relatorio_participantes", self.evento.id) + "?export=csv"
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertIn("text/csv", resposta["Content-Type"])
@@ -146,7 +146,7 @@ class RelatorioAlunosViewTests(BaseRelatorioTests):
 class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
     def test_curadoria_fallback(self):
         linhas = agregacoes.resumo_por_pessoa(self.evento)
-        disponiveis = agregacoes.graficos_alunos(linhas)
+        disponiveis = agregacoes.graficos_participantes(linhas)
         with mock.patch("eventos.services.get_openai_client", side_effect=RuntimeError("x")):
             resultado = async_to_sync(agente_graficos.curar)(
                 self.evento, disponiveis, {"pessoas": len(linhas)}
@@ -155,17 +155,17 @@ class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
         self.assertTrue(resultado["ids"])
 
     def test_curadoria_ia_descarta_id_invalido(self):
-        disponiveis = [{"id": "alunos_vinculo", "titulo": "Vínculo"}]
+        disponiveis = [{"id": "participantes_vinculo", "titulo": "Vínculo"}]
         fake = mock.MagicMock()
         fake.chat = mock.MagicMock()
         fake.chat.completions.create = AsyncMock(
-            return_value=_resposta_fake({"ids": ["inexistente", "alunos_vinculo"], "legenda": "ok"})
+            return_value=_resposta_fake({"ids": ["inexistente", "participantes_vinculo"], "legenda": "ok"})
         )
         with mock.patch("eventos.services.get_openai_client", return_value=fake):
             resultado = async_to_sync(agente_graficos.curar)(
                 self.evento, disponiveis, {"pessoas": 1}
             )
-        self.assertEqual(resultado["ids"], ["alunos_vinculo"])
+        self.assertEqual(resultado["ids"], ["participantes_vinculo"])
 
     def test_endpoint_curadoria_exige_organizador(self):
         self.client.force_login(self.participante)
@@ -176,15 +176,15 @@ class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
 
     def test_grafico_por_descricao_fallback_casa_palavra(self):
         disponiveis = [
-            {"id": "alunos_carga", "titulo": "Carga horária por participante"},
-            {"id": "alunos_presenca", "titulo": "Presenças × ausências"},
+            {"id": "participantes_carga", "titulo": "Carga horária por participante"},
+            {"id": "participantes_presenca", "titulo": "Presenças × ausências"},
         ]
         with mock.patch("eventos.services.get_openai_client", side_effect=RuntimeError("x")):
             resultado = async_to_sync(agente_graficos.grafico_por_descricao)(
-                self.evento, disponiveis, "carga horária dos alunos"
+                self.evento, disponiveis, "carga horária dos participantes"
             )
         self.assertEqual(resultado["origem"], "heuristica")
-        self.assertEqual(resultado["id"], "alunos_carga")
+        self.assertEqual(resultado["id"], "participantes_carga")
 
     def test_grafico_por_descricao_fallback_sem_casa_usa_primeiro(self):
         disponiveis = [
@@ -199,27 +199,27 @@ class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
 
     def test_grafico_por_descricao_ia_usa_id_valido(self):
         disponiveis = [
-            {"id": "alunos_presenca", "titulo": "Presenças × ausências"},
-            {"id": "alunos_carga", "titulo": "Carga horária por participante"},
+            {"id": "participantes_presenca", "titulo": "Presenças × ausências"},
+            {"id": "participantes_carga", "titulo": "Carga horária por participante"},
         ]
         fake = mock.MagicMock()
         fake.chat = mock.MagicMock()
         fake.chat.completions.create = AsyncMock(
-            return_value=_resposta_fake({"id": "alunos_presenca", "legenda": "presença"})
+            return_value=_resposta_fake({"id": "participantes_presenca", "legenda": "presença"})
         )
         with mock.patch("eventos.services.get_openai_client", return_value=fake):
             resultado = async_to_sync(agente_graficos.grafico_por_descricao)(
                 self.evento, disponiveis, "quem foi e quem não foi"
             )
         self.assertEqual(resultado["origem"], "ia")
-        self.assertEqual(resultado["id"], "alunos_presenca")
+        self.assertEqual(resultado["id"], "participantes_presenca")
 
     def test_endpoint_grafico_por_descricao_organizador(self):
         self.client.force_login(self.org)
         fake = mock.MagicMock()
         fake.chat = mock.MagicMock()
         fake.chat.completions.create = AsyncMock(
-            return_value=_resposta_fake({"id": "alunos_carga", "legenda": "carga"})
+            return_value=_resposta_fake({"id": "participantes_carga", "legenda": "carga"})
         )
         with mock.patch("eventos.services.get_openai_client", return_value=fake):
             resposta = self.client.post(
@@ -229,8 +229,32 @@ class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
             )
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
-        self.assertEqual(dados["id"], "alunos_carga")
+        self.assertEqual(dados["id"], "participantes_carga")
         self.assertEqual(dados["origem"], "ia")
+        self.assertEqual(dados["grafico"]["id"], "participantes_carga")
+        self.assertTrue(dados["grafico"]["series"])
+
+    def test_grafico_por_descricao_pode_retornar_grafico_do_evento(self):
+        # O catálogo unificado inclui os gráficos do evento (ex.: ocupação por
+        # sala) que a página pode não mostrar — o endpoint devolve o gráfico
+        # montado para o frontend anexar como card novo.
+        self.client.force_login(self.org)
+        fake = mock.MagicMock()
+        fake.chat = mock.MagicMock()
+        fake.chat.completions.create = AsyncMock(
+            return_value=_resposta_fake({"id": "ocupacao_sala", "legenda": "por sala"})
+        )
+        with mock.patch("eventos.services.get_openai_client", return_value=fake):
+            resposta = self.client.post(
+                self.url("grafico_por_descricao", self.evento.id),
+                data=json.dumps({"pagina": "oficinas", "texto": "ocupação por sala"}),
+                content_type="application/json",
+            )
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertEqual(dados["id"], "ocupacao_sala")
+        self.assertEqual(dados["grafico"]["id"], "ocupacao_sala")
+        self.assertIn("labels", dados["grafico"])
 
     def test_endpoint_grafico_por_descricao_exige_organizador(self):
         self.client.force_login(self.participante)
@@ -279,10 +303,10 @@ class RelatorioTurmasTests(BaseRelatorioTests):
         self.assertEqual(agregacoes.grupo_de(linha, "curso_turma_ano"), "Informática · Turma 1")
         self.assertEqual(agregacoes.grupo_de(linha, "curso"), "Informática")
 
-    def test_drill_down_filtra_alunos(self):
+    def test_drill_down_filtra_participantes(self):
         self.client.force_login(self.org)
         resposta = self.client.get(
-            self.url("relatorio_alunos", self.evento.id)
+            self.url("relatorio_participantes", self.evento.id)
             + "?agrupar=curso_turma_ano&grupo="
             + __import__("urllib.parse", fromlist=["quote"]).quote("Informática · Turma 1")
         )

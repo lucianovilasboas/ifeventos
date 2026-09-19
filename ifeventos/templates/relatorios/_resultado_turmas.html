@@ -40,8 +40,8 @@
                 <td>{{ grupo.taxa_presenca }}</td>
                 <td>{{ grupo.taxa_certificacao }}</td>
                 <td>
-                    <a href="{% url 'organizador:relatorio_alunos' evento.id %}?agrupar={{ agrupar }}&amp;grupo={{ grupo.grupo|urlencode }}"
-                       class="btn btn-sm btn-outline-primary" title="Ver alunos do grupo">
+                    <a href="{% url 'organizador:relatorio_participantes' evento.id %}?agrupar={{ agrupar }}&amp;grupo={{ grupo.grupo|urlencode }}"
+                       class="btn btn-sm btn-outline-primary" title="Ver participantes do grupo">
                         <i class="fa-solid fa-user-graduate"></i>
                     </a>
                 </td>

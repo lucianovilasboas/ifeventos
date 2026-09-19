@@ -496,6 +496,11 @@
    Check-in pela câmera (fluxo A1) — a organização aponta e a presença entra
    ------------------------------------------------------------------------- */
 
+.chk {
+    padding-left: var(--gutter-phone);
+    padding-right: var(--gutter-phone);
+}
+
 .chk-topo {
     display: flex;
     flex-wrap: wrap;

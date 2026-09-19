@@ -76,9 +76,22 @@ no fim do ciclo, com a tag `v2.0.0`.
   usava `IsDonoEvento` e barrava o palestrante, mesmo com a tela liberada.
 - **IA nos gráficos nas demais páginas + text-to-chart (Onda R6):** curadoria,
   insights e **gráfico por descrição em linguagem natural** nas páginas por
-  aluno, por turma e por tipo (`relatorios/_ia_graficos.html`); endpoint
+  participante, por turma e por tipo (`relatorios/_ia_graficos.html`); endpoint
   `grafico_por_descricao` com fallback determinístico por palavra-chave e o
   contexto de IA `graficos_nl`.
+- **Refino dos relatórios (dev.17):**
+  - **Renome "aluno" → "participante"** em todas as camadas (rotas
+    `relatorio_participantes`, views, templates, agregações e ids de gráfico).
+  - **"Criar gráfico" agora adiciona um gráfico novo** à página: `graficos.py`
+    virou catálogo de specs (`graficos(evento, ids=None)`, `grafico_por_id`) e
+    o catálogo do texto é o do evento ∪ o da página; se o gráfico já estiver
+    na tela, só destaca.
+  - **Feedback visível da IA** (callout com carregando/sucesso/erro), curadoria
+    reordena a grade e os endpoints respeitam os filtros da página
+    (`?tipo=`, `?agrupar=`, `?grupo=`).
+  - **Gutter padronizado** (16px celular / 24px desktop) em todas as telas
+    internas (relatórios, dashboard do organizador, importações, operação,
+    check-in) e painel de IA responsivo (input + botão sem colar).
 
 ### Alterado
 
