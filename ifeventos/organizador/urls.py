@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path
+from django.views.generic import RedirectView
 
 from organizador.views import adicionar_palestrante, adicionar_tipo_atividade
 from organizador.views import adicionar_espaco_ajax
@@ -125,6 +126,18 @@ urlpatterns = [
     path("relatorio_participantes/<int:evento_id>/curadoria/", graficos_curadoria, name="graficos_curadoria"),
     path("relatorio_participantes/<int:evento_id>/grafico/", grafico_por_descricao, name="grafico_por_descricao"),
     path("relatorio_participantes/<int:evento_id>/insights/", graficos_insights, name="graficos_insights"),
+    # Redirecionamento das URLs antigas (rename "aluno" -> "participante").
+    # 301 permanente + query string preservada, para links/bookmarks antigos
+    # não caírem em 404. As sub-rotas curadoria/grafico/insights são POST do
+    # próprio JS (a página sempre carrega com a URL nova) e ficam de fora.
+    path("relatorio_alunos/<int:evento_id>/",
+         RedirectView.as_view(pattern_name="organizador:relatorio_participantes",
+                              permanent=True, query_string=True),
+         name="relatorio_alunos_redirect"),
+    path("relatorio_alunos/<int:evento_id>/<int:participante_id>/",
+         RedirectView.as_view(pattern_name="organizador:relatorio_participante_detalhe",
+                              permanent=True, query_string=True),
+         name="relatorio_aluno_detalhe_redirect"),
     path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
 
 

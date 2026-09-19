@@ -92,6 +92,9 @@ no fim do ciclo, com a tag `v2.0.0`.
   - **Gutter padronizado** (16px celular / 24px desktop) em todas as telas
     internas (relatórios, dashboard do organizador, importações, operação,
     check-in) e painel de IA responsivo (input + botão sem colar).
+  - **Redirecionamento 301** das URLs antigas `relatorio_alunos/...` para
+    `relatorio_participantes/...` (com query string preservada), para links e
+    bookmarks antigos não caírem em 404 após o rename.
 
 ### Alterado
 
