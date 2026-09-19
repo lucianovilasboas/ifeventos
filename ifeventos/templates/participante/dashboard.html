@@ -3,6 +3,14 @@
 
 {% block title %}Painel | Participante{% endblock %}
 
+{% block action %}
+<div class="d-flex justify-content-end">
+    <a href="{% url 'participante:assistente' %}" class="btn btn-sm btn-outline-primary">
+        <i class="fa-solid fa-robot"></i> Assistente da programação
+    </a>
+</div>
+{% endblock action %}
+
 {% block content %}
 {% include 'includes/participante_inscricoes_e_atividades.html' %}
 {% endblock content %}

@@ -1,0 +1,89 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}Assistente | Nossos Eventos{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="fa-solid fa-robot"></i> Assistente da programação</span>
+    <a href="{% url 'participante:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="container mt-2">
+    <div class="app-panel p-3">
+        <p class="mb-2">
+            Pergunte sobre a programação: <i>"o que tem na quinta à tarde?"</i>,
+            <i>"onde é a oficina de robótica?"</i>, <i>"como tiro meu certificado?"</i>.
+        </p>
+        <div id="chat" class="mb-2" style="max-height:52vh;overflow-y:auto"></div>
+        <form id="chatForm" class="d-flex gap-2">
+            <input id="chatInput" class="form-control" autocomplete="off"
+                   placeholder="Escreva sua pergunta..." maxlength="600">
+            <button class="btn btn-app" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+        <small class="text-muted d-block mt-2" id="chatStatus">
+            As respostas vêm da programação publicada. Confira sempre a agenda em /eventos/.
+        </small>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+(function () {
+    const chat = document.getElementById("chat");
+    const form = document.getElementById("chatForm");
+    const input = document.getElementById("chatInput");
+    const status = document.getElementById("chatStatus");
+    const historico = [];
+
+    function esc(t) {
+        const d = document.createElement("div");
+        d.textContent = t == null ? "" : t;
+        return d.innerHTML;
+    }
+
+    function bolha(papel, texto) {
+        const div = document.createElement("div");
+        div.className = "mb-2 d-flex " + (papel === "user" ? "justify-content-end" : "justify-content-start");
+        div.innerHTML =
+            '<div style="max-width:85%;padding:8px 12px;border-radius:12px;white-space:pre-wrap;' +
+            (papel === "user"
+                ? "background:var(--accent);color:#fff;"
+                : "background:var(--surface-soft,rgba(0,0,0,.06));") +
+            '">' + esc(texto) + "</div>";
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    bolha("assistant", "Olá! Posso ajudar você a encontrar atividades na programação. O que você procura?");
+
+    form.addEventListener("submit", async function (ev) {
+        ev.preventDefault();
+        const texto = input.value.trim();
+        if (!texto) return;
+        bolha("user", texto);
+        historico.push({ papel: "user", texto: texto });
+        input.value = "";
+        status.textContent = "Procurando na programação...";
+        try {
+            const resposta = await fetch("{% url 'participante:assistente_responder' %}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                body: JSON.stringify({ mensagem: texto, historico: historico.slice(-6) })
+            });
+            const dados = await resposta.json();
+            const textoResposta = dados.resposta || dados.erro || "Não consegui responder agora.";
+            bolha("assistant", textoResposta);
+            historico.push({ papel: "assistant", texto: textoResposta });
+            status.textContent = dados.aviso || "As respostas vêm da programação publicada.";
+        } catch (erro) {
+            bolha("assistant", "Falha ao falar com o assistente. Tente novamente.");
+            status.textContent = "";
+        }
+    });
+})();
+</script>
+{% endblock scripts %}
