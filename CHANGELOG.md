@@ -26,6 +26,9 @@ no fim do ciclo, com a tag `v2.0.0`.
   (`.csv/.xls/.xlsx`), mapeamento automático das colunas (IA + sinônimos),
   prévia sem gravar e confirmação antes de importar; reaproveita a idempotência
   por título + início de `importacao_programacao`.
+- **Copiloto de criação de evento (Onda 2):** a partir de um resumo, propõe
+  descrição, tema, blocos de horário e uma programação inicial; as atividades
+  são criadas como rascunho com um clique (reusa a importação).
 
 ### Alterado
 
