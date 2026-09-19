@@ -1,7 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import JsonResponse
+import json
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, View
 from django.shortcuts import render
@@ -9,6 +11,30 @@ from django.shortcuts import get_object_or_404
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas
 from eventos.models import Inscricao, Atividade
+
+
+class _PermissaoEventoMixin:
+    """Exige `pode_gerenciar_evento` nos relatórios do organizador.
+
+    Antes os relatórios só pediam login: qualquer pessoa autenticada que
+    descobrisse a URL via nome + e-mail (PII). A regra é a mesma do resto do
+    site (`eventos.crachas.pode_gerenciar_evento`): staff/superuser, quem tem a
+    flag de organizador ou o dono do evento.
+    """
+
+    def evento_do_relatorio(self):
+        """Evento usado na checagem. Cada view resolve do seu jeito."""
+        return None
+
+    def dispatch(self, request, *args, **kwargs):
+        from eventos.crachas import pode_gerenciar_evento
+
+        if request.user.is_authenticated:
+            evento = self.evento_do_relatorio()
+            if evento is not None and not pode_gerenciar_evento(request.user, evento):
+                raise PermissionDenied("Você não gerencia este evento.")
+        return super().dispatch(request, *args, **kwargs)
+
 
 
 # Campos ordenáveis do relatório: chave do cabeçalho -> campos do ORM.
@@ -114,11 +140,16 @@ class _ColunasMetadadosMixin:
         }
 
 
-class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListView):
+class RelatorioInscricoesView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
     model = Inscricao
     template_name = "relatorios/inscricoes.html"
     context_object_name = "inscricoes"
     paginate_by = 20  # Paginação: Exibe 20 inscrições por página
+
+    def evento_do_relatorio(self):
+        from eventos.models import Evento
+
+        return Evento.objects.filter(id=self.kwargs.get("evento_id")).first()
 
     def colunas_opcionais(self):
         """O Evento é o mesmo para todas as linhas, então dá para ocultá-lo."""
@@ -287,10 +318,14 @@ class RelatorioInscricoesView(_ColunasMetadadosMixin, LoginRequiredMixin, ListVi
         return context
 
 
-class ListaPresencaView(_ColunasMetadadosMixin, LoginRequiredMixin, ListView):
+class ListaPresencaView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
     model = Inscricao
     template_name = "relatorios/lista_presenca.html"
     context_object_name = "inscricoes"
+
+    def evento_do_relatorio(self):
+        atividade = Atividade.objects.filter(id=self.kwargs.get("atividade_id")).first()
+        return atividade.evento if atividade else None
 
     def get_queryset(self):
         """
@@ -346,7 +381,7 @@ class ListaPresencaView(_ColunasMetadadosMixin, LoginRequiredMixin, ListView):
         return context
 
 
-class OcupacaoSalasView(LoginRequiredMixin, View):
+class OcupacaoSalasView(_PermissaoEventoMixin, LoginRequiredMixin, View):
     """Ocupação por sala do evento + distribuição por dia/hora (organizador).
 
     Ajuda a dimensionar espaços: quantas atividades, vagas oferecidas,
@@ -356,6 +391,11 @@ class OcupacaoSalasView(LoginRequiredMixin, View):
     """
 
     template_name = "relatorios/ocupacao_salas.html"
+
+    def evento_do_relatorio(self):
+        from eventos.models import Evento
+
+        return Evento.objects.filter(id=self.kwargs.get("evento_id")).first()
 
     def _evento(self):
         from eventos.models import Evento
@@ -461,7 +501,7 @@ class OcupacaoSalasView(LoginRequiredMixin, View):
         return padrao
 
 
-class RelatoriosGraficosView(LoginRequiredMixin, View):
+class RelatoriosGraficosView(_PermissaoEventoMixin, LoginRequiredMixin, View):
     """Painel analítico do evento: indicadores + gráficos (Chart.js).
 
     As agregações ficam em `relatorios/graficos.py` (funções puras); aqui é só
@@ -469,6 +509,11 @@ class RelatoriosGraficosView(LoginRequiredMixin, View):
     """
 
     template_name = "relatorios/graficos.html"
+
+    def evento_do_relatorio(self):
+        from eventos.models import Evento
+
+        return Evento.objects.filter(id=self.kwargs.get("evento_id")).first()
 
     def get(self, request, *args, **kwargs):
         from eventos.models import Evento
@@ -501,3 +546,184 @@ async def narrativa_evento(request, evento_id):
         return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
 
     return JsonResponse(await narrativa.narrar(evento))
+
+
+class RelatorioAlunosView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
+    """Relatório por aluno: uma linha por pessoa com papel no evento.
+
+    Página com KPIs, tabela (busca/paginação) e gráficos; a exportação CSV/XLSX/
+    PDF é secundária. A regra dos números vive em `relatorios/agregacoes.py`.
+    """
+
+    template_name = "relatorios/alunos.html"
+    context_object_name = "linhas"
+    paginate_by = 20
+
+    def evento_do_relatorio(self):
+        from eventos.models import Evento
+
+        return Evento.objects.filter(id=self.kwargs.get("evento_id")).first()
+
+    def _evento(self):
+        from eventos.models import Evento
+
+        return get_object_or_404(Evento, id=self.kwargs["evento_id"])
+
+    def _filtros(self):
+        return {
+            "termo": (self.request.GET.get("q") or "").strip(),
+            "presenca": self.request.GET.get("presenca") or "",
+            "certificado": self.request.GET.get("certificado") or "",
+        }
+
+    def get_template_names(self):
+        if self.request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return ["relatorios/_resultado_alunos.html"]
+        return [self.template_name]
+
+    def _linhas(self, evento):
+        from . import agregacoes
+
+        filtros = self._filtros()
+        return agregacoes.resumo_por_pessoa(evento, **filtros)
+
+    def get_queryset(self):
+        return self._linhas(self._evento())
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("export") in ("csv", "xlsx", "pdf"):
+            return self._exportar()
+        return super().get(request, *args, **kwargs)
+
+    def _exportar(self):
+        from eventos.exportacao import exportar
+
+        evento = self._evento()
+        colunas = self._selecionadas()
+        cabecalhos = (
+            ["Nome", "E-mail", "Papéis", "Inscrições", "Presenças", "Carga horária (h)",
+             "Certificados"]
+            + [c["rotulo"] for c in colunas]
+        )
+        linhas = []
+        for linha in self._linhas(evento):
+            pessoa = linha["pessoa"]
+            linhas.append(
+                [(f"{pessoa.first_name} {pessoa.last_name}").strip(), pessoa.email,
+                 ", ".join(linha["papeis"]), linha["n_inscricoes"], linha["n_presencas"],
+                 linha["carga_horaria"], linha["n_certificados"]]
+                + [linha["metadados"].get(c["chave"], "") for c in colunas]
+            )
+        return exportar(
+            self.request.GET.get("export"),
+            f"relatorio_alunos_{evento.id}", cabecalhos, linhas,
+            titulo=f"Relatório por aluno — {evento.title}",
+        )
+
+    def get_context_data(self, **kwargs):
+        from . import agregacoes
+
+        context = super().get_context_data(**kwargs)
+        evento = self._evento()
+        linhas = self.get_queryset()
+        context["evento"] = evento
+        context["q"] = self._filtros()["termo"]
+        context["presenca"] = self._filtros()["presenca"]
+        context["certificado"] = self._filtros()["certificado"]
+        context["kpis"] = agregacoes.kpis_alunos(linhas)
+        context["graficos"] = agregacoes.graficos_alunos(linhas)
+        context["total_pessoas"] = len(linhas)
+        context.update(self.metadados_colunas())
+
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        context["querystring"] = params.urlencode()
+        return context
+
+
+@login_required(login_url='/accounts/login/')
+def relatorio_aluno_detalhe(request, evento_id, participante_id):
+    """Detalhe individual: o que a pessoa fez no evento (somente leitura)."""
+    from eventos.crachas import pode_gerenciar_evento
+    from eventos.models import Evento, Participante
+
+    from . import agregacoes
+
+    evento = get_object_or_404(Evento, id=evento_id)
+    if not pode_gerenciar_evento(request.user, evento):
+        raise PermissionDenied("Você não gerencia este evento.")
+
+    pessoa = get_object_or_404(Participante, id=participante_id)
+    dados = agregacoes.atividades_da_pessoa(evento, pessoa)
+    atividades = list(
+        evento.atividades.select_related("tipo").order_by("data_hora_inicio", "id")
+    )
+    itens = []
+    for atividade in atividades:
+        itens.append({
+            "atividade": atividade,
+            "inscrito": atividade.id in dados["inscricoes"],
+            "presenca": dados["presencas"].get(atividade.id),
+            "certificado": atividade.id in dados["certificados"],
+        })
+    resumo = next(
+        (l for l in agregacoes.resumo_por_pessoa(evento) if l["pessoa"].id == pessoa.id),
+        None,
+    )
+    return render(request, "relatorios/alunos_detalhe.html", {
+        "evento": evento,
+        "pessoa": pessoa,
+        "metadados": agregacoes._metadados(pessoa),
+        "resumo": resumo,
+        "itens": itens,
+        "canceladas": agregacoes.PresencaCancelada.objects.filter(
+            atividade__evento=evento, participante=pessoa
+        ).select_related("atividade").order_by("-cancelada_em"),
+    })
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def graficos_curadoria(request, evento_id):
+    """Escolhe os gráficos mais úteis para a página de relatório (IA)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+
+    from eventos.crachas import pode_gerenciar_evento
+    from eventos.models import Evento
+
+    from . import agente_graficos, agregacoes
+
+    evento = await sync_to_async(get_object_or_404)(Evento, id=evento_id)
+    if not await sync_to_async(pode_gerenciar_evento)(request.user, evento):
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    linhas = await sync_to_async(agregacoes.resumo_por_pessoa)(evento)
+    disponiveis = agregacoes.graficos_alunos(linhas)
+    perfil = {"pessoas": len(linhas), "graficos": [g["id"] for g in disponiveis]}
+    return JsonResponse(await agente_graficos.curar(evento, disponiveis, perfil))
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def graficos_insights(request, evento_id):
+    """Gera um insight por gráfico exibido (IA), a partir dos dados enviados."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+
+    from eventos.crachas import pode_gerenciar_evento
+    from eventos.models import Evento
+
+    from . import agente_graficos
+
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        dados = {}
+
+    evento = await sync_to_async(get_object_or_404)(Evento, id=evento_id)
+    if not await sync_to_async(pode_gerenciar_evento)(request.user, evento):
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    graficos = dados.get("graficos") if isinstance(dados.get("graficos"), list) else []
+    return JsonResponse(await agente_graficos.insights(evento, graficos))
