@@ -39,6 +39,10 @@ no fim do ciclo, com a tag `v2.0.0`.
 - **Concierge do participante (Onda 4):** chat que responde dúvidas sobre a
   programação ancorado nas atividades publicadas (com fallback objetivo e sem
   PII). Porta o padrão de conversa do `mychatbot` para dentro do IFEventos.
+- **Assistente — experiência (Onda 4):** indicador de digitação, texto em efeito
+  máquina de escrever, autocomplete da programação, links clicáveis (internos na
+  mesma aba; externos em nova aba) e layout com campo fixo e rolagem só nas
+  respostas.
 
 ### Alterado
 
