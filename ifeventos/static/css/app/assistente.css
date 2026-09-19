@@ -7,6 +7,15 @@
   height: calc(100dvh - 190px);
   max-width: 820px;
   margin: 0 auto;
+  /* Respiro lateral padrão (mesmo do `.app-page`). */
+  padding-left: var(--gutter-phone);
+  padding-right: var(--gutter-phone);
+}
+@media (min-width: 992px) {
+  .assistente-wrap {
+    padding-left: var(--gutter-desktop);
+    padding-right: var(--gutter-desktop);
+  }
 }
 
 .assistente-painel {
