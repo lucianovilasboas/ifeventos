@@ -18,7 +18,9 @@ from eventos.models import Atividade
 from eventos.models import ChamadaProposicoes, Espaco, TipoAtividade, Vaga
 from eventos import propostas
 from eventos.propostas import PropostaBloqueada
+from eventos import triagem
 from django.db.models import Count, Exists, OuterRef, Q
+from asgiref.sync import sync_to_async
 
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -948,3 +950,22 @@ def rejeitar_proposta(request, atividade_id):
     else:
         messages.success(request, "Proposta rejeitada e vaga liberada.")
     return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
+
+
+# -- Pré-triagem de propostas (copiloto do organizador) --
+@login_required(login_url='/accounts/login/')
+@require_POST
+async def triagem_propostas(request, evento_id):
+    """Analisa a fila de propostas e devolve SUGESTÕES (não decide nada).
+
+    Endpoint AJAX chamado pela tela de propostas pendentes. O resultado fica em
+    cache; `forcar=1` (GET ou POST) refaz a análise.
+    """
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    forcar = (request.GET.get("forcar") or request.POST.get("forcar")) == "1"
+    resultado = await triagem.analisar_evento(evento, forcar=forcar)
+    return JsonResponse(resultado)

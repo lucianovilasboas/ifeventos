@@ -13,6 +13,19 @@ Sempre que o usuário pedir uma implementação neste repositório:
 
 Nunca implemente direto na `main`.
 
+## Ciclo V2.0 — Copiloto do Organizador (exceção temporária)
+
+Enquanto o ciclo **V2.0** estiver em andamento, vale o fluxo de integração abaixo
+(aprovado pelo usuário):
+
+- Branch de integração **`release/v2.0`**, criada a partir da `main`.
+- Cada frente/onda é uma `feat/<tema>` criada a partir de `release/v2.0` e
+  mergeada **nela** (merges intra-ciclo são pré-autorizados).
+- A `main` e a **produção ficam intocadas** até o ciclo terminar.
+- No encerramento: `release/v2.0` → `main`, tag anotada `v2.0.0` e só então deploy.
+- Checkpoints intermediários: tags `v2.0.0-dev.N` ao fim de cada onda.
+- A versão do produto vem de `ifeventos/setup/version.py` (ver `CHANGELOG.md`).
+
 ## Testes
 
 ```bash

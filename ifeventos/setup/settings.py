@@ -44,6 +44,15 @@ SOCKET_URL = config("SOCKET_URL", default="")
 # Usado pelo lado servidor (eventos/services.py) para emitir eventos.
 SOCKET_INTERNAL_URL = config("SOCKET_INTERNAL_URL", default="http://127.0.0.1:8500")
 
+# -- Versão do produto (fonte única em setup/version.py) --
+# Sobrescrevível por APP_VERSION no ambiente; exposta nos templates, no admin e
+# no schema da API. A versão da API REST (`/api/v1/`) é independente e continua
+# em "v1" (SPECTACULAR_SETTINGS).
+from setup import version as _version  # noqa: E402  (import local, sem ciclo)
+
+APP_VERSION = config("APP_VERSION", default="") or _version.__version__
+APP_VERSION_LABEL = f"v{APP_VERSION}"
+
 # CSRF: atrás do proxy TLS o Django precisa confiar na origem. Sem isto o login
 # e todos os formulários POST falham com "CSRF verification failed".
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
@@ -141,6 +150,8 @@ TEMPLATES = [
                 # Config dos metadados do participante (para o JS dos campos
                 # condicionais/dependentes)
                 "eventos.context_processors.metadados_config",
+                # Versão do produto no footer (fonte: setup/version.py)
+                "eventos.context_processors.app_version",
             ],
         },
     },
@@ -268,7 +279,10 @@ REST_FRAMEWORK = {
 # -- adicionado por Luciano Vilas Boas --
 SPECTACULAR_SETTINGS = {
     "TITLE": "API Nossos Eventos (IFMG)",
-    "DESCRIPTION": "API REST de eventos, atividades, inscrições e certificados do campus Ponte Nova.",
+    "DESCRIPTION": (
+        "API REST de eventos, atividades, inscrições e certificados do campus "
+        "Ponte Nova. Versão do app: " + APP_VERSION_LABEL + "."
+    ),
     "VERSION": "v1",
     "SERVE_INCLUDE_SCHEMA": False,
     "SCHEMA_PATH_PREFIX": r"/api/v1",
@@ -308,7 +322,17 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")  # Substitua pelo seu e-mail
 
 # -- Configurações da API OpenAI --
 # -- adicionado por Luciano Vilas Boas --
-OPENAI_API_KEY = config("OPENAI_API_KEY") 
+OPENAI_API_KEY = config("OPENAI_API_KEY")
+
+# Interruptor geral dos recursos de IA. Desligado, as funções de IA nem chamam
+# a OpenAI e caem direto no fallback determinístico (o restante do sistema
+# continua funcionando normalmente).
+IA_ATIVA = config("IA_ATIVA", default=True, cast=bool)
+
+# Nomes de modelo centralizados (antes espalhados pelos serviços). O de texto
+# redige (descrições, mensagens); o de classificação decide (tema, tipo).
+IA_MODELO_TEXTO = config("IA_MODELO_TEXTO", default="gpt-4o")
+IA_MODELO_CLASSIFICACAO = config("IA_MODELO_CLASSIFICACAO", default="gpt-4o-mini")
 
 
 # -- Configurações de cache --

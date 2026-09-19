@@ -26,6 +26,7 @@ from organizador.views import (
     propostas_pendentes,
     rejeitar_proposta,
     salvar_chamada,
+    triagem_propostas,
 )
 
 from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_categoria_ajax
@@ -81,6 +82,7 @@ urlpatterns = [
     path("chamada/vaga/<int:vaga_id>/excluir/", excluir_vaga, name="excluir_vaga"),
     path("chamada/<int:evento_id>/painel/", chamada_painel, name="chamada_painel"),
     path("propostas/<int:evento_id>/", propostas_pendentes, name="propostas_pendentes"),
+    path("propostas/<int:evento_id>/triagem/", triagem_propostas, name="triagem_propostas"),
     path("proposta/<int:atividade_id>/aprovar/", aprovar_proposta, name="aprovar_proposta"),
     path("proposta/<int:atividade_id>/rejeitar/", rejeitar_proposta, name="rejeitar_proposta"),
 
