@@ -173,7 +173,7 @@ class AtividadeForm(forms.ModelForm):
                 'placeholder': 'Ex.: Oficina de fotografia'}),
             'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
                 'placeholder': 'O que vai acontecer, para quem e o que a pessoa leva de lá.'}),
-            'local': forms.TextInput(attrs={'class': 'form-control',
+            'local': forms.TextInput(attrs={'class': 'form-control', 'list': 'listaLocais',
                 'placeholder': 'Ex.: Auditório, Sala 12 (vazio = local do evento)'}),
             'data_hora_inicio': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'data_hora_fim': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),

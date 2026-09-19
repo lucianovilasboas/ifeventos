@@ -1,0 +1,35 @@
+<!-- Modal Adicionar Local (Espaço do catálogo) -->
+<div class="modal fade" id="modalLocal" tabindex="-1" aria-labelledby="modalLocalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:0;border-radius:18px;box-shadow:var(--app-shadow)">
+            <div class="modal-header" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo));color:#fff;border:0;border-radius:18px 18px 0 0">
+                <h5 class="modal-title" id="modalLocalLabel"><i class="fa-solid fa-location-dot"></i> Adicionar Local</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formLocal">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form_local.nome.id_for_label }}">Nome do local</label>
+                        {{ form_local.nome }}
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label" for="{{ form_local.capacidade.id_for_label }}">{{ form_local.capacidade.label }}</label>
+                        {{ form_local.capacidade }}
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        O local entra no catálogo da escola e fica disponível para os próximos eventos.
+                    </p>
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <i class="fa-solid fa-xmark"></i> Fechar
+                        </button>
+                        <button type="submit" class="btn btn-app">
+                            <i class="fa-solid fa-save"></i> Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

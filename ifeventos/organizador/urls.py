@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path
 
 from organizador.views import adicionar_palestrante, adicionar_tipo_atividade
+from organizador.views import adicionar_local
 from .views import ModeloCrachaEventoView, dashboard, criar_evento, editar_evento, excluir_evento
 from .views import atividades_evento, criar_atividade, editar_atividade, excluir_atividade
 from .views import criar_editar_atividade
@@ -76,6 +77,7 @@ urlpatterns = [
 
     path('adicionar_palestrante/', adicionar_palestrante, name='adicionar_palestrante'),
     path('adicionar_tipo_atividade/', adicionar_tipo_atividade, name='adicionar_tipo_atividade'), 
+    path('adicionar_local/', adicionar_local, name='adicionar_local'),
 
 
     #-- Profile --

@@ -51,6 +51,11 @@ no fim do ciclo, com a tag `v2.0.0`.
 
 ### Alterado
 
+- Formulário de atividade: o campo **Local** agora sugere os locais do catálogo
+  (`Espaco`) e os já usados (`nomes_conhecidos`), com botão **“novo”** que cria o
+  espaço no catálogo (mesmo padrão de tipo/palestrante).
+- Prévia de imagem neutra (1:1 na atividade, 3:1 na capa do evento) no lugar da
+  foto do campus.
 - Tela de atividades do organizador: removidos os atalhos “Adicionar novo
   palestrante” e “Adicionar novo tipo de atividade” (seguem disponíveis ao
   criar/editar a atividade).
