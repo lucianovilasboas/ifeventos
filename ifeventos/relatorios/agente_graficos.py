@@ -96,6 +96,80 @@ Responda SOMENTE com JSON: {{"insights": [{{"id": "<id>", "texto": "<1 frase>"}}
     )
 
 
+def _prompt_grafico_por_descricao(evento, disponiveis, texto):
+    return """Você é o copiloto de um organizador de eventos de um campus do IFMG.
+
+Evento: {titulo}
+
+O organizador pediu um gráfico com as seguintes palavras: "{texto}".
+
+Gráficos disponíveis (escolha APENAS por id):
+{disponiveis}
+
+Escolha o gráfico que melhor atende ao pedido. Se nada casar, escolha o mais
+próximo. Responda SOMENTE com JSON:
+{{"id": "<id>", "legenda": "<uma frase curta explicando a escolha>"}}""".format(
+        titulo=evento.title,
+        texto=(texto or "").strip()[:300],
+        disponiveis="\n".join("- %s: %s" % (g["id"], g["titulo"]) for g in disponiveis),
+    )
+
+
+def grafico_por_descricao_basico(disponiveis, texto):
+    """Fallback: casa palavras do pedido com os títulos; senão usa o primeiro."""
+    termos = [t.lower() for t in (texto or "").split() if len(t) > 2]
+    for grafico in disponiveis:
+        titulo = (grafico.get("titulo") or "").lower()
+        if termos and any(termo in titulo for termo in termos):
+            return grafico
+    return (disponiveis or [None])[0]
+
+
+async def grafico_por_descricao(evento, disponiveis, texto):
+    """Devolve o spec de gráfico que atende ao pedido em linguagem natural.
+
+    A IA escolhe um gráfico do catálogo montado pelo servidor; sem IA, o fallback
+    casa palavras do pedido com os títulos. Nunca inventa gráfico nem número.
+    """
+    if not disponiveis:
+        return {"id": None, "legenda": "", "origem": None, "aviso": "Sem gráficos."}
+    if not (texto or "").strip():
+        escolhido = grafico_por_descricao_basico(disponiveis, texto)
+        return {
+            "id": escolhido["id"], "legenda": "Gráfico sugerido automaticamente.",
+            "origem": "heuristica", "aviso": "",
+        }
+    try:
+        resposta = await services.gerar_chat(
+            "graficos_nl",
+            messages=[{
+                "role": "system",
+                "content": _prompt_grafico_por_descricao(evento, disponiveis, texto),
+            }],
+            response_format={"type": "json_object"},
+            max_tokens=400,
+            temperature=0,
+        )
+        dados = json.loads(resposta.choices[0].message.content or "{}")
+        escolhido_id = str(dados.get("id") or "").strip()
+        validos = {g["id"] for g in disponiveis}
+        if escolhido_id in validos:
+            legenda = " ".join(str(dados.get("legenda") or "").split())[:220]
+            return {"id": escolhido_id, "legenda": legenda, "origem": "ia", "aviso": ""}
+        escolhido = grafico_por_descricao_basico(disponiveis, texto)
+        return {
+            "id": escolhido["id"], "legenda": "Gráfico sugerido automaticamente.",
+            "origem": "heuristica", "aviso": "",
+        }
+    except Exception as erro:  # noqa: BLE001 - IA é acessória
+        escolhido = grafico_por_descricao_basico(disponiveis, texto)
+        return {
+            "id": escolhido["id"], "legenda": "Gráfico sugerido automaticamente.",
+            "origem": "heuristica",
+            "aviso": "A IA não está disponível agora (%s)." % erro,
+        }
+
+
 def insights_basico(graficos):
     """Fallback: um comentário simples por gráfico, com o maior valor."""
     itens = []

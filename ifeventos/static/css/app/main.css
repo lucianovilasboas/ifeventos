@@ -1661,3 +1661,13 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 
 /* Barras horizontais com títulos longos pedem mais altura. */
 .painel-grafico[data-tipo="barh"] .grafico-area { height: 340px; }
+
+/* Destaque do gráfico escolhido pelo "Criar gráfico" (text-to-chart). */
+.grafico-destaque {
+    border-color: var(--primary);
+    border-bottom-width: 4px;
+}
+.grafico-destaque .painel-grafico {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, var(--bg));
+}

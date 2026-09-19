@@ -74,6 +74,11 @@ no fim do ciclo, com a tag `v2.0.0`.
   que a pessoa é palestrante e o QR de presença para mostrar na sala — sem
   lista de inscritos (PII). Correção pré-existente: o endpoint da API do QR
   usava `IsDonoEvento` e barrava o palestrante, mesmo com a tela liberada.
+- **IA nos gráficos nas demais páginas + text-to-chart (Onda R6):** curadoria,
+  insights e **gráfico por descrição em linguagem natural** nas páginas por
+  aluno, por turma e por tipo (`relatorios/_ia_graficos.html`); endpoint
+  `grafico_por_descricao` com fallback determinístico por palavra-chave e o
+  contexto de IA `graficos_nl`.
 
 ### Alterado
 

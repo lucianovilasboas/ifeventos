@@ -1,6 +1,7 @@
 """Testes do relatório por aluno (F1/F3), da permissão (F0) e da IA dos gráficos."""
 
 from datetime import timedelta
+import json
 from unittest import mock
 from unittest.mock import AsyncMock
 
@@ -170,6 +171,73 @@ class AgenteGraficosTests(BaseRelatorioTests, TransactionTestCase):
         self.client.force_login(self.participante)
         resposta = self.client.post(
             self.url("graficos_curadoria", self.evento.id)
+        )
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_grafico_por_descricao_fallback_casa_palavra(self):
+        disponiveis = [
+            {"id": "alunos_carga", "titulo": "Carga horária por participante"},
+            {"id": "alunos_presenca", "titulo": "Presenças × ausências"},
+        ]
+        with mock.patch("eventos.services.get_openai_client", side_effect=RuntimeError("x")):
+            resultado = async_to_sync(agente_graficos.grafico_por_descricao)(
+                self.evento, disponiveis, "carga horária dos alunos"
+            )
+        self.assertEqual(resultado["origem"], "heuristica")
+        self.assertEqual(resultado["id"], "alunos_carga")
+
+    def test_grafico_por_descricao_fallback_sem_casa_usa_primeiro(self):
+        disponiveis = [
+            {"id": "a", "titulo": "Gráfico A"},
+            {"id": "b", "titulo": "Gráfico B"},
+        ]
+        with mock.patch("eventos.services.get_openai_client", side_effect=RuntimeError("x")):
+            resultado = async_to_sync(agente_graficos.grafico_por_descricao)(
+                self.evento, disponiveis, "xyz"
+            )
+        self.assertEqual(resultado["id"], "a")
+
+    def test_grafico_por_descricao_ia_usa_id_valido(self):
+        disponiveis = [
+            {"id": "alunos_presenca", "titulo": "Presenças × ausências"},
+            {"id": "alunos_carga", "titulo": "Carga horária por participante"},
+        ]
+        fake = mock.MagicMock()
+        fake.chat = mock.MagicMock()
+        fake.chat.completions.create = AsyncMock(
+            return_value=_resposta_fake({"id": "alunos_presenca", "legenda": "presença"})
+        )
+        with mock.patch("eventos.services.get_openai_client", return_value=fake):
+            resultado = async_to_sync(agente_graficos.grafico_por_descricao)(
+                self.evento, disponiveis, "quem foi e quem não foi"
+            )
+        self.assertEqual(resultado["origem"], "ia")
+        self.assertEqual(resultado["id"], "alunos_presenca")
+
+    def test_endpoint_grafico_por_descricao_organizador(self):
+        self.client.force_login(self.org)
+        fake = mock.MagicMock()
+        fake.chat = mock.MagicMock()
+        fake.chat.completions.create = AsyncMock(
+            return_value=_resposta_fake({"id": "alunos_carga", "legenda": "carga"})
+        )
+        with mock.patch("eventos.services.get_openai_client", return_value=fake):
+            resposta = self.client.post(
+                self.url("grafico_por_descricao", self.evento.id),
+                data=json.dumps({"texto": "carga horária"}),
+                content_type="application/json",
+            )
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertEqual(dados["id"], "alunos_carga")
+        self.assertEqual(dados["origem"], "ia")
+
+    def test_endpoint_grafico_por_descricao_exige_organizador(self):
+        self.client.force_login(self.participante)
+        resposta = self.client.post(
+            self.url("grafico_por_descricao", self.evento.id),
+            data=json.dumps({"texto": "qualquer"}),
+            content_type="application/json",
         )
         self.assertEqual(resposta.status_code, 403)
 
