@@ -20,6 +20,7 @@ from eventos.crachas import (
     pessoa_por_token_ou_codigo,
     png_qr,
     pode_exibir_qr_atividade,
+    pode_checkin_apoio,
     pode_gerenciar_evento,
     qr_como_data_url,
     registrar_presenca,
@@ -583,9 +584,9 @@ class PresencaViewSet(viewsets.ModelViewSet):
         # -- Forma 2: a organização confirma ----------------------------------
         atividade = dados_entrada["atividade"]
 
-        if not pode_gerenciar_evento(request.user, atividade.evento):
+        if not pode_checkin_apoio(request.user, atividade.evento):
             return Response(
-                {"detail": "Você não organiza o evento desta atividade."},
+                {"detail": "Você não organiza o evento nem é da equipe de apoio dele."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -642,9 +643,9 @@ class PresencaViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         presenca = self.get_object()
-        if not pode_gerenciar_evento(request.user, presenca.atividade.evento):
+        if not pode_checkin_apoio(request.user, presenca.atividade.evento):
             return Response(
-                {"detail": "Você não organiza o evento desta atividade."},
+                {"detail": "Você não organiza o evento nem é da equipe de apoio dele."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)

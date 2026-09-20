@@ -31,7 +31,7 @@
 <body>
     <!-- Topbar app -->
     <div class="app-topbar">
-        <a class="app-brand" href="/eventos">Nossos <span>Eventos</span> · {% if request.resolver_match.namespace == 'organizador' %}Organizador{% elif request.resolver_match.namespace == 'participante' %}Participante{% else %}{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}{% endif %}</a>
+        <a class="app-brand" href="/eventos">Nossos <span>Eventos</span> · {% if request.resolver_match.namespace == 'organizador' %}Organizador{% elif request.resolver_match.namespace == 'participante' %}Participante{% elif request.resolver_match.namespace == 'apoio' %}Apoio{% else %}{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}{% endif %}</a>
         <nav class="app-nav-desktop" aria-label="Navegação principal">
             {% include 'includes/app_nav_items.html' %}
         </nav>

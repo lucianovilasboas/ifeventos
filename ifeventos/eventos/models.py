@@ -75,6 +75,10 @@ class Participante(AbstractUser):
     is_participante = models.BooleanField(default=True)
     is_organizador = models.BooleanField(default=False)
     is_palestrante = models.BooleanField(default=False)
+    # Equipe de apoio: faz o check-in (câmera/código) de um evento durante a
+    # sua realização, sem poder de organizador. O alcance é por evento: a conta
+    # só opera nos eventos que estão no M2M `Evento.equipe`.
+    is_equipe = models.BooleanField(default=False)
 
     objects = ParticipanteManager()
 
@@ -245,6 +249,13 @@ class Evento(models.Model):
     imagem = models.ImageField(upload_to=evento_imagem_upload, blank=True, null=True)  # Diretório onde as imagens serão salvas
 
     organizador = models.ForeignKey(Participante, on_delete=models.SET_NULL, null=True, blank=True, related_name='eventos') # Quando o organizador for deletado, os eventos não serão deletados
+
+    # Equipe de apoio do evento (check-in etc.). Fica separada do organizador:
+    # cada pessoa do M2M pode operar o check-in das atividades DESTE evento,
+    # sem ganhar poderes de organização.
+    equipe = models.ManyToManyField(
+        Participante, blank=True, related_name="eventos_equipe"
+    )
 
     # ----------------------------------------------------------------------
     # Modelo dos crachás DESTE evento (decisão do organizador).

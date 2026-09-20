@@ -19,7 +19,7 @@ Bootstrap.
             <strong>{{ request.user.get_full_name|default:request.user.email }}</strong>
             <span>{{ request.user.email }}</span>
             <span class="menu-usuario-visao">
-                Visão: {% if request.resolver_match.namespace == 'organizador' %}Organizador{% elif request.resolver_match.namespace == 'participante' %}Participante{% else %}{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}{% endif %}
+                Visão: {% if request.resolver_match.namespace == 'organizador' %}Organizador{% elif request.resolver_match.namespace == 'participante' %}Participante{% elif request.resolver_match.namespace == 'apoio' %}Apoio{% else %}{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}{% endif %}
             </span>
         </div>
 
@@ -33,9 +33,25 @@ Bootstrap.
             <i class="fa-solid fa-right-left"></i> Trocar para Participante
         </a>
         {% endif %}
+        {% elif request.resolver_match.namespace == 'apoio' %}
+        {% if request.user.is_participante %}
+        <a class="menu-usuario-item menu-usuario-troca" href="{% url 'participante:dashboard' %}">
+            <i class="fa-solid fa-right-left"></i> Trocar para Participante
+        </a>
+        {% elif request.user.is_organizador %}
+        <a class="menu-usuario-item menu-usuario-troca" href="{% url 'organizador:dashboard' %}">
+            <i class="fa-solid fa-right-left"></i> Trocar para Organizador
+        </a>
+        {% endif %}
         {% endif %}
 
-        <a class="menu-usuario-item" href="{% if request.user.is_participante and not request.user.is_organizador %}{% url 'participante:dashboard' %}{% elif request.user.is_organizador and not request.user.is_participante %}{% url 'organizador:dashboard' %}{% else %}{% if request.resolver_match.namespace == 'organizador' %}{% url 'organizador:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}{% endif %}">
+        {% if request.user.is_equipe and request.resolver_match.namespace != 'apoio' %}
+        <a class="menu-usuario-item menu-usuario-troca" href="{% url 'apoio:dashboard' %}">
+            <i class="fa-solid fa-right-left"></i> Trocar para Apoio
+        </a>
+        {% endif %}
+
+        <a class="menu-usuario-item" href="{% if request.user.is_participante and not request.user.is_organizador %}{% url 'participante:dashboard' %}{% elif request.user.is_organizador and not request.user.is_participante %}{% url 'organizador:dashboard' %}{% elif request.user.is_equipe and not request.user.is_participante and not request.user.is_organizador %}{% url 'apoio:dashboard' %}{% else %}{% if request.resolver_match.namespace == 'organizador' %}{% url 'organizador:dashboard' %}{% elif request.resolver_match.namespace == 'apoio' %}{% url 'apoio:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}{% endif %}">
             <i class="fa-solid fa-gauge-high"></i> Meu painel
         </a>
 
@@ -57,7 +73,7 @@ Bootstrap.
         </a>
 
         <button type="button" class="menu-usuario-item" data-menu-perfil
-                data-perfil-url="{% if request.user.is_participante and not request.user.is_organizador %}{% url 'participante:dashboard' %}{% elif request.user.is_organizador and not request.user.is_participante %}{% url 'organizador:dashboard' %}{% else %}{% if request.resolver_match.namespace == 'organizador' %}{% url 'organizador:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}{% endif %}">
+                data-perfil-url="{% if request.user.is_participante and not request.user.is_organizador %}{% url 'participante:dashboard' %}{% elif request.user.is_organizador and not request.user.is_participante %}{% url 'organizador:dashboard' %}{% elif request.user.is_equipe and not request.user.is_participante and not request.user.is_organizador %}{% url 'apoio:dashboard' %}{% else %}{% if request.resolver_match.namespace == 'organizador' %}{% url 'organizador:dashboard' %}{% elif request.resolver_match.namespace == 'apoio' %}{% url 'apoio:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}{% endif %}">
             <i class="fa-solid fa-user-pen"></i> Meu perfil
         </button>
 

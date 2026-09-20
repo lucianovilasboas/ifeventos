@@ -486,6 +486,38 @@ class PresencaApiTests(_BaseApiTests):
 
         self.assertEqual(resposta.status_code, 403)
 
+    def test_equipe_do_evento_pode_marcar(self):
+        atividade = self._atividade_agora()
+        Inscricao.objects.create(participante=self.participante, atividade=atividade)
+        equipe = U.objects.create_user(
+            email="equipe_api@example.com", password=SENHA, cpf="39053344705",
+            is_equipe=True, is_participante=False,
+        )
+        self.evento.equipe.add(equipe)
+        self._autenticar(equipe)
+
+        resposta = self._marcar(atividade, self.participante)
+
+        self.assertEqual(resposta.status_code, 201)
+        self.assertTrue(
+            Presenca.objects.filter(
+                atividade=atividade, participante=self.participante
+            ).exists()
+        )
+
+    def test_equipe_de_outro_evento_recebe_403(self):
+        atividade = self._atividade_agora()
+        Inscricao.objects.create(participante=self.participante, atividade=atividade)
+        equipe = U.objects.create_user(
+            email="equipe_fora@example.com", password=SENHA, cpf="39053344705",
+            is_equipe=True, is_participante=False,
+        )
+        self._autenticar(equipe)
+
+        resposta = self._marcar(atividade, self.participante)
+
+        self.assertEqual(resposta.status_code, 403)
+
     def test_pessoa_sem_vinculo_com_o_evento_nao_recebe_presenca(self):
         atividade = self._atividade_agora()
         de_fora = U.objects.create_user(

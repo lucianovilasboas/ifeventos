@@ -78,6 +78,11 @@
               action="{% url 'organizador:modelo_cracha_evento' evento.id %}" class="d-none">
             {% csrf_token %}
         </form>
+
+        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal"
+                data-bs-target="#modalEquipeApoio">
+            <i class="fa-solid fa-hands-helping"></i> Equipe de apoio
+        </button>
     </div>
     <p class="text-muted small mb-0 mt-2">
         <i class="fa-solid fa-print"></i>
@@ -156,6 +161,130 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modalEquipeApoio" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-hands-helping"></i> Equipe de apoio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">
+                    A equipe de apoio faz o <b>check-in das atividades</b> (câmera ou código manual),
+                    vê a programação e o QR de presença — sem poder de organização.
+                    Pessoas já cadastradas têm a conta reaproveitada; e-mail novo cria uma conta mínima.
+                </p>
+
+                <div class="input-group mb-3">
+                    <input type="email" id="equipeEmail" class="form-control"
+                           placeholder="E-mail da pessoa da equipe" aria-label="E-mail da pessoa">
+                    <button type="button" class="btn btn-app" id="equipeAdicionar">
+                        <i class="fa-solid fa-user-plus"></i> Adicionar
+                    </button>
+                </div>
+
+                <div id="equipeAviso"></div>
+
+                <ul class="list-group" id="equipeLista">
+                    {% for pessoa in equipe %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-equipe-item="{{ pessoa.id }}">
+                        <span>
+                            <i class="fa-solid fa-user"></i>
+                            {{ pessoa.get_full_name|default:pessoa.email }}
+                            {% if not pessoa.get_full_name %}<small class="text-muted">({{ pessoa.email }})</small>{% endif %}
+                        </span>
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                data-equipe-remover="{{ pessoa.id }}"
+                                data-equipe-nome="{{ pessoa.get_full_name|default:pessoa.email }}">
+                            <i class="fa-solid fa-user-minus"></i> Remover
+                        </button>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted" id="equipeVazia">
+                        Ninguém na equipe de apoio ainda.
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const CSRF = '{{ csrf_token }}';
+    const urlAdicionar = "{% url 'organizador:equipe_apoio_adicionar' evento.id %}";
+    const urlRemover = "{% url 'organizador:equipe_apoio_remover' evento.id %}";
+    const aviso = document.getElementById("equipeAviso");
+
+    function mensagem(texto, tipo) {
+        aviso.innerHTML = `<div class="alert alert-${tipo} py-2">${texto}</div>`;
+    }
+
+    document.getElementById("equipeAdicionar").addEventListener("click", function () {
+        const email = document.getElementById("equipeEmail").value.trim();
+        if (!email) { mensagem("Informe o e-mail da pessoa.", "warning"); return; }
+        fetch(urlAdicionar, {
+            method: "POST",
+            headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({email: email}),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) { mensagem(d.erro || "Não deu para adicionar.", "danger"); return; }
+            if (d.reusada) {
+                mensagem(`✅ ${d.nome} já tinha conta e foi adicionada à equipe.`, "success");
+            } else {
+                mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha temporária: <code>${d.senha_temporaria}</code> — repasse para a pessoa e avise que ela deve trocar.`, "success");
+            }
+            document.getElementById("equipeEmail").value = "";
+            adicionarItem(d.pessoa_id, d.nome);
+        })
+        .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+    });
+
+    function adicionarItem(id, nome) {
+        const vazia = document.getElementById("equipeVazia");
+        if (vazia) vazia.remove();
+        const li = document.createElement("li");
+        li.className = "list-group-item d-flex justify-content-between align-items-center";
+        li.dataset.equipeItem = id;
+        li.innerHTML = `<span><i class="fa-solid fa-user"></i> ${nome}</span>` +
+            `<button type="button" class="btn btn-sm btn-outline-danger" data-equipe-remover="${id}" data-equipe-nome="${nome}"><i class="fa-solid fa-user-minus"></i> Remover</button>`;
+        document.getElementById("equipeLista").appendChild(li);
+    }
+
+    document.getElementById("equipeLista").addEventListener("click", function (e) {
+        const botao = e.target.closest("[data-equipe-remover]");
+        if (!botao) return;
+        const id = botao.dataset.equipeRemover;
+        const nome = botao.dataset.equipeNome;
+        if (!confirm(`Remover ${nome} da equipe de apoio deste evento?`)) return;
+        fetch(urlRemover, {
+            method: "POST",
+            headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({pessoa_id: id}),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                const item = document.querySelector(`[data-equipe-item="${id}"]`);
+                if (item) item.remove();
+                if (!document.querySelector("#equipeLista [data-equipe-item]")) {
+                    document.getElementById("equipeLista").innerHTML =
+                        '<li class="list-group-item text-muted" id="equipeVazia">Ninguém na equipe de apoio ainda.</li>';
+                }
+                mensagem(`Removida. A conta de ${nome} continua existindo, só perdeu o acesso de apoio deste evento.`, "success");
+            }
+        })
+        .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+    });
+});
+</script>
 
 {% endblock content %}
 

@@ -12,7 +12,7 @@
     <h2><i class="fa-solid fa-camera"></i> Check-in da atividade</h2>
     {# Volta para a tela anterior; aberta de fora, cai na lista de atividades. #}
     <a class="btn btn-sm btn-outline-secondary" id="btnVoltar"
-       href="{% url 'organizador:atividades_evento' atividade.evento_id %}">
+       href="{{ voltar_url }}">
         <i class="fa-solid fa-arrow-left"></i> Voltar
     </a>
 </div>

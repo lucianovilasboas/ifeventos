@@ -880,6 +880,21 @@ def pode_gerenciar_evento(usuario, evento):
     return bool(evento and evento.organizador_id == usuario.id)
 
 
+def pode_checkin_apoio(usuario, evento):
+    """Quem pode operar o check-in (câmera/código/desfazer) de um evento.
+
+    É quem gerencia o evento **ou** alguém da equipe de apoio vinculada a ele
+    (`Evento.equipe`). A equipe só vale para o evento em que foi adicionada:
+    um membro de outro evento não opera este.
+    """
+    if pode_gerenciar_evento(usuario, evento):
+        return True
+    if not usuario or not getattr(usuario, "is_authenticated", False):
+        return False
+    return bool(getattr(usuario, "is_equipe", False)
+                and evento and evento.equipe.filter(id=usuario.id).exists())
+
+
 def atividades_do_palestrante(usuario):
     """Atividades em que a pessoa é palestrante, da próxima para a passada.
 
@@ -898,9 +913,10 @@ def pode_exibir_qr_atividade(usuario, atividade):
     """Quem pode exibir o QR de presença da atividade.
 
     É quem organiza o evento **ou** quem palestra naquela atividade — os dois
-    estão na sala no momento e podem mostrar o código para a turma.
+    estão na sala no momento e podem mostrar o código para a turma. A equipe
+    de apoio do evento também (ajuda a projetar na porta/sala).
     """
-    if pode_gerenciar_evento(usuario, atividade.evento):
+    if pode_checkin_apoio(usuario, atividade.evento):
         return True
     if not usuario or not getattr(usuario, "is_authenticated", False):
         return False
