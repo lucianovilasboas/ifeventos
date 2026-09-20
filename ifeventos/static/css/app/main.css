@@ -1261,11 +1261,15 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     padding: 12px var(--gutter-phone) 4px;
 }
 
-/* O scroll horizontal vive aqui: no telefone a grade é mais larga que a tela. */
+/* O scroll horizontal vive aqui: no telefone a grade é mais larga que a tela.
+   O gutter fica na MARGIN (não no padding) de propósito: padding num scroller
+   cria uma faixa à esquerda onde o conteúdo rolado aparece POR BAIXO da coluna
+   de horários (sticky), recortando o primeiro dia e abrindo um vão ao rolar. */
 .agenda-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 0 var(--gutter-phone) 10px;
+    padding: 0 0 10px;
+    margin: 0 var(--gutter-phone);
 }
 .agenda {
     border-collapse: separate;

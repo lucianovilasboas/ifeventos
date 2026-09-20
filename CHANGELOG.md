@@ -5,6 +5,22 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.4] — 2026-09-20
+
+### Corrigido
+
+- **Grade de programação — coluna de horários recortando o primeiro dia ao
+  rolar**: o gutter da grade ficava no `padding` do contêiner de rolagem
+  (`.agenda-scroll`). Como a coluna de horários é `position: sticky`, o
+  conteúdo rolado aparecia **na faixa de padding à esquerda dela** (por baixo
+  da coluna), recortando o cabeçalho do dia e os eventos e abrindo um vão —
+  a primeira coluna do calendário ficava com deslocamento horizontal indevido,
+  com elementos passando do limite esquerdo da área de visualização. O gutter
+  agora vai para a `margin` do contêiner (fora da área de rolagem): o conteúdo
+  é recortado corretamente na borda da coluna sticky, sem vazar. Válido para
+  as 5 telas que usam a grade (programação pública, grade do organizador,
+  "Minha agenda" do participante, ocupação de salas e mapa de calor).
+
 ## [2.2.3] — 2026-09-20
 
 ### Corrigido
