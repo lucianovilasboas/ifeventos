@@ -616,7 +616,14 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   box-shadow: none;
   border: 2px solid var(--border); border-bottom-width: 4px;
   padding: 30px;
+  /* Respiro lateral padrão (mesmo das outras telas). */
+  width: min(calc(100% - (2 * var(--gutter-phone))), 420px);
+  max-width: none;
 }
+/* As telas de login/signup/etc. embrulham o painel num `.container` do
+   Bootstrap (12px); com o respiro vindo do próprio painel, o wrapper não
+   pode somar padding. */
+body:has(.login-container) .mt-4 .container { padding-left: 0; padding-right: 0; }
 .login-container h2 { color: var(--fg); font-weight: 800; margin-bottom: 20px; text-align: center; }
 .login-container form input,
 .login-container input[type="email"],
@@ -662,6 +669,9 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   background: var(--bg); border-radius: var(--radius-md);
   box-shadow: none; border: 2px solid var(--border); border-bottom-width: 4px;
   padding: 30px;
+  /* Respiro lateral padrão: no celular o painel não pode colar na borda. */
+  width: min(calc(100% - (2 * var(--gutter-phone))), 420px);
+  max-width: none;
 }
 .reset-password-container h2 { color: var(--fg); font-weight: 800; margin-bottom: 16px; text-align: center; }
 .reset-password-container form input {
@@ -762,6 +772,9 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
   border: 2px solid var(--border);
   border-bottom-width: 4px;
   border-radius: var(--radius-md);
+  /* Respiro lateral padrão (mesmo das outras telas). */
+  width: min(calc(100% - (2 * var(--gutter-phone))), 560px);
+  max-width: none;
 }
 .password-reset-container .titulo,
 .password-change-container .titulo,

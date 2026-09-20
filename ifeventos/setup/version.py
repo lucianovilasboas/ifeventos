@@ -8,7 +8,7 @@ O valor pode ser sobrescrito pelo ambiente (`APP_VERSION`) sem editar o código 
 `settings.APP_VERSION` (ver `setup/settings.py`).
 """
 
-__version__ = "2.0.0-dev.19"
+__version__ = "2.0.0-dev.20"
 
 # Rótulo curto usado na interface (footer/admin). Mantém o "v" do padrão git.
 __version_label__ = f"v{__version__}"
