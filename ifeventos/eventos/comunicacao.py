@@ -31,19 +31,19 @@ def rascunho_basico(evento, canal, objetivo=""):
     if canal == "email":
         assunto = "Convite: %s" % evento.title
         corpo = (
-            "Olá,\n\n"
+            "Olá, 📩\n\n"
             "É com prazer que convidamos você para o evento %s.\n\n"
             "%s\n\n"
-            "Data: %s\nLocal: %s\n\n"
+            "Data: %s 📅\nLocal: %s\n\n"
             "%s\n\n"
-            "Contamos com a sua participação.\n"
+            "Contamos com a sua participação. 🎉\n"
             "Organização"
         ) % (evento.title, descricao, periodo, local,
              (objetivo or "Confira a programação completa e inscreva-se.").strip())
     else:
         assunto = ""
         corpo = (
-            "%s\n\n%s\n\nData: %s\nLocal: %s\n\n%s"
+            "📢 %s\n\n%s\n\nData: %s 📅\nLocal: %s\n\n%s 🎟️"
         ) % (evento.title, descricao, periodo, local,
              (objetivo or "Participe! Inscrições abertas.").strip())
     return {"canal": canal, "assunto": assunto, "corpo": corpo,
@@ -64,7 +64,8 @@ Objetivo/pedido do organizador: {objetivo}
 Escreva um rascunho em português. Regras:
 1. Se for "post", escreva um texto curto (até 6 linhas) para redes sociais/WhatsApp.
 2. Se for "email", escreva um e-mail com "assunto" e "corpo" (saudação e despedida).
-3. NÃO use emojis. Não invente informações que não estão acima.
+3. Use 1 a 2 emojis por parágrafo, coerentes com o conteúdo (não poluir o texto).
+4. Não invente informações que não estão acima.
 
 Responda SOMENTE com JSON: {{"assunto": "<ou vazio>", "corpo": "<texto>"}}""".format(
         titulo=evento.title,

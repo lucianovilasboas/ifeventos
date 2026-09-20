@@ -1237,6 +1237,27 @@ def aplicar_plano_evento(request, evento_id):
     return JsonResponse({"relatorio": relatorio})
 
 
+@login_required(login_url='/accounts/login/')
+@require_POST
+def remover_plano_evento(request, evento_id):
+    """Remove os rascunhos criados pelo copiloto (somente atividades NÃO publicadas).
+
+    Guarda de segurança: nunca apaga atividade publicada nem de outro evento —
+    o organizador informa os ids que o copiloto criou.
+    """
+    evento = _evento_gerenciavel(request, evento_id)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    ids = [v for v in (dados.get("atividade_ids") or []) if str(v).isdigit()]
+    removidas = Atividade.objects.filter(
+        pk__in=ids, evento=evento, publicada=False
+    ).delete()[0]
+    return JsonResponse({"removidas": removidas})
+
+
 # -- Briefing operacional (execução, no dia) --
 @login_required(login_url='/accounts/login/')
 def briefing_operacional(request, evento_id):

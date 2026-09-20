@@ -231,7 +231,7 @@
                     <datalist id="listaTipos">
                         {% for tipo in form.tipo.field.queryset %}<option value="{{ tipo.nome }}"></option>{% endfor %}
                     </datalist>
-                    <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="btnSugerirTipo">
+                    <button type="button" class="btn btn-ia btn-sm mt-2" id="btnSugerirTipo">
                         <i class="fa-solid fa-robot"></i> Sugerir com IA
                     </button>
                     <div id="sugestoesTipo" class="mt-2 d-flex flex-wrap gap-2"></div>
