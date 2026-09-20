@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.2] — 2026-09-20
+
+### Corrigido
+
+- **Autorização das rotas do organizador**: várias rotas de escrita estavam
+  abertas a qualquer usuário logado (até um participante comum). Agora seguem
+  a regra do sistema (`pode_gerenciar_evento` — organizador opera o evento):
+  - Publicar/excluir atividade, criar/editar atividade (formulário e modal),
+    página de gestão das atividades → participante/equipe levam **403**.
+  - Ações globais passam a exigir a flag de organizador (403 para quem não
+    tem): criar evento, cadastrar palestrante, tipo de atividade, espaço e o
+    download do modelo CSV de metadados.
+  - Emissão de certificados (por inscrição, por atividade e por evento) agora
+    exige login + organizador — antes nem exigia login.
+  - Endpoints de IA (descrição, sugerir categoria e mensagem do dia) agora são
+    **somente organizadores** (evita uso indevido dos créditos da API).
+- A equipe de apoio (`/apoio/`) não é afetada: continua fazendo o check-in das
+  atividades dos eventos vinculados, mas não abre a gestão do organizador.
+
 ## [2.2.1] — 2026-09-20
 
 ### Alterado

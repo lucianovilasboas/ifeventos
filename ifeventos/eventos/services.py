@@ -17,6 +17,23 @@ from .models import sem_acento
 from . import ia_config
 
 
+def _eh_organizador(usuario):
+    """True para superuser ou quem tem a flag de organizador.
+
+    Função síncrona de propósito: as views de IA são assíncronas e `request.user`
+    é carregado do banco sob demanda — o acesso direto dispararia
+    SynchronousOnlyOperation. O chamador usa `sync_to_async`.
+    """
+    return bool(
+        getattr(usuario, "is_authenticated", False)
+        and (usuario.is_superuser or getattr(usuario, "is_organizador", False))
+    )
+
+
+def _recusa_ia():
+    return JsonResponse({"erro": "Apenas organizadores podem usar a IA."}, status=403)
+
+
 logger = logging.getLogger("eventos.ia")
 
 
@@ -166,6 +183,8 @@ async def ia_mensagem_view(request):
     """
     View assíncrona que recebe um tipo de usuário via POST e retorna a mensagem gerada pela IA Openai.
     """
+    if not await sync_to_async(_eh_organizador)(request.user):
+        return _recusa_ia()
     if request.method == "POST":
         try:
             data = json.loads(request.body.decode("utf-8")) 
@@ -242,6 +261,8 @@ async def gerar_conteudo_ajax(request):
     """
     View que recebe um título de evento e retorna uma descrição gerada automaticamente pela IA.
     """
+    if not await sync_to_async(_eh_organizador)(request.user):
+        return _recusa_ia()
     if request.method == "POST":
         data = json.loads(request.body)
         titulo = data.get("titulo", None)
@@ -432,6 +453,8 @@ Responda SOMENTE com um JSON neste formato:
 @login_required
 async def sugerir_categoria_ajax(request):
     """Recebe título e descrição e devolve sugestões de categoria."""
+    if not await sync_to_async(_eh_organizador)(request.user):
+        return _recusa_ia()
     if request.method != "POST":
         return JsonResponse({"erro": "Método não permitido"}, status=405)
 
