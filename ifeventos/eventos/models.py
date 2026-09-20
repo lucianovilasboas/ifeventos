@@ -384,6 +384,12 @@ class Atividade(models.Model):
         Participante, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="propostas_decididas",
     )
+    # Consentimento do proponente de que a atividade é de participação
+    # voluntária e não remunerada (obrigatório no formulário de proposta).
+    consentimento_voluntario = models.BooleanField(default=False)
+    # Recursos, itens e equipamentos que o palestrante precisa para a atividade.
+    # Não é público: serve para a organização encaminhar o que ele vai precisar.
+    recursos_necessarios = models.TextField(blank=True, default="")
 
     @property
     def eh_proposta(self):
@@ -935,3 +941,37 @@ class ContextoIA(models.Model):
 
     def __str__(self):
         return f"{self.rotulo} ({self.chave})"
+
+
+class PalestranteSugerido(models.Model):
+    """Palestrante sugerido pelo proponente que ainda não está cadastrado.
+
+    O proponente não tem permissão para cadastrar pessoas: ele só sugere o nome
+    (e contato) para que um organizador cadastre depois e vincule à atividade.
+    `participante` fica NULL até a conversão.
+    """
+
+    atividade = models.ForeignKey(
+        Atividade, on_delete=models.CASCADE, related_name="palestrantes_sugeridos"
+    )
+    nome = models.CharField(max_length=255)
+    email = models.EmailField(blank=True, default="")
+    telefone = models.CharField(max_length=40, blank=True, default="")
+    criado_por = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="palestrantes_sugeridos_criados",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    # Preenchido quando o organizador cadastra/vincula a pessoa à atividade.
+    participante = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="palestrantes_sugeridos_vinculados",
+    )
+
+    class Meta:
+        ordering = ["criado_em", "id"]
+        verbose_name = "Palestrante sugerido"
+        verbose_name_plural = "Palestrantes sugeridos"
+
+    def __str__(self):
+        return "%s (proposta %s)" % (self.nome, self.atividade_id)

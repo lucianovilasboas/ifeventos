@@ -5,6 +5,26 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.1.0] — 2026-09-20
+
+### Adicionado (formulário de proposta)
+
+- **Consentimento de participação voluntária**: switch obrigatório com o texto
+  *"Estou ciente de que a participação é voluntária e não remunerada."* — sem
+  marcar, a proposta não é enviada. Guardado em
+  `Atividade.consentimento_voluntario`.
+- **Recursos e itens necessários**: campo de texto livre
+  (`Atividade.recursos_necessarios`) para o palestrante descrever o que precisa.
+  Não é público — fica na área do organizador (revisão da proposta e edição da
+  atividade, quando é proposta).
+- **Palestrante sugerido** (novo model `PalestranteSugerido`): o proponente pode
+  sugerir coautores que ainda não estão cadastrados (nome + e-mail + telefone
+  opcional). O organizador converte com "Cadastrar palestrante": se o e-mail já
+  existir, vincula ao cadastro existente (sem duplicar); senão cria um
+  Participante palestrante e o adiciona à atividade.
+- Migration `0036_atividade_consentimento_voluntario_and_more` (novos campos +
+  model `PalestranteSugerido`, registrado no admin).
+
 ## [2.0.1] — 2026-09-20
 
 ### Corrigido

@@ -10,6 +10,7 @@ from .models import Vaga
 from .models import Inscricao
 from .models import Certificado
 from .models import PresencaCancelada
+from .models import PalestranteSugerido
 from .models import PessoaRoster
 from .models import ContextoIA
 from django.utils.html import format_html
@@ -404,5 +405,12 @@ class ContextoIAAdmin(admin.ModelAdmin):
         from . import ia_config
 
         return JsonResponse({"modelos": ia_config.modelos_openai()})
+
+
+@admin.register(PalestranteSugerido)
+class PalestranteSugeridoAdmin(admin.ModelAdmin):
+    list_display = ("nome", "email", "atividade", "participante", "criado_em")
+    list_filter = ("atividade__evento",)
+    search_fields = ("nome", "email")
 
 

@@ -550,6 +550,21 @@ class PropostaForm(forms.ModelForm):
         min_value=0,
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 0}),
     )
+    recursos_necessarios = forms.CharField(
+        label="Recursos e itens necessários",
+        required=False,
+        widget=forms.Textarea(attrs={
+            "class": "form-control", "rows": 3,
+            "placeholder": "Ex.: projetor, caixa de som, laboratório, materiais… "
+                           "(a organização usa para encaminhar o que você vai precisar).",
+        }),
+    )
+    consentimento_voluntario = forms.BooleanField(
+        label="Estou ciente de que a participação é voluntária e não remunerada.",
+        required=True,
+        error_messages={"required": "Marque o consentimento de participação voluntária."},
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
+    )
 
     class Meta:
         model = Atividade
@@ -559,6 +574,7 @@ class PropostaForm(forms.ModelForm):
         # em Meta.fields).
         fields = [
             "titulo", "descricao", "n_vagas", "emite_certificado", "imagem",
+            "recursos_necessarios", "consentimento_voluntario",
             "vaga", "tipo", "tipo_sugerido", "palestrantes",
         ]
         labels = {

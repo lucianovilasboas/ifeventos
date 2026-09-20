@@ -266,6 +266,47 @@
                         Quem você adicionar aqui entra como palestrante desta atividade
                         (não é preciso já ser palestrante no sistema).
                     </small>
+
+                    <hr class="my-3">
+
+                    <label class="form-label">Sugerir um palestrante novo</label>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-sm-4">
+                            <input type="text" id="sugestaoNome" class="form-control form-control-sm"
+                                   placeholder="Nome completo" autocomplete="off">
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <input type="email" id="sugestaoEmail" class="form-control form-control-sm"
+                                   placeholder="E-mail" autocomplete="off">
+                        </div>
+                        <div class="col-12 col-sm-3">
+                            <input type="tel" id="sugestaoTelefone" class="form-control form-control-sm"
+                                   placeholder="Telefone (opcional)">
+                        </div>
+                        <div class="col-12 col-sm-1">
+                            <button type="button" class="btn btn-outline-secondary btn-sm w-100"
+                                    id="btnSugerirPalestrante" title="Adicionar à lista">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        Se a pessoa ainda não estiver cadastrada, sugira aqui: a organização
+                        cadastra como palestrante quando a proposta for aprovada.
+                    </small>
+
+                    <div id="sugestoesPalestrante" class="mt-2 d-flex flex-wrap gap-2">
+                        {% for sug in proposta.palestrantes_sugeridos.all %}
+                        <span class="badge-app" data-sugestao>
+                            {{ sug.nome }}
+                            <button type="button" class="btn-close btn-close-sm ms-1"
+                                    aria-label="Remover {{ sug.nome }}"></button>
+                            <input type="hidden" name="sugestao_nome" value="{{ sug.nome }}">
+                            <input type="hidden" name="sugestao_email" value="{{ sug.email }}">
+                            <input type="hidden" name="sugestao_telefone" value="{{ sug.telefone }}">
+                        </span>
+                        {% endfor %}
+                    </div>
                 </div>
                 <div class="col-12 col-md-5">
                     <label class="form-label d-block">Você mesmo</label>
@@ -277,6 +318,22 @@
                     </div>
                     <small class="text-muted d-block">
                         Marcando, você entra como palestrante (a organização confirma na aprovação).
+                    </small>
+                </div>
+            </div>
+        </section>
+
+        <section class="ativ-sec">
+            <div class="ativ-sec-head">
+                <h3>Recursos e itens necessários</h3>
+                <span>o que você precisa para ministrar a atividade</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label" for="id_recursos_necessarios">{{ form.recursos_necessarios.label }}</label>
+                    {{ form.recursos_necessarios }}
+                    <small class="text-muted d-block">
+                        Só a organização vê isto — é para encaminhar o que o palestrante vai precisar.
                     </small>
                 </div>
             </div>
@@ -300,6 +357,17 @@
                             {{ form.emite_certificado.label }}
                         </label>
                     </div>
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-switch mt-2">
+                        {{ form.consentimento_voluntario }}
+                        <label class="form-check-label" for="id_consentimento_voluntario">
+                            {{ form.consentimento_voluntario.label }}
+                        </label>
+                    </div>
+                    {% if form.consentimento_voluntario.errors %}
+                    <div class="text-danger"><small>{{ form.consentimento_voluntario.errors|first }}</small></div>
+                    {% endif %}
                 </div>
             </div>
         </section>
@@ -686,6 +754,44 @@
     if (select) select.addEventListener('change', marcar);
 
     montar();
+})();
+</script>
+<script>
+(function () {
+    const container = document.querySelector('#sugestoesPalestrante');
+    const btn = document.querySelector('#btnSugerirPalestrante');
+    const nome = document.querySelector('#sugestaoNome');
+    const email = document.querySelector('#sugestaoEmail');
+    const telefone = document.querySelector('#sugestaoTelefone');
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+
+    function adicionarChip(textoNome, textoEmail, textoTelefone) {
+        if (!container) return;
+        const chip = document.createElement('span');
+        chip.className = 'badge-app';
+        chip.setAttribute('data-sugestao', '');
+        chip.innerHTML =
+            esc(textoNome) +
+            '<button type="button" class="btn-close btn-close-sm ms-1" aria-label="Remover ' + esc(textoNome) + '"></button>' +
+            '<input type="hidden" name="sugestao_nome" value="' + esc(textoNome) + '">' +
+            '<input type="hidden" name="sugestao_email" value="' + esc(textoEmail) + '">' +
+            '<input type="hidden" name="sugestao_telefone" value="' + esc(textoTelefone) + '">';
+        container.appendChild(chip);
+    }
+
+    container.addEventListener('click', function (evento) {
+        const botao = evento.target.closest('button.btn-close');
+        if (botao) botao.closest('[data-sugestao]').remove();
+    });
+
+    if (btn) btn.addEventListener('click', function () {
+        const nomeTexto = nome.value.trim();
+        if (!nomeTexto) { nome.focus(); return; }
+        adicionarChip(nomeTexto, email.value.trim(), telefone.value.trim());
+        nome.value = ''; email.value = ''; telefone.value = '';
+        nome.focus();
+    });
 })();
 </script>
 {% endblock scripts %}

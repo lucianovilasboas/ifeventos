@@ -15,7 +15,10 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from eventos import propostas
-from eventos.models import Atividade, ChamadaProposicoes, Espaco, Evento, TipoAtividade, Vaga
+from eventos.models import (
+    Atividade, ChamadaProposicoes, Espaco, Evento, PalestranteSugerido,
+    Participante, TipoAtividade, Vaga,
+)
 from eventos.propostas import PropostaBloqueada
 from eventos.services import sugerir_tipo_por_palavras
 
@@ -400,6 +403,7 @@ class TelasDoProponenteTests(BasePropostasTests):
                 "descricao": "d",
                 "tipo": self.tipo.pk,
                 "eu_sou_palestrante": "on",
+                "consentimento_voluntario": "on",
             },
         )
 
@@ -699,6 +703,7 @@ class CatalogoDeEspacosTests(BasePropostasTests):
                 "tipo": self.tipo.pk,
                 "palestrantes": [convidada.pk, outro.pk],
                 "eu_sou_palestrante": "on",
+                "consentimento_voluntario": "on",
             },
         )
 
@@ -1391,3 +1396,98 @@ class OcupacaoDaGradeNoFormularioTests(BasePropostasTests):
         self.assertIn('text-bg-info">sua<', html)
         self.assertIn("Minha oficina", html)
         self.assertIn("is-minha", html)
+
+
+class PropostaNovosCamposTests(BasePropostasTests):
+    """Consentimento, recursos e palestrantes sugeridos na proposta."""
+
+    def test_consentimento_obrigatorio_na_view(self):
+        self.client.force_login(self.pessoa)
+        resposta = self.client.post(
+            reverse("participante:propor_atividade", args=[self.evento.id]),
+            {
+                "vaga": self.vaga.pk,
+                "titulo": "Sem consentimento",
+                "descricao": "d",
+                "tipo": self.tipo.pk,
+            },
+        )
+        self.assertEqual(resposta.status_code, 200)  # formulário re-renderiza
+        self.assertFalse(Atividade.objects.filter(titulo="Sem consentimento").exists())
+
+    def test_propor_grava_recursos_e_consentimento(self):
+        proposta = self._propor(
+            recursos_necessarios="Projetor e caixa de som.",
+            consentimento_voluntario=True,
+        )
+        self.assertEqual(proposta.recursos_necessarios, "Projetor e caixa de som.")
+        self.assertTrue(proposta.consentimento_voluntario)
+
+    def test_sugestoes_sao_criadas_na_proposta(self):
+        proposta = propostas.propor(
+            self.pessoa, self.evento,
+            vaga=self.vaga, titulo="Com sugestões", descricao="d", tipo=self.tipo,
+            sugestoes_palestrantes=[
+                {"nome": "Ana Souza", "email": "ana@example.com", "telefone": "31 99999-0000"},
+                {"nome": "   ", "email": "vazio@example.com"},
+            ],
+        )
+        sugestoes = list(proposta.palestrantes_sugeridos.all())
+        self.assertEqual(len(sugestoes), 1)
+        self.assertEqual(sugestoes[0].nome, "Ana Souza")
+        self.assertEqual(sugestoes[0].email, "ana@example.com")
+
+    def test_cadastrar_sugerido_cria_e_vincula(self):
+        proposta = self._propor()
+        sugestao = PalestranteSugerido.objects.create(
+            atividade=proposta, nome="Bruno Lima", email="bruno@example.com",
+            criado_por=self.pessoa,
+        )
+        propostas.cadastrar_sugerido(sugestao)
+        sugestao.refresh_from_db()
+        self.assertIsNotNone(sugestao.participante)
+        self.assertIn(sugestao.participante, proposta.palestrantes.all())
+        self.assertTrue(sugestao.participante.is_palestrante)
+        self.assertEqual(sugestao.participante.email, "bruno@example.com")
+
+    def test_cadastrar_sugerido_com_email_existente_vincula_sem_duplicar(self):
+        existente = U.objects.create_user(
+            email="maria@example.com", password=SENHA, cpf="39053344705",
+            first_name="Maria", last_name="Silva", is_palestrante=True,
+        )
+        proposta = self._propor()
+        sugestao = PalestranteSugerido.objects.create(
+            atividade=proposta, nome="Maria Silva", email="MARIA@example.com",
+            criado_por=self.pessoa,
+        )
+        propostas.cadastrar_sugerido(sugestao)
+        sugestao.refresh_from_db()
+        self.assertEqual(sugestao.participante, existente)
+        self.assertEqual(
+            Participante.objects.filter(email__iexact="maria@example.com").count(), 1
+        )
+        self.assertIn(existente, proposta.palestrantes.all())
+
+    def test_cadastrar_sugerido_sem_email_recusa(self):
+        proposta = self._propor()
+        sugestao = PalestranteSugerido.objects.create(
+            atividade=proposta, nome="Sem Email", criado_por=self.pessoa,
+        )
+        with self.assertRaises(PropostaBloqueada):
+            propostas.cadastrar_sugerido(sugestao)
+
+    def test_recursos_e_sugestoes_nao_vao_para_a_programacao_publica(self):
+        proposta = self._propor(
+            recursos_necessarios="Conteúdo interno.",
+            consentimento_voluntario=True,
+        )
+        PalestranteSugerido.objects.create(
+            atividade=proposta, nome="Sugerido X", email="x@example.com",
+            criado_por=self.pessoa,
+        )
+        resposta = self.client.get(
+            reverse("eventos:programacao", args=[self.evento.id])
+        )
+        conteudo = resposta.content.decode()
+        self.assertNotIn("Conteúdo interno", conteudo)
+        self.assertNotIn("Sugerido X", conteudo)

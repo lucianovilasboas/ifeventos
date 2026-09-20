@@ -25,7 +25,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import agenda
-from .models import Atividade, ChamadaProposicoes, Espaco, Vaga, sem_acento
+from .models import (
+    Atividade, ChamadaProposicoes, Espaco, PalestranteSugerido, Vaga, sem_acento,
+)
 
 
 class PropostaBloqueada(ValidationError):
@@ -458,7 +460,9 @@ def texto_do_conflito(avisos):
 
 def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
            tipo_sugerido="", palestrantes=(), n_vagas=0,
-           emite_certificado=False, imagem=None, agora=None):
+           emite_certificado=False, imagem=None,
+           recursos_necessarios="", consentimento_voluntario=False,
+           sugestoes_palestrantes=(), agora=None):
     """Cria a proposta como rascunho pendente e reserva a vaga.
 
     A vaga é travada com `select_for_update` dentro da transação: é isso que faz
@@ -518,9 +522,12 @@ def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
             situacao=Atividade.SITUACAO_PENDENTE,
             proponente=usuario,
             vaga=travada,
+            recursos_necessarios=(recursos_necessarios or "").strip(),
+            consentimento_voluntario=bool(consentimento_voluntario),
         )
         if palestrantes:
             atividade.palestrantes.set(palestrantes)
+        _salvar_sugestoes_palestrantes(atividade, sugestoes_palestrantes, usuario)
 
         # Aviso só DEPOIS do commit: se a transação voltar atrás, ninguém
         # recebe e-mail de uma proposta que não existe.
@@ -529,9 +536,39 @@ def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
         return atividade
 
 
+def _salvar_sugestoes_palestrantes(atividade, sugestoes, usuario):
+    """Cria os `PalestranteSugerido` da proposta.
+
+    `sugestoes` é uma lista de dicts `{nome, email, telefone}`; ignora entradas
+    sem nome. Não toca nas já existentes — quem faz isso é o `atualizar`.
+    """
+    for dado in sugestoes or []:
+        nome = " ".join(str((dado or {}).get("nome") or "").split())
+        if not nome:
+            continue
+        PalestranteSugerido.objects.create(
+            atividade=atividade,
+            nome=nome[:255],
+            email=str(dado.get("email") or "").strip()[:255],
+            telefone=str(dado.get("telefone") or "").strip()[:40],
+            criado_por=usuario,
+        )
+
+
+def _substituir_sugestoes_palestrantes(atividade, sugestoes, usuario):
+    """Sincroniza as sugestões com o que o autor mandou no formulário (edição).
+
+    Remove sugestões que saíram da tela e cria as novas (não tenta fazer diff
+    por id: o frontend envia a lista final).
+    """
+    atividade.palestrantes_sugeridos.all().delete()
+    _salvar_sugestoes_palestrantes(atividade, sugestoes, usuario)
+
+
 def atualizar(atividade, *, vaga, titulo, descricao, tipo=None, tipo_sugerido="",
               palestrantes=None, n_vagas=0, emite_certificado=False, imagem=None,
-              agora=None):
+              recursos_necessarios="", consentimento_voluntario=False,
+              sugestoes_palestrantes=None, agora=None):
     """Edita a proposta do próprio autor (exige pendente + chamada aberta).
 
     Trocar de vaga é permitido e revalida tudo: a vaga é travada, checada como
@@ -578,11 +615,17 @@ def atualizar(atividade, *, vaga, titulo, descricao, tipo=None, tipo_sugerido=""
         atividade.tipo_sugerido = (tipo_sugerido or "").strip()
         atividade.n_vagas = n_vagas or travada.espaco.capacidade
         atividade.emite_certificado = bool(emite_certificado)
+        atividade.recursos_necessarios = (recursos_necessarios or "").strip()
+        atividade.consentimento_voluntario = bool(consentimento_voluntario)
         if imagem:
             atividade.imagem = imagem
         atividade.save()
         if palestrantes is not None:
             atividade.palestrantes.set(palestrantes)
+        if sugestoes_palestrantes is not None:
+            _substituir_sugestoes_palestrantes(
+                atividade, sugestoes_palestrantes, atividade.proponente
+            )
     return atividade
 
 
@@ -684,6 +727,54 @@ def promover_palestrante(atividade):
     if not proponente.is_palestrante:
         proponente.is_palestrante = True
         proponente.save(update_fields=["is_palestrante"])
+
+
+def cadastrar_sugerido(sugestao, *, nome=None, email=None, telefone=None):
+    """Converte um `PalestranteSugerido` em palestrante da atividade.
+
+    Se o e-mail já pertencer a um participante, vincula ao existente (sem
+    duplicar); senão cria um Participante com `is_palestrante=True`. Em ambos
+    os casos adiciona à atividade e marca a sugestão como convertida.
+    """
+    from .models import Participante
+
+    if sugestao.participante_id:
+        return sugestao
+
+    email_limpo = (email or sugestao.email or "").strip().lower()
+    if not email_limpo:
+        raise PropostaBloqueada(
+            "Informe o e-mail do palestrante sugerido para cadastrá-lo."
+        )
+
+    atividade = sugestao.atividade
+    nome_limpo = " ".join((nome or sugestao.nome or "").split()) or "Palestrante"
+
+    participante = Participante.objects.filter(email__iexact=email_limpo).first()
+    if participante is None:
+        partes = nome_limpo.split(" ", 1)
+        participante = Participante(
+            email=email_limpo,
+            username=email_limpo,
+            first_name=partes[0],
+            last_name=partes[1] if len(partes) > 1 else "",
+            telefone=(telefone or sugestao.telefone or "").strip(),
+            is_palestrante=True,
+        )
+        participante.set_unusable_password()
+        participante.save()
+
+    if not participante.is_palestrante:
+        participante.is_palestrante = True
+        participante.save(update_fields=["is_palestrante"])
+
+    atividade.palestrantes.add(participante)
+    sugestao.participante = participante
+    sugestao.nome = nome_limpo
+    sugestao.email = email_limpo
+    sugestao.telefone = (telefone or sugestao.telefone or "").strip()
+    sugestao.save()
+    return sugestao
 
 
 # ---------------------------------------------------------------------------

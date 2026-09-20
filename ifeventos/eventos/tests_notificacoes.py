@@ -187,6 +187,7 @@ class BuscaDePalestranteTests(_BaseChamadaTests):
                 "descricao": "d",
                 "tipo": self.tipo.pk,
                 "palestrantes_extra": [maria.pk],
+                "consentimento_voluntario": "on",
             },
         )
 
@@ -206,6 +207,7 @@ class BuscaDePalestranteTests(_BaseChamadaTests):
                 "descricao": "d",
                 "tipo": self.tipo.pk,
                 "palestrantes_extra": ["abc", "999999"],
+                "consentimento_voluntario": "on",
             },
         )
 
@@ -228,6 +230,7 @@ class BuscaDePalestranteTests(_BaseChamadaTests):
             "descricao": "d",
             "tipo": self.tipo.pk,
             "palestrantes_extra": [maria.pk],
+            "consentimento_voluntario": "on",
         })
 
         self.assertIn(

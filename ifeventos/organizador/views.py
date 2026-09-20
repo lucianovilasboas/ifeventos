@@ -978,6 +978,35 @@ def rejeitar_proposta(request, atividade_id):
     return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
 
 
+@login_required(login_url='/accounts/login/')
+@require_POST
+def cadastrar_palestrante_sugerido(request, sugestao_id):
+    """Cadastra/vincula um palestrante sugerido à atividade e o converte.
+
+    Reusa a regra de `propostas.cadastrar_sugerido`: se o e-mail já existir no
+    sistema, vincula ao cadastro existente; senão cria um novo palestrante.
+    """
+    from eventos.models import PalestranteSugerido
+
+    sugestao = get_object_or_404(PalestranteSugerido, id=sugestao_id)
+    atividade = sugestao.atividade
+    _evento_gerenciavel(request, atividade.evento_id)
+    try:
+        propostas.cadastrar_sugerido(
+            sugestao,
+            nome=request.POST.get('nome'),
+            email=request.POST.get('email'),
+            telefone=request.POST.get('telefone'),
+        )
+    except PropostaBloqueada as erro:
+        messages.error(request, erro.messages[0])
+    else:
+        messages.success(request, "Palestrante cadastrado e vinculado à atividade.")
+    return redirect(request.META.get('HTTP_REFERER') or
+                    'organizador:propostas_pendentes',
+                    evento_id=atividade.evento_id)
+
+
 # -- Pré-triagem de propostas (copiloto do organizador) --
 @login_required(login_url='/accounts/login/')
 @require_POST
