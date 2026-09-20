@@ -5,6 +5,20 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.1.6] — 2026-09-20
+
+### Alterado
+
+- **Conflitos na grade compactos**: o aviso "Possíveis conflitos na grade" deixou
+  de ser um alerta grande com a lista inteira. Agora é uma **barra pequena**
+  ("N conflito(s) na grade" + botão **"Ver detalhes"**) que abre um **modal**
+  com todos os conflitos, cada um mostrando o tipo (mesma sala / mesmo
+  palestrante), o local/pessoa, o horário e **links para editar** as duas
+  atividades envolvidas.
+- **Modelo de crachá ativo destacado**: no menu "Imprimir crachás", o modelo
+  atualmente ativo do evento aparece **em verde** (fundo verde-claro, texto
+  verde e check), para o organizador saber qual está valendo sem precisar abrir.
+
 ## [2.1.5] — 2026-09-20
 
 ### Alterado

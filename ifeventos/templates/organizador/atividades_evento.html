@@ -65,8 +65,12 @@
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Modelo dos crachás</h6></li>
                 {% for chave, rotulo in modelos_cracha %}
-                <li><button type="submit" class="dropdown-item" form="formModeloCracha"
-                            name="modelo" value="{{ chave }}">{{ rotulo }}</button></li>
+                <li><button type="submit"
+                            class="dropdown-item {% if chave == evento.modelo_cracha %}modelo-ativo{% endif %}"
+                            form="formModeloCracha" name="modelo" value="{{ chave }}">
+                    {% if chave == evento.modelo_cracha %}<i class="fa-solid fa-circle-check me-1"></i>{% endif %}
+                    {{ rotulo }}
+                </button></li>
                 {% endfor %}
             </ul>
         </div>
@@ -109,22 +113,47 @@
 
     <div data-vista-painel="grade" hidden>
         {% if choques %}
-        <div class="alert alert-warning">
-            <strong><i class="fa-solid fa-triangle-exclamation"></i> Possíveis conflitos na grade</strong>
-            <ul class="mb-0 mt-1" style="font-size:13px">
-                {% for c in choques|slice:":12" %}
-                <li>
-                    {% if c.tipo == 'sala' %}Mesma sala{% else %}Mesmo palestrante{% endif %}
-                    <strong>{{ c.rotulo }}</strong>: “{{ c.a.titulo }}” e “{{ c.b.titulo }}” no mesmo horário.
-                </li>
-                {% endfor %}
-            </ul>
-            {% if choques|length > 12 %}
-            <p class="mb-0 mt-1" style="font-size:12px">… e mais {{ choques|length|add:"-12" }} conflito(s).</p>
-            {% endif %}
+        <div class="d-flex align-items-center gap-2 alert alert-warning py-2 px-3 mb-3">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span class="small"><strong>{{ choques|length }}</strong> conflito(s) na grade</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary ms-auto"
+                    data-bs-toggle="modal" data-bs-target="#modalConflitosGrade">
+                <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Ver detalhes
+            </button>
         </div>
         {% endif %}
         {% include 'includes/agenda_grade.html' with grade=grade mostrar_acoes=True %}
+    </div>
+</div>
+
+<div class="modal fade" id="modalConflitosGrade" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-triangle-exclamation"></i> Conflitos na grade</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                {% if choques %}
+                <ul class="mb-0">
+                    {% for c in choques %}
+                    <li class="mb-2">
+                        {% if c.tipo == 'sala' %}Mesma sala{% else %}Mesmo palestrante{% endif %}
+                        <strong>{{ c.rotulo }}</strong> no horário
+                        {{ c.a.data_hora_inicio|date:"d/m H:i" }}–{{ c.a.data_hora_fim|date:"H:i" }}:
+                        “<a href="{% url 'organizador:criar_editar_atividade_editar' evento.id c.a.id %}">{{ c.a.titulo }}</a>”
+                        e “<a href="{% url 'organizador:criar_editar_atividade_editar' evento.id c.b.id %}">{{ c.b.titulo }}</a>”.
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">Nenhum conflito na grade.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
     </div>
 </div>
 
