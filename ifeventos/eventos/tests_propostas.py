@@ -427,6 +427,48 @@ class TelasDoProponenteTests(BasePropostasTests):
         self.assertRedirects(resposta, reverse("participante:minhas_propostas"))
         self.assertFalse(Atividade.objects.filter(titulo="X").exists())
 
+    def test_eu_vou_ministrar_vem_marcado_por_padrao(self):
+        self.client.force_login(self.pessoa)
+        html = self.client.get(
+            reverse("participante:propor_atividade", args=[self.evento.id])
+        ).content.decode()
+        self.assertIn('name="eu_sou_palestrante"', html)
+        self.assertIn('id="id_eu_sou_palestrante"', html)
+        self.assertIn("checked", html)
+
+    def test_nao_renderiza_select_multiplo_de_palestrantes(self):
+        self.client.force_login(self.pessoa)
+        html = self.client.get(
+            reverse("participante:propor_atividade", args=[self.evento.id])
+        ).content.decode()
+        self.assertNotIn('id="id_palestrantes"', html)
+        self.assertIn("buscaPalestrante", html)
+
+    def test_erro_de_validacao_preserva_extras_e_sugestoes(self):
+        self.client.force_login(self.pessoa)
+        extra = U.objects.create_user(
+            email="extra@example.com", password=SENHA, cpf="39053344705",
+            first_name="Extra", last_name="Pessoa",
+        )
+        resposta = self.client.post(
+            reverse("participante:propor_atividade", args=[self.evento.id]),
+            {
+                "vaga": self.vaga.pk,
+                "titulo": "Sem consentimento",
+                "descricao": "d",
+                "tipo": self.tipo.pk,
+                "palestrantes_extra": [extra.pk],
+                "sugestao_nome": ["Ana Souza"],
+                "sugestao_email": ["ana@example.com"],
+                "sugestao_telefone": ["31 99999-0000"],
+            },
+        )
+        self.assertEqual(resposta.status_code, 200)  # form inválido re-renderiza
+        html = resposta.content.decode()
+        self.assertIn("Extra Pessoa", html)   # chip de palestrante escolhido preservado
+        self.assertIn("Ana Souza", html)      # chip de sugestão preservado
+        self.assertIn('name="sugestao_nome"', html)
+
     def test_minhas_propostas_lista_a_pendente(self):
         self._propor(titulo="Minha oficina")
         self.client.force_login(self.pessoa)
@@ -701,7 +743,7 @@ class CatalogoDeEspacosTests(BasePropostasTests):
                 "titulo": "Mesa-redonda",
                 "descricao": "d",
                 "tipo": self.tipo.pk,
-                "palestrantes": [convidada.pk, outro.pk],
+                "palestrantes_extra": [convidada.pk, outro.pk],
                 "eu_sou_palestrante": "on",
                 "consentimento_voluntario": "on",
             },
