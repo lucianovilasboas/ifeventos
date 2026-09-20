@@ -307,6 +307,17 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 /* ---------- Lista vertical / itens ---------- */
 .app-list { padding: 0 var(--gutter-phone); }
 
+/* Respiro lateral padrão das telas internas (relatórios, dashboard etc.).
+   Mesmo gutter do `.app-list`/`.app-sec`: 16px no celular, 24px no desktop. */
+.app-page { padding-left: var(--gutter-phone); padding-right: var(--gutter-phone); }
+
+/* Quando o `.app-page` envolve componentes que já têm o gutter próprio, o
+   respiro não pode somar (ex.: páginas que misturam `.app-panel` + `.app-list`,
+   como "Minhas propostas" e a programação pública). */
+.app-page .app-list,
+.app-page .app-stats,
+.app-page .cards-h { padding-left: 0; padding-right: 0; }
+
 /* Busca dentro de uma lista de atividades (filtro no cliente, sem paginação). */
 .busca-lista { margin-bottom: var(--space-3); }
 .busca-lista input {
@@ -605,7 +616,14 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   box-shadow: none;
   border: 2px solid var(--border); border-bottom-width: 4px;
   padding: 30px;
+  /* Respiro lateral padrão (mesmo das outras telas). */
+  width: min(calc(100% - (2 * var(--gutter-phone))), 420px);
+  max-width: none;
 }
+/* As telas de login/signup/etc. embrulham o painel num `.container` do
+   Bootstrap (12px); com o respiro vindo do próprio painel, o wrapper não
+   pode somar padding. */
+body:has(.login-container) .mt-4 .container { padding-left: 0; padding-right: 0; }
 .login-container h2 { color: var(--fg); font-weight: 800; margin-bottom: 20px; text-align: center; }
 .login-container form input,
 .login-container input[type="email"],
@@ -651,6 +669,9 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   background: var(--bg); border-radius: var(--radius-md);
   box-shadow: none; border: 2px solid var(--border); border-bottom-width: 4px;
   padding: 30px;
+  /* Respiro lateral padrão: no celular o painel não pode colar na borda. */
+  width: min(calc(100% - (2 * var(--gutter-phone))), 420px);
+  max-width: none;
 }
 .reset-password-container h2 { color: var(--fg); font-weight: 800; margin-bottom: 16px; text-align: center; }
 .reset-password-container form input {
@@ -751,6 +772,9 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
   border: 2px solid var(--border);
   border-bottom-width: 4px;
   border-radius: var(--radius-md);
+  /* Respiro lateral padrão (mesmo das outras telas). */
+  width: min(calc(100% - (2 * var(--gutter-phone))), 560px);
+  max-width: none;
 }
 .password-reset-container .titulo,
 .password-change-container .titulo,
@@ -856,6 +880,7 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
   .app-hero p { font-size: var(--text-lg); max-width: 56ch; }
   .app-sec { max-width: var(--container-max); margin: var(--space-8) auto var(--space-4); }
   .app-list { max-width: var(--container-max); margin: 0 auto; padding: 0 var(--gutter-desktop); }
+  .app-page { max-width: var(--container-max); margin: 0 auto; padding-left: var(--gutter-desktop); padding-right: var(--gutter-desktop); }
   .cards-h { max-width: var(--container-max); margin: 0 auto; padding: 2px var(--gutter-desktop) var(--space-3); }
   .app-bottomnav { display: none; }
   .app-stats { max-width: var(--container-max); margin: 0 auto; }
@@ -1661,3 +1686,63 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 
 /* Barras horizontais com títulos longos pedem mais altura. */
 .painel-grafico[data-tipo="barh"] .grafico-area { height: 340px; }
+
+/* Destaque do gráfico escolhido pelo "Criar gráfico" (text-to-chart). */
+.grafico-destaque {
+    border-color: var(--primary);
+    border-bottom-width: 4px;
+}
+.grafico-destaque .painel-grafico {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, var(--bg));
+    animation: ia-pulso 1.2s ease-out;
+}
+@keyframes ia-pulso {
+    0% { box-shadow: 0 0 0 0 rgba(47, 158, 65, 0.45); }
+    100% { box-shadow: 0 0 0 18px rgba(47, 158, 65, 0); }
+}
+
+/* Painel de IA dos relatórios: input + botão com respiro (não colados). */
+.ia-linha {
+    display: flex;
+    gap: var(--space-3);
+    align-items: stretch;
+}
+.ia-linha .form-control { flex: 1 1 auto; }
+.ia-linha .btn { white-space: nowrap; }
+@media (max-width: 575.98px) {
+    .ia-linha { flex-direction: column; }
+    .ia-linha .btn { width: 100%; }
+}
+
+/* Callout de status da IA (carregando/sucesso/erro/info). */
+.ia-callout {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+.ia-callout.ia-carregando {
+    border-color: var(--border);
+    color: var(--muted);
+    background: var(--bg-soft, transparent);
+}
+.ia-callout.ia-sucesso {
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+    color: var(--primary-ink, var(--fg));
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+}
+.ia-callout.ia-erro {
+    border-color: #ef4444;
+    color: #b91c1c;
+    background: color-mix(in srgb, #ef4444 8%, var(--bg));
+}
+.ia-callout.ia-info {
+    border-color: color-mix(in srgb, #0ea5e9 40%, var(--border));
+    color: #0369a1;
+    background: color-mix(in srgb, #0ea5e9 8%, var(--bg));
+}
+
+/* Selo "Gerado por IA" dos gráficos anexados pelo text-to-chart. */
+.ia-selo { font-size: 0.72rem; white-space: nowrap; }

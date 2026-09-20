@@ -1,0 +1,68 @@
+{% comment %}
+  Trecho do relatório por turma. Não inclui o formulário de agrupamento (ele
+  fica no template pai e precisa continuar vivo).
+{% endcomment %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <span class="text-muted small">Total de grupos: <b>{{ total_grupos }}</b></span>
+    {% if export_urls %}
+    <span class="text-muted small ms-2">Exportar:</span>
+    {% for e in export_urls %}
+    <a href="{{ e.url }}" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-download"></i> {{ e.rotulo }}</a>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<div class="table-responsive">
+    <table class="table table-sm table-striped align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Grupo</th>
+                <th>Pessoas</th>
+                <th>Inscr.</th>
+                <th>Presenças</th>
+                <th>Carga (h)</th>
+                <th>Certif.</th>
+                <th>Presença (%)</th>
+                <th>Certif. (%)</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for grupo in grupos %}
+            <tr>
+                <td>{{ grupo.grupo }}</td>
+                <td>{{ grupo.pessoas }}</td>
+                <td>{{ grupo.inscricoes }}</td>
+                <td>{{ grupo.presencas }}</td>
+                <td>{{ grupo.carga_horaria }}</td>
+                <td>{{ grupo.certificados }}</td>
+                <td>{{ grupo.taxa_presenca }}</td>
+                <td>{{ grupo.taxa_certificacao }}</td>
+                <td>
+                    <a href="{% url 'organizador:relatorio_participantes' evento.id %}?agrupar={{ agrupar }}&amp;grupo={{ grupo.grupo|urlencode }}"
+                       class="btn btn-sm btn-outline-primary" title="Ver participantes do grupo">
+                        <i class="fa-solid fa-user-graduate"></i>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" class="text-center text-muted">Nenhum grupo encontrado.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_paginated %}
+<nav aria-label="Paginação">
+    <ul class="pagination pagination-sm">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">Anterior</a></li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}">Próxima</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}

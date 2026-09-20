@@ -1,0 +1,215 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+{% block title %}Assistente | Nossos Eventos{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="fa-solid fa-robot"></i> Assistente da programação</span>
+    <a href="{% url 'participante:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/app/assistente.css' %}?v={{ ASSET_VERSION }}">
+{% endblock extra_css %}
+
+{% block content %}
+<div class="assistente-wrap">
+    <div class="app-panel assistente-painel">
+        <div id="assistenteChat" class="assistente-chat" aria-live="polite"></div>
+        <form id="assistenteForm" class="assistente-prompt" autocomplete="off">
+            {% csrf_token %}
+            <div class="assistente-campo">
+                <input id="assistenteInput" class="form-control" type="text" maxlength="600"
+                       autocomplete="off" placeholder="Escreva sua pergunta...">
+                <div id="assistenteSugestoes" class="assistente-sugestoes" role="listbox"></div>
+            </div>
+            <button class="btn btn-app" type="submit" aria-label="Enviar">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </form>
+        <div class="assistente-status text-muted" id="assistenteStatus">
+            As respostas vêm da programação publicada. Confira sempre a agenda em /eventos/.
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+(function () {
+    const chat = document.getElementById("assistenteChat");
+    const form = document.getElementById("assistenteForm");
+    const input = document.getElementById("assistenteInput");
+    const lista = document.getElementById("assistenteSugestoes");
+    const status = document.getElementById("assistenteStatus");
+    const historico = [];
+    let digitando = null;
+    let sugestoesAtuais = [];
+    let indiceAtivo = -1;
+    let timerBusca = null;
+
+    function fim() { chat.scrollTop = chat.scrollHeight; }
+
+    function esc(t) {
+        const d = document.createElement("div");
+        d.textContent = t == null ? "" : t;
+        return d.innerHTML;
+    }
+
+    // Transforma URLs (completas, www e caminhos internos) em links.
+    // Internos abrem na mesma aba; externos, em nova aba.
+    const URL_RE = /(\[([^\]]+)\]\(([^\s)]+)\))|((?:https?:\/\/|www\.)[^\s<]+|\/(?:eventos|participante|organizador|c|p)(?:\/[^\s<]*)?)/g;
+
+    function linkify(texto) {
+        return esc(texto).replace(URL_RE, function (m, _md, rotulo, url, solto) {
+            let href = _md ? url : solto;
+            let label = _md ? rotulo : solto;
+            if (!_md && !/^https?:/i.test(href) && href.charAt(0) !== "/") href = "//" + href;
+            href = String(href).replace(/["'<>]/g, "");
+            const externo = /^https?:/i.test(href) || href.indexOf("//") === 0;
+            const alvo = externo ? ' target="_blank" rel="noopener"' : "";
+            return '<a href="' + href + '"' + alvo + ">" + label + "</a>";
+        });
+    }
+
+    function bolha(papel, texto) {
+        const div = document.createElement("div");
+        div.className = "assistente-bolha " + (papel === "user" ? "user" : "bot");
+        div.innerHTML = papel === "bot" ? linkify(texto) : esc(texto);
+        chat.appendChild(div);
+        fim();
+        return div;
+    }
+
+    function iniciarDigitando() {
+        const el = bolha("bot", "");
+        el.innerHTML = '<span data-frase>Pensando…</span> ' +
+            '<span class="assistente-digitando"><span></span><span></span><span></span></span>';
+        const frases = ["Pensando…", "Buscando na programação…", "Pesquisando horários…"];
+        let i = 0;
+        const timer = setInterval(function () {
+            i = (i + 1) % frases.length;
+            const alvo = el.querySelector("[data-frase]");
+            if (alvo) alvo.textContent = frases[i];
+        }, 1100);
+        fim();
+        return { el: el, parar: function () { clearInterval(timer); } };
+    }
+
+    function escrever(el, texto) {
+        let i = 0;
+        const passo = Math.max(1, Math.round(texto.length / 140));
+        (function tick() {
+            i = Math.min(texto.length, i + passo);
+            el.innerHTML = linkify(texto.slice(0, i));
+            fim();
+            if (i < texto.length) window.requestAnimationFrame(tick);
+        })();
+    }
+
+    function esconderSugestoes() {
+        lista.classList.remove("aberto");
+        lista.innerHTML = "";
+        sugestoesAtuais = [];
+        indiceAtivo = -1;
+    }
+
+    function pintarSugestoes() {
+        lista.innerHTML = "";
+        sugestoesAtuais.forEach(function (s, idx) {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = s;
+            if (idx === indiceAtivo) b.className = "ativo";
+            b.addEventListener("mousedown", function (ev) {
+                ev.preventDefault();
+                escolherSugestao(s);
+            });
+            lista.appendChild(b);
+        });
+        if (sugestoesAtuais.length) lista.classList.add("aberto");
+        else esconderSugestoes();
+    }
+
+    function escolherSugestao(texto) {
+        input.value = texto;
+        esconderSugestoes();
+        input.focus();
+    }
+
+    input.addEventListener("input", function () {
+        const q = input.value.trim();
+        clearTimeout(timerBusca);
+        if (q.length < 2) { esconderSugestoes(); return; }
+        timerBusca = setTimeout(function () {
+            fetch("{% url 'participante:assistente_sugestoes' %}?q=" + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (dados) {
+                    sugestoesAtuais = dados.sugestoes || [];
+                    indiceAtivo = -1;
+                    pintarSugestoes();
+                })
+                .catch(esconderSugestoes);
+        }, 220);
+    });
+
+    input.addEventListener("keydown", function (ev) {
+        if (!lista.classList.contains("aberto")) return;
+        if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            indiceAtivo = Math.min(indiceAtivo + 1, sugestoesAtuais.length - 1);
+            pintarSugestoes();
+        } else if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            indiceAtivo = Math.max(indiceAtivo - 1, 0);
+            pintarSugestoes();
+        } else if (ev.key === "Enter" && indiceAtivo >= 0) {
+            ev.preventDefault();
+            escolherSugestao(sugestoesAtuais[indiceAtivo]);
+        } else if (ev.key === "Escape") {
+            esconderSugestoes();
+        }
+    });
+
+    input.addEventListener("blur", function () { setTimeout(esconderSugestoes, 150); });
+
+    form.addEventListener("submit", async function (ev) {
+        ev.preventDefault();
+        const texto = input.value.trim();
+        if (!texto) return;
+        esconderSugestoes();
+        bolha("user", texto);
+        historico.push({ papel: "user", texto: texto });
+        input.value = "";
+        input.disabled = true;
+        status.textContent = "Consultando a programação…";
+        digitando = iniciarDigitando();
+        try {
+            const resposta = await fetch("{% url 'participante:assistente_responder' %}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                body: JSON.stringify({ mensagem: texto, historico: historico.slice(-6) })
+            });
+            const dados = await resposta.json();
+            const textoResposta = dados.resposta || dados.erro || "Não consegui responder agora.";
+            if (digitando) { digitando.parar(); digitando.el.remove(); digitando = null; }
+            escrever(bolha("bot", ""), textoResposta);
+            historico.push({ papel: "assistant", texto: textoResposta });
+            status.textContent = dados.aviso || "As respostas vêm da programação publicada.";
+        } catch (erro) {
+            if (digitando) { digitando.parar(); digitando.el.remove(); digitando = null; }
+            bolha("bot", "Falha ao falar com o assistente. Tente novamente.");
+            status.textContent = "";
+        } finally {
+            input.disabled = false;
+            input.focus();
+        }
+    });
+
+    bolha("bot", "Olá! Posso ajudar você a encontrar atividades na programação. O que você procura?");
+})();
+</script>
+{% endblock scripts %}

@@ -11,7 +11,10 @@ from .models import Inscricao
 from .models import Certificado
 from .models import PresencaCancelada
 from .models import PessoaRoster
+from .models import ContextoIA
 from django.utils.html import format_html
+from django.http import JsonResponse
+from django.urls import path
 from django import forms
 from django.core.exceptions import ValidationError
 from . import metadados
@@ -355,5 +358,51 @@ class PessoaRosterAdmin(admin.ModelAdmin):
             if dados.get(campo["chave"])
         ]
         return " · ".join(partes)
+
+
+@admin.register(ContextoIA)
+class ContextoIAAdmin(admin.ModelAdmin):
+    """Edita QUAL modelo de LLM cada contexto usa (sem deploy).
+
+    Os campos de identificação (chave/rótulo/grupo/ordem/padrão) vêm do código
+    e ficam somente-leitura aqui; o comando `sincronizar_contextos_ia` mantém as
+    linhas em dia. O que se edita é o modelo, os ajustes e o liga/desliga.
+    """
+
+    list_display = ("grupo", "rotulo", "chave", "modelo_efetivo", "modelo",
+                    "ativo", "atualizado_em")
+    list_editable = ("modelo", "ativo")
+    list_filter = ("grupo", "ativo")
+    search_fields = ("chave", "rotulo", "modelo")
+    ordering = ("grupo", "ordem", "rotulo")
+    readonly_fields = ("chave", "rotulo", "grupo", "tipo_padrao", "ordem",
+                       "modelo_efetivo", "atualizado_em")
+
+    class Media:
+        # Preenche o datalist do campo "Modelo de LLM" com os modelos da OpenAI.
+        js = ("js/admin_contextoia.js",)
+
+    @admin.display(description="Modelo efetivo")
+    def modelo_efetivo(self, obj):
+        from . import ia_config
+
+        return ia_config.modelo_da_linha(obj)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        extra = [
+            path(
+                "modelos-openai/",
+                self.admin_site.admin_view(self.modelos_openai_view),
+                name="eventos_contextoia_modelos",
+            ),
+        ]
+        return extra + urls
+
+    def modelos_openai_view(self, request):
+        """Lista (cacheada) dos modelos de chat da OpenAI para o datalist."""
+        from . import ia_config
+
+        return JsonResponse({"modelos": ia_config.modelos_openai()})
 
 

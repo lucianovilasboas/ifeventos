@@ -29,6 +29,14 @@ def deployment(request):
     }
 
 
+def app_version(request):
+    """Versão do produto para o footer das telas (fonte: setup/version.py)."""
+    return {
+        "APP_VERSION": settings.APP_VERSION,
+        "APP_VERSION_LABEL": settings.APP_VERSION_LABEL,
+    }
+
+
 def _calcula_versao_dos_estaticos():
     """Hash do conteúdo de `static/`: muda sempre que um CSS/JS muda."""
     resumo = hashlib.sha1()

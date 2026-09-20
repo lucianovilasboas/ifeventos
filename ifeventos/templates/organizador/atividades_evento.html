@@ -7,6 +7,11 @@
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span class="fw-semibold">
         Atividades do evento: <b>{{ evento.title }}</b>
+        {% if evento.organizador and evento.organizador != user %}
+        <span class="badge bg-secondary-subtle text-secondary" title="Evento organizado por {{ evento.organizador.get_full_name|default:evento.organizador.username }}">
+            <i class="fa-solid fa-user-shield"></i> outro organizador
+        </span>
+        {% endif %}
     </span>
     <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
          <i class="fa fa-arrow-left"></i> Voltar
@@ -21,11 +26,20 @@
         <a href="{% url 'organizador:criar_editar_atividade_criar' evento.id %}" class="btn btn-app">
             <i class="fa-solid fa-plus"></i> Criar Nova Atividade
         </a>
-        <a href="#" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalPalestrante">
-            <i class="fa-solid fa-user-tie"></i> Adicionar Novo Palestrante
+        <a href="{% url 'organizador:importar_programacao' evento.id %}" class="btn btn-outline-primary">
+            <i class="fa-solid fa-file-import"></i> Importar programação
         </a>
-        <a href="#" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalTipoAtividade">
-            <i class="fa-solid fa-list"></i> Adicionar Novo Tipo de Atividade
+        <a href="{% url 'organizador:briefing_operacional' evento.id %}" class="btn btn-outline-dark">
+            <i class="fa-solid fa-tower-broadcast"></i> Operação
+        </a>
+        <a href="{% url 'organizador:relatorio_participantes' evento.id %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-users"></i> Relatório por participante
+        </a>
+        <a href="{% url 'organizador:relatorio_turmas' evento.id %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-layer-group"></i> Relatório por turma
+        </a>
+        <a href="{% url 'organizador:relatorio_oficinas' evento.id %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-tags"></i> Relatório por tipo
         </a>
 
         {% comment %}
@@ -100,11 +114,6 @@
         {% include 'includes/agenda_grade.html' with grade=grade mostrar_acoes=True %}
     </div>
 </div>
-
-<!-- Modais inicio -->
-{% include 'includes/modal_novo_palestrante.html' %}
-{% include 'includes/modal_novo_tipo_atividade.html' %}
-<!-- Modais fim -->
 
 {% endblock content %}
 
@@ -418,86 +427,6 @@
                         .catch(error => console.error("Erro:", error));
                     });
                 }
-
-
-
-        // Adicionar Palestrante
-        document.getElementById("formPalestrante").addEventListener("submit", function (event) {
-            event.preventDefault();
-
-            var form = this;
-            var formData = new FormData(form);
-
-            fetch(form.action, {
-                method: "POST",
-                body: formData, // Envia os dados do formulário, incluindo a imagem
-                headers: {
-                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log(data);
-                if (data.success) {
-                    let select = document.getElementById("id_palestrantes");
-                    if(select){
-                        let option = new Option(data.nome, data.id, true, true);
-                        select.add(option);
-                    }
-                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalPalestrante"));
-                    modal.hide();
-                    this.reset();
-                    message_("Novo palestrante adicionado com sucesso.");
-                    
-                } else {
-                    msg = ""
-                    for (let key in data.errors) {
-                        msg += `${key}: ${data.errors[key]}\n`;
-                    }
-                    // alert("Erro ao adicionar palestrante. \n" + msg);
-                    message_("Erro ao adicionar palestrante. \n" + msg, "danger");
-                    //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
-                }
-            });
-        });
-
-        // Adicionar Tipo de Atividade
-        document.getElementById("formTipoAtividade").addEventListener("submit", function (event) {
-            event.preventDefault();
-
-            let formData = new FormData(this);
-            fetch("{% url 'organizador:adicionar_tipo_atividade' %}", {
-                method: "POST",
-                headers: {
-                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    let select = document.getElementById("id_tipo");
-                    if(select){
-                        let option = new Option(data.nome, data.id, true, true);
-                        select.add(option);
-                    }
-                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalTipoAtividade"));
-                    modal.hide();
-                    this.reset();
-                    
-                    message_("Novo tipo de atividade adicionado com sucesso.")                    
-
-                } else {
-                    msg = ""
-                    for (let key in data.errors) {
-                        msg += `${data.errors[key]}\n`;
-                    }
-                    // alert("Erro ao adicionar Tipo de Atividade. \n" + msg);
-                    message_("Erro ao adicionar Tipo de Atividade. \n" + msg, "danger");
-                    //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
-                }
-            });
-        });
 
 
 

@@ -1,0 +1,76 @@
+{% extends 'dashboard_base.html' %}
+{% load metadados_extras %}
+{% block title %}Detalhe do participante | {{ pessoa.get_full_name }}{% endblock %}
+
+{% block content %}
+<div class="app-page">
+    <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fa-solid fa-user"></i> {{ pessoa.get_full_name }}</span>
+        <a href="{% url 'organizador:relatorio_participantes' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Relatório por participante
+        </a>
+    </h2>
+    <p class="text-muted mb-3">{{ evento.title }}</p>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-4">
+            <div class="app-panel p-3 h-100">
+                <h6 class="mb-2">Contato e cadastro</h6>
+                <p class="mb-1"><b>E-mail:</b> {{ pessoa.email }}</p>
+                <p class="mb-1"><b>Telefone:</b> {{ pessoa.telefone|default:"—" }}</p>
+                {% if resumo %}
+                <p class="mb-1"><b>Papéis:</b> {{ resumo.papeis|join:", "|default:"—" }}</p>
+                <p class="mb-1"><b>Carga horária:</b> {{ resumo.carga_horaria }}h</p>
+                <p class="mb-1"><b>Inscrições:</b> {{ resumo.n_inscricoes }} ·
+                   <b>Presenças:</b> {{ resumo.n_presencas }} ·
+                   <b>Certificados:</b> {{ resumo.n_certificados }}</p>
+                {% endif %}
+                {% if metadados %}
+                <hr>
+                {% for col in metadados.items %}
+                <p class="mb-1"><b>{{ col.0 }}:</b> {{ col.1 }}</p>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-12 col-lg-8">
+            <div class="app-panel p-3 h-100">
+                <h6 class="mb-2">Atividades do evento</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead class="table-dark">
+                            <tr><th>Atividade</th><th>Quando</th><th>Local</th><th>Inscrito</th><th>Presença</th><th>Certificado</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for item in itens %}
+                            <tr>
+                                <td>{{ item.atividade.titulo }}</td>
+                                <td>{{ item.atividade.quando_legivel }}</td>
+                                <td>{{ item.atividade.local|default:"—" }}</td>
+                                <td>{% if item.inscrito %}<i class="fa-solid fa-check text-success"></i>{% else %}—{% endif %}</td>
+                                <td>{% if item.presenca %}<i class="fa-solid fa-check text-success"></i>{% else %}—{% endif %}</td>
+                                <td>{% if item.certificado %}<i class="fa-solid fa-check text-success"></i>{% else %}—{% endif %}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center text-muted">Sem atividades.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if canceladas %}
+    <div class="app-panel p-3">
+        <h6 class="mb-2"><i class="fa-solid fa-clock-rotate-left"></i> Presenças desfeitas (auditoria)</h6>
+        <ul class="mb-0 small">
+            {% for c in canceladas %}
+            <li>{{ c.atividade_titulo|default:c.atividade.titulo }} — desfeita em
+                {{ c.cancelada_em|date:"d/m/Y H:i" }}{% if c.motivo %} ({{ c.motivo }}){% endif %}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endblock content %}

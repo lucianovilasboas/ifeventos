@@ -19,24 +19,33 @@ def _csv(cabecalhos, linhas):
     return buffer.getvalue().encode("utf-8")
 
 
-def _xlsx(cabecalhos, linhas):
+def _xlsx(cabecalhos, linhas, abas=None):
+    """Gera o XLSX com uma ou mais abas.
+
+    `abas` é uma lista de `(nome_aba, cabecalhos, linhas)`. Quando informado,
+    cada aba é escrita separadamente; sem `abas`, usa uma única aba com
+    `cabecalhos`/`linhas` (comportamento anterior).
+    """
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
     planilha = Workbook()
-    aba = planilha.active
-    aba.append(cabecalhos)
-    for celula in aba[1]:
-        celula.font = Font(bold=True)
-    for linha in linhas:
-        aba.append(linha)
+    primeira = True
+    for nome_aba, ab_cabecalhos, ab_linhas in (abas or [("Resumo", cabecalhos, linhas)]):
+        aba = planilha.active if primeira else planilha.create_sheet()
+        primeira = False
+        aba.title = nome_aba[:31] or "Planilha"
+        aba.append(ab_cabecalhos)
+        for celula in aba[1]:
+            celula.font = Font(bold=True)
+        for linha in ab_linhas:
+            aba.append(linha)
 
-    # Largura aproximada de cada coluna (limitada, para não esticar demais).
-    for indice, cabecalho in enumerate(cabecalhos, start=1):
-        valores = [len(str(cabecalho))]
-        valores += [len(str(linha[indice - 1])) for linha in linhas if len(linha) >= indice]
-        largura = min(max(max(valores) + 2, 10), 40)
-        aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
+        for indice, cabecalho in enumerate(ab_cabecalhos, start=1):
+            valores = [len(str(cabecalho))]
+            valores += [len(str(linha[indice - 1])) for linha in ab_linhas if len(linha) >= indice]
+            largura = min(max(max(valores) + 2, 10), 40)
+            aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
 
     buffer = io.BytesIO()
     planilha.save(buffer)
@@ -77,12 +86,16 @@ def _pdf(cabecalhos, linhas, titulo=None):
     return buffer.getvalue()
 
 
-def exportar(formato, nome_base, cabecalhos, linhas, titulo=None):
-    """Devolve a `HttpResponse` do formato pedido (csv, xlsx ou pdf)."""
+def exportar(formato, nome_base, cabecalhos, linhas, titulo=None, abas=None):
+    """Devolve a `HttpResponse` do formato pedido (csv, xlsx ou pdf).
+
+    `abas` (opcional) é uma lista de `(nome_aba, cabecalhos, linhas)`: no XLSX,
+    cada item vira uma aba. CSV/PDF ignoram `abas` (usam só `cabecalhos`/`linhas`).
+    """
     if formato == "csv":
         conteudo, content_type, extensao = _csv(cabecalhos, linhas), "text/csv; charset=utf-8", "csv"
     elif formato == "xlsx":
-        conteudo = _xlsx(cabecalhos, linhas)
+        conteudo = _xlsx(cabecalhos, linhas, abas=abas)
         content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         extensao = "xlsx"
     elif formato == "pdf":

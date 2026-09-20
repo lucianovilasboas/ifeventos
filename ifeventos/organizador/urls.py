@@ -1,16 +1,31 @@
 from django.contrib import admin
 from django.urls import path
+from django.views.generic import RedirectView
 
 from organizador.views import adicionar_palestrante, adicionar_tipo_atividade
+from organizador.views import adicionar_espaco_ajax
 from .views import ModeloCrachaEventoView, dashboard, criar_evento, editar_evento, excluir_evento
 from .views import atividades_evento, criar_atividade, editar_atividade, excluir_atividade
 from .views import criar_editar_atividade
 from .views import profile
 from .views import importar_metadados, modelo_metadados_csv
+from .views import importar_programacao
+from .views import copiloto_evento_plano, aplicar_plano_evento
+from .views import briefing_operacional, briefing_leitura, gerar_divulgacao
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
 from relatorios.views import OcupacaoSalasView
 from relatorios.views import RelatoriosGraficosView
+from relatorios.views import narrativa_evento
+from relatorios.views import (
+    RelatorioParticipantesView,
+    relatorio_participante_detalhe,
+    graficos_curadoria,
+    graficos_insights,
+    grafico_por_descricao,
+    RelatorioTurmasView,
+    RelatorioOficinasView,
+)
 from organizador.views import publicar_atividade
 from organizador.views import (
     adicionar_espaco,
@@ -26,6 +41,7 @@ from organizador.views import (
     propostas_pendentes,
     rejeitar_proposta,
     salvar_chamada,
+    triagem_propostas,
 )
 
 from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_categoria_ajax
@@ -51,6 +67,13 @@ urlpatterns = [
 
     path('atividades_evento/<int:evento_id>/', atividades_evento, name='atividades_evento'), 
 
+    path('evento/<int:evento_id>/importar-programacao/', importar_programacao, name='importar_programacao'),
+    path('copiloto/<int:evento_id>/', copiloto_evento_plano, name='copiloto_evento'),
+    path('evento/<int:evento_id>/aplicar-plano/', aplicar_plano_evento, name='aplicar_plano_evento'),
+    path('evento/<int:evento_id>/operacao/', briefing_operacional, name='briefing_operacional'),
+    path('evento/<int:evento_id>/operacao/leitura/', briefing_leitura, name='briefing_leitura'),
+    path('evento/<int:evento_id>/divulgacao/', gerar_divulgacao, name='gerar_divulgacao'),
+
     path('criar_atividade/', criar_atividade, name='criar_atividade'), # criar atividade via modal
 
     path('atividades_evento/<int:evento_id>/atividade/nova/', criar_editar_atividade, name='criar_editar_atividade_criar'),
@@ -64,6 +87,7 @@ urlpatterns = [
 
     path('adicionar_palestrante/', adicionar_palestrante, name='adicionar_palestrante'),
     path('adicionar_tipo_atividade/', adicionar_tipo_atividade, name='adicionar_tipo_atividade'), 
+    path('adicionar_espaco/', adicionar_espaco_ajax, name='adicionar_espaco_ajax'),
 
 
     #-- Profile --
@@ -81,6 +105,7 @@ urlpatterns = [
     path("chamada/vaga/<int:vaga_id>/excluir/", excluir_vaga, name="excluir_vaga"),
     path("chamada/<int:evento_id>/painel/", chamada_painel, name="chamada_painel"),
     path("propostas/<int:evento_id>/", propostas_pendentes, name="propostas_pendentes"),
+    path("propostas/<int:evento_id>/triagem/", triagem_propostas, name="triagem_propostas"),
     path("proposta/<int:atividade_id>/aprovar/", aprovar_proposta, name="aprovar_proposta"),
     path("proposta/<int:atividade_id>/rejeitar/", rejeitar_proposta, name="rejeitar_proposta"),
 
@@ -93,6 +118,26 @@ urlpatterns = [
     path("relatorio_inscricoes/<int:evento_id>/", RelatorioInscricoesView.as_view(), name="relatorio_inscricoes"),
     path("ocupacao_salas/<int:evento_id>/", OcupacaoSalasView.as_view(), name="ocupacao_salas"),
     path("relatorios_graficos/<int:evento_id>/", RelatoriosGraficosView.as_view(), name="relatorios_graficos"),
+    path("relatorios_graficos/<int:evento_id>/narrado/", narrativa_evento, name="narrativa_evento"),
+    path("relatorio_participantes/<int:evento_id>/", RelatorioParticipantesView.as_view(), name="relatorio_participantes"),
+    path("relatorio_turmas/<int:evento_id>/", RelatorioTurmasView.as_view(), name="relatorio_turmas"),
+    path("relatorio_oficinas/<int:evento_id>/", RelatorioOficinasView.as_view(), name="relatorio_oficinas"),
+    path("relatorio_participantes/<int:evento_id>/<int:participante_id>/", relatorio_participante_detalhe, name="relatorio_participante_detalhe"),
+    path("relatorio_participantes/<int:evento_id>/curadoria/", graficos_curadoria, name="graficos_curadoria"),
+    path("relatorio_participantes/<int:evento_id>/grafico/", grafico_por_descricao, name="grafico_por_descricao"),
+    path("relatorio_participantes/<int:evento_id>/insights/", graficos_insights, name="graficos_insights"),
+    # Redirecionamento das URLs antigas (rename "aluno" -> "participante").
+    # 301 permanente + query string preservada, para links/bookmarks antigos
+    # não caírem em 404. As sub-rotas curadoria/grafico/insights são POST do
+    # próprio JS (a página sempre carrega com a URL nova) e ficam de fora.
+    path("relatorio_alunos/<int:evento_id>/",
+         RedirectView.as_view(pattern_name="organizador:relatorio_participantes",
+                              permanent=True, query_string=True),
+         name="relatorio_alunos_redirect"),
+    path("relatorio_alunos/<int:evento_id>/<int:participante_id>/",
+         RedirectView.as_view(pattern_name="organizador:relatorio_participante_detalhe",
+                              permanent=True, query_string=True),
+         name="relatorio_aluno_detalhe_redirect"),
     path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
 
 

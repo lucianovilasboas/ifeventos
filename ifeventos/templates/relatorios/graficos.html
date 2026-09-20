@@ -3,7 +3,7 @@
 {% block title %}Relatórios gráficos | {{ evento.title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
+<div class="app-page">
     <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span><i class="fa-solid fa-chart-pie"></i> Relatórios gráficos</span>
         <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
@@ -11,6 +11,20 @@
         </a>
     </h2>
     <p class="text-muted mb-3">{{ evento.title }} · {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}</p>
+
+    <!-- Leitura do copiloto: resumo + ações a partir dos números -->
+    <div class="app-panel p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>
+                <i class="fa-solid fa-robot"></i> <b>Leitura do copiloto</b>
+                <span class="text-muted small">— resumo e ações a partir dos números</span>
+            </span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnNarrativa">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar leitura
+            </button>
+        </div>
+        <div id="narrativaResultado" class="mt-2" hidden></div>
+    </div>
 
     <!-- Indicadores -->
     <div class="row row-cols-2 row-cols-md-4 g-2 g-md-3 mb-3">
@@ -85,4 +99,46 @@
 {% block scripts %}
 <script src="{% static 'vendor/chart.min.js' %}?v={{ ASSET_VERSION }}"></script>
 <script src="{% static 'js/relatorios_graficos.js' %}?v={{ ASSET_VERSION }}"></script>
+<script>
+(function () {
+    const botao = document.getElementById("btnNarrativa");
+    if (!botao) return;
+    const caixa = document.getElementById("narrativaResultado");
+
+    function esc(t) {
+        const d = document.createElement("div");
+        d.textContent = t == null ? "" : t;
+        return d.innerHTML;
+    }
+
+    botao.addEventListener("click", function () {
+        const original = botao.innerHTML;
+        botao.disabled = true;
+        botao.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        caixa.hidden = false;
+        caixa.innerHTML = '<span class="text-muted">Analisando os números...</span>';
+        fetch("{% url 'organizador:narrativa_evento' evento.id %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token }}", "X-Requested-With": "XMLHttpRequest" }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.erro) { caixa.innerHTML = '<span class="text-danger">' + esc(data.erro) + "</span>"; return; }
+            let html = "<p class=\"mb-2\">" + esc(data.resumo) + "</p>";
+            if ((data.destaques || []).length) {
+                html += '<p class="mb-1 small"><b>Destaques</b></p><ul class="mb-2 small">' +
+                    data.destaques.map(d => "<li>" + esc(d) + "</li>").join("") + "</ul>";
+            }
+            if ((data.acoes || []).length) {
+                html += '<p class="mb-1 small"><b>Ações sugeridas</b></p><ul class="mb-0 small">' +
+                    data.acoes.map(a => "<li>" + esc(a) + "</li>").join("") + "</ul>";
+            }
+            if (data.aviso) html += '<p class="text-muted small mb-0 mt-2">' + esc(data.aviso) + "</p>";
+            caixa.innerHTML = html;
+        })
+        .catch(() => { caixa.innerHTML = '<span class="text-danger">Falha ao gerar a leitura.</span>'; })
+        .finally(() => { botao.disabled = false; botao.innerHTML = original; });
+    });
+})();
+</script>
 {% endblock scripts %}

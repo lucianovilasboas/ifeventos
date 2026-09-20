@@ -14,7 +14,7 @@
 
 {% block content %}
 <div class="table-responsive">
-    <div class="container">
+    <div class="app-page">
         <div class="app-panel" >
             {% if form.errors %}
             <div class="alert alert-danger">
@@ -85,6 +85,65 @@
                 </div> -->
 
 
+                <!-- Copiloto: descrição + tema + plano de programação -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="app-panel p-3">
+                            <h6 class="mb-1"><i class="fa-solid fa-robot"></i> Copiloto do organizador</h6>
+                            <p class="text-muted small mb-2">
+                                Descreva o que você imaginou. A IA propõe a descrição, o tema e uma
+                                programação inicial — as atividades entram como <b>rascunho</b> para você revisar.
+                            </p>
+                            <textarea id="copilotoBrief" class="form-control form-control-sm mb-2" rows="2"
+                                      placeholder="Ex.: Semana de tecnologia com oficinas e palestras para o ensino médio, de manhã e à tarde."></textarea>
+                            <div class="d-flex gap-2 flex-wrap align-items-center">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="copilotoGerar">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar plano
+                                </button>
+                                <button type="button" class="btn btn-app btn-sm d-none" id="copilotoAplicar">
+                                    <i class="fa-solid fa-list-check"></i> Criar atividades (rascunho)
+                                </button>
+                                <small class="text-muted" id="copilotoStatus"></small>
+                            </div>
+                            <div id="copilotoResultado" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Divulgação assistida -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="app-panel p-3">
+                            <h6 class="mb-1"><i class="fa-solid fa-bullhorn"></i> Divulgação</h6>
+                            <p class="text-muted small mb-2">
+                                Gere um rascunho de post ou e-mail a partir dos dados do evento.
+                                Nada é enviado automaticamente — copie e revise.
+                            </p>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label" for="divulgacaoCanal">Canal</label>
+                                    <select id="divulgacaoCanal" class="form-select form-select-sm">
+                                        <option value="post">Post (redes/WhatsApp)</option>
+                                        <option value="email">E-mail</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="divulgacaoObjetivo">Objetivo (opcional)</label>
+                                    <input type="text" id="divulgacaoObjetivo" class="form-control form-control-sm"
+                                           placeholder="Ex.: destacar as oficinas e chamar para a inscrição">
+                                </div>
+                                <div class="col-12 col-md-3 d-grid">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="divulgacaoGerar">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="divulgacaoResultado" class="mt-2" hidden></div>
+                        </div>
+                    </div>
+                </div>
+
+
                 <!-- Image Upload -->
                 <div class="row mb-3">
                     <div class="col-md-12 text-center">
@@ -92,7 +151,7 @@
                         {% if form.instance.imagem %}
                         {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form.instance.imagem.url variante="capa" tem_imagem=1 aspect="3/1" largura=1024 altura=342 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                         {% else %}
-                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="3/1" largura=1024 altura=342 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                        {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/static/img/evento-sem-capa.png" variante="capa" aspect="3/1" largura=1024 altura=342 alt="Pré-visualização da imagem do evento" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                         {% endif %}
                     </div>
                 </div>
@@ -259,6 +318,137 @@
                     botao.disabled = false;
                     botao.innerHTML = conteudoOriginal;
                 });
+            });
+        })();
+
+        // -- Copiloto do organizador: plano de programação --
+        (function () {
+            const botaoGerar = document.getElementById("copilotoGerar");
+            if (!botaoGerar) return;
+            const botaoAplicar = document.getElementById("copilotoAplicar");
+            const brief = document.getElementById("copilotoBrief");
+            const status = document.getElementById("copilotoStatus");
+            const resultado = document.getElementById("copilotoResultado");
+            const campoDescricao = document.getElementById("id_description");
+            const campoCategoria = document.getElementById("id_categoria");
+            let planoAtual = null;
+
+            function esc(t) {
+                const d = document.createElement("div");
+                d.textContent = t == null ? "" : t;
+                return d.innerHTML;
+            }
+
+            botaoGerar.addEventListener("click", function () {
+                const campoTitulo = document.getElementById("id_title");
+                const titulo = campoTitulo ? campoTitulo.value : "";
+                if (!titulo.trim()) { status.textContent = "Informe o título do evento."; return; }
+                botaoGerar.disabled = true;
+                botaoAplicar.classList.add("d-none");
+                status.textContent = "Gerando plano...";
+                resultado.innerHTML = "";
+                fetch("{% url 'organizador:copiloto_evento' evento.id %}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify({
+                        titulo: titulo,
+                        descricao: campoDescricao ? campoDescricao.value : "",
+                        categoria: campoCategoria ? campoCategoria.value : "",
+                        observacoes: brief ? brief.value : ""
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.erro) { status.textContent = data.erro; return; }
+                    planoAtual = data;
+                    if (data.descricao && campoDescricao) campoDescricao.value = data.descricao;
+                    if (data.categoria && campoCategoria) campoCategoria.value = data.categoria;
+                    let html = "";
+                    if (data.descricao) {
+                        html += '<p class="small mb-2"><b>Descrição</b> preenchida · <b>Tema:</b> ' +
+                            esc(data.categoria || "—") + "</p>";
+                    }
+                    if ((data.blocos || []).length) {
+                        html += '<p class="small mb-1"><b>Blocos:</b> ' + data.blocos.map(esc).join(" · ") + "</p>";
+                    }
+                    if ((data.atividades || []).length) {
+                        html += '<div class="table-responsive"><table class="table table-sm mb-1"><thead><tr>' +
+                            "<th>Atividade</th><th>Tipo</th><th>Turno</th></tr></thead><tbody>";
+                        data.atividades.forEach(function (a) {
+                            html += "<tr><td>" + esc(a.titulo) + "</td><td>" + esc(a.tipo || "—") +
+                                "</td><td>" + esc(a.turno || "—") + "</td></tr>";
+                        });
+                        html += "</tbody></table></div>";
+                        botaoAplicar.classList.remove("d-none");
+                    }
+                    resultado.innerHTML = html;
+                    status.textContent = data.aviso || "Plano gerado. Revise e salve.";
+                })
+                .catch(() => { status.textContent = "Falha ao falar com a IA."; })
+                .finally(() => { botaoGerar.disabled = false; });
+            });
+
+            botaoAplicar.addEventListener("click", function () {
+                if (!planoAtual) return;
+                botaoAplicar.disabled = true;
+                status.textContent = "Criando atividades...";
+                fetch("{% url 'organizador:aplicar_plano_evento' evento.id %}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify({ plano: planoAtual })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.erro) { status.textContent = data.erro; return; }
+                    const rel = data.relatorio || {};
+                    status.textContent = "Criadas " + (rel.criadas || 0) +
+                        ", atualizadas " + (rel.atualizadas || 0) + ", erros " + (rel.erros || 0) + ".";
+                    botaoAplicar.classList.add("d-none");
+                })
+                .catch(() => { status.textContent = "Falha ao criar as atividades."; })
+                .finally(() => { botaoAplicar.disabled = false; });
+            });
+        })();
+
+        // -- Divulgação assistida --
+        (function () {
+            const botao = document.getElementById("divulgacaoGerar");
+            if (!botao) return;
+            const canal = document.getElementById("divulgacaoCanal");
+            const objetivo = document.getElementById("divulgacaoObjetivo");
+            const caixa = document.getElementById("divulgacaoResultado");
+
+            function esc(t) {
+                const d = document.createElement("div");
+                d.textContent = t == null ? "" : t;
+                return d.innerHTML;
+            }
+
+            botao.addEventListener("click", function () {
+                botao.disabled = true;
+                caixa.hidden = false;
+                caixa.textContent = "Gerando rascunho...";
+                fetch("{% url 'organizador:gerar_divulgacao' evento.id %}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify({ canal: canal.value, objetivo: objetivo.value })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.erro) { caixa.textContent = data.erro; return; }
+                    let html = "";
+                    if (data.assunto) {
+                        html += '<p class="small mb-1"><b>Assunto:</b> ' + esc(data.assunto) + "</p>";
+                    }
+                    html += '<textarea class="form-control form-control-sm" rows="6" readonly>' +
+                        esc(data.corpo) + "</textarea>";
+                    if (data.aviso) {
+                        html += '<p class="text-muted small mb-0 mt-1">' + esc(data.aviso) + "</p>";
+                    }
+                    caixa.innerHTML = html;
+                })
+                .catch(() => { caixa.textContent = "Falha ao gerar o rascunho."; })
+                .finally(() => { botao.disabled = false; });
             });
         })();
 

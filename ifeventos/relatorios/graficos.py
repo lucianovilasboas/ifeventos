@@ -46,23 +46,34 @@ def kpis(evento):
     ]
 
 
-def graficos(evento):
-    """Lista de gráficos prontos para o Chart.js."""
+def graficos(evento, ids=None):
+    """Lista de gráficos prontos para o Chart.js.
+
+    `ids` (opcional) filtra por id do catálogo — é o que o text-to-chart usa
+    para montar um gráfico escolhido pela IA sem recalcular o evento inteiro.
+    """
     from eventos.agenda import locais_de
 
     atividades = list(
         evento.atividades.select_related("tipo").prefetch_related("palestrantes")
     )
-    return [
-        _ocupacao_por_atividade(atividades),
-        _inscricoes_por_tipo(atividades),
-        _ocupacao_por_sala(atividades, locais_de),
-        _evolucao_inscricoes(evento),
-        _comparecimento_por_atividade(evento, atividades),
-        _vagas_ociosas(atividades),
-        *_perfil_inscritos(evento),
-        _publicacao(atividades),
-    ]
+    resultado = []
+    for spec in _CATALOGO:
+        if ids and spec["id"] not in ids:
+            continue
+        grafico = spec["builder"](evento, atividades, locais_de)
+        if grafico:
+            resultado.append(grafico)
+    for grafico in _perfil_inscritos(evento):
+        if not ids or grafico["id"] in ids:
+            resultado.append(grafico)
+    return resultado
+
+
+def grafico_por_id(evento, spec_id):
+    """Monta um único gráfico do catálogo pelo id (None se não existir)."""
+    montados = graficos(evento, ids=[spec_id])
+    return montados[0] if montados else None
 
 
 def _ocupacao_por_atividade(atividades, limite=10):
@@ -214,6 +225,36 @@ def _publicacao(atividades):
         "labels": ["Publicadas", "Rascunhos"],
         "series": [{"nome": "Atividades", "data": [publicadas, len(atividades) - publicadas], "cor": "paleta"}],
     }
+
+
+# Catálogo de specs do evento (usado por `graficos` e pelo text-to-chart).
+# Cada builder recebe `(evento, atividades, locais_de)` e devolve o gráfico
+# pronto ou None. Os builders "estáticos" têm assinaturas próprias; o lambda
+# só normaliza a chamada.
+_CATALOGO = [
+    {"id": "ocupacao_atividade", "titulo": "Ocupação por atividade", "tipo": "barh",
+     "dimensao": "atividade", "metrica": "inscritos × vagas", "escopo": "evento",
+     "builder": lambda evento, atividades, locais_de: _ocupacao_por_atividade(atividades)},
+    {"id": "inscricoes_por_tipo", "titulo": "Inscrições por tipo de atividade",
+     "tipo": "donut", "dimensao": "tipo de atividade", "metrica": "inscrições",
+     "escopo": "evento",
+     "builder": lambda evento, atividades, locais_de: _inscricoes_por_tipo(atividades)},
+    {"id": "ocupacao_sala", "titulo": "Ocupação por sala", "tipo": "barh",
+     "dimensao": "sala", "metrica": "inscritos × vagas", "escopo": "evento",
+     "builder": lambda evento, atividades, locais_de: _ocupacao_por_sala(atividades, locais_de)},
+    {"id": "evolucao", "titulo": "Evolução das inscrições", "tipo": "line",
+     "dimensao": "dia", "metrica": "inscrições", "escopo": "evento",
+     "builder": lambda evento, atividades, locais_de: _evolucao_inscricoes(evento)},
+    {"id": "comparecimento", "titulo": "Comparecimento por atividade", "tipo": "bar",
+     "dimensao": "atividade", "metrica": "presentes × ausentes", "escopo": "evento",
+     "builder": lambda evento, atividades, locais_de: _comparecimento_por_atividade(evento, atividades)},
+    {"id": "vagas_ociosas", "titulo": "Vagas ociosas (top 10)", "tipo": "barh",
+     "dimensao": "atividade", "metrica": "vagas livres", "escopo": "evento",
+     "builder": lambda evento, atividades, locais_de: _vagas_ociosas(atividades)},
+    {"id": "publicacao", "titulo": "Publicadas × rascunhos", "tipo": "donut",
+     "dimensao": "status", "metrica": "atividades", "escopo": "evento",
+     "builder": lambda evento, atividades, locais_de: _publicacao(atividades)},
+]
 
 
 def heatmap(evento):

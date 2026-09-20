@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import threading
 import openai
@@ -13,6 +14,27 @@ from asgiref.sync import sync_to_async
 import socketio
 
 from .models import sem_acento
+from . import ia_config
+
+
+logger = logging.getLogger("eventos.ia")
+
+
+def registrar_uso_ia(operacao, modelo, resposta):
+    """Registra uma chamada de IA (modelo e tokens) para custo/auditoria.
+
+    Nunca levanta exceção: log é acessório e não pode derrubar a operação.
+    """
+    try:
+        uso = getattr(resposta, "usage", None)
+        logger.info(
+            "ia operacao=%s modelo=%s tokens_prompt=%s tokens_resposta=%s",
+            operacao, modelo,
+            getattr(uso, "prompt_tokens", "?"),
+            getattr(uso, "completion_tokens", "?"),
+        )
+    except Exception:  # pragma: no cover - log nunca quebra o fluxo
+        pass
 
 
 
@@ -32,12 +54,65 @@ def get_openai_client():
     """
     global _client
     if _client is None:
+        if not getattr(settings, "IA_ATIVA", True):
+            raise RuntimeError(
+                "Recursos de IA desligados (IA_ATIVA=False)."
+            )
         if not settings.OPENAI_API_KEY:
             raise RuntimeError(
                 "OPENAI_API_KEY não configurada: os recursos de IA estão indisponíveis."
             )
         _client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
     return _client
+
+
+def _parametros_ajustados(parametros, mensagem):
+    """Corrige parâmetros que a API recusou (modelos novos).
+
+    `max_tokens` → `max_completion_tokens`; remove `temperature` quando o modelo
+    não a aceita. Devolve o MESMO dict quando não há o que ajustar (para o
+    chamador saber que não vale retentar).
+    """
+    texto = str(mensagem or "").lower()
+    ajustado = dict(parametros)
+    mudou = False
+    if "max_tokens" in texto and "max_completion_tokens" in texto:
+        if "max_tokens" in ajustado:
+            ajustado["max_completion_tokens"] = ajustado.pop("max_tokens")
+            mudou = True
+    if "temperature" in texto and "temperature" in ajustado:
+        ajustado.pop("temperature", None)
+        mudou = True
+    return ajustado if mudou else parametros
+
+
+async def gerar_chat(chave, *, messages, response_format=None, max_tokens=None,
+                     temperature=None):
+    """Chama o chat da OpenAI para um contexto, com retry e log centralizados.
+
+    Monta os parâmetros pela configuração do contexto (admin) e, se o modelo
+    recusar `max_tokens`/`temperature` (família gpt-5*/o-series), reenvia
+    ajustado uma vez. Registra o uso da IA. Levanta em caso de erro real.
+    """
+    client = get_openai_client()
+    kwargs = await ia_config.chamada_kwargs_async(
+        chave, max_tokens=max_tokens, temperature=temperature
+    )
+    parametros = {"messages": messages, **kwargs}
+    if response_format:
+        parametros["response_format"] = response_format
+
+    try:
+        resposta = await client.chat.completions.create(**parametros)
+    except openai.BadRequestError as erro:
+        ajustado = _parametros_ajustados(parametros, getattr(erro, "message", erro))
+        if ajustado is parametros:
+            raise
+        resposta = await client.chat.completions.create(**ajustado)
+        parametros = ajustado
+
+    registrar_uso_ia(chave, parametros["model"], resposta)
+    return resposta
 
 
 async def gerar_mensagem_para_usuario(tipo_usuario):
@@ -50,11 +125,10 @@ async def gerar_mensagem_para_usuario(tipo_usuario):
                 Gere apenas uma frase.
                 """
     try:
-        client = get_openai_client()
-        response = await client.chat.completions.create(
-            model="gpt-4o",
+        response = await gerar_chat(
+            "mensagem_usuario",
             messages=[{"role": "system", "content": prompt}],
-            max_tokens=70
+            max_tokens=70,
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -124,11 +198,10 @@ async def gerar_descricao_evento(titulo, data_inicio, data_fim, local, tipo):
                  """
 
     try:
-        client = get_openai_client()
-        response = await client.chat.completions.create(
-            model="gpt-4o",
+        response = await gerar_chat(
+            "descricao_evento",
             messages=[{"role": "system", "content": prompt}],
-            max_tokens = 120
+            max_tokens=120,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -161,10 +234,6 @@ async def gerar_conteudo_ajax(request):
 
 # -- Sugestão de categoria (tema) de um evento --
 # -- Adicionado por Luciano Vilas Boas --
-
-# Modelo usado só para classificar. A descrição do evento usa gpt-4o; para
-# escolher/propor um tema, o mini é suficiente, mais rápido e mais barato.
-CATEGORIA_MODELO = "gpt-4o-mini"
 
 # Quantas sugestões devolver no máximo (o usuário pediu "duas ou três").
 CATEGORIA_MAX_SUGESTOES = 3
@@ -272,13 +341,12 @@ Responda SOMENTE com um JSON neste formato:
 """
 
     try:
-        client = get_openai_client()
-        resposta = await client.chat.completions.create(
-            model=CATEGORIA_MODELO,
+        resposta = await gerar_chat(
+            "sugerir_categoria",
             messages=[{"role": "system", "content": prompt}],
+            response_format={"type": "json_object"},
             max_tokens=400,
             temperature=0,
-            response_format={"type": "json_object"},
         )
         dados = json.loads(resposta.choices[0].message.content or "{}")
         itens = dados.get("sugestoes") or []
@@ -410,8 +478,6 @@ def notify_socketio(event_type, data):
 # Sugestão de tipo de atividade (chamada de propostas)
 # ---------------------------------------------------------------------------
 
-TIPO_MODELO = "gpt-4o-mini"
-
 # Duas sugestões bastam: o proponente escolhe uma ou escreve a dele.
 TIPO_MAX_SUGESTOES = 2
 
@@ -501,13 +567,12 @@ Responda SOMENTE com um JSON neste formato:
 """
 
     try:
-        client = get_openai_client()
-        resposta = await client.chat.completions.create(
-            model=TIPO_MODELO,
+        resposta = await gerar_chat(
+            "sugerir_tipo",
             messages=[{"role": "system", "content": prompt}],
+            response_format={"type": "json_object"},
             max_tokens=300,
             temperature=0,
-            response_format={"type": "json_object"},
         )
         dados = json.loads(resposta.choices[0].message.content or "{}")
 

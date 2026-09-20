@@ -1,0 +1,91 @@
+{% extends 'dashboard_base.html' %}
+{% load metadados_extras %}
+{% load static %}
+{% block title %}Relatório por participante | {{ evento.title }}{% endblock %}
+
+{% block content %}
+{{ graficos|json_script:"dados-graficos" }}
+<div class="app-page">
+    <h2 class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="fa-solid fa-users"></i> Relatório por participante</span>
+        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </h2>
+    <p class="text-muted mb-3">{{ evento.title }} · {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}</p>
+
+    <!-- KPIs -->
+    <div class="row row-cols-2 row-cols-md-5 g-2 g-md-3 mb-3">
+        {% for k in kpis %}
+        <div class="col">
+            <div class="kpi-card">
+                <i class="{{ k.icone }}"></i>
+                <div>
+                    <span class="kpi-valor">{{ k.valor }}{{ k.sufixo|default:"" }}</span>
+                    <span class="kpi-rotulo">{{ k.rotulo }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Filtros -->
+    <form method="get" class="mb-3" data-busca-ajax>
+        {% for col in colunas_metadados %}<input type="hidden" name="campos" value="{{ col.chave }}">{% endfor %}
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="f-q">Buscar</label>
+                <input type="search" id="f-q" name="q" value="{{ q }}" data-busca autocomplete="off"
+                       class="form-control" placeholder="Nome, e-mail, matrícula, curso, turma…">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="f-presenca">Presença</label>
+                <select id="f-presenca" name="presenca" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="com" {% if presenca == 'com' %}selected{% endif %}>Com presença</option>
+                    <option value="sem" {% if presenca == 'sem' %}selected{% endif %}>Sem presença</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="f-cert">Certificado</label>
+                <select id="f-cert" name="certificado" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="sim" {% if certificado == 'sim' %}selected{% endif %}>Com certificado</option>
+                    <option value="nao" {% if certificado == 'nao' %}selected{% endif %}>Sem certificado</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-grid">
+                <button class="btn btn-app"><i class="fa-solid fa-filter"></i> Filtrar</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- IA: curadoria + insights + texto para gráfico -->
+    {% include "relatorios/_ia_graficos.html" with pagina_ia="participantes" grade_id="#gradeGraficos" %}
+
+    <!-- Gráficos -->
+    <div class="row g-3 mb-3" id="gradeGraficos">
+        {% for g in graficos %}
+        <div class="col-12 col-lg-6" data-grafico-card="{{ g.id }}">
+            <div class="painel-grafico" data-tipo="{{ g.tipo }}">
+                <h6>{{ g.titulo }}</h6>
+                <div class="grafico-area"><canvas data-grafico="{{ g.id }}"></canvas></div>
+                <p class="text-muted small mb-0 mt-1" data-insight="{{ g.id }}"></p>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12"><div class="app-panel"><p class="text-muted mb-0">Sem dados para gráficos.</p></div></div>
+        {% endfor %}
+    </div>
+
+    <div id="resultado-participantes" aria-live="polite">
+        {% include "relatorios/_resultado_participantes.html" %}
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block scripts %}
+<script src="{% static 'vendor/chart.min.js' %}?v={{ ASSET_VERSION }}"></script>
+<script src="{% static 'js/relatorios_graficos.js' %}?v={{ ASSET_VERSION }}"></script>
+{% endblock scripts %}

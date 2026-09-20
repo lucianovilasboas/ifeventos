@@ -1,0 +1,84 @@
+{% load metadados_extras %}
+{% comment %}
+  Trecho trocado por AJAX pela busca. Não inclui o formulário nem o wrapper
+  #resultado-participantes (o input precisa continuar vivo).
+{% endcomment %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <span class="text-muted small">Total de pessoas: <b>{{ total_pessoas }}</b></span>
+    {% if colunas_disponiveis %}
+    <span class="text-muted small ms-2">Colunas:</span>
+    {% for col in colunas_disponiveis %}
+    <a href="{{ col.url }}" class="btn btn-sm {% if col.ativo %}btn-app{% else %}btn-outline-secondary{% endif %}">{{ col.rotulo }}</a>
+    {% endfor %}
+    {% endif %}
+    {% if export_urls %}
+    <span class="text-muted small ms-2">Exportar:</span>
+    {% for e in export_urls %}
+    <a href="{{ e.url }}" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-download"></i> {{ e.rotulo }}</a>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<div class="table-responsive">
+    <table class="table table-sm table-striped align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Papéis</th>
+                <th>Inscr.</th>
+                <th>Presenças</th>
+                <th>Carga (h)</th>
+                <th>Certif.</th>
+                {% for col in colunas_metadados %}<th>{{ col.rotulo }}</th>{% endfor %}
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for linha in linhas %}
+            <tr>
+                <td>{{ linha.pessoa.first_name }} {{ linha.pessoa.last_name }}</td>
+                <td>{{ linha.pessoa.email }}</td>
+                <td>
+                    {% for papel in linha.papeis %}
+                    <span class="badge text-bg-secondary">{{ papel }}</span>
+                    {% endfor %}
+                    {% if linha.presencas_canceladas %}
+                    <span class="badge text-bg-warning" title="Presenças desfeitas (auditoria)">
+                        {{ linha.presencas_canceladas }} cancelada(s)
+                    </span>
+                    {% endif %}
+                </td>
+                <td>{{ linha.n_inscricoes }}</td>
+                <td>{{ linha.n_presencas }}</td>
+                <td>{{ linha.carga_horaria }}</td>
+                <td>{{ linha.n_certificados }}</td>
+                {% for col in colunas_metadados %}<td>{{ linha.metadados|meta:col.chave }}</td>{% endfor %}
+                <td>
+                    <a href="{% url 'organizador:relatorio_participante_detalhe' evento.id linha.pessoa.id %}"
+                       class="btn btn-sm btn-outline-primary" title="Detalhe">
+                        <i class="fa-solid fa-eye"></i>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-center text-muted">Nenhuma pessoa encontrada.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_paginated %}
+<nav aria-label="Paginação">
+    <ul class="pagination pagination-sm">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.previous_page_number }}" data-busca-link>Anterior</a></li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?{{ querystring }}&page={{ page_obj.next_page_number }}" data-busca-link>Próxima</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}

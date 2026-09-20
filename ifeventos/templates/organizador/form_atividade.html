@@ -1,4 +1,5 @@
 {% extends 'dashboard_base.html' %}
+{% load static %}
 
 {% block title %}Atividade{% endblock %}
 
@@ -15,7 +16,7 @@
 
 {% block content %}
 <div class="table-responsive">
-    <div class="container">
+    <div class="app-page">
         <div class="app-panel">
             {% if form.errors %}
             <div class="alert alert-danger">
@@ -67,9 +68,15 @@
                             </div>
                         </div>
                         <div class="col-12">
-                            <label class="form-label" for="id_local">{{ form_ativ.local.label }}</label>
+                            <div class="ativ-label-row">
+                                <label class="form-label" for="id_local">{{ form_ativ.local.label }}</label>
+                                <button type="button" class="ativ-add" data-bs-toggle="modal"
+                                        data-bs-target="#modalLocal" title="Cadastrar um local novo">
+                                    <i class="fas fa-plus"></i> novo
+                                </button>
+                            </div>
                             {{ form_ativ.local }}
-                            <small class="text-muted d-block">Deixe vazio para usar o local do evento.</small>
+                            <small class="text-muted d-block">Escolha um espaço do catálogo da escola ou deixe vazio para usar o espaço do evento.</small>
                         </div>
                     </div>
                 </section>
@@ -166,7 +173,7 @@
                     {% if form_ativ.instance.imagem %}
                     {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form_ativ.instance.imagem.url variante="capa" tem_imagem=1 aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                     {% else %}
-                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/media/campus-ponte-nova.jpg" variante="capa" aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/static/img/atividade-sem-imagem.png" variante="capa" aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                     {% endif %}
                 </section>
 
@@ -197,6 +204,7 @@
 <!-- Modais inicio --> 
 {% include 'includes/modal_novo_palestrante.html' %}
 {% include 'includes/modal_novo_tipo_atividade.html' %}
+{% include 'includes/modal_novo_espaco.html' with form_local=form_local %}
 <!-- Modais fim -->
 
 
@@ -369,6 +377,40 @@
                     // alert("Erro ao adicionar Tipo de Atividade. \n" + msg);
                     message_("Erro ao adicionar Tipo de Atividade. \n" + msg, "danger");
                     //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
+                }
+            });
+        });
+
+        // Adicionar Espaço (catálogo da escola)
+        document.getElementById("formLocal").addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            let formData = new FormData(this);
+            fetch("{% url 'organizador:adicionar_espaco_ajax' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let select = document.getElementById("id_local");
+                    if (select) {
+                        select.appendChild(new Option(data.nome, data.nome, true, true));
+                        select.value = data.nome;
+                    }
+                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalLocal"));
+                    modal.hide();
+                    this.reset();
+                    message_("Novo espaço adicionado ao catálogo.");
+                } else {
+                    msg = ""
+                    for (let key in data.errors) {
+                        msg += `${key}: ${data.errors[key]}\n`;
+                    }
+                    message_("Erro ao adicionar espaço. \n" + msg, "danger");
                 }
             });
         });

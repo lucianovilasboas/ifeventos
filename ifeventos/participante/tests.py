@@ -223,3 +223,81 @@ class MenuDoUsuarioTests(TestCase):
         )
         self.assertIn("Trocar para Participante", no_organizador)
         self.assertIn("Visão: Organizador", no_organizador)
+
+
+class MinhasPalestrasTests(TestCase):
+    """R4: seção do palestrante no participante (só ver + QR, sem PII)."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_mp@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.palestrante = U.objects.create_user(
+            email="pal_mp@example.com", password=SENHA, cpf="11144477735",
+            is_participante=True,
+        )
+        self.estranho = U.objects.create_user(
+            email="est_mp@example.com", password=SENHA, cpf="39053344705",
+            is_participante=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        self.evento = Evento.objects.create(
+            title="Evento", description="d", local="l",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
+            categoria="formacao", organizador=self.org,
+        )
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Palestra R4", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+            n_vagas=10, n_inscricoes=3,
+        )
+        self.atividade.palestrantes.add(self.palestrante)
+
+    def test_palestrante_ve_sua_atividade(self):
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(reverse("participante:minhas_palestras"))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Palestra R4")
+        self.assertContains(resposta, "QR de presença")
+
+    def test_nao_palestrante_ve_lista_vazia(self):
+        self.client.force_login(self.estranho)
+        resposta = self.client.get(reverse("participante:minhas_palestras"))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(resposta, "Palestra R4")
+
+    def test_nao_exibe_email_de_inscritos(self):
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(reverse("participante:minhas_palestras"))
+        self.assertEqual(resposta.status_code, 200)
+        # Não há lista de inscritos com PII na tela do palestrante.
+        self.assertNotContains(resposta, self.org.email)
+
+    def test_qr_liberado_para_palestrante(self):
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(reverse("participante:minha_palestra_qr", args=[self.atividade.id]))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "QR de presença da atividade")
+
+    def test_qr_negado_para_quem_nao_palestra(self):
+        self.client.force_login(self.estranho)
+        resposta = self.client.get(reverse("participante:minha_palestra_qr", args=[self.atividade.id]))
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_api_do_qr_liberada_para_palestrante(self):
+        # O endpoint da API usava IsDonoEvento e barrava o palestrante (que tem
+        # o QR liberado na tela). A checagem fina fica no corpo da action.
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(
+            "/api/v1/atividades/%s/qrcode/" % self.atividade.id,
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("png", resposta.json())
+
+    def test_menu_tem_minhas_palestras(self):
+        self.client.force_login(self.palestrante)
+        html = self.client.get(reverse("participante:dashboard")).content.decode()
+        self.assertIn("Minhas palestras", html)

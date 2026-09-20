@@ -8,7 +8,13 @@
                 <span class="cover-dates">{{ evento.data_inicio|date:"d/m" }} – {{ evento.data_fim|date:"d/m" }}</span>
             </div>
             <div class="event-card-body">
-                <h5>{{ evento.title }}</h5>
+                <h5>{{ evento.title }}
+                    {% if evento.organizador and evento.organizador != user %}
+                    <span class="badge bg-secondary-subtle text-secondary" title="Evento organizado por {{ evento.organizador.get_full_name|default:evento.organizador.username }}">
+                        <i class="fa-solid fa-user-shield"></i> outro organizador
+                    </span>
+                    {% endif %}
+                </h5>
                 <p class="meta"><i class="fa-solid fa-location-dot"></i> {{ evento.local }}</p>
                 <p class="desc">{{ evento.description|truncatechars:90 }}</p>
             </div>
@@ -30,6 +36,15 @@
                     {% if evento.get_n_inscricoes > 0 %}
                     <span class="badge rounded-pill bg-danger" style="position:absolute;top:-5px;right:-5px;font-size:9px">{{ evento.get_n_inscricoes }}</span>
                     {% endif %}
+                </a>
+                <a href="{% url 'organizador:relatorio_participantes' evento.id %}" class="btn btn-sm btn-outline-secondary btn-icon" title="Relatório por participante">
+                    <i class="fa-solid fa-users"></i>
+                </a>
+                <a href="{% url 'organizador:relatorio_turmas' evento.id %}" class="btn btn-sm btn-outline-secondary btn-icon" title="Relatório por turma">
+                    <i class="fa-solid fa-layer-group"></i>
+                </a>
+                <a href="{% url 'organizador:relatorio_oficinas' evento.id %}" class="btn btn-sm btn-outline-secondary btn-icon" title="Relatório por tipo de atividade">
+                    <i class="fa-solid fa-tags"></i>
                 </a>
                 <a href="{% url 'organizador:ocupacao_salas' evento.id %}?next={% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-success btn-icon" title="Ocupação por salas">
                     <i class="fa-solid fa-chart-simple"></i>

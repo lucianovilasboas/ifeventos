@@ -221,16 +221,16 @@ class MetadadosNosRelatoriosTests(TestCase):
             data_hora_fim=datetime(2026, 10, 1, 11, 0, tzinfo=tz.utc),
             n_vagas=10,
         )
-        self.aluno = U.objects.create_user(
+        self.participante = U.objects.create_user(
             email="aluno@example.com", password=SENHA, cpf="11144477735",
             first_name="Aluna", last_name="Teste",
         )
         ParticipanteMetadados.objects.create(
-            participante=self.aluno,
+            participante=self.participante,
             dados={"matricula": "2026001", "curso": "Informática", "turma": "B"},
         )
         Inscricao.objects.create(
-            participante=self.aluno, atividade=self.atividade, confirmada=True
+            participante=self.participante, atividade=self.atividade, confirmada=True
         )
         self.client.force_login(self.org)
 
@@ -285,16 +285,16 @@ class ExportacaoRelatoriosTests(TestCase):
             data_hora_fim=datetime(2026, 10, 1, 11, 0, tzinfo=tz.utc),
             n_vagas=10,
         )
-        self.aluno = U.objects.create_user(
+        self.participante = U.objects.create_user(
             email="aluno@example.com", password=SENHA, cpf="11144477735",
             first_name="Aluna", last_name="Teste",
         )
         ParticipanteMetadados.objects.create(
-            participante=self.aluno,
+            participante=self.participante,
             dados={"vinculo": "Aluno", "matricula": "2026001", "curso": "Informática"},
         )
         Inscricao.objects.create(
-            participante=self.aluno, atividade=self.atividade, confirmada=True
+            participante=self.participante, atividade=self.atividade, confirmada=True
         )
         self.client.force_login(self.org)
 

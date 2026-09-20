@@ -18,7 +18,13 @@ from eventos.models import Atividade
 from eventos.models import ChamadaProposicoes, Espaco, TipoAtividade, Vaga
 from eventos import propostas
 from eventos.propostas import PropostaBloqueada
+from eventos import triagem
+from eventos import importacao_assistida
+from eventos import copiloto_evento
+from eventos import operacao
+from eventos import comunicacao
 from django.db.models import Count, Exists, OuterRef, Q
+from asgiref.sync import sync_to_async, async_to_sync
 
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -331,7 +337,11 @@ def criar_atividade(request):
         form = AtividadeForm()
     
 
-    return render(request, 'organizador/form_atividade.html', {'form_ativ': form, 'evento': evento})
+    return render(request, 'organizador/form_atividade.html', {
+        'form_ativ': form, 'evento': evento,
+        'nomes_conhecidos': propostas.nomes_conhecidos(),
+        'form_local': EspacoForm(prefix="local"),
+    })
 
 
 
@@ -377,7 +387,9 @@ def criar_editar_atividade(request, evento_id, atividade_id=None):
     return render(request, 'organizador/form_atividade.html', {
         'form_ativ': form,
         'evento': evento,
-        'atividade': atividade  # Para o template saber se é criação ou edição
+        'atividade': atividade,  # Para o template saber se é criação ou edição
+        'nomes_conhecidos': propostas.nomes_conhecidos(),
+        'form_local': EspacoForm(prefix="local"),
     })
 
 
@@ -399,7 +411,11 @@ def editar_atividade(request, atividade_id):
     else:
         form = AtividadeForm(instance=atividade)
 
-    return render(request, 'organizador/form_atividade.html', {'form_ativ': form, 'atividade': atividade, 'evento': evento})
+    return render(request, 'organizador/form_atividade.html', {
+        'form_ativ': form, 'atividade': atividade, 'evento': evento,
+        'nomes_conhecidos': propostas.nomes_conhecidos(),
+        'form_local': EspacoForm(prefix="local"),
+    })
 
 
 @login_required(login_url='/accounts/login/')
@@ -449,6 +465,18 @@ def adicionar_tipo_atividade(request):
         if form.is_valid():
             tipo = form.save()
             return JsonResponse({"success": True, "id": tipo.id, "nome": tipo.nome})
+        return JsonResponse({"success": False, "errors": form.errors})
+    return JsonResponse({"success": False, "message": "Método inválido"})
+
+
+@login_required(login_url='/accounts/login/')
+def adicionar_espaco_ajax(request):
+    """Cadastra um espaço no catálogo da escola via modal do formulário de atividade."""
+    if request.method == "POST":
+        form = EspacoForm(request.POST, prefix="local")
+        if form.is_valid():
+            espaco = form.save()
+            return JsonResponse({"success": True, "id": espaco.id, "nome": espaco.nome})
         return JsonResponse({"success": False, "errors": form.errors})
     return JsonResponse({"success": False, "message": "Método inválido"})
 
@@ -948,3 +976,240 @@ def rejeitar_proposta(request, atividade_id):
     else:
         messages.success(request, "Proposta rejeitada e vaga liberada.")
     return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
+
+
+# -- Pré-triagem de propostas (copiloto do organizador) --
+@login_required(login_url='/accounts/login/')
+@require_POST
+async def triagem_propostas(request, evento_id):
+    """Analisa a fila de propostas e devolve SUGESTÕES (não decide nada).
+
+    Endpoint AJAX chamado pela tela de propostas pendentes. O resultado fica em
+    cache; `forcar=1` (GET ou POST) refaz a análise.
+    """
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    forcar = (request.GET.get("forcar") or request.POST.get("forcar")) == "1"
+    resultado = await triagem.analisar_evento(evento, forcar=forcar)
+    return JsonResponse(resultado)
+
+
+# -- Importação assistida da programação (copiloto do organizador) --
+@login_required(login_url='/accounts/login/')
+def importar_programacao(request, evento_id):
+    """Assistente de importação da programação a partir de uma planilha.
+
+    Etapas: upload → sugestão de mapeamento (IA + sinônimos) → revisão/prévia →
+    confirmação. Nada é gravado antes da confirmação; o arquivo lido fica no
+    cache entre as etapas (token).
+    """
+    evento = _evento_gerenciavel(request, evento_id)
+    tipos = list(TipoAtividade.objects.order_by("nome"))
+    contexto = {
+        "evento": evento,
+        "campos": importacao_assistida.CAMPOS,
+        "tipos": tipos,
+    }
+    template = "organizador/importar_programacao.html"
+
+    if request.method == "GET":
+        return render(request, template, contexto)
+
+    acao = (request.POST.get("acao") or "").strip()
+    token = (request.POST.get("token") or "").strip()
+
+    # Etapa 1: upload + sugestão de mapeamento.
+    if acao == "preview":
+        arquivo = request.FILES.get("arquivo")
+        if not arquivo:
+            contexto["erro"] = "Selecione um arquivo (.csv, .xls ou .xlsx)."
+            return render(request, template, contexto)
+        try:
+            cabecalhos, linhas = importacao_assistida.ler_upload(arquivo)
+        except Exception as erro:  # noqa: BLE001 - arquivo do usuário: devolve amigável
+            contexto["erro"] = "Não consegui ler o arquivo (%s)." % erro
+            return render(request, template, contexto)
+        if not linhas:
+            contexto["erro"] = "O arquivo não tem linhas de dados."
+            return render(request, template, contexto)
+
+        token = importacao_assistida.novo_token()
+        sugestao = async_to_sync(importacao_assistida.sugerir_mapeamento)(
+            cabecalhos, linhas, evento
+        )
+        normalizacoes = sugestao["normalizacoes"]
+        importacao_assistida.guardar(token, {
+            "cabecalhos": cabecalhos, "linhas": linhas, "normalizacoes": normalizacoes,
+        })
+        canonicas = importacao_assistida.aplicar_mapeamento(
+            linhas, sugestao["mapeamento"], evento, normalizacoes
+        )
+        contexto.update({
+            "token": token,
+            "cabecalhos": cabecalhos,
+            "mapeamento": sugestao["mapeamento"],
+            "campos_mapeamento": importacao_assistida.campos_com_selecao(sugestao["mapeamento"]),
+            "origem": sugestao["origem"],
+            "aviso_ia": sugestao["aviso"],
+            "avisos_ia": sugestao["avisos"],
+            "dossie_info": sugestao["dossie"],
+            "normalizacoes": normalizacoes,
+            "imagens": importacao_assistida.detectar_imagens(linhas, sugestao["mapeamento"]),
+            "duplicatas": importacao_assistida.detectar_duplicatas(canonicas, evento),
+            "faltantes": importacao_assistida.valores_faltantes(canonicas, evento),
+            "total_linhas": len(linhas),
+            "previa": importacao_assistida.previsualizar(evento, canonicas),
+            "previa_canonicas": canonicas[:10],
+        })
+        return render(request, template, contexto)
+
+    # Etapas 2 e 3: refazer a prévia ou importar (reusam o arquivo no cache).
+    dados = importacao_assistida.recuperar(token)
+    if not dados:
+        contexto["erro"] = "A sessão de importação expirou. Envie o arquivo de novo."
+        return render(request, template, contexto)
+
+    cabecalhos, linhas = dados["cabecalhos"], dados["linhas"]
+    normalizacoes = dados.get("normalizacoes") or {"tipo": {}, "local": {}}
+    mapeamento = {
+        canonico: (request.POST.get("map_%s" % canonico) or "").strip()
+        for canonico, _rotulo, _obrig, _ajuda in importacao_assistida.CAMPOS
+    }
+    mapeamento = {chave: valor for chave, valor in mapeamento.items() if valor}
+    erros, avisos = importacao_assistida.validar_mapeamento(mapeamento, cabecalhos)
+
+    contexto.update({
+        "token": token,
+        "cabecalhos": cabecalhos,
+        "mapeamento": mapeamento,
+        "campos_mapeamento": importacao_assistida.campos_com_selecao(mapeamento),
+        "normalizacoes": normalizacoes,
+        "total_linhas": len(linhas),
+        "erros_mapeamento": erros,
+        "avisos_mapeamento": avisos,
+    })
+    if erros:
+        return render(request, template, contexto)
+
+    canonicas = importacao_assistida.aplicar_mapeamento(
+        linhas, mapeamento, evento, normalizacoes
+    )
+    contexto["imagens"] = importacao_assistida.detectar_imagens(linhas, mapeamento)
+    contexto["duplicatas"] = importacao_assistida.detectar_duplicatas(canonicas, evento)
+    contexto["faltantes"] = importacao_assistida.valores_faltantes(canonicas, evento)
+
+    if acao == "importar":
+        from eventos.importacao_programacao import importar_linhas
+
+        # Cria tipos/espaços marcados pelo organizador antes de importar.
+        for nome in request.POST.getlist("criar_tipo"):
+            nome = " ".join(nome.split())[:255]
+            if nome and not TipoAtividade.objects.filter(nome__iexact=nome).exists():
+                TipoAtividade.objects.create(nome=nome)
+        for nome in request.POST.getlist("criar_espaco"):
+            nome = " ".join(nome.split())[:160]
+            if nome and not Espaco.objects.filter(nome__iexact=nome).exists():
+                Espaco.objects.create(nome=nome)
+
+        contexto["relatorio"] = importar_linhas(evento, canonicas)
+        contexto["concluido"] = True
+        return render(request, template, contexto)
+
+    contexto["previa"] = importacao_assistida.previsualizar(evento, canonicas)
+    contexto["previa_canonicas"] = canonicas[:10]
+    return render(request, template, contexto)
+
+
+# -- Copiloto de criação de evento (plano de programação) --
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def copiloto_evento_plano(request, evento_id):
+    """Recebe um resumo e devolve um plano inicial do evento (JSON)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+
+    plano = await copiloto_evento.gerar_plano(
+        (dados.get("titulo") or "").strip(),
+        (dados.get("descricao") or "").strip(),
+        (dados.get("categoria") or "").strip(),
+        evento,
+        (dados.get("observacoes") or "").strip(),
+    )
+    return JsonResponse(plano)
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def aplicar_plano_evento(request, evento_id):
+    """Cria as atividades do plano como RASCUNHO (reusa a importação)."""
+    from eventos.importacao_programacao import importar_linhas
+
+    evento = _evento_gerenciavel(request, evento_id)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+
+    plano = dados.get("plano") if isinstance(dados.get("plano"), dict) else dados
+    linhas = copiloto_evento.plano_para_linhas(plano, evento)
+    if not linhas:
+        return JsonResponse({"erro": "Nenhuma atividade para criar."}, status=400)
+
+    relatorio = importar_linhas(evento, linhas, publicada=False)
+    return JsonResponse({"relatorio": relatorio})
+
+
+# -- Briefing operacional (execução, no dia) --
+@login_required(login_url='/accounts/login/')
+def briefing_operacional(request, evento_id):
+    """Painel de operação do evento: agora, a seguir e alertas."""
+    evento = _evento_gerenciavel(request, evento_id)
+    contexto = {"evento": evento, **operacao.resumo(evento)}
+    return render(request, "organizador/operacao.html", contexto)
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def briefing_leitura(request, evento_id):
+    """Leitura rápida do estado atual do evento (IA)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+    return JsonResponse(await operacao.leitura_do_dia(evento))
+
+
+# -- Comunicação assistida (rascunhos de divulgação) --
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def gerar_divulgacao(request, evento_id):
+    """Gera rascunho de post/e-mail para divulgação do evento (IA)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        dados = {}
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+    return JsonResponse(await comunicacao.gerar_rascunho(
+        evento,
+        canal=(dados.get("canal") or "post").strip(),
+        objetivo=(dados.get("objetivo") or "").strip(),
+    ))
