@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.1] — 2026-09-20
+
+### Alterado
+
+- **Início/Agenda sempre perto do avatar**: no desktop, a navegação da topbar
+  deixou de ficar centralizada e agora fica **colada à direita, junto ao
+  avatar**, em todas as telas do app (mesmo comportamento da Home).
+- **Header e footer full-width**: a barra do topo e o rodapé agora ocupam a
+  **largura toda da página** (desktop e mobile), como na Home — o conteúdo
+  deles continua centrado a 1080px. Antes a topbar ficava limitada a 1080px
+  centrada no desktop. O rodapé do app virou uma barra com borda superior
+  (espelhando a Home), em vez de uma linha de versão solta.
+
 ## [2.2.0] — 2026-09-20
 
 ### Adicionado

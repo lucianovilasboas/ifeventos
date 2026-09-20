@@ -40,13 +40,19 @@ a { color: var(--accent-ink); }
 }
 
 /* ---------- Topbar app ---------- */
+/* A barra ocupa a largura TODA da página (como o header da Home); o conteúdo
+   dela é centrado a `--container-max` por `.app-topbar-inner`. */
 .app-topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--space-3);
-  padding: 12px 18px;
   background: var(--bg);
   border-bottom: 2px solid var(--border);
   position: sticky; top: 0; z-index: 1030;
+  width: 100%;
+}
+.app-topbar-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3);
+  padding: 12px 18px;
+  max-width: var(--container-max); margin: 0 auto;
   min-width: 0;
 }
 .app-brand {
@@ -732,6 +738,18 @@ footer p { margin: 0; }
 footer a { color: var(--accent-ink); text-decoration: none; font-weight: 700; }
 footer a:hover { color: var(--accent-press); text-decoration: underline; }
 
+/* Footer do app (espelha o da Home): barra de ponta a ponta com borda
+   superior; o texto é centrado a `--container-max` por `.app-footer-inner`. */
+.app-footer {
+  background: var(--bg);
+  margin-top: var(--space-8);
+}
+.app-footer-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  width: 100%;
+}
+
 /* ---------- Cards de evento (organizador) ---------- */
 .event-card-app {
   background: var(--app-card);
@@ -891,10 +909,11 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 @media (min-width: 992px) {
   body { padding-bottom: var(--space-6); }
   .app-topbar {
-    max-width: var(--container-max); margin: 0 auto;
-    padding: var(--space-4) var(--gutter-desktop);
     position: static;
     border-bottom: 2px solid var(--border);
+  }
+  .app-topbar-inner {
+    padding: var(--space-4) var(--gutter-desktop);
   }
   /* A largura do hero já vem da regra base (mesma do .app-sec), então aqui
      só se ajustam os espaçamentos internos — sem padding lateral calculado. */
@@ -918,7 +937,7 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 /* Navegação desktop (topbar) */
 @media (min-width: 992px) {
   .app-nav-desktop {
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: flex-end;
     gap: var(--space-1); flex: 1; padding: 0 var(--space-3);
   }
   .app-nav-desktop a {
