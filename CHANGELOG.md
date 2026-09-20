@@ -5,6 +5,23 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.3] — 2026-09-20
+
+### Corrigido
+
+- **Grade de programação — coluna de horários recortando a programação**: a
+  primeira coluna do calendário (horários) apresentava um deslocamento
+  horizontal indevido, ocasionando o recorte parcial dos eventos e do cabeçalho
+  do dia (os elementos passavam do limite esquerdo da área de visualização ao
+  rolar a grade na horizontal). Causa: a coluna não tinha largura fixa e, com a
+  tabela `width:100%` + `min-width:640px`, ela absorvia o espaço livre e esticava
+  (até ~144px em grids com poucos dias). Agora a coluna tem **largura fixa de
+  48px** em todas as telas, com borda de separação — os horários voltam para a
+  esquerda, o grid fica alinhado e o recorte ao rolar é mínimo.
+  - Vale para todas as telas que usam a tabela `.agenda`: programação pública,
+    grade do organizador, "Minha agenda" do participante, ocupação de salas e
+    mapa de calor.
+
 ## [2.2.2] — 2026-09-20
 
 ### Corrigido
