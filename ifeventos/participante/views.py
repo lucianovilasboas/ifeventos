@@ -282,14 +282,14 @@ class MeusCrachasView(LoginRequiredMixin, TemplateView):
 # ---------------------------------------------------------------------------
 
 def _palestrantes_escolhidos(form, participante, request=None):
-    """Palestrantes marcados + os extras da busca + o próprio proponente.
+    """Palestrantes escolhidos pela busca + o próprio proponente.
 
-    Os "extras" vêm de `palestrantes_extra` — a busca por nome/e-mail acha
-    qualquer participante cadastrado, não só quem já tem a flag de palestrante.
+    Não há mais o select múltiplo (expunha nomes demais): a escolha vem dos
+    `palestrantes_extra` (chips da busca, qualquer participante cadastrado) e,
+    se o switch "Eu vou ministrar" estiver marcado, do próprio proponente.
     Os ids são reconsultados aqui: o POST pode vir com qualquer coisa.
     """
-    escolhidos = list(form.cleaned_data.get("palestrantes") or [])
-    ids = {pessoa.pk for pessoa in escolhidos}
+    escolhidos, ids = [], set()
 
     if request is not None:
         extras = [
@@ -323,6 +323,17 @@ def _sugestoes_do_post(request):
     ]
 
 
+def _extras_do_post(request):
+    """Participantes escolhidos pela busca (chips `palestrantes_extra`), do POST."""
+    extras = [
+        valor for valor in request.POST.getlist("palestrantes_extra")
+        if str(valor).isdigit()
+    ]
+    if not extras:
+        return []
+    return list(Participante.objects.filter(pk__in=extras))
+
+
 @login_required(login_url='/accounts/login/')
 def minhas_propostas(request):
     """Minhas propostas de atividade e o atalho para propor."""
@@ -348,6 +359,9 @@ def propor_atividade(request, evento_id):
         form = PropostaForm(request.POST, request.FILES, evento=evento,
                             usuario=participante)
         if form.is_valid():
+            # A imagem recortada (Cropper) tem prioridade sobre o arquivo cru.
+            recorte = imagem_cortada(request, 'proposta')
+            imagem = recorte or form.cleaned_data.get('imagem')
             try:
                 propostas.propor(
                     participante, evento,
@@ -359,7 +373,7 @@ def propor_atividade(request, evento_id):
                     palestrantes=_palestrantes_escolhidos(form, participante, request),
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
-                    imagem=form.cleaned_data.get('imagem'),
+                    imagem=imagem,
                     recursos_necessarios=form.cleaned_data.get('recursos_necessarios') or "",
                     consentimento_voluntario=form.cleaned_data.get('consentimento_voluntario'),
                     sugestoes_palestrantes=_sugestoes_do_post(request),
@@ -387,6 +401,10 @@ def propor_atividade(request, evento_id):
         'vistas_vaga': propostas.VISTAS_VAGA,
         'slots': slots,
         'slots_json': propostas.grade_em_json(slots),
+        # Preserva o que o usuário já tinha preenchido quando a validação falha
+        # (chips de palestrante escolhido e de sugestão não podem sumir).
+        'palestrantes_extras': _extras_do_post(request),
+        'sugestoes_iniciais': _sugestoes_do_post(request),
     })
 
 
@@ -414,6 +432,8 @@ def editar_proposta(request, atividade_id):
                             evento=evento, usuario=request.user,
                             incluir_vaga=proposta.vaga)
         if form.is_valid():
+            recorte = imagem_cortada(request, 'proposta')
+            imagem = recorte or form.cleaned_data.get('imagem')
             try:
                 propostas.atualizar(
                     proposta,
@@ -425,7 +445,7 @@ def editar_proposta(request, atividade_id):
                     palestrantes=_palestrantes_escolhidos(form, request.user, request),
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
-                    imagem=form.cleaned_data.get('imagem'),
+                    imagem=imagem,
                     recursos_necessarios=form.cleaned_data.get('recursos_necessarios') or "",
                     consentimento_voluntario=form.cleaned_data.get('consentimento_voluntario'),
                     sugestoes_palestrantes=_sugestoes_do_post(request),
@@ -435,9 +455,24 @@ def editar_proposta(request, atividade_id):
             else:
                 messages.success(request, "Proposta atualizada.")
                 return redirect('participante:minhas_propostas')
+        # Validação falhou: preserva os chips que o autor já tinha montado.
+        palestrantes_extras = _extras_do_post(request)
+        sugestoes_iniciais = _sugestoes_do_post(request)
     else:
         form = PropostaForm(instance=proposta, evento=evento,
                             usuario=request.user, incluir_vaga=proposta.vaga)
+        # O switch reflete se o proponente já é palestrante da proposta.
+        form.fields['eu_sou_palestrante'].initial = (
+            proposta.palestrantes.filter(pk=request.user.pk).exists()
+        )
+        palestrantes_extras = [
+            pessoa for pessoa in proposta.palestrantes.all()
+            if pessoa.pk != request.user.pk
+        ]
+        sugestoes_iniciais = [
+            {"nome": sug.nome, "email": sug.email, "telefone": sug.telefone}
+            for sug in proposta.palestrantes_sugeridos.all()
+        ]
 
     slots = propostas.grade_de_propostas(evento, request.user)
     return render(request, 'participante/form_proposta.html', {
@@ -445,12 +480,8 @@ def editar_proposta(request, atividade_id):
         'form': form,
         'proposta': proposta,
         'vistas_vaga': propostas.VISTAS_VAGA,
-        # Palestrantes sem a flag global não cabem no select (que lista só quem
-        # já é palestrante): eles voltam como "extras" selecionados.
-        'palestrantes_extras': [
-            pessoa for pessoa in proposta.palestrantes.all()
-            if not pessoa.is_palestrante and pessoa.pk != request.user.pk
-        ],
+        'palestrantes_extras': palestrantes_extras,
+        'sugestoes_iniciais': sugestoes_iniciais,
         'chamada': propostas.chamada_de(evento),
         'aberta': True,
         'motivo_fechado': '',

@@ -5,6 +5,22 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.1.1] — 2026-09-20
+
+### Corrigido (formulário de proposta)
+
+- **Não apaga o que o usuário preencheu**: quando a validação falha, os chips
+  de palestrante escolhido e de palestrante sugerido são preservados (antes
+  sumiam ao recarregar a página).
+- **"Eu vou ministrar esta atividade"**: agora vem **marcado por padrão** e
+  aparece logo no topo da seção "Quem apresenta" (na edição, reflete se o
+  proponente já é palestrante da proposta).
+- **Select múltiplo de palestrantes removido** (expunha a lista de nomes): a
+  escolha passa a ser só pela **busca** (nome/e-mail → chips) e pela sugestão
+  de palestrante novo.
+- **Imagem com recorte (Cropper)**: o campo de imagem da proposta agora usa o
+  mesmo recorte/preview do formulário de atividade do organizador.
+
 ## [2.1.0] — 2026-09-20
 
 ### Adicionado (formulário de proposta)

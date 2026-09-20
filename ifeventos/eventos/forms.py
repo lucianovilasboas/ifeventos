@@ -515,13 +515,6 @@ class PropostaForm(forms.ModelForm):
         empty_label="Selecione a vaga…",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
-    palestrantes = forms.ModelMultipleChoiceField(
-        queryset=Participante.objects.none(),
-        label="Palestrantes",
-        required=False,
-        widget=forms.SelectMultiple(attrs={"class": "form-select", "size": 6}),
-        help_text="Escolha quem já é palestrante — ou marque abaixo que é você.",
-    )
     tipo = forms.ModelChoiceField(
         queryset=TipoAtividade.objects.all(),
         label="Tipo de atividade",
@@ -541,6 +534,7 @@ class PropostaForm(forms.ModelForm):
     eu_sou_palestrante = forms.BooleanField(
         label="Eu vou ministrar esta atividade",
         required=False,
+        initial=True,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
     )
     # Não obrigatório de propósito: sem preencher, vale a capacidade do espaço.
@@ -568,14 +562,13 @@ class PropostaForm(forms.ModelForm):
 
     class Meta:
         model = Atividade
-        # `vaga`, `tipo`, `tipo_sugerido` e `palestrantes` entram aqui para o
-        # formulário de EDIÇÃO receber o valor atual do banco como inicial
-        # (declarar o campo não basta: o Django só monta o initial do que está
-        # em Meta.fields).
+        # `vaga`, `tipo` e `tipo_sugerido` entram aqui para o formulário de
+        # EDIÇÃO receber o valor atual do banco como inicial (declarar o campo
+        # não basta: o Django só monta o initial do que está em Meta.fields).
         fields = [
             "titulo", "descricao", "n_vagas", "emite_certificado", "imagem",
             "recursos_necessarios", "consentimento_voluntario",
-            "vaga", "tipo", "tipo_sugerido", "palestrantes",
+            "vaga", "tipo", "tipo_sugerido",
         ]
         labels = {
             "titulo": "Título",
@@ -607,20 +600,10 @@ class PropostaForm(forms.ModelForm):
                 .order_by("inicio", "espaco__nome")
             )
 
-        pessoas = Participante.objects.filter(is_palestrante=True)
-        if usuario is not None and getattr(usuario, "pk", None):
-            pessoas = pessoas.exclude(pk=usuario.pk)
-        self.fields["palestrantes"].queryset = pessoas.order_by("first_name", "last_name")
-
-        # Na edição: já escolhidos (sem o próprio, que é a caixa abaixo) e a
-        # caixa "eu vou ministrar" marcada quando ele já estava na atividade.
+        # Na edição: o switch "eu vou ministrar" reflete se o proponente já é
+        # palestrante da atividade (os demais vêm como "extras" pela busca).
         if self.instance and self.instance.pk and getattr(usuario, "pk", None):
             atuais = self.instance.palestrantes.all()
-            # Só entra no initial quem o select consegue exibir (a query é dos
-            # que têm a flag); os demais chegam como "extras" pela busca.
-            self.fields["palestrantes"].initial = [
-                p.pk for p in atuais if p.pk != usuario.pk and p.is_palestrante
-            ]
             self.fields["eu_sou_palestrante"].initial = any(
                 p.pk == usuario.pk for p in atuais
             )
