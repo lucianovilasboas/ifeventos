@@ -173,6 +173,10 @@ def modelo_metadados_csv(request):
 
     from eventos import importacao
 
+    if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
+        messages.warning(request, "Apenas organizadores podem baixar o modelo de metadados.")
+        return redirect("organizador:dashboard")
+
     resposta = HttpResponse(content_type="text/csv; charset=utf-8")
     resposta["Content-Disposition"] = 'attachment; filename="modelo_metadados.csv"'
     resposta.write("\ufeff")  # BOM: Excel abre os acentos corretamente
@@ -188,6 +192,9 @@ def modelo_metadados_csv(request):
 @login_required(login_url='/accounts/login/')
 def criar_evento(request):
     """Cria um novo evento associado ao organizador autenticado via modal"""
+
+    if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
+        return JsonResponse({"success": False, "errors": "Apenas organizadores podem criar eventos."}, status=403)
 
     organizador = get_object_or_404(Participante, id=request.user.id) 
 
@@ -268,6 +275,12 @@ def get_user_and_evento(request, evento_id):
     return organizador, evento
 
 
+def _exige_organizador(request):
+    """Recusa (403) quem não tem a flag de organizador nem é superuser."""
+    if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
+        raise PermissionDenied("Apenas organizadores podem fazer isto.")
+
+
 
 @login_required(login_url='/accounts/login/')
 def excluir_evento(request, evento_id):
@@ -292,7 +305,7 @@ def excluir_evento(request, evento_id):
 @login_required(login_url='/accounts/login/')
 def atividades_evento(request, evento_id):
     """Lista as atividades de um evento (lista ou grade) + conflitos da grade."""
-    evento = get_object_or_404(Evento, id=evento_id)
+    evento = _evento_gerenciavel(request, evento_id)
     # Ordem padrão: quem tem mais inscritos primeiro. O desempate por horário e
     # id mantém a lista ESTÁVEL (sem "pular" a cada recarregamento) quando duas
     # atividades têm a mesma quantidade de inscritos.
@@ -399,7 +412,7 @@ def criar_atividade(request):
     # print("request.POST.get('evento'): ",request.POST.get('evento'))
    
     evento_id = request.POST.get('evento') # Recupera o id do evento via POST
-    evento = get_object_or_404(Evento, id=evento_id)
+    evento = _evento_gerenciavel(request, evento_id)
     if request.method == "POST":
         # request.FILES é indispensável: sem ele o navegador envia a imagem e o
         # Django simplesmente ignora o arquivo, gravando a atividade sem foto.
@@ -427,7 +440,7 @@ def criar_atividade(request):
 def criar_editar_atividade(request, evento_id, atividade_id=None):
     """Cria ou edita uma atividade associada a um evento"""
     
-    evento = get_object_or_404(Evento, id=evento_id)
+    evento = _evento_gerenciavel(request, evento_id)
 
     if atividade_id:  # Se houver um ID, estamos editando
         atividade = get_object_or_404(Atividade, id=atividade_id, evento=evento)
@@ -476,6 +489,7 @@ def criar_editar_atividade(request, evento_id, atividade_id=None):
 def editar_atividade(request, atividade_id):
     """Permite editar uma atividade"""
     atividade = get_object_or_404(Atividade, id=atividade_id)
+    _evento_gerenciavel(request, atividade.evento_id)
     evento = atividade.evento
 
     if request.method == "POST":
@@ -500,6 +514,7 @@ def editar_atividade(request, atividade_id):
 def excluir_atividade(request, atividade_id):
     """Exclui uma atividade"""
     atividade = get_object_or_404(Atividade, id=atividade_id)
+    _evento_gerenciavel(request, atividade.evento_id)
     evento = atividade.evento
     atividade.delete()
     messages.success(request, "Atividade excluída com sucesso!")
@@ -513,6 +528,8 @@ def excluir_atividade(request, atividade_id):
 # -- Palestrantes e Tipos de Atividade --
 @login_required(login_url='/accounts/login/')
 def adicionar_palestrante(request):
+    if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
+        return JsonResponse({"success": False, "errors": "Apenas organizadores."}, status=403)
     # print("request.POST: ", request.POST)
     # print("request.FILES: ", request.FILES)
     if request.method == "POST":
@@ -538,6 +555,8 @@ def adicionar_palestrante(request):
 
 @login_required(login_url='/accounts/login/')
 def adicionar_tipo_atividade(request):
+    if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
+        return JsonResponse({"success": False, "errors": "Apenas organizadores."}, status=403)
     if request.method == "POST":
         form = TipoAtividadeForm(request.POST)
         if form.is_valid():
@@ -550,6 +569,8 @@ def adicionar_tipo_atividade(request):
 @login_required(login_url='/accounts/login/')
 def adicionar_espaco_ajax(request):
     """Cadastra um espaço no catálogo da escola via modal do formulário de atividade."""
+    if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
+        return JsonResponse({"success": False, "errors": "Apenas organizadores."}, status=403)
     if request.method == "POST":
         form = EspacoForm(request.POST, prefix="local")
         if form.is_valid():
@@ -565,12 +586,14 @@ def adicionar_espaco_ajax(request):
 # -- Certificados --
 
 
-class EmitirCertificadoInscricaoView(View):
+class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
     """
     View para que o organizador emita um certificado para uma inscrição confirmada.
     """
     def post(self, request, inscricao_id):
         inscricao = get_object_or_404(Inscricao, id=inscricao_id)
+        if not pode_gerenciar_evento(request.user, inscricao.atividade.evento):
+            raise PermissionDenied("Você não organiza o evento desta inscrição.")
 
         if inscricao.certificado_emitido or Certificado.objects.filter(participante=inscricao.participante, atividade=inscricao.atividade).exists():
             return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
@@ -590,12 +613,14 @@ class EmitirCertificadoInscricaoView(View):
 
 
 
-class EmitirCertificadosAtividadeView(View):
+class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
     """
     View para que o organizador emita certificados de uma atividade encerrada para participantes confirmados.
     """
     def post(self, request, atividade_id):
         atividade = get_object_or_404(Atividade, id=atividade_id)
+        if not pode_gerenciar_evento(request.user, atividade.evento):
+            raise PermissionDenied("Você não organiza o evento desta atividade.")
         inscritos = Inscricao.objects.filter(atividade=atividade, confirmada=True, certificado_emitido=False)
 
         certificados_gerados = []
@@ -646,9 +671,11 @@ class ModeloCrachaEventoView(LoginRequiredMixin, View):
         return redirect("organizador:atividades_evento", evento.id)
 
 
-class EmitirCertificadosEventoView(View):
+class EmitirCertificadosEventoView(LoginRequiredMixin, View):
     def post(self, request, evento_id):
         evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
         participantes = Participante.objects.all()
 
         for participante in participantes:
@@ -762,8 +789,9 @@ class CheckinAtividadeView(LoginRequiredMixin, View):
 @login_required(login_url='/accounts/login/')
 @require_POST
 def publicar_atividade(request, atividade_id):
-    """Alterna rascunho/publicada (dono do evento/superuser)."""
+    """Alterna rascunho/publicada (organizador do evento/superuser)."""
     atividade = get_object_or_404(Atividade, id=atividade_id)
+    _evento_gerenciavel(request, atividade.evento_id)
     atividade.publicada = not atividade.publicada
     atividade.save(update_fields=["publicada"])
     messages.success(
