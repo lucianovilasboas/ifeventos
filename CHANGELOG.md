@@ -5,6 +5,17 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.1.3] — 2026-09-20
+
+### Corrigido
+
+- **Botão "Aprovar" da tela de propostas pendentes**: o botão "Cadastrar tipo"
+  (adicionado no 2.1.2) era um `<form>` **aninhado** dentro do form de
+  aprovação — o `</form>` interno fechava o form externo e o botão "Aprovar"
+  ficava órfão (não enviava). Agora o "Cadastrar tipo" é um botão com
+  `formaction`, sem aninhar, e o form de aprovação volta a funcionar.
+  Teste de regressão (detecção de `<form>` aninhado na tela).
+
 ## [2.1.2] — 2026-09-20
 
 ### Corrigido / Adicionado (formulário de proposta e aprovação)

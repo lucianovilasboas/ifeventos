@@ -808,6 +808,43 @@ class LimiteDePropostasTests(BasePropostasTests):
 
         self.assertIn("ainda pode enviar 1 proposta", html)
 
+    def test_aprovar_nao_quebra_com_tipo_sugerido(self):
+        # Regressão: o botão "Cadastrar tipo" era um <form> aninhado dentro do
+        # form de aprovar — o `</form>` interno fechava o form externo e o
+        # botão Aprovar ficava órfão (não enviava). Com `formaction`, o form de
+        # aprovar continua íntegro.
+        from html.parser import HTMLParser
+
+        proposta = self._propor(tipo=None, tipo_sugerido="Mesa Redonda")
+        self.client.force_login(self.org)
+        html = self.client.get(
+            reverse("organizador:propostas_pendentes", args=[self.evento.id])
+        ).content.decode()
+
+        class DetectorForm(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.profundidade = 0
+                self.aninhado = False
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "form":
+                    self.profundidade += 1
+                    if self.profundidade > 1:
+                        self.aninhado = True
+
+            def handle_endtag(self, tag):
+                if tag == "form":
+                    self.profundidade -= 1
+
+        detector = DetectorForm()
+        detector.feed(html)
+        self.assertFalse(detector.aninhado, "há um <form> aninhado na tela de aprovação")
+
+        # O "Cadastrar tipo" vira um botão com formaction (não um form novo).
+        self.assertIn("formaction", html)
+        self.assertIn("Cadastrar tipo", html)
+
 
 class EdicaoDeEspacoTests(BasePropostasTests):
     """O catálogo de espaços pode ser editado (nome e capacidade) pelo modal."""
