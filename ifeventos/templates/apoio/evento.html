@@ -1,0 +1,69 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+
+{% block title %}Apoio | {{ evento.title }}{% endblock %}
+
+{% block action %}
+<div class="pagina-topo d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+        <h2><i class="fa-solid fa-clipboard-check"></i> {{ evento.title }}</h2>
+        <p class="text-muted small mb-0">
+            {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}
+            {% if evento.local %} · {{ evento.local }}{% endif %}
+        </p>
+    </div>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'apoio:dashboard' %}">
+        <i class="fa-solid fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+{% if atividades %}
+<div class="table-wrap">
+    <div class="table-container">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th scope="col">Atividade</th>
+                        <th scope="col">Horário</th>
+                        <th scope="col">Sala</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Inscritos</th>
+                        <th scope="col">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for atividade in atividades %}
+                    <tr>
+                        <td>{{ atividade.titulo }}</td>
+                        <td>
+                            <small class="text-muted">
+                                <i class="fa-regular fa-clock"></i>
+                                {{ atividade.data_hora_inicio|date:"d/m · H:i" }}
+                            </small>
+                        </td>
+                        <td>{% if atividade.local %}{{ atividade.local }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td>{% if atividade.tipo %}{{ atividade.tipo.nome }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td>{{ atividade.n_inscricoes }}</td>
+                        <td>
+                            <a href="{% url 'organizador:checkin_atividade' atividade.id %}"
+                               class="btn btn-app btn-sm" title="Fazer o check-in (câmera ou código)">
+                                <i class="fa-solid fa-camera"></i> Check-in
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="fa-solid fa-circle-info"></i>
+    Este evento ainda não tem atividades publicadas.
+</div>
+{% endif %}
+{% endblock content %}

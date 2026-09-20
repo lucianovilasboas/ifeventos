@@ -62,6 +62,9 @@ urlpatterns = [
     # -- Participante --
     path("participante/", include("participante.urls", namespace="participante")),
 
+    # -- Equipe de apoio --
+    path("apoio/", include("apoio.urls", namespace="apoio")),
+
 
     # -- Organizador --
     path("organizador/", include("organizador.urls", namespace="organizador")),

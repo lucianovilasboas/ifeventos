@@ -11,6 +11,7 @@ from .views import profile
 from .views import importar_metadados, modelo_metadados_csv
 from .views import importar_programacao
 from .views import copiloto_evento_plano, aplicar_plano_evento, remover_plano_evento
+from .views import equipe_apoio_adicionar, equipe_apoio_remover
 from .views import briefing_operacional, briefing_leitura, gerar_divulgacao
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
@@ -160,6 +161,10 @@ urlpatterns = [
     path("atividade/<int:atividade_id>/qrcode/", QrAtividadeView.as_view(), name="qrcode_atividade"),
     path("atividade/<int:atividade_id>/checkin/", CheckinAtividadeView.as_view(), name="checkin_atividade"),
     path("evento/<int:evento_id>/modelo-cracha/", ModeloCrachaEventoView.as_view(), name="modelo_cracha_evento"),
+
+    # -- Equipe de apoio do evento --
+    path("evento/<int:evento_id>/equipe/adicionar/", equipe_apoio_adicionar, name="equipe_apoio_adicionar"),
+    path("evento/<int:evento_id>/equipe/remover/", equipe_apoio_remover, name="equipe_apoio_remover"),
 
     # -- Rotas para a IA --
     path('ia_mensagem/', ia_mensagem_view, name='ia_mensagem'),

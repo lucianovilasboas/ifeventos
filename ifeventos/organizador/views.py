@@ -5,6 +5,7 @@ from eventos.models import Atividade, Inscricao, Participante
 from eventos import agenda
 from django.contrib import messages
 from django.utils.timezone import localtime
+from django.utils.crypto import get_random_string
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -36,6 +37,7 @@ from eventos.crachas import (
     modelo_de_cracha,
     pessoas_do_evento,
     pode_exibir_qr_atividade,
+    pode_checkin_apoio,
     pode_gerenciar_evento,
 )
 from eventos.models import Inscricao, Certificado
@@ -324,7 +326,70 @@ def atividades_evento(request, evento_id):
             {"valor": "grade", "rotulo": "Grade", "icone": "fa-solid fa-table-cells"},
         ],
         'modelos_cracha': Evento.MODELO_CRACHA_CHOICES,
+        'equipe': evento.equipe.order_by('first_name', 'email'),
     }) 
+
+
+# -- Equipe de apoio do evento -------------------------------------------
+@login_required(login_url='/accounts/login/')
+@require_POST
+def equipe_apoio_adicionar(request, evento_id):
+    """Adiciona uma pessoa à equipe de apoio do evento, pelo e-mail.
+
+    Conta já existente (participante/palestrante) é REAPROVEITADA: ela só
+    ganha a flag `is_equipe` e o vínculo. E-mail novo cria uma conta mínima
+    (senha temporária devolvida UMA vez, para o organizador repassar).
+    """
+    _, evento = get_user_and_evento(request, evento_id)
+    email = (request.POST.get("email") or "").strip().lower()
+    if not email:
+        return JsonResponse({"success": False, "erro": "Informe o e-mail."}, status=400)
+
+    try:
+        pessoa = Participante.objects.get(email__iexact=email)
+    except Participante.DoesNotExist:
+        from allauth.account.models import EmailAddress
+
+        senha_temporaria = get_random_string(8)
+        pessoa = Participante.objects.create_user(
+            email=email,
+            password=senha_temporaria,
+            is_participante=False,
+            is_equipe=True,
+        )
+        # O organizador criou a conta e avaliza a pessoa: o e-mail nasce
+        # verificado (senão, com ACCOUNT_EMAIL_VERIFICATION='mandatory', ela
+        # não conseguiria entrar antes de confirmar o e-mail).
+        EmailAddress.objects.create(
+            user=pessoa, email=pessoa.email, verified=True, primary=True
+        )
+        reusada = False
+    else:
+        senha_temporaria = None
+        reusada = True
+        if not pessoa.is_equipe:
+            pessoa.is_equipe = True
+            pessoa.save(update_fields=["is_equipe"])
+
+    evento.equipe.add(pessoa)
+    return JsonResponse({
+        "success": True,
+        "pessoa_id": pessoa.id,
+        "nome": pessoa.get_full_name() or pessoa.email,
+        "reusada": reusada,
+        "senha_temporaria": senha_temporaria,
+    })
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def equipe_apoio_remover(request, evento_id):
+    """Tira a pessoa da equipe de apoio do evento (não apaga a conta)."""
+    _, evento = get_user_and_evento(request, evento_id)
+    pessoa_id = request.POST.get("pessoa_id") or ""
+    if pessoa_id.isdigit():
+        evento.equipe.remove(int(pessoa_id))
+    return JsonResponse({"success": True}) 
 
 
 # -- cria Atividade usando o modal --
@@ -656,10 +721,11 @@ class QrAtividadeView(LoginRequiredMixin, View):
         return render(request, self.template_name, {
             "atividade": atividade,
             "evento": atividade.evento,
-            # A tela é liberada também para quem PALESTRA na atividade, mas
-            # desfazer presença exige gerenciar o evento (mesma regra da API).
-            # Sem separar as duas, o palestrante veria um ✕ que sempre falha.
-            "pode_desfazer": pode_gerenciar_evento(request.user, atividade.evento),
+            # A tela é liberada também para quem PALESTRA na atividade e para a
+            # equipe de apoio, mas desfazer presença exige gerenciar o evento ou
+            # ser da equipe dele (mesma regra da API). Sem separar as duas, o
+            # palestrante veria um ✕ que sempre falha.
+            "pode_desfazer": pode_checkin_apoio(request.user, atividade.evento),
         })
 
 
@@ -676,13 +742,18 @@ class CheckinAtividadeView(LoginRequiredMixin, View):
 
     def get(self, request, atividade_id):
         atividade = get_object_or_404(Atividade, id=atividade_id)
-        if not pode_gerenciar_evento(request.user, atividade.evento):
-            raise PermissionDenied("Você não organiza o evento desta atividade.")
+        if not pode_checkin_apoio(request.user, atividade.evento):
+            raise PermissionDenied("Você não organiza o evento nem é da equipe de apoio dele.")
 
         janela_aberta, motivo = atividade_aceita_presenca_agora(atividade)
+        voltar_url = reverse("organizador:atividades_evento", args=[atividade.evento_id])
+        if (getattr(request.user, "is_equipe", False)
+                and not pode_gerenciar_evento(request.user, atividade.evento)):
+            voltar_url = reverse("apoio:evento", args=[atividade.evento_id])
         return render(request, self.template_name, {
             "atividade": atividade,
             "evento": atividade.evento,
+            "voltar_url": voltar_url,
             "janela_aberta": janela_aberta,
             "janela_motivo": motivo,
         })

@@ -5,6 +5,31 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.0] — 2026-09-20
+
+### Adicionado
+
+- **Equipe de apoio** (`is_equipe` + `Evento.equipe`): perfil de usuário para
+  quem ajuda durante o evento com o check-in, **sem poderes de organização**.
+  - O **organizador** gerencia a equipe na tela de atividades do evento (botão
+    "Equipe de apoio"): adiciona por e-mail, lista e remove. E-mail já
+    cadastrado **reaproveita a conta** (participante/palestrante só ganha o
+    papel e o vínculo); e-mail novo cria **conta mínima** (senha temporária
+    mostrada uma única vez, e-mail já marcado como verificado — sem pedir CPF).
+  - A pessoa da equipe vê a visão **"Apoio"** (novo painel `/apoio/`): eventos
+    em que foi adicionada, a programação (atividades publicadas com horário,
+    sala, tipo e inscritos) e, em cada atividade, **check-in pela câmera**
+    (QR do crachá), **código manual** e **desfazer presença** — reutilizando o
+    fluxo de check-in existente. Também pode **exibir o QR de presença** da
+    atividade (projetar na sala).
+  - Permissões: `pode_checkin_apoio` libera o check-in/QR/desfazer só nos
+    eventos vinculados àquela pessoa; quem é equipe de outro evento recebe 403.
+    Presenças registradas guardam `registrada_por` (auditoria). Nada de
+    criar/editar/excluir eventos ou atividades, relatórios, certificados,
+    propostas, comunicação ou crachás.
+  - Menu: toggle **"Trocar para Apoio"** quando a pessoa tem o papel; quem tem
+    várias visões (participante/palestrante/equipe) alterna entre elas.
+
 ## [2.1.6] — 2026-09-20
 
 ### Alterado
