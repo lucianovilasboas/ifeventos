@@ -123,12 +123,13 @@
                     O proponente sugeriu <b>{{ proposta.tipo_sugerido }}</b>: escolha um tipo da
                     lista ou cadastre o tipo sugerido abaixo.
                 </small>
-                <form method="post" action="{% url 'organizador:cadastrar_tipo_sugerido' proposta.id %}" class="mb-2">
-                    {% csrf_token %}
-                    <button class="btn btn-outline-primary btn-sm">
-                        <i class="fa-solid fa-plus"></i> Cadastrar tipo "{{ proposta.tipo_sugerido }}"
-                    </button>
-                </form>
+                {# Botão com formaction (não é um form aninhado): o form de aprovar
+                   precisa continuar íntegro para o botão Aprovar funcionar. #}
+                <button type="submit" formnovalidate
+                        class="btn btn-outline-primary btn-sm mb-2"
+                        formaction="{% url 'organizador:cadastrar_tipo_sugerido' proposta.id %}">
+                    <i class="fa-solid fa-plus"></i> Cadastrar tipo "{{ proposta.tipo_sugerido }}"
+                </button>
                 {% endif %}
                 <input type="hidden" name="publicar" value="0">
                 <div class="form-check form-switch mb-2">
