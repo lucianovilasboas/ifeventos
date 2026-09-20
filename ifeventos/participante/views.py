@@ -308,6 +308,21 @@ def _palestrantes_escolhidos(form, participante, request=None):
     return escolhidos
 
 
+def _sugestoes_do_post(request):
+    """Lista de dicts {nome, email, telefone} dos palestrantes sugeridos no form."""
+    nomes = request.POST.getlist("sugestao_nome")
+    emails = request.POST.getlist("sugestao_email")
+    telefones = request.POST.getlist("sugestao_telefone")
+    return [
+        {
+            "nome": (nomes[i] if i < len(nomes) else "") or "",
+            "email": (emails[i] if i < len(emails) else "") or "",
+            "telefone": (telefones[i] if i < len(telefones) else "") or "",
+        }
+        for i in range(len(nomes))
+    ]
+
+
 @login_required(login_url='/accounts/login/')
 def minhas_propostas(request):
     """Minhas propostas de atividade e o atalho para propor."""
@@ -345,6 +360,9 @@ def propor_atividade(request, evento_id):
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
                     imagem=form.cleaned_data.get('imagem'),
+                    recursos_necessarios=form.cleaned_data.get('recursos_necessarios') or "",
+                    consentimento_voluntario=form.cleaned_data.get('consentimento_voluntario'),
+                    sugestoes_palestrantes=_sugestoes_do_post(request),
                 )
             except PropostaBloqueada as erro:
                 form.add_error(None, erro)
@@ -408,6 +426,9 @@ def editar_proposta(request, atividade_id):
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
                     imagem=form.cleaned_data.get('imagem'),
+                    recursos_necessarios=form.cleaned_data.get('recursos_necessarios') or "",
+                    consentimento_voluntario=form.cleaned_data.get('consentimento_voluntario'),
+                    sugestoes_palestrantes=_sugestoes_do_post(request),
                 )
             except PropostaBloqueada as erro:
                 form.add_error(None, erro)

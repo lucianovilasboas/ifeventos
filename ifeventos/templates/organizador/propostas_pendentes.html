@@ -57,6 +57,12 @@
                 {% if proposta.emite_certificado %}<span class="badge-app">emite certificado</span>{% endif %}
             </p>
             <p class="mb-1">{{ proposta.descricao|linebreaksbr }}</p>
+            {% if proposta.recursos_necessarios %}
+            <p class="mb-1"><strong>Recursos necessários:</strong><br>{{ proposta.recursos_necessarios|linebreaksbr }}</p>
+            {% endif %}
+            {% if proposta.consentimento_voluntario %}
+            <p class="mb-1"><span class="badge text-bg-success">ciência de participação voluntária e não remunerada</span></p>
+            {% endif %}
             <p class="mb-0 text-muted">
                 Palestrante(s):
                 {% for pessoa in proposta.palestrantes.all %}
@@ -65,6 +71,30 @@
                     —
                 {% endfor %}
             </p>
+            {% if proposta.palestrantes_sugeridos.all %}
+            <div class="mt-2">
+                <strong class="small d-block mb-1">Palestrantes sugeridos (ainda não cadastrados):</strong>
+                {% for sug in proposta.palestrantes_sugeridos.all %}
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                    <span class="badge-app">{{ sug.nome }}{% if sug.email %} · {{ sug.email }}{% endif %}{% if sug.telefone %} · {{ sug.telefone }}{% endif %}</span>
+                    {% if sug.participante %}
+                    <span class="badge text-bg-success">vinculado a {{ sug.participante.get_full_name }}</span>
+                    {% else %}
+                    <form method="post" action="{% url 'organizador:cadastrar_palestrante_sugerido' sug.id %}"
+                          class="d-inline-flex gap-2 align-items-center">
+                        {% csrf_token %}
+                        <input type="hidden" name="nome" value="{{ sug.nome }}">
+                        <input type="hidden" name="email" value="{{ sug.email }}">
+                        <input type="hidden" name="telefone" value="{{ sug.telefone }}">
+                        <button class="btn btn-outline-success btn-sm">
+                            <i class="fa-solid fa-user-plus"></i> Cadastrar palestrante
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         <span class="badge text-bg-warning">aguardando</span>
     </div>

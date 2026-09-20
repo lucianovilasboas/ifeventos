@@ -196,7 +196,42 @@
                     </button>
                 </div>
 
-            </form>   
+            </form>
+
+            {% if atividade and atividade.eh_proposta %}
+            <hr>
+            <div class="mb-3">
+                <h6><i class="fa-solid fa-circle-info"></i> Informações do proponente</h6>
+                {% if atividade.consentimento_voluntario %}
+                <p class="mb-1"><span class="badge text-bg-success">ciência de participação voluntária e não remunerada</span></p>
+                {% endif %}
+                {% if atividade.recursos_necessarios %}
+                <p class="mb-2"><strong>Recursos necessários:</strong><br>{{ atividade.recursos_necessarios|linebreaksbr }}</p>
+                {% endif %}
+                {% if atividade.palestrantes_sugeridos.all %}
+                <strong class="small d-block mb-1">Palestrantes sugeridos (ainda não cadastrados):</strong>
+                {% for sug in atividade.palestrantes_sugeridos.all %}
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                    <span class="badge-app">{{ sug.nome }}{% if sug.email %} · {{ sug.email }}{% endif %}{% if sug.telefone %} · {{ sug.telefone }}{% endif %}</span>
+                    {% if sug.participante %}
+                    <span class="badge text-bg-success">vinculado a {{ sug.participante.get_full_name }}</span>
+                    {% else %}
+                    <form method="post" action="{% url 'organizador:cadastrar_palestrante_sugerido' sug.id %}"
+                          class="d-inline-flex gap-2 align-items-center">
+                        {% csrf_token %}
+                        <input type="hidden" name="nome" value="{{ sug.nome }}">
+                        <input type="hidden" name="email" value="{{ sug.email }}">
+                        <input type="hidden" name="telefone" value="{{ sug.telefone }}">
+                        <button class="btn btn-outline-success btn-sm">
+                            <i class="fa-solid fa-user-plus"></i> Cadastrar palestrante
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

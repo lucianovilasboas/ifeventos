@@ -40,6 +40,7 @@ from organizador.views import (
     excluir_vaga,
     propostas_pendentes,
     rejeitar_proposta,
+    cadastrar_palestrante_sugerido,
     salvar_chamada,
     triagem_propostas,
 )
@@ -108,6 +109,7 @@ urlpatterns = [
     path("propostas/<int:evento_id>/triagem/", triagem_propostas, name="triagem_propostas"),
     path("proposta/<int:atividade_id>/aprovar/", aprovar_proposta, name="aprovar_proposta"),
     path("proposta/<int:atividade_id>/rejeitar/", rejeitar_proposta, name="rejeitar_proposta"),
+    path("palestrante-sugerido/<int:sugestao_id>/cadastrar/", cadastrar_palestrante_sugerido, name="cadastrar_palestrante_sugerido"),
 
     #-- Metadados do participante (por escola) --
     path('importar_metadados/', importar_metadados, name='importar_metadados'),
