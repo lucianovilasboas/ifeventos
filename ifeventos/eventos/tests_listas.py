@@ -281,6 +281,41 @@ class AcoesNaGradeTests(TestCase):
             reverse("organizador:ocupacao_salas", args=[self.evento.id]), html
         )
 
+    def test_conflitos_na_grade_viram_banner_compacto_e_modal(self):
+        # Duas atividades sobrepostas na mesma sala geram conflito.
+        Atividade.objects.create(
+            evento=self.evento, titulo="Palestra B", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+            local="Auditório", n_vagas=10,
+        )
+        # A da fixture fica na mesma sala e no mesmo horário.
+        self.atividade.local = "Auditório"
+        self.atividade.save()
+        self.client.force_login(self.org)
+        html = self._html(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        )
+
+        self.assertIn("conflito(s) na grade", html)      # banner compacto
+        self.assertIn("Ver detalhes", html)              # botão para o modal
+        self.assertIn('id="modalConflitosGrade"', html)  # modal presente
+        self.assertIn("Auditório", html)
+
+    def test_modelo_de_cracha_ativo_fica_destacado(self):
+        self.client.force_login(self.org)
+        html = self._html(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        )
+        # O modelo atualmente ativo do evento recebe a classe `modelo-ativo`.
+        self.evento.refresh_from_db()
+        ativo = self.evento.modelo_cracha
+        self.assertIn("modelo-ativo", html)
+        self.assertRegex(
+            html,
+            r'class="dropdown-item modelo-ativo"[^>]*name="modelo" value="%s"' % re.escape(ativo),
+        )
+
 
 class MenuDoUsuarioNaHomeTests(TestCase):
     """A home mostra o menu do usuário (avatar) no topo quando está logado."""

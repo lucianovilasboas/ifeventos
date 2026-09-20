@@ -185,6 +185,13 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   box-shadow: none;
 }
 
+/* Item "modelo de crachá atualmente ativo" no dropdown de imprimir crachás. */
+.modelo-ativo {
+  background-color: var(--accent-soft) !important;
+  color: var(--accent-ink) !important;
+  font-weight: 700;
+}
+
 /* Seleção múltipla do gerador de grade (dias e espaços): caixa com rolagem
    para a lista de espaços não esticar o formulário. */
 .grade-caixas {
