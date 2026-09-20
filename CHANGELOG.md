@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.1.5] — 2026-09-20
+
+### Alterado
+
+- **Botões de IA destacados**: nova classe `.btn-ia` (violeta `#7c3aed`) aplicada a
+  todos os botões de geração por IA do app — gerar descrição (evento/atividade),
+  sugerir categoria, copiloto (gerar plano / criar atividades), divulgação,
+  sugerir tipo (proposta), analisar com IA (propostas) e sugestão/insights/
+  criar gráfico (relatórios). Botões ao lado de campos ganharam `.btn-campo`
+  para ficarem na mesma altura (ex.: "Gerar" da divulgação).
+- **Emojis nos textos gerados por IA**: divulgação (post e e-mail), descrição do
+  evento e descrição do copiloto agora usam **1 a 2 emojis por parágrafo**,
+  coerentes com o conteúdo (sem poluir).
+- **Copiloto — remover rascunho**: após "Criar atividades (rascunho)", aparece o
+  botão **"Remover rascunho"** que apaga só as atividades **não publicadas**
+  criadas pelo plano (endpoint novo `remover_plano_evento`, com guarda para não
+  apagar publicada/de outro evento). `importar_linhas` passa a registrar o `id`
+  das atividades criadas no relatório.
+
 ## [2.1.4] — 2026-09-20
 
 ### Alterado

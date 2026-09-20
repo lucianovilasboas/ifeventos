@@ -1,7 +1,7 @@
 """Testes do copiloto de criação de evento (plano de programação)."""
 
 import json
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from unittest import mock
 from unittest.mock import AsyncMock
 
@@ -152,6 +152,15 @@ class CopilotoViewTests(_FixturesMixin, TransactionTestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta.json()["origem"], "heuristica")
 
+    def test_edicao_renderiza_botoes_ia_e_remover_rascunho(self):
+        self.client.force_login(self.org)
+        html = self.client.get(
+            reverse("organizador:editar_evento", args=[self.evento.id])
+        ).content.decode()
+        self.assertIn("btn-ia", html)
+        self.assertIn("Remover rascunho", html)
+        self.assertIn("divulgacaoGerar", html)
+
     def test_aplicar_plano_cria_rascunhos(self):
         self.client.force_login(self.org)
         plano = {"atividades": [
@@ -165,3 +174,50 @@ class CopilotoViewTests(_FixturesMixin, TransactionTestCase):
         self.assertEqual(resposta.json()["relatorio"]["criadas"], 1)
         atividade = Atividade.objects.get(evento=self.evento, titulo="Oficina de Robótica")
         self.assertFalse(atividade.publicada)
+
+    def test_aplicar_plano_relatorio_traz_ids(self):
+        self.client.force_login(self.org)
+        plano = {"atividades": [
+            {"titulo": "Oficina de Robótica", "descricao": "d", "tipo": "Oficina", "turno": "manha"},
+        ]}
+        resposta = self.client.post(
+            reverse("organizador:aplicar_plano_evento", args=[self.evento.id]),
+            data=json.dumps({"plano": plano}), content_type="application/json",
+        )
+        linhas = resposta.json()["relatorio"]["linhas"]
+        self.assertEqual(linhas[0]["status"], "criadas")
+        self.assertTrue(linhas[0]["id"])
+
+    def test_remover_plano_apaga_so_rascunho_do_evento(self):
+        self.client.force_login(self.org)
+        inicio = timezone.make_aware(datetime.combine(self.evento.data_inicio, time.min))
+        rascunho = Atividade.objects.create(
+            evento=self.evento, titulo="Rascunho X", descricao="d", tipo=self.tipo,
+            data_hora_inicio=inicio, data_hora_fim=inicio + timedelta(hours=1),
+            publicada=False,
+        )
+        publicada = Atividade.objects.create(
+            evento=self.evento, titulo="Publicada Y", descricao="d", tipo=self.tipo,
+            data_hora_inicio=inicio + timedelta(hours=2),
+            data_hora_fim=inicio + timedelta(hours=3), publicada=True,
+        )
+        outro = Evento.objects.create(
+            title="Outro", description="d", local="l",
+            data_inicio=self.evento.data_inicio, data_fim=self.evento.data_fim,
+            organizador=self.org,
+        )
+        de_outro = Atividade.objects.create(
+            evento=outro, titulo="Rascunho Outro", descricao="d", tipo=self.tipo,
+            data_hora_inicio=inicio, data_hora_fim=inicio + timedelta(hours=1),
+            publicada=False,
+        )
+        resposta = self.client.post(
+            reverse("organizador:remover_plano_evento", args=[self.evento.id]),
+            data=json.dumps({"atividade_ids": [rascunho.pk, publicada.pk, de_outro.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json()["removidas"], 1)  # só o rascunho do evento
+        self.assertFalse(Atividade.objects.filter(pk=rascunho.pk).exists())
+        self.assertTrue(Atividade.objects.filter(pk=publicada.pk).exists())
+        self.assertTrue(Atividade.objects.filter(pk=de_outro.pk).exists())

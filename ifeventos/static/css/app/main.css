@@ -165,6 +165,26 @@ body:has(.reset-password-container) .hero-ico { display: none; }
    (tokens.css, alvo de toque) e o botão, sem isso, ficava 6px mais baixo. */
 .btn-campo { min-height: 46px; }
 
+/* Botão de IA: destaque violeta, distinto do verde da marca. Sobrescreve
+   `btn-app`/`btn-outline-secondary` para padronizar qualquer botão que dispara
+   geração por IA. */
+.btn-ia {
+  background-color: #7c3aed !important;
+  border-color: #7c3aed !important;
+  color: #fff !important;
+  box-shadow: 0 3px 0 #6d28d9;
+}
+.btn-ia:hover,
+.btn-ia:focus {
+  background-color: #6d28d9 !important;
+  border-color: #6d28d9 !important;
+  color: #fff !important;
+}
+.btn-ia:active {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+
 /* Seleção múltipla do gerador de grade (dias e espaços): caixa com rolagem
    para a lista de espaços não esticar o formulário. */
 .grade-caixas {

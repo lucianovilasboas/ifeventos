@@ -68,7 +68,8 @@ Descrição atual: {descricao}
 Observações do organizador: {observacoes}
 
 Monte um plano inicial. Regras:
-1. "descricao": um parágrafo atrativo, em português, convidando a participar.
+1. "descricao": um parágrafo atrativo, em português, convidando a participar,
+   com 1 a 2 emojis coerentes (não poluir).
 2. "categoria": um tema curto (1 a 3 palavras). Reuse a categoria informada quando fizer sentido.
 3. "blocos": até {max_blocos} blocos no formato "HH:MM-HH:MM".
 4. "atividades": até {max_atividades} atividades. Cada uma com "titulo", "descricao"

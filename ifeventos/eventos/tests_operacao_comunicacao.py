@@ -108,6 +108,13 @@ class ComunicacaoTests(_FixturesMixin, TransactionTestCase):
         self.assertEqual(post["assunto"], "")
         self.assertIn("Convite", email["assunto"])
 
+    def test_rascunho_basico_tem_emojis(self):
+        # A divulgação vem com 1–2 emojis por texto (coerentes, sem poluir).
+        post = comunicacao.rascunho_basico(self.evento, "post")["corpo"]
+        email = comunicacao.rascunho_basico(self.evento, "email")["corpo"]
+        self.assertTrue(any(ch in post for ch in "📢📅🎟️🎉📩"))
+        self.assertTrue(any(ch in email for ch in "📢📅🎟️🎉📩"))
+
     def test_gerar_rascunho_fallback(self):
         with mock.patch("eventos.services.get_openai_client", side_effect=RuntimeError("x")):
             resultado = async_to_sync(comunicacao.gerar_rascunho)(self.evento, "post")

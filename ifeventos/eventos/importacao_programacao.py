@@ -128,6 +128,8 @@ def importar_linhas(evento, linhas, publicada=True):
                 data_hora_inicio=inicio, data_hora_fim=fim,
                 publicada=publicada, **dados,
             )
+            # O id permite ao frontend remover o rascunho depois (ex.: copiloto).
+            item["id"] = atividade.pk
             terminar("criadas")
         else:
             for campo, valor in dados.items():

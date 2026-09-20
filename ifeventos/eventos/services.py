@@ -211,10 +211,10 @@ Escreva 2 a 3 parágrafos em português. Regras:
    encontrar/levar.
 2. Se houver programação acima, mencione os destaques; se ainda não houver, seja
    genérico (ex.: "oficinas, palestras e atividades").
-3. Tom institucional, neutro, porém chamativo — sem clichês, sem emojis e sem
-   exageros.
-4. Não invente dados que não estão acima (datas e local apenas se fornecidos).
-5. Seja objetivo: cada parágrafo desenvolve uma ideia; não use listas.
+3. Tom institucional, neutro, porém chamativo — sem clichês, sem exageros.
+4. Use 1 a 2 emojis por parágrafo, coerentes com o conteúdo (não poluir o texto).
+5. Não invente dados que não estão acima (datas e local apenas se fornecidos).
+6. Seja objetivo: cada parágrafo desenvolve uma ideia; não use listas.
 
 Responda apenas com o texto da descrição.""".format(
         titulo=(titulo or "Evento").strip(),

@@ -41,7 +41,7 @@
                       {{ form.description.label_tag }}
                       {{ form.description }}
                       <div class="d-flex justify-content-end mt-2">
-                          <button type="button" class="btn btn-outline-secondary btn-sm" id="gerarDescricaoEditar">
+                          <button type="button" class="btn btn-ia btn-sm btn-campo" id="gerarDescricaoEditar">
                               <i class="fa-solid fa-robot"></i> Gerar nova descrição com IA
                           </button>
                       </div>
@@ -68,7 +68,7 @@
                       </datalist>
                       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
                           <div class="d-flex flex-wrap gap-2" id="sugestoesCategoria" hidden></div>
-                          <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="sugerirCategoria"
+                          <button type="button" class="btn btn-ia btn-sm ms-auto" id="sugerirCategoria"
                                   title="Sugerir categorias com IA a partir do título e da descrição">
                               <i class="fa-solid fa-wand-magic-sparkles"></i> Sugerir categoria
                           </button>
@@ -97,11 +97,14 @@
                             <textarea id="copilotoBrief" class="form-control form-control-sm mb-2" rows="2"
                                       placeholder="Ex.: Semana de tecnologia com oficinas e palestras para o ensino médio, de manhã e à tarde."></textarea>
                             <div class="d-flex gap-2 flex-wrap align-items-center">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="copilotoGerar">
+                                <button type="button" class="btn btn-ia btn-sm btn-campo" id="copilotoGerar">
                                     <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar plano
                                 </button>
-                                <button type="button" class="btn btn-app btn-sm d-none" id="copilotoAplicar">
+                                <button type="button" class="btn btn-ia btn-sm btn-campo d-none" id="copilotoAplicar">
                                     <i class="fa-solid fa-list-check"></i> Criar atividades (rascunho)
+                                </button>
+                                <button type="button" class="btn btn-ia btn-sm btn-campo d-none" id="copilotoRemover">
+                                    <i class="fa-solid fa-trash-can"></i> Remover rascunho
                                 </button>
                                 <small class="text-muted" id="copilotoStatus"></small>
                             </div>
@@ -133,7 +136,7 @@
                                            placeholder="Ex.: destacar as oficinas e chamar para a inscrição">
                                 </div>
                                 <div class="col-12 col-md-3 d-grid">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="divulgacaoGerar">
+                                    <button type="button" class="btn btn-ia btn-sm btn-campo" id="divulgacaoGerar">
                                         <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar
                                     </button>
                                 </div>
@@ -335,12 +338,14 @@
             const botaoGerar = document.getElementById("copilotoGerar");
             if (!botaoGerar) return;
             const botaoAplicar = document.getElementById("copilotoAplicar");
+            const botaoRemover = document.getElementById("copilotoRemover");
             const brief = document.getElementById("copilotoBrief");
             const status = document.getElementById("copilotoStatus");
             const resultado = document.getElementById("copilotoResultado");
             const campoDescricao = document.getElementById("id_description");
             const campoCategoria = document.getElementById("id_categoria");
             let planoAtual = null;
+            let idsRascunho = [];
 
             function esc(t) {
                 const d = document.createElement("div");
@@ -354,6 +359,8 @@
                 if (!titulo.trim()) { status.textContent = "Informe o título do evento."; return; }
                 botaoGerar.disabled = true;
                 botaoAplicar.classList.add("d-none");
+                botaoRemover.classList.add("d-none");
+                idsRascunho = [];
                 status.textContent = "Gerando plano...";
                 resultado.innerHTML = "";
                 fetch("{% url 'organizador:copiloto_evento' evento.id %}", {
@@ -410,12 +417,36 @@
                 .then(data => {
                     if (data.erro) { status.textContent = data.erro; return; }
                     const rel = data.relatorio || {};
+                    idsRascunho = (rel.linhas || [])
+                        .filter(l => l.status === "criadas" && l.id)
+                        .map(l => l.id);
                     status.textContent = "Criadas " + (rel.criadas || 0) +
                         ", atualizadas " + (rel.atualizadas || 0) + ", erros " + (rel.erros || 0) + ".";
                     botaoAplicar.classList.add("d-none");
+                    if (idsRascunho.length) botaoRemover.classList.remove("d-none");
                 })
                 .catch(() => { status.textContent = "Falha ao criar as atividades."; })
                 .finally(() => { botaoAplicar.disabled = false; });
+            });
+
+            botaoRemover.addEventListener("click", function () {
+                if (!idsRascunho.length) return;
+                botaoRemover.disabled = true;
+                status.textContent = "Removendo rascunho...";
+                fetch("{% url 'organizador:remover_plano_evento' evento.id %}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                    body: JSON.stringify({ atividade_ids: idsRascunho })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.erro) { status.textContent = data.erro; return; }
+                    status.textContent = "Rascunho removido (" + (data.removidas || 0) + " atividade(s)).";
+                    botaoRemover.classList.add("d-none");
+                    idsRascunho = [];
+                })
+                .catch(() => { status.textContent = "Falha ao remover o rascunho."; })
+                .finally(() => { botaoRemover.disabled = false; });
             });
         })();
 
