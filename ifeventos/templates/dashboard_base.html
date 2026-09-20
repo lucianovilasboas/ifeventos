@@ -31,12 +31,14 @@
 <body>
     <!-- Topbar app -->
     <div class="app-topbar">
-        <a class="app-brand" href="/eventos">Nossos <span>Eventos</span> · {% if request.resolver_match.namespace == 'organizador' %}Organizador{% elif request.resolver_match.namespace == 'participante' %}Participante{% elif request.resolver_match.namespace == 'apoio' %}Apoio{% else %}{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}{% endif %}</a>
-        <nav class="app-nav-desktop" aria-label="Navegação principal">
-            {% include 'includes/app_nav_items.html' %}
-        </nav>
-        {% include 'includes/pwa_install_button.html' %}
-        {% include 'includes/menu_usuario.html' %}
+        <div class="app-topbar-inner">
+            <a class="app-brand" href="/eventos">Nossos <span>Eventos</span> · {% if request.resolver_match.namespace == 'organizador' %}Organizador{% elif request.resolver_match.namespace == 'participante' %}Participante{% elif request.resolver_match.namespace == 'apoio' %}Apoio{% else %}{% if request.user.is_organizador %}Organizador{% else %}Participante{% endif %}{% endif %}</a>
+            <nav class="app-nav-desktop" aria-label="Navegação principal">
+                {% include 'includes/app_nav_items.html' %}
+            </nav>
+            {% include 'includes/pwa_install_button.html' %}
+            {% include 'includes/menu_usuario.html' %}
+        </div>
     </div>
 
     <!-- Conteúdo -->
@@ -50,8 +52,12 @@
     <!-- Bottom nav estilo app -->
     {% include 'includes/app_bottom_nav.html' %}
 
-    <!-- Versão do produto -->
-    <p class="text-center text-muted small mb-0 py-3">Nossos Eventos · {{ APP_VERSION_LABEL }}</p>
+    <!-- Footer (barra full-width, conteúdo centrado) -->
+    <footer class="app-footer">
+        <div class="app-footer-inner">
+            <p class="mb-0">Nossos Eventos · {{ APP_VERSION_LABEL }}</p>
+        </div>
+    </footer>
 
     <!-- Modais -->
     {% include 'includes/modal_editar_perfil.html' %}

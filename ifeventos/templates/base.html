@@ -18,15 +18,17 @@
 <body>
     <!-- Topbar app -->
     <div class="app-topbar">
-        <a class="app-brand" href="/eventos">Nossos <span>Eventos</span></a>
-        <nav class="app-nav-desktop" aria-label="Navegação principal">
-            {% include 'includes/app_nav_items.html' %}
-        </nav>
-        {% include 'includes/pwa_install_button.html' %}
-        {% include 'includes/menu_usuario.html' %}
-        {% if not request.user.is_authenticated %}
-            <a class="btn btn-app btn-sm px-3 d-md-none" href="/accounts/login"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
-        {% endif %}
+        <div class="app-topbar-inner">
+            <a class="app-brand" href="/eventos">Nossos <span>Eventos</span></a>
+            <nav class="app-nav-desktop" aria-label="Navegação principal">
+                {% include 'includes/app_nav_items.html' %}
+            </nav>
+            {% include 'includes/pwa_install_button.html' %}
+            {% include 'includes/menu_usuario.html' %}
+            {% if not request.user.is_authenticated %}
+                <a class="btn btn-app btn-sm px-3 d-md-none" href="/accounts/login"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Hero Section -->
@@ -47,9 +49,9 @@
     <!-- Bottom nav estilo app -->
     {% include 'includes/app_bottom_nav.html' %}
 
-    <!-- Footer -->
-    <footer>
-        <div class="container">
+    <!-- Footer (barra full-width, conteúdo centrado) -->
+    <footer class="app-footer">
+        <div class="app-footer-inner">
             <p>&copy; {% now "Y" %} IFMG Campus Ponte Nova · <span class="text-muted">{{ APP_VERSION_LABEL }}</span></p>
         </div>
     </footer>
