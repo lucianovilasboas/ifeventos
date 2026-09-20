@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.0.1] — 2026-09-20
+
+### Corrigido
+
+- **Concierge — "qual é o evento de hoje"**: o chat respondia com o primeiro
+  item da programação em vez do dia atual, porque o prompt não tinha a data de
+  hoje nem as datas do evento. Agora o contexto leva a **data/hora atuais**
+  (AGORA), o **período dos eventos** e cada atividade com **data absoluta +
+  etiqueta relativa** (`hoje`, `amanhã`, `em N dias`, `acontecendo agora`).
+
+### Adicionado
+
+- **Contexto rico do concierge**: o chat passa a ter acesso à **programação
+  completa** dos eventos em andamento/futuros (título, tipo, descrição,
+  palestrantes por nome, local, horários, vagas, emissão de certificado e
+  período do evento), permitindo responder perguntas com raciocínio de datas
+  ("quantos dias faltam?", "o evento acontece quando?"). Sem PII (nada de
+  e-mail/CPF/telefone). Limites: 300 atividades e descrição em 240 caracteres.
+
 ## [2.0.0] — 2026-09-19
 
 Ciclo **V2.0 — Copiloto do Organizador**: IA/agentes priorizando o workflow do

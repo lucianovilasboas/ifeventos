@@ -141,3 +141,92 @@ class ConciergeViewTests(_FixturesMixin, TransactionTestCase):
     def test_sugestoes_exige_login(self):
         resposta = self.client.get(reverse("participante:assistente_sugestoes"))
         self.assertEqual(resposta.status_code, 302)
+
+
+class ContextoCompletoTests(_FixturesMixin, TestCase):
+    """O contexto rico marca datas relativas e não vaza PII."""
+
+    def test_catalogo_completo_marca_hoje_e_amanha(self):
+        agora = timezone.now()
+        hoje = timezone.localtime().replace(hour=10, minute=0, second=0, microsecond=0)
+        Atividade.objects.create(
+            evento=self.evento, titulo="Oficina Hoje", descricao="d",
+            tipo=self.tipo, n_vagas=10, publicada=True,
+            data_hora_inicio=hoje, data_hora_fim=hoje + timedelta(hours=2),
+        )
+        amanha = hoje + timedelta(days=1)
+        Atividade.objects.create(
+            evento=self.evento, titulo="Oficina Amanhã", descricao="d",
+            tipo=self.tipo, n_vagas=10, publicada=True,
+            data_hora_inicio=amanha, data_hora_fim=amanha + timedelta(hours=2),
+        )
+        itens = concierge.catalogo_completo(agora)
+        por_titulo = {i["titulo"]: i for i in itens}
+        self.assertEqual(por_titulo["Oficina Hoje"]["relativo"], "hoje")
+        self.assertIn("amanhã", por_titulo["Oficina Amanhã"]["relativo"])
+
+    def test_regressao_evento_de_hoje_nao_e_o_primeiro_dia(self):
+        # Evento começa no futuro, mas há uma atividade HOJE de outro evento:
+        # o marcador "hoje" não pode colar no 1º dia da programação.
+        agora = timezone.now()
+        hoje = timezone.localtime().replace(hour=10, minute=0, second=0, microsecond=0)
+        outro_evento = Evento.objects.create(
+            title="Feira de Ciências", description="d", local="Ginásio",
+            data_inicio=timezone.localdate() + timedelta(days=30),
+            data_fim=timezone.localdate() + timedelta(days=31),
+            categoria="formacao", organizador=self.pessoa,
+        )
+        Atividade.objects.create(
+            evento=outro_evento, titulo="Palestra do 1º dia", descricao="d",
+            tipo=self.tipo, n_vagas=30, publicada=True,
+            data_hora_inicio=hoje + timedelta(days=30),
+            data_hora_fim=hoje + timedelta(days=30, hours=1),
+        )
+        Atividade.objects.create(
+            evento=self.evento, titulo="Roda de Conversa Hoje", descricao="d",
+            tipo=self.tipo, n_vagas=15, publicada=True,
+            data_hora_inicio=hoje, data_hora_fim=hoje + timedelta(hours=2),
+        )
+        itens = concierge.catalogo_completo(agora)
+        por_titulo = {i["titulo"]: i for i in itens}
+        self.assertEqual(por_titulo["Roda de Conversa Hoje"]["relativo"], "hoje")
+        self.assertIn("começa em 30 dias", por_titulo["Palestra do 1º dia"]["relativo"])
+
+    def test_palestrantes_por_nome_sem_pii(self):
+        pessoa = U.objects.create_user(
+            email="pal_con@example.com", password=SENHA, cpf="39053344705",
+            first_name="Ana", last_name="Souza",
+        )
+        self.publicada.palestrantes.add(pessoa)
+        itens = concierge.catalogo_completo()
+        item = next(i for i in itens if i["titulo"] == "Oficina de Robótica")
+        self.assertIn("Ana Souza", item["palestrantes"])
+        texto = concierge.contexto_completo_texto(itens)
+        self.assertNotIn("pal_con@example.com", texto)
+        self.assertNotIn("39053344705", texto)
+
+    def test_prompt_tem_agora_eventos_e_programacao(self):
+        agora = timezone.now()
+        itens = concierge.catalogo_completo(agora)
+        eventos = concierge.eventos_ativos(agora)
+        prompt = concierge._prompt(
+            concierge._agora_legivel(agora),
+            concierge.eventos_texto(eventos),
+            concierge.contexto_completo_texto(itens),
+            "tipos: (nenhum)",
+        )
+        self.assertIn("Hoje é", prompt)
+        self.assertIn("EVENTOS", prompt)
+        self.assertIn("PROGRAMAÇÃO", prompt)
+        self.assertIn("Oficina de Robótica", prompt)
+
+    def test_ia_recebe_data_de_hoje_no_prompt(self):
+        fake = _FakeOpenAI("Sem atividades hoje.")
+        with mock.patch("eventos.services.get_openai_client", return_value=fake):
+            async_to_sync(concierge.responder)("quantos dias faltam para o evento?")
+        mensagens = fake.chat.completions.create.call_args.kwargs["messages"]
+        system = mensagens[0]["content"]
+        hoje = timezone.localdate().strftime("%d/%m/%Y")
+        self.assertIn(hoje, system)
+        self.assertIn("EVENTOS", system)
+        self.assertIn("PROGRAMAÇÃO", system)
