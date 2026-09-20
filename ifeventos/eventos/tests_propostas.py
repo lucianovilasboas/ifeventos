@@ -1518,6 +1518,36 @@ class PropostaNovosCamposTests(BasePropostasTests):
         with self.assertRaises(PropostaBloqueada):
             propostas.cadastrar_sugerido(sugestao)
 
+    def test_sugestao_com_email_existente_vira_palestrante(self):
+        existente = U.objects.create_user(
+            email="jose@example.com", password=SENHA, cpf="11144477735",
+            first_name="José", last_name="Silva",
+        )
+        proposta = propostas.propor(
+            self.pessoa, self.evento, vaga=self.vaga, titulo="Com existente",
+            descricao="d", tipo=self.tipo,
+            sugestoes_palestrantes=[
+                {"nome": "José Silva", "email": "JOSE@example.com"},
+            ],
+        )
+        self.assertEqual(proposta.palestrantes_sugeridos.count(), 0)
+        self.assertIn(existente, proposta.palestrantes.all())
+
+    def test_cadastrar_tipo_sugerido_cria_e_seleciona(self):
+        proposta = self._propor(tipo=None, tipo_sugerido="Mesa Redonda")
+        self.client.force_login(self.org)
+        resposta = self.client.post(
+            reverse("organizador:cadastrar_tipo_sugerido", args=[proposta.pk])
+        )
+        self.assertRedirects(
+            resposta,
+            reverse("organizador:propostas_pendentes", args=[self.evento.id]),
+        )
+        proposta.refresh_from_db()
+        self.assertIsNotNone(proposta.tipo)
+        self.assertEqual(proposta.tipo.nome, "Mesa Redonda")
+        self.assertTrue(TipoAtividade.objects.filter(nome__iexact="Mesa Redonda").exists())
+
     def test_recursos_e_sugestoes_nao_vao_para_a_programacao_publica(self):
         proposta = self._propor(
             recursos_necessarios="Conteúdo interno.",

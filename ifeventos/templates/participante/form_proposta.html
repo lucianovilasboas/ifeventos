@@ -200,7 +200,9 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label">Imagem</label>
-                    {% if form.instance.imagem %}
+                    {% if imagem_preview %}
+                    {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=imagem_preview cropped_valor=imagem_preview variante="capa" tem_imagem=1 aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
+                    {% elif form.instance.imagem %}
                     {% include 'includes/campo_imagem.html' with nome="imagem" preview_url=form.instance.imagem.url variante="capa" tem_imagem=1 aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
                     {% else %}
                     {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/static/img/atividade-sem-imagem.png" variante="capa" aspect="1" largura=300 altura=300 alt="Pré-visualização da imagem da atividade" dica="A pré-visualização mostra a imagem inteira; clique para escolher e ajustar o corte." %}
@@ -315,6 +317,7 @@
                 </span>
                 {% endfor %}
             </div>
+            <small id="sugestaoStatus" class="text-muted d-block mt-1"></small>
         </section>
 
         <section class="ativ-sec">
@@ -552,6 +555,9 @@
                 });
         }, 300);
     });
+
+    // Exposto para a checagem de sugestão (já cadastrado) marcar o palestrante.
+    window.adicionarPalestranteExtra = adicionarExtra;
 })();
 
 (function () {
@@ -757,8 +763,14 @@
     const nome = document.querySelector('#sugestaoNome');
     const email = document.querySelector('#sugestaoEmail');
     const telefone = document.querySelector('#sugestaoTelefone');
+    const status = document.querySelector('#sugestaoStatus');
 
     function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+    function avisar(texto, erro) {
+        if (!status) return;
+        status.textContent = texto;
+        status.className = 'd-block mt-1 ' + (erro ? 'text-danger' : 'text-success');
+    }
 
     function adicionarChip(textoNome, textoEmail, textoTelefone) {
         if (!container) return;
@@ -772,6 +784,7 @@
             '<input type="hidden" name="sugestao_email" value="' + esc(textoEmail) + '">' +
             '<input type="hidden" name="sugestao_telefone" value="' + esc(textoTelefone) + '">';
         container.appendChild(chip);
+        avisar('Sugestão adicionada — a organização cadastra se a proposta for aprovada.');
     }
 
     container.addEventListener('click', function (evento) {
@@ -781,10 +794,33 @@
 
     if (btn) btn.addEventListener('click', function () {
         const nomeTexto = nome.value.trim();
-        if (!nomeTexto) { nome.focus(); return; }
-        adicionarChip(nomeTexto, email.value.trim(), telefone.value.trim());
-        nome.value = ''; email.value = ''; telefone.value = '';
-        nome.focus();
+        const emailTexto = email.value.trim();
+        const telefoneTexto = telefone.value.trim();
+        if (!nomeTexto) { nome.focus(); avisar('Informe o nome para sugerir.', true); return; }
+
+        function limpar() { nome.value = ''; email.value = ''; telefone.value = ''; nome.focus(); }
+
+        // Se houver e-mail, confere se a pessoa já é cadastrada: nesse caso,
+        // marca como palestrante escolhido (não vira sugestão para o organizador).
+        if (!emailTexto) { adicionarChip(nomeTexto, '', telefoneTexto); limpar(); return; }
+
+        fetch("{% url 'participante:buscar_participante' %}?q=" + encodeURIComponent(emailTexto))
+            .then(function (resposta) { return resposta.json(); })
+            .then(function (dados) {
+                const achado = (dados.resultados || []).find(function (p) {
+                    return p.email && p.email.toLowerCase() === emailTexto.toLowerCase();
+                });
+                if (achado) {
+                    if (window.adicionarPalestranteExtra) {
+                        window.adicionarPalestranteExtra(achado);
+                    }
+                    avisar('"' + achado.nome + '" já é cadastrado — marcado como palestrante.');
+                } else {
+                    adicionarChip(nomeTexto, emailTexto, telefoneTexto);
+                }
+                limpar();
+            })
+            .catch(function () { adicionarChip(nomeTexto, emailTexto, telefoneTexto); limpar(); });
     });
 })();
 </script>

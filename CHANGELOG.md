@@ -5,6 +5,24 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.1.2] — 2026-09-20
+
+### Corrigido / Adicionado (formulário de proposta e aprovação)
+
+- **Preview e recorte da imagem preservados** quando a validação falha: o
+  `cropped_image` (data URL) volta para a prévia e é reenviado — o usuário não
+  precisa recortar de novo.
+- **Tela de aprovação do organizador**:
+  - mostra a **imagem** enviada pelo proponente;
+  - botão **"Cadastrar tipo"** quando o proponente sugeriu um tipo fora do
+    catálogo (cria o `TipoAtividade` e já o seleciona; a aprovação continua
+    explícita no botão Aprovar).
+- **Checagem "já cadastrado" na proposição**: ao sugerir um palestrante por
+  e-mail, se a pessoa já existe no sistema ela é **marcada como palestrante**
+  (com aviso) em vez de virar sugestão — só chegam ao organizador sugestões de
+  quem realmente não está cadastrado. Guarda também no servidor (`propor`/
+  `atualizar`).
+
 ## [2.1.1] — 2026-09-20
 
 ### Corrigido (formulário de proposta)

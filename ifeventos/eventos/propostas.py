@@ -540,16 +540,27 @@ def _salvar_sugestoes_palestrantes(atividade, sugestoes, usuario):
     """Cria os `PalestranteSugerido` da proposta.
 
     `sugestoes` é uma lista de dicts `{nome, email, telefone}`; ignora entradas
-    sem nome. Não toca nas já existentes — quem faz isso é o `atualizar`.
+    sem nome. Sugestão cujo e-mail já pertence a um participante NÃO vira
+    sugestão: a pessoa é marcada como palestrante escolhido (evita que o
+    organizador receba alguém já cadastrado para criar de novo).
     """
+    from .models import Participante
+
     for dado in sugestoes or []:
         nome = " ".join(str((dado or {}).get("nome") or "").split())
         if not nome:
             continue
+        email = (str(dado.get("email") or "").strip()).lower()
+        if email:
+            existente = Participante.objects.filter(email__iexact=email).first()
+            if existente:
+                if existente.pk != getattr(usuario, "pk", None):
+                    atividade.palestrantes.add(existente)
+                continue
         PalestranteSugerido.objects.create(
             atividade=atividade,
             nome=nome[:255],
-            email=str(dado.get("email") or "").strip()[:255],
+            email=email[:255],
             telefone=str(dado.get("telefone") or "").strip()[:40],
             criado_por=usuario,
         )
