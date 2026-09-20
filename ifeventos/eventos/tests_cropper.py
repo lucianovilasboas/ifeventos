@@ -169,6 +169,20 @@ class CriarEventoRecorteTests(_BaseCropperTests):
         evento = Evento.objects.get(title="Novo evento")
         self.assertEqual(_dimensoes(evento.imagem.read()), TAMANHO_RECORTE)
 
+    def test_redireciona_para_a_edicao_apos_criar(self):
+        # Após criar, o modal leva para a edição (onde ficam copiloto/divulgação).
+        resposta = self._enviar(
+            "organizador:criar_evento", self._dados(),
+            campo_arquivo="imagem", arquivo_bytes=self.cru,
+        )
+        self.assertEqual(resposta.status_code, 200)
+        evento = Evento.objects.get(title="Novo evento")
+        dados = resposta.json()
+        self.assertTrue(dados["success"])
+        self.assertEqual(
+            dados["redirect"], reverse("organizador:editar_evento", args=[evento.id])
+        )
+
 
 class EditarEventoRecorteTests(_BaseCropperTests):
     def _dados(self):

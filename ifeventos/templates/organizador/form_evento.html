@@ -179,6 +179,7 @@
 
 
 {% block scripts %}
+{{ programacao_titulos|json_script:"programacao-eventos" }}
 <script>
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -197,7 +198,14 @@
         let campoDataFim = document.querySelector("input#id_data_fim");
         let campoLocal = document.querySelector("input#id_local");
 
-        
+        // Títulos das atividades publicadas: a IA os menciona na descrição.
+        let titulosProgramacao = [];
+        let scriptProgramacao = document.getElementById("programacao-eventos");
+        if (scriptProgramacao) {
+            try { titulosProgramacao = JSON.parse(scriptProgramacao.textContent || "[]"); }
+            catch (e) { titulosProgramacao = []; }
+        }
+
         botaoGerarDescricao.addEventListener("click", function (event) {
             event.preventDefault();
             
@@ -224,7 +232,8 @@
                     "titulo": titulo, 
                     "data_inicio": data_inicio,
                     "data_fim": data_fim,
-                    "local": local
+                    "local": local,
+                    "programacao": titulosProgramacao.join("; ")
                 })
             })
             .then(response => response.json())

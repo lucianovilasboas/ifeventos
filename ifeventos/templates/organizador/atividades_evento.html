@@ -29,44 +29,57 @@
         <a href="{% url 'organizador:importar_programacao' evento.id %}" class="btn btn-outline-primary">
             <i class="fa-solid fa-file-import"></i> Importar programação
         </a>
-        <a href="{% url 'organizador:briefing_operacional' evento.id %}" class="btn btn-outline-dark">
-            <i class="fa-solid fa-tower-broadcast"></i> Operação
-        </a>
-        <a href="{% url 'organizador:relatorio_participantes' evento.id %}" class="btn btn-outline-secondary">
-            <i class="fa-solid fa-users"></i> Relatório por participante
-        </a>
-        <a href="{% url 'organizador:relatorio_turmas' evento.id %}" class="btn btn-outline-secondary">
-            <i class="fa-solid fa-layer-group"></i> Relatório por turma
-        </a>
-        <a href="{% url 'organizador:relatorio_oficinas' evento.id %}" class="btn btn-outline-secondary">
-            <i class="fa-solid fa-tags"></i> Relatório por tipo
-        </a>
 
-        {% comment %}
-        Crachás do evento em PDF (4 por folha A4), no modelo definido aqui ao
-        lado: é o mesmo que o participante vê e imprime no celular.
-        {% endcomment %}
-        <a href="{% url 'organizador:crachas_evento' evento.id %}"
-           class="btn btn-outline-success" target="_blank" rel="noopener">
-            <i class="fa-solid fa-id-card"></i> Imprimir crachás (PDF)
-        </a>
-        <form method="post" action="{% url 'organizador:modelo_cracha_evento' evento.id %}"
-              class="d-inline-flex align-items-center gap-2 ms-2">
-            {% csrf_token %}
-            <label class="form-label mb-0 small text-muted" for="id_modelo_cracha">Modelo dos crachás:</label>
-            <select class="form-select form-select-sm w-auto" name="modelo" id="id_modelo_cracha"
-                    onchange="this.form.submit()">
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                <i class="fa-solid fa-list-check"></i> Relatórios e operação
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{% url 'organizador:briefing_operacional' evento.id %}">
+                    <i class="fa-solid fa-tower-broadcast"></i> Operação
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_participantes' evento.id %}">
+                    <i class="fa-solid fa-users"></i> Relatório por participante
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_turmas' evento.id %}">
+                    <i class="fa-solid fa-layer-group"></i> Relatório por turma
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_oficinas' evento.id %}">
+                    <i class="fa-solid fa-tags"></i> Relatório por tipo
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="btn-group">
+            <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                <i class="fa-solid fa-id-card"></i> Imprimir crachás
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{% url 'organizador:crachas_evento' evento.id %}"
+                       target="_blank" rel="noopener">
+                    <i class="fa-solid fa-file-pdf"></i> Imprimir (PDF)
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Modelo dos crachás</h6></li>
                 {% for chave, rotulo in modelos_cracha %}
-                <option value="{{ chave }}" {% if chave == evento.modelo_cracha %}selected{% endif %}>{{ rotulo }}</option>
+                <li><button type="submit" class="dropdown-item" form="formModeloCracha"
+                            name="modelo" value="{{ chave }}">{{ rotulo }}</button></li>
                 {% endfor %}
-            </select>
-            <noscript><button type="submit" class="btn btn-sm btn-outline-success">Salvar</button></noscript>
+            </ul>
+        </div>
+        <form id="formModeloCracha" method="post"
+              action="{% url 'organizador:modelo_cracha_evento' evento.id %}" class="d-none">
+            {% csrf_token %}
         </form>
     </div>
     <p class="text-muted small mb-0 mt-2">
         <i class="fa-solid fa-print"></i>
         Os crachás saem <b>4 por folha A4</b> (10,5 &times; 14,85 cm cada), com linhas de corte.
         Entram todos que têm papel no evento hoje: inscritos, palestrantes e organizador.
+        Para trocar o modelo, escolha uma opção no menu "Imprimir crachás".
     </p>
 </div>
 <div data-vista-grupo="organizador-atividades">
