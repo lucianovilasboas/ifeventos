@@ -102,6 +102,11 @@ no fim do ciclo, com a tag `v2.0.0`.
   crachás (só o topo), programação pública e formulários de evento/atividade/
   perfil. O `.app-page` agora neutraliza o gutter de `.app-list/.app-stats/
   .cards-h` aninhados, evitando padding duplicado.
+- **Gutter nas telas de conta/senha (dev.20):** os painéis de autenticação
+  (login, cadastro, sair, redefinir senha, alterar senha, confirmação de
+  e-mail e telas sociais) passam a guardar o mesmo respiro lateral padrão —
+  antes colados nas bordas (0px) ou com 12px do Bootstrap. A confirmação de
+  "senha alterada" (`password_reset_from_key_done`) ganhou painel próprio.
 
 ### Alterado
 
