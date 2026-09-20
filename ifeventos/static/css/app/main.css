@@ -1304,12 +1304,19 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 .agenda .agenda-dia.is-hoje .dia-sem { color: var(--accent-ink); }
 
 /* Coluna do horário: fixa à esquerda ao rolar de lado. Fundo sólido (não
-   translúcido) para os chips não aparecerem por baixo dela. */
+   translúcido) para os chips não aparecerem por baixo dela. A largura é FIXA
+   (48px): sem isso a tabela (width:100% + min-width) joga o espaço livre para
+   a primeira coluna, e ela estica (até ~144px) recortando os eventos e o
+   cabeçalho do dia que deslizam sob ela. */
 .agenda .agenda-hora {
     position: sticky;
     left: 0;
     z-index: 3;
+    width: 48px;
+    min-width: 48px;
+    max-width: 48px;
     background: var(--surface-2, #efefef);
+    border-right: 2px solid var(--border-strong, #3c3c3c);
     color: var(--app-muted, #6b7280);
     font-size: 11px;
     font-weight: 700;
