@@ -1007,6 +1007,30 @@ def cadastrar_palestrante_sugerido(request, sugestao_id):
                     evento_id=atividade.evento_id)
 
 
+@login_required(login_url='/accounts/login/')
+@require_POST
+def cadastrar_tipo_sugerido(request, atividade_id):
+    """Cadastra o tipo sugerido pelo proponente e já o seleciona na proposta.
+
+    Idempotente: se o tipo já existir no catálogo, apenas seleciona. A
+    aprovação continua sendo decisão explícita no botão "Aprovar".
+    """
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    _evento_gerenciavel(request, atividade.evento_id)
+    nome = (atividade.tipo_sugerido or "").strip()
+    if not nome:
+        messages.error(request, "Não há tipo sugerido nesta proposta.")
+        return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
+
+    tipo = TipoAtividade.objects.filter(nome__iexact=nome).first()
+    if tipo is None:
+        tipo = TipoAtividade.objects.create(nome=nome)
+    atividade.tipo = tipo
+    atividade.save(update_fields=["tipo"])
+    messages.success(request, "Tipo '%s' cadastrado e selecionado na proposta." % nome)
+    return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
+
+
 # -- Pré-triagem de propostas (copiloto do organizador) --
 @login_required(login_url='/accounts/login/')
 @require_POST

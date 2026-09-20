@@ -11,6 +11,8 @@ Parâmetros do {% include %}:
   largura/altura  tamanho do canvas gerado — padrão 500/500
   dica            texto auxiliar abaixo do campo
   alt             texto alternativo da imagem
+  cropped_valor   (opcional) valor inicial do hidden `cropped_image` — usado para
+                  reenviar o recorte quando a validação falha (sem refazer).
 
 Não usa IDs: cada campo resolve os próprios elementos por escopo
 ([data-cropper-campo]). Assim vários campos convivem na mesma página
@@ -48,7 +50,7 @@ O JS que liga tudo está em static/js/cropper_campo.js.
     {% endif %}
 
     {# O recorte (data URL base64) viaja aqui; a view troca o arquivo por ele. #}
-    <input type="hidden" name="cropped_image" data-cropper-saida>
+    <input type="hidden" name="cropped_image" data-cropper-saida{% if cropped_valor %} value="{{ cropped_valor }}"{% endif %}>
 
     {% if dica %}
         {% if variante == 'avatar' %}

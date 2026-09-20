@@ -405,6 +405,8 @@ def propor_atividade(request, evento_id):
         # (chips de palestrante escolhido e de sugestão não podem sumir).
         'palestrantes_extras': _extras_do_post(request),
         'sugestoes_iniciais': _sugestoes_do_post(request),
+        # Recorte da imagem (data URL) para a prévia não sumir no erro.
+        'imagem_preview': request.POST.get('cropped_image') or '',
     })
 
 
@@ -482,6 +484,8 @@ def editar_proposta(request, atividade_id):
         'vistas_vaga': propostas.VISTAS_VAGA,
         'palestrantes_extras': palestrantes_extras,
         'sugestoes_iniciais': sugestoes_iniciais,
+        # Recorte da imagem (data URL) para a prévia não sumir no erro.
+        'imagem_preview': request.POST.get('cropped_image') or '',
         'chamada': propostas.chamada_de(evento),
         'aberta': True,
         'motivo_fechado': '',

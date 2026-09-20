@@ -56,6 +56,10 @@
                 <span class="badge-app">{{ proposta.n_vagas }} vaga(s)</span>
                 {% if proposta.emite_certificado %}<span class="badge-app">emite certificado</span>{% endif %}
             </p>
+            {% if proposta.imagem %}
+            <img src="{{ proposta.imagem.url }}" alt="{{ proposta.titulo }}"
+                 style="max-width:220px;border-radius:8px;margin-bottom:8px;">
+            {% endif %}
             <p class="mb-1">{{ proposta.descricao|linebreaksbr }}</p>
             {% if proposta.recursos_necessarios %}
             <p class="mb-1"><strong>Recursos necessários:</strong><br>{{ proposta.recursos_necessarios|linebreaksbr }}</p>
@@ -117,8 +121,14 @@
                 {% if not proposta.tipo and proposta.tipo_sugerido %}
                 <small class="text-muted d-block mb-2">
                     O proponente sugeriu <b>{{ proposta.tipo_sugerido }}</b>: escolha um tipo da
-                    lista (ou crie depois, em Atividades).
+                    lista ou cadastre o tipo sugerido abaixo.
                 </small>
+                <form method="post" action="{% url 'organizador:cadastrar_tipo_sugerido' proposta.id %}" class="mb-2">
+                    {% csrf_token %}
+                    <button class="btn btn-outline-primary btn-sm">
+                        <i class="fa-solid fa-plus"></i> Cadastrar tipo "{{ proposta.tipo_sugerido }}"
+                    </button>
+                </form>
                 {% endif %}
                 <input type="hidden" name="publicar" value="0">
                 <div class="form-check form-switch mb-2">
