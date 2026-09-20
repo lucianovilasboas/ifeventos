@@ -378,3 +378,101 @@ class AgendaVaiParaAProgramacaoTests(TestCase):
 
         url = reverse("eventos:agenda")
         self.assertIn(f'href="{url}"', html)
+
+class AcoesDaPaginaDeAtividadesTests(TestCase):
+    """A página de atividades organiza os botões em dropdowns (sem form aninhado)."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_acoes@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        hoje = timezone.localdate()
+        self.evento = Evento.objects.create(
+            title="Evento Ações", description="d", local="Campus",
+            data_inicio=hoje, data_fim=hoje + timedelta(days=1),
+            organizador=self.org,
+        )
+        Atividade.objects.create(
+            evento=self.evento, titulo="Oficina A", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime.combine(hoje, datetime.min.time(), tzinfo=tz.utc),
+            data_hora_fim=datetime.combine(hoje, datetime.min.time(), tzinfo=tz.utc)
+            + timedelta(hours=1),
+        )
+        self.client.force_login(self.org)
+
+    def test_tem_dropdown_de_relatorios_e_operacao(self):
+        html = self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        ).content.decode()
+        self.assertIn("Relatórios e operação", html)
+        self.assertIn("Relatório por participante", html)
+        self.assertIn("Relatório por turma", html)
+        self.assertIn("Relatório por tipo", html)
+        self.assertIn("Operação", html)
+
+    def test_imprimir_crachas_e_dropdown_unico_com_modelos(self):
+        html = self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        ).content.decode()
+        self.assertIn("Imprimir crachás", html)
+        self.assertIn("Imprimir (PDF)", html)
+        self.assertIn('form="formModeloCracha"', html)
+        self.assertIn('name="modelo"', html)
+
+    def test_sem_form_aninhado(self):
+        from html.parser import HTMLParser
+
+        html = self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        ).content.decode()
+
+        class Detector(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.profundidade = 0
+                self.aninhado = False
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "form":
+                    self.profundidade += 1
+                    if self.profundidade > 1:
+                        self.aninhado = True
+
+            def handle_endtag(self, tag):
+                if tag == "form":
+                    self.profundidade -= 1
+
+        detector = Detector()
+        detector.feed(html)
+        self.assertFalse(detector.aninhado, "há um <form> aninhado na página de atividades")
+
+
+class CartoesEditarExcluirSeparadosTests(TestCase):
+    """Editar e Excluir ficam em locais opostos no cartão do evento."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_cartoes@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        hoje = timezone.localdate()
+        self.evento = Evento.objects.create(
+            title="Evento Cartões", description="d", local="Campus",
+            data_inicio=hoje, data_fim=hoje + timedelta(days=1),
+            organizador=self.org,
+        )
+        self.client.force_login(self.org)
+
+    def test_editar_no_corpo_e_excluir_na_acoes(self):
+        html = self.client.get(reverse("organizador:dashboard")).content.decode()
+        pos_acoes = html.find("event-card-actions")
+        pos_editar = html.find('title="Editar Evento"')
+        pos_excluir = html.find('title="Excluir Evento"')
+        self.assertGreater(pos_acoes, -1)
+        self.assertGreater(pos_editar, -1)
+        self.assertGreater(pos_excluir, -1)
+        # Editar vem antes da barra de ações (fica no corpo); Excluir, depois.
+        self.assertLess(pos_editar, pos_acoes)
+        self.assertGreater(pos_excluir, pos_acoes)

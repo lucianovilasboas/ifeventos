@@ -183,27 +183,54 @@ async def ia_mensagem_view(request):
 # -- Função para gerar descrição de evento --
 # -- Adicionado por Luciano Vilas Boas --
 
-async def gerar_descricao_evento(titulo, data_inicio, data_fim, local, tipo):
+async def gerar_descricao_evento(titulo, data_inicio, data_fim, local, tipo,
+                                 programacao=""):
     """
-    Usa a IA para gerar automaticamente uma descrição de evento baseada no título fornecido.
+    Gera a descrição institucional do evento via IA (2 a 3 parágrafos).
     """
-    
-    info = f"o(a) {tipo}: '{titulo}'." if tipo else f"o evento: '{titulo}'."
-    local = f"Local: {local}." if local else ""
-    
-    prompt = f"""Crie uma descrição para {info} 
-                 com início em {data_inicio} e término em {data_fim}. {local} 
-                 A descrição deve ser atrativa e informativa, incentivando a participação.
-                 Escreva apenas um parágrafo.
-                 """
+    periodo = []
+    if data_inicio:
+        periodo.append("início em %s" % data_inicio)
+    if data_fim:
+        periodo.append("término em %s" % data_fim)
+    periodo_texto = " e ".join(periodo) if periodo else "(período não informado)"
+    programacao_texto = " ".join(str(programacao or "").split())[:800] or \
+        "(programação ainda não definida)"
+
+    prompt = """Você escreve a descrição institucional de eventos de um campus do IFMG.
+
+Dados do evento:
+- Título: {titulo}
+- Período: {periodo}
+- Local: {local}
+- Tema/categoria: {tipo}
+- Programação prevista: {programacao}
+
+Escreva 2 a 3 parágrafos em português. Regras:
+1. Foco no PÚBLICO-ALVO: a quem o evento se destina e o que a pessoa vai
+   encontrar/levar.
+2. Se houver programação acima, mencione os destaques; se ainda não houver, seja
+   genérico (ex.: "oficinas, palestras e atividades").
+3. Tom institucional, neutro, porém chamativo — sem clichês, sem emojis e sem
+   exageros.
+4. Não invente dados que não estão acima (datas e local apenas se fornecidos).
+5. Seja objetivo: cada parágrafo desenvolve uma ideia; não use listas.
+
+Responda apenas com o texto da descrição.""".format(
+        titulo=(titulo or "Evento").strip(),
+        periodo=periodo_texto,
+        local=(local or "").strip() or "(não informado)",
+        tipo=(tipo or "").strip() or "(não informado)",
+        programacao=programacao_texto,
+    )
 
     try:
         response = await gerar_chat(
             "descricao_evento",
             messages=[{"role": "system", "content": prompt}],
-            max_tokens=120,
+            max_tokens=600,
         )
-        return response.choices[0].message.content.strip()
+        return (response.choices[0].message.content or "").strip()
     except Exception as e:
         return "Não foi possível gerar uma descrição no momento. Tente novamente mais tarde."
 
@@ -222,11 +249,12 @@ async def gerar_conteudo_ajax(request):
         data_fim = data.get("data_fim", None)
         local = data.get("local", None)
         tipo = data.get("tipo", None)
+        programacao = data.get("programacao", "")
 
         if not titulo:
             return JsonResponse({"error": "Título não pode estar vazio."}, status=400)
 
-        descricao = await gerar_descricao_evento(titulo, data_inicio, data_fim, local, tipo)
+        descricao = await gerar_descricao_evento(titulo, data_inicio, data_fim, local, tipo, programacao)
         return JsonResponse({"descricao": descricao})
 
     return JsonResponse({"error": "Método inválido."}, status=400)

@@ -8,23 +8,23 @@
                 <span class="cover-dates">{{ evento.data_inicio|date:"d/m" }} – {{ evento.data_fim|date:"d/m" }}</span>
             </div>
             <div class="event-card-body">
-                <h5>{{ evento.title }}
-                    {% if evento.organizador and evento.organizador != user %}
-                    <span class="badge bg-secondary-subtle text-secondary" title="Evento organizado por {{ evento.organizador.get_full_name|default:evento.organizador.username }}">
-                        <i class="fa-solid fa-user-shield"></i> outro organizador
-                    </span>
-                    {% endif %}
-                </h5>
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <h5 class="mb-0">{{ evento.title }}
+                        {% if evento.organizador and evento.organizador != user %}
+                        <span class="badge bg-secondary-subtle text-secondary" title="Evento organizado por {{ evento.organizador.get_full_name|default:evento.organizador.username }}">
+                            <i class="fa-solid fa-user-shield"></i> outro organizador
+                        </span>
+                        {% endif %}
+                    </h5>
+                    {# Editar fica no topo do cartão, longe da ação destrutiva. #}
+                    <a href="{% url 'organizador:editar_evento' evento.id %}" class="btn btn-sm btn-outline-warning btn-icon" title="Editar Evento">
+                        <i class="fa-solid fa-pen"></i>
+                    </a>
+                </div>
                 <p class="meta"><i class="fa-solid fa-location-dot"></i> {{ evento.local }}</p>
                 <p class="desc">{{ evento.description|truncatechars:90 }}</p>
             </div>
             <div class="event-card-actions">
-                <a href="{% url 'organizador:editar_evento' evento.id %}" class="btn btn-sm btn-warning btn-icon" title="Editar Evento">
-                    <i class="fa-solid fa-pen"></i>
-                </a>
-                <a href="{% url 'organizador:excluir_evento' evento.id %}" class="btn btn-sm btn-danger btn-icon" title="Excluir Evento" onclick="return confirm('Tem certeza que deseja excluir este evento?');">
-                    <i class="fa-solid fa-trash-can"></i>
-                </a>
                 <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-info btn-icon" title="Listar Atividades">
                     <i class="fa-solid fa-calendar-days"></i>
                     {% if evento.atividades.count > 0 %}
@@ -59,6 +59,10 @@
                           data-pendentes-evento="{{ evento.id }}"
                           style="position:absolute;top:-5px;right:-5px;font-size:9px"
                           {% if not evento.n_pendentes %}hidden{% endif %}>{{ evento.n_pendentes }}</span>
+                </a>
+                {# Excluir no canto oposto, separado do resto (evita clique acidental). #}
+                <a href="{% url 'organizador:excluir_evento' evento.id %}" class="btn btn-sm btn-outline-danger btn-icon ms-auto" title="Excluir Evento" onclick="return confirm('Tem certeza que deseja excluir este evento?');">
+                    <i class="fa-solid fa-trash-can"></i>
                 </a>
             </div>
         </div>

@@ -5,6 +5,26 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.1.4] — 2026-09-20
+
+### Alterado
+
+- **Cartões de evento (dashboard)**: "Editar" subiu para o topo do cartão e
+  "Excluir" foi para a ponta direita da barra de ações — longe um do outro,
+  para evitar clique acidental em excluir.
+- **Criação de evento (modal)**: após criar, o usuário vai direto para a
+  **edição do evento** (onde ficam o copiloto, a divulgação e as demais
+  ferramentas de IA); dica adicionada na modal.
+- **Página de atividades**: botões reorganizados — destaque para "Criar
+  atividade" e "Imprimir crachás" (dropdown único com "Imprimir (PDF)" +
+  seleção do modelo do crachá, sem `<form>` aninhado); "Operação" e os
+  relatórios (participante, turma, tipo) agora ficam num dropdown
+  "Relatórios e operação".
+- **Descrição de evento com IA**: prompt reformulado para gerar 2–3 parágrafos
+  profissionais, com foco no público-alvo, mencionando a programação quando
+  disponível (títulos das atividades publicadas) e tom institucional/neutro,
+  porém chamativo.
+
 ## [2.1.3] — 2026-09-20
 
 ### Corrigido

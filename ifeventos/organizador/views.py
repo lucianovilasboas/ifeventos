@@ -200,7 +200,12 @@ def criar_evento(request):
                 evento.imagem = recorte
             evento.save()
             messages.success(request, "Evento criado com sucesso!")
-            return JsonResponse({"success": True, "message": "Evento criado com sucesso!"})
+            # Vai direto para a edição: é onde ficam o copiloto e a divulgação.
+            return JsonResponse({
+                "success": True,
+                "message": "Evento criado com sucesso!",
+                "redirect": reverse("organizador:editar_evento", args=[evento.id]),
+            })
         else:
             messages.warning(request, "Erro ao criar evento.")
             return JsonResponse({"success": False, "errors": form.errors}, status=400)
@@ -240,7 +245,15 @@ def editar_evento(request, evento_id):
     else:
         form = EventoForm(instance=evento)
 
-    return render(request, 'organizador/form_evento.html', {'form': form, 'evento': evento})
+    return render(request, 'organizador/form_evento.html', {
+        'form': form, 'evento': evento,
+        # Títulos das atividades publicadas: a IA pode mencioná-los na descrição.
+        'programacao_titulos': list(
+            evento.atividades.filter(publicada=True)
+            .order_by('data_hora_inicio')
+            .values_list('titulo', flat=True)[:8]
+        ),
+    })
 
 
 

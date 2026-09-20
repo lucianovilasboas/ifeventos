@@ -52,7 +52,8 @@
                 fetch(form.action, { method: "POST", body: formData, headers: { "X-Requested-With": "XMLHttpRequest" } })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) { window.location.reload(); }
+                    // Após criar, vai direto para a edição (copiloto/divulgação).
+                    if (data.success) { window.location = data.redirect || "{% url 'organizador:dashboard' %}"; }
                     else { message_("Erro ao criar evento: " + JSON.stringify(data.errors), "danger"); }
                 })
                 .catch(error => console.error("Erro:", error));
