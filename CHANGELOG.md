@@ -5,6 +5,16 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.7] — 2026-09-21
+
+### Adicionado
+
+- **Identificação de superusuário no avatar**: quando conectado com uma conta de
+  superusuário, o avatar do topo ganha um **anel amarelo** no contorno (com um
+  leve brilho) e um **badge pequeno "S"** no canto — para o administrador saber
+  na hora que está logado com a conta de superusuário. Vale em todas as telas
+  do app e na página inicial (landing).
+
 ## [2.2.6] — 2026-09-21
 
 ### Corrigido
