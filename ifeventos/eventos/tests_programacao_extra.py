@@ -127,6 +127,9 @@ class ExportacoesTests(TestCase):
         self.org = U.objects.create_user(
             email="org2@example.com", password="SenhaForte123!", is_organizador=True
         )
+        # Com o escopo por evento, o organizador precisa ser dono (ou co-organizador).
+        self.evento.organizador = self.org
+        self.evento.save(update_fields=["organizador"])
 
     def test_pdf_da_programacao(self):
         resposta = self.client.get(

@@ -867,17 +867,20 @@ def png_qr(conteudo, caixa=10, borda=2):
 def pode_gerenciar_evento(usuario, evento):
     """Quem pode operar crachás e check-in de um evento.
 
-    Vale para os quatro casos reais do sistema: staff, superusuário, quem tem a
-    flag de organizador e o organizador cadastrado no próprio evento. Sem isso,
-    um organizador de outro evento operaria o check-in alheio.
+    Vale para staff/superusuário, o organizador cadastrado no próprio evento e
+    quem foi adicionado como CO-ORGANIZADOR (`Evento.organizadores`). A flag
+    `is_organizador` sozinha NÃO dá mais acesso a qualquer evento: o escopo é
+    por evento — quem gerencia um evento é o dono ou um co-organizador dele.
     """
     if not usuario or not getattr(usuario, "is_authenticated", False):
         return False
     if usuario.is_staff or usuario.is_superuser:
         return True
-    if getattr(usuario, "is_organizador", False):
+    if evento and evento.organizador_id == usuario.id:
         return True
-    return bool(evento and evento.organizador_id == usuario.id)
+    if evento and evento.organizadores.filter(id=usuario.id).exists():
+        return True
+    return False
 
 
 def pode_checkin_apoio(usuario, evento):

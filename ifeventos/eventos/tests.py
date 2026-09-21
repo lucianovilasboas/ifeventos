@@ -284,12 +284,13 @@ class OrdenacaoDeAtividadesTests(TestCase):
     def setUp(self):
         self.usuario = U.objects.create_user(
             email="organizador_teste@example.com", password="SenhaForte123!",
-            cpf="12345678909",
+            cpf="12345678909", is_organizador=True,
         )
         self.client.force_login(self.usuario)
         self.evento = Evento.objects.create(
             title="Evento de teste", description="d", local="Ponte Nova",
             data_inicio="2026-09-10", data_fim="2026-09-11",
+            organizador=self.usuario,
         )
         # O signal eventos.signals.atividade_salva faz `instance.tipo.nome` sem
         # checar None, então a atividade precisa de tipo (bug latente à parte).

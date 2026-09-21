@@ -54,7 +54,10 @@ def dashboard(request):
     if organizador.is_superuser:
         eventos = Evento.objects.all() # Todos os eventos de todos os organizadores
     else:
-        eventos = organizador.eventos.all() # Apenas eventos do organizador logado
+        # Dono OU co-organizador: quem gerencia o evento o vê no painel.
+        eventos = Evento.objects.filter(
+            Q(organizador=organizador) | Q(organizadores=organizador)
+        ).distinct()
 
     # Chamada de proposições: o cartão do evento mostra o atalho e quantas
     # propostas esperam decisão (sem uma query por cartão).
@@ -284,6 +287,12 @@ def editar_evento(request, evento_id):
             .order_by('data_hora_inicio')
             .values_list('titulo', flat=True)[:8]
         ),
+        # Co-organizadores: o painel da tela de edição.
+        'organizadores': evento.organizadores.order_by('first_name', 'email'),
+        'pode_gerenciar_coorganizadores': (
+            request.user.is_superuser
+            or evento.organizador_id == request.user.id
+        ),
     })
 
 
@@ -293,8 +302,22 @@ def get_user_and_evento(request, evento_id):
     if organizador.is_superuser:
         evento = get_object_or_404(Evento, id=evento_id)
     else:
-        evento = get_object_or_404(Evento, id=evento_id, organizador=organizador)
+        # Dono OU co-organizador: ambos gerenciam o evento (só excluir é do dono).
+        evento = get_object_or_404(
+            Evento.objects.filter(
+                Q(organizador=organizador) | Q(organizadores=organizador)
+            ).distinct(),
+            id=evento_id,
+        )
     return organizador, evento
+
+
+def _evento_do_dono(request, evento_id):
+    """O evento apenas para o DONO (ou superuser) — usado onde co-organizador não decide."""
+    organizador = get_object_or_404(Participante, id=request.user.id)
+    if organizador.is_superuser:
+        return get_object_or_404(Evento, id=evento_id)
+    return get_object_or_404(Evento, id=evento_id, organizador=organizador)
 
 
 def _exige_organizador(request):
@@ -423,6 +446,65 @@ def equipe_apoio_remover(request, evento_id):
     pessoa_id = request.POST.get("pessoa_id") or ""
     if pessoa_id.isdigit():
         evento.equipe.remove(int(pessoa_id))
+    return JsonResponse({"success": True}) 
+
+
+# -- Co-organizadores do evento (só o dono/superuser gerencia o time) --------
+@login_required(login_url='/accounts/login/')
+@require_POST
+def coorganizador_adicionar(request, evento_id):
+    """Adiciona um co-organizador ao evento, pelo e-mail.
+
+    Conta existente é reaproveitada (e ganha is_organizador=True se não tiver).
+    E-mail novo cria uma conta mínima de organizador (senha temporária devolvida
+    UMA vez, e-mail já verificado). Só o dono/superuser pode.
+    """
+    evento = _evento_do_dono(request, evento_id)
+    email = (request.POST.get("email") or "").strip().lower()
+    if not email:
+        return JsonResponse({"success": False, "erro": "Informe o e-mail."}, status=400)
+
+    try:
+        pessoa = Participante.objects.get(email__iexact=email)
+    except Participante.DoesNotExist:
+        from allauth.account.models import EmailAddress
+
+        senha_temporaria = get_random_string(8)
+        pessoa = Participante.objects.create_user(
+            email=email,
+            password=senha_temporaria,
+            is_participante=False,
+            is_organizador=True,
+        )
+        EmailAddress.objects.create(
+            user=pessoa, email=pessoa.email, verified=True, primary=True
+        )
+        reusada = False
+    else:
+        senha_temporaria = None
+        reusada = True
+        if not pessoa.is_organizador:
+            pessoa.is_organizador = True
+            pessoa.save(update_fields=["is_organizador"])
+
+    evento.organizadores.add(pessoa)
+    return JsonResponse({
+        "success": True,
+        "pessoa_id": pessoa.id,
+        "nome": pessoa.get_full_name() or pessoa.email,
+        "reusada": reusada,
+        "senha_temporaria": senha_temporaria,
+    })
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def coorganizador_remover(request, evento_id):
+    """Tira a pessoa dos co-organizadores (não apaga a conta). Só o dono."""
+    evento = _evento_do_dono(request, evento_id)
+    pessoa_id = request.POST.get("pessoa_id") or ""
+    if pessoa_id.isdigit():
+        evento.organizadores.remove(int(pessoa_id))
     return JsonResponse({"success": True}) 
 
 

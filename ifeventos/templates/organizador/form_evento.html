@@ -162,6 +162,49 @@
                 
 
 
+                <!-- Co-organizadores -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="app-panel p-3">
+                            <h6 class="mb-1"><i class="fa-solid fa-users-gear"></i> Co-organizadores</h6>
+                            <p class="text-muted small mb-2">
+                                Pessoas que podem <b>gerenciar este evento</b> (atividades, relatórios,
+                                equipe de apoio) — como você, menos <b>excluir</b> o evento, que é só do dono.
+                                Adicione por e-mail: conta existente é reaproveitada; e-mail novo cria uma
+                                conta de organizador.
+                            </p>
+                            {% if pode_gerenciar_coorganizadores %}
+                            <div class="input-group mb-3">
+                                <input type="email" id="coorganizadorEmail" class="form-control"
+                                       placeholder="E-mail do co-organizador" aria-label="E-mail do co-organizador">
+                                <button type="button" class="btn btn-app" id="coorganizadorAdicionar">
+                                    <i class="fa-solid fa-user-plus"></i> Adicionar
+                                </button>
+                            </div>
+                            {% endif %}
+                            <div id="coorganizadorAviso"></div>
+                            <ul class="list-group" id="coorganizadorLista">
+                                {% for pessoa in organizadores %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center" data-coorganizador-item="{{ pessoa.id }}">
+                                    <span><i class="fa-solid fa-user"></i> {{ pessoa.get_full_name|default:pessoa.email }}</span>
+                                    {% if pode_gerenciar_coorganizadores %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            data-coorganizador-remover="{{ pessoa.id }}"
+                                            data-coorganizador-nome="{{ pessoa.get_full_name|default:pessoa.email }}">
+                                        <i class="fa-solid fa-user-minus"></i> Remover
+                                    </button>
+                                    {% endif %}
+                                </li>
+                                {% empty %}
+                                <li class="list-group-item text-muted" id="coorganizadorVazio">
+                                    Nenhum co-organizador além do dono.
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="text-end mt-4">
 
                     {% if evento %}
@@ -170,9 +213,11 @@
                         <button type="submit" class="btn btn-app">Criar Evento</button>
                     {% endif %}
 
+                    {% if pode_gerenciar_coorganizadores %}
                     <a href="{% url 'organizador:excluir_evento' evento.id %}" class="btn btn-danger" onclick="return confirm('Tem certeza que deseja excluir este evento?');">
                         <i class="fa-solid fa-xmark"></i> Excluir
                     </a>
+                    {% endif %}
                 </div>
             </form>   
         </div>
@@ -494,5 +539,77 @@
 
     });
 
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const CSRF = '{{ csrf_token }}';
+    const urlAdicionar = "{% url 'organizador:coorganizador_adicionar' evento.id %}";
+    const urlRemover = "{% url 'organizador:coorganizador_remover' evento.id %}";
+    const aviso = document.getElementById("coorganizadorAviso");
+    const lista = document.getElementById("coorganizadorLista");
+    const botaoAdd = document.getElementById("coorganizadorAdicionar");
+    if (!lista) return;
+
+    function mensagem(texto, tipo) {
+        if (aviso) aviso.innerHTML = `<div class="alert alert-${tipo} py-2">${texto}</div>`;
+    }
+
+    if (botaoAdd) {
+        botaoAdd.addEventListener("click", function () {
+            const email = document.getElementById("coorganizadorEmail").value.trim();
+            if (!email) { mensagem("Informe o e-mail do co-organizador.", "warning"); return; }
+            fetch(urlAdicionar, {
+                method: "POST",
+                headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+                body: new URLSearchParams({email: email}),
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (!d.success) { mensagem(d.erro || "Não deu para adicionar.", "danger"); return; }
+                if (d.reusada) {
+                    mensagem(`✅ ${d.nome} agora é co-organizador deste evento.`, "success");
+                } else {
+                    mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha temporária: <code>${d.senha_temporaria}</code> — repasse para a pessoa.`, "success");
+                }
+                document.getElementById("coorganizadorEmail").value = "";
+                const vazio = document.getElementById("coorganizadorVazio");
+                if (vazio) vazio.remove();
+                const li = document.createElement("li");
+                li.className = "list-group-item d-flex justify-content-between align-items-center";
+                li.dataset.coorganizadorItem = d.pessoa_id;
+                li.innerHTML = `<span><i class="fa-solid fa-user"></i> ${d.nome}</span>` +
+                    `<button type="button" class="btn btn-sm btn-outline-danger" data-coorganizador-remover="${d.pessoa_id}" data-coorganizador-nome="${d.nome}"><i class="fa-solid fa-user-minus"></i> Remover</button>`;
+                lista.appendChild(li);
+            })
+            .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+        });
+    }
+
+    lista.addEventListener("click", function (e) {
+        const botao = e.target.closest("[data-coorganizador-remover]");
+        if (!botao) return;
+        const id = botao.dataset.coorganizadorRemover;
+        const nome = botao.dataset.coorganizadorNome;
+        if (!confirm(`Remover ${nome} dos co-organizadores deste evento?`)) return;
+        fetch(urlRemover, {
+            method: "POST",
+            headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({pessoa_id: id}),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                const item = lista.querySelector(`[data-coorganizador-item="${id}"]`);
+                if (item) item.remove();
+                if (!lista.querySelector("[data-coorganizador-item]")) {
+                    lista.innerHTML = '<li class="list-group-item text-muted" id="coorganizadorVazio">Nenhum co-organizador além do dono.</li>';
+                }
+                mensagem(`Removida. A conta de ${nome} continua existindo, só perdeu o acesso de co-organização deste evento.`, "success");
+            }
+        })
+        .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+    });
+});
 </script>
 {% endblock scripts %}
