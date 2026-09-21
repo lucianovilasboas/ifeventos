@@ -85,12 +85,14 @@ def valores_meta(cleaned_data):
 def construir_field(campo, valor_pai=None):
     """Campo de formulário correspondente à definição (nome prefixado com meta_).
 
-    Campo condicional NÃO nasce `required` no HTML: escondido, um `required`
-    travaria o envio. A obrigatoriedade é cobrada no `clean()` do formulário.
+    Nenhum campo nasce `required` no HTML: a obrigatoriedade é cobrada no
+    `clean()` do formulário (`validar`) — fonte única da verdade. Sem isso o
+    erro "Este campo é obrigatório." aparecia DUAS vezes (no campo e na
+    validação), e um `required` num campo escondido travaria o envio.
     """
     comum = {
         "label": campo["rotulo"],
-        "required": campo["obrigatorio"] and not campo["visivel_quando"],
+        "required": False,
         "help_text": campo["ajuda"],
     }
     if campo["tipo"] == "numero":
