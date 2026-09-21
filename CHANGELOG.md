@@ -5,6 +5,16 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.9] — 2026-09-21
+
+### Alterado
+
+- **Programação sem o banner da home**: a página `/eventos/programacao/<id>`
+  deixou de mostrar o hero "Eventos do IFMG / Fique por dentro dos eventos e
+  programações do campus." (o bloco `hero` do `base.html` virou sobrescrevível
+  e a programação o esvazia). As telas de conta (login, cadastro, senha) e a
+  redefinição de senha continuam com o banner.
+
 ## [2.2.8] — 2026-09-21
 
 ### Alterado

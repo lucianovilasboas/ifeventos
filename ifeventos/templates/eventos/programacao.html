@@ -2,6 +2,9 @@
 {% load static %}
 {% block title %}Programação | {{ evento.title }}{% endblock %}
 
+{# Sem o banner "Eventos do IFMG": a programação é a tela de conteúdo. #}
+{% block hero %}{% endblock hero %}
+
 {% block content %}
 <div class="app-page">
     <!-- Cabeçalho do evento -->

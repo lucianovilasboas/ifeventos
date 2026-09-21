@@ -31,7 +31,8 @@
         </div>
     </div>
 
-    <!-- Hero Section -->
+    <!-- Hero Section (bloco: páginas podem removê-lo, ex.: a programação) -->
+    {% block hero %}
     <div class="app-hero">
         <span class="hero-ico">🎪</span>
         <h1>Eventos do IFMG</h1>
@@ -40,6 +41,7 @@
             <span class="chip"><b>●</b> Acesse para se inscrever</span>
         {% endif %}
     </div>
+    {% endblock hero %}
 
     <!-- Conteúdo -->
     <div class="mt-4">
