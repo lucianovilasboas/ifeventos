@@ -293,6 +293,17 @@ class AcoesNaGradeTests(TestCase):
 
         self.assertNotIn("chip-acoes", html)
 
+    def test_programacao_nao_tem_o_banner_da_home(self):
+        html = self._html(reverse("eventos:programacao", args=[self.evento.id]))
+
+        self.assertNotIn("Eventos do IFMG", html)
+        self.assertNotIn("Fique por dentro dos eventos", html)
+
+    def test_login_ainda_tem_o_banner(self):
+        html = self.client.get(reverse("account_login")).content.decode()
+
+        self.assertIn("Eventos do IFMG", html)
+
     def test_painel_do_participante_nao_traz_os_botoes(self):
         self.client.force_login(self.participante)
 
