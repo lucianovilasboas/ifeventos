@@ -8,11 +8,14 @@ Bootstrap.
 {% endcomment %}
 {% if request.user.is_authenticated %}
 <div class="menu-usuario" data-menu-usuario>
-    <button type="button" class="menu-usuario-gatilho" data-menu-gatilho
+    <button type="button" class="menu-usuario-gatilho{% if request.user.is_superuser %} is-superuser{% endif %}" data-menu-gatilho
             aria-haspopup="true" aria-expanded="false"
             aria-label="Abrir menu da conta de {{ request.user.first_name|default:request.user.email }}">
         <img src="{{ request.user.get_foto_url }}" alt="{{ request.user.first_name }}">
     </button>
+    {% if request.user.is_superuser %}
+    <span class="menu-usuario-badge" title="Conta de superusuário" aria-label="Conta de superusuário">S</span>
+    {% endif %}
 
     <div class="menu-usuario-painel" data-menu-painel hidden>
         <div class="menu-usuario-topo">

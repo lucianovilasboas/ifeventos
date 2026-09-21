@@ -14,6 +14,37 @@ U = get_user_model()
 SENHA = "SenhaForte123!"
 
 
+class AvatarSuperuserTests(TestCase):
+    """Anel amarelo + badge "S" só na conta de superusuário."""
+
+    def setUp(self):
+        self.super = U.objects.create_user(
+            email="sup_ava@example.com", password=SENHA, cpf="12345678909",
+            is_superuser=True, is_staff=True,
+        )
+        self.comum = U.objects.create_user(
+            email="com_ava@example.com", password=SENHA, cpf="11144477735"
+        )
+
+    def _html(self, user):
+        self.client.force_login(user)
+        if user.is_superuser:
+            url = reverse("organizador:dashboard")
+        else:
+            url = reverse("participante:dashboard")
+        return self.client.get(url).content.decode()
+
+    def test_superusuario_tem_anel_e_badge(self):
+        html = self._html(self.super)
+        self.assertIn('menu-usuario-gatilho is-superuser', html)
+        self.assertIn('menu-usuario-badge', html)
+
+    def test_usuario_comum_nao_tem(self):
+        html = self._html(self.comum)
+        self.assertNotIn('is-superuser', html)
+        self.assertNotIn('menu-usuario-badge', html)
+
+
 class ProgramacaoOrdemTests(TestCase):
     """A programação pública sai na ordem em que as atividades vão acontecer."""
 
