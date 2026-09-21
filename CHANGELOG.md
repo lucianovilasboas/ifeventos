@@ -5,6 +5,23 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.3.0] — 2026-09-21
+
+### Adicionado
+
+- **Co-organizadores por evento**: um organizador que **não é o dono** do evento
+  pode ser adicionado para **gerenciá-lo** (atividades, relatórios, equipe de
+  apoio, edição do evento). O **dono** continua sendo o principal (excluir o
+  evento é só dele). O organizador gerencia a lista na tela de edição do evento
+  ("Co-organizadores"), adicionando por e-mail (conta existente é
+  reaproveitada e ganha `is_organizador`; e-mail novo cria uma conta mínima de
+  organizador com senha temporária).
+- **Permissão por escopo de evento**: `pode_gerenciar_evento` agora vale para
+  dono **ou** co-organizador (staff/superuser sempre). A flag `is_organizador`
+  sozinha **deixa de dar acesso a qualquer evento** — o dashboard lista os
+  eventos que a pessoa é dona/co-organizadora. Organizadores sem vínculo com um
+  evento não o veem nem operam.
+
 ## [2.2.10] — 2026-09-21
 
 ### Alterado

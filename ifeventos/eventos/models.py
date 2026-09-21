@@ -257,6 +257,14 @@ class Evento(models.Model):
         Participante, blank=True, related_name="eventos_equipe"
     )
 
+    # Co-organizadores: gerenciam este evento (atividades, relatórios, edição)
+    # como o dono, EXCETO excluir o evento (que é só do dono). Garante-se que
+    # quem entra aqui tem is_organizador=True (o menu "Organizador" depende da
+    # flag), mas o acesso aos eventos é por este vínculo.
+    organizadores = models.ManyToManyField(
+        Participante, blank=True, related_name="eventos_coorganizados"
+    )
+
     # ----------------------------------------------------------------------
     # Modelo dos crachás DESTE evento (decisão do organizador).
     # Antes cada pessoa escolhia o seu na tela, e o evento saía com crachás de

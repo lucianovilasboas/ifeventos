@@ -93,8 +93,19 @@ class PublicarExcluirTests(_BaseAutorizacao):
         )
         self.assertEqual(resposta.status_code, 403)
 
-    def test_qualquer_organizador_publica(self):
-        # Regra do sistema: a flag de organizador permite operar qualquer evento.
+    def test_organizador_sem_vinculo_nao_publica(self):
+        # Com o escopo por evento, um organizador sem vínculo recebe 403.
+        self.client.force_login(self.outro_org)
+        resposta = self.client.post(
+            reverse("organizador:publicar_atividade", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 403)
+        self.atividade.refresh_from_db()
+        self.assertTrue(self.atividade.publicada)
+
+    def test_coorganizador_publica(self):
+        # Adicionado como co-organizador, o mesmo organizador passa a operar.
+        self.evento.organizadores.add(self.outro_org)
         self.client.force_login(self.outro_org)
         resposta = self.client.post(
             reverse("organizador:publicar_atividade", args=[self.atividade.id])
@@ -207,3 +218,79 @@ class IATests(_BaseAutorizacao):
             data='{"titulo": ""}', content_type="application/json",
         )
         self.assertEqual(resposta.status_code, 400)
+
+class CoOrganizadorTests(_BaseAutorizacao):
+    """Escopo por evento: dono e co-organizadores gerenciam; outros organizadores não."""
+
+    def test_dashboard_do_coorganizador_mostra_o_evento(self):
+        self.evento.organizadores.add(self.outro_org)
+        self.client.force_login(self.outro_org)
+        html = self.client.get(reverse("organizador:dashboard")).content.decode()
+        self.assertIn("Evento Auth", html)
+
+    def test_dashboard_de_organizador_sem_vinculo_nao_mostra(self):
+        self.client.force_login(self.outro_org)
+        html = self.client.get(reverse("organizador:dashboard")).content.decode()
+        self.assertNotIn("Evento Auth", html)
+
+    def test_coorganizador_edita_o_evento(self):
+        self.evento.organizadores.add(self.outro_org)
+        self.client.force_login(self.outro_org)
+        resposta = self.client.get(reverse("organizador:editar_evento", args=[self.evento.id]))
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_coorganizador_nao_exclui_o_evento(self):
+        self.evento.organizadores.add(self.outro_org)
+        self.client.force_login(self.outro_org)
+        resposta = self.client.get(reverse("organizador:excluir_evento", args=[self.evento.id]))
+        self.assertEqual(resposta.status_code, 404)
+        self.assertTrue(Evento.objects.filter(id=self.evento.id).exists())
+
+    def test_dono_adiciona_coorganizador_existente(self):
+        self.client.force_login(self.org)
+        resposta = self.client.post(
+            reverse("organizador:coorganizador_adicionar", args=[self.evento.id]),
+            {"email": self.outro_org.email},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertTrue(dados["success"])
+        self.assertTrue(dados["reusada"])
+        self.evento.refresh_from_db()
+        self.assertIn(self.outro_org, self.evento.organizadores.all())
+        self.outro_org.refresh_from_db()
+        self.assertTrue(self.outro_org.is_organizador)
+
+    def test_dono_adiciona_email_novo_cria_conta(self):
+        self.client.force_login(self.org)
+        resposta = self.client.post(
+            reverse("organizador:coorganizador_adicionar", args=[self.evento.id]),
+            {"email": "coorg@example.com"},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertFalse(dados["reusada"])
+        self.assertTrue(dados["senha_temporaria"])
+        pessoa = U.objects.get(email="coorg@example.com")
+        self.assertTrue(pessoa.is_organizador)
+        self.assertIn(pessoa, self.evento.organizadores.all())
+
+    def test_coorganizador_nao_gerencia_o_time(self):
+        self.evento.organizadores.add(self.outro_org)
+        self.client.force_login(self.outro_org)
+        resposta = self.client.post(
+            reverse("organizador:coorganizador_adicionar", args=[self.evento.id]),
+            {"email": "x@example.com"},
+        )
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_dono_remove_coorganizador(self):
+        self.evento.organizadores.add(self.outro_org)
+        self.client.force_login(self.org)
+        resposta = self.client.post(
+            reverse("organizador:coorganizador_remover", args=[self.evento.id]),
+            {"pessoa_id": self.outro_org.id},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.evento.refresh_from_db()
+        self.assertNotIn(self.outro_org, self.evento.organizadores.all())
