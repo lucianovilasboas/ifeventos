@@ -45,6 +45,38 @@ class AvatarSuperuserTests(TestCase):
         self.assertNotIn('menu-usuario-badge', html)
 
 
+class EquipeApoioNoDashboardTests(TestCase):
+    """O botão/modal da equipe de apoio fica no dashboard (por evento)."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_eqdash@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        self.evento = Evento.objects.create(
+            title="Evento Dash", description="d", local="l",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
+            organizador=self.org,
+        )
+
+    def test_dashboard_traz_botao_modal_e_json_por_evento(self):
+        self.client.force_login(self.org)
+        html = self.client.get(reverse("organizador:dashboard")).content.decode()
+        self.assertIn('data-equipe-abrir', html)
+        self.assertIn('data-url-add="/organizador/evento/%d/equipe/adicionar/"' % self.evento.id, html)
+        self.assertIn('id="modalEquipeApoio"', html)
+        self.assertIn('equipe-por-evento', html)
+
+    def test_atividades_do_evento_nao_tem_mais_o_botao(self):
+        self.client.force_login(self.org)
+        html = self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        ).content.decode()
+        self.assertNotIn('data-equipe-abrir', html)
+        self.assertNotIn('modalEquipeApoio', html)
+
+
 class ProgramacaoOrdemTests(TestCase):
     """A programação pública sai na ordem em que as atividades vão acontecer."""
 

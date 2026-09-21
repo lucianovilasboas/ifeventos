@@ -5,6 +5,18 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.10] — 2026-09-21
+
+### Alterado
+
+- **"Equipe de apoio" mudou de lugar**: o botão saiu da tela de atividades do
+  evento (`/organizador/atividades_evento/<id>/`) e foi para o **painel do
+  organizador** (`/organizador/dashboard/`), como um **ícone por evento** na
+  fileira de ações de cada card (logo antes do "Excluir"). Abre um modal único
+  com a gestão da equipe daquele evento (adicionar por e-mail, ver membros,
+  remover e senha temporária quando cria conta mínima), com os dados embutidos
+  no dashboard.
+
 ## [2.2.9] — 2026-09-21
 
 ### Alterado

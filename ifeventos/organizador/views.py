@@ -64,6 +64,15 @@ def dashboard(request):
         ),
         tem_chamada=Exists(ChamadaProposicoes.objects.filter(evento=OuterRef("pk"))),
     )
+    # Equipe de apoio por evento, para o modal do dashboard (1 query).
+    eventos = eventos.prefetch_related("equipe")
+    equipe_por_evento = {
+        e.id: [
+            {"id": p.id, "nome": p.get_full_name() or p.email}
+            for p in e.equipe.all()
+        ]
+        for e in eventos
+    }
 
     # if organizador.is_participante: # rever essa condição 
     #     inscricoes = Inscricao.objects.filter(participante=organizador) # Inscrições do organizador
@@ -109,6 +118,7 @@ def dashboard(request):
 
     contexto = {
         'eventos': eventos,
+        'equipe_por_evento': equipe_por_evento,
         'form': form,
         'is_participante': organizador.is_participante,
         'organizador': organizador,
@@ -351,7 +361,6 @@ def atividades_evento(request, evento_id):
             {"valor": "grade", "rotulo": "Grade", "icone": "fa-solid fa-table-cells"},
         ],
         'modelos_cracha': Evento.MODELO_CRACHA_CHOICES,
-        'equipe': evento.equipe.order_by('first_name', 'email'),
     }) 
 
 

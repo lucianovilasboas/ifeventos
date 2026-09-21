@@ -60,6 +60,15 @@
                           style="position:absolute;top:-5px;right:-5px;font-size:9px"
                           {% if not evento.n_pendentes %}hidden{% endif %}>{{ evento.n_pendentes }}</span>
                 </a>
+                {# Equipe de apoio: abre o modal do evento (dados embutidos no dashboard). #}
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" title="Equipe de apoio"
+                        data-equipe-abrir
+                        data-evento-id="{{ evento.id }}"
+                        data-evento-nome="{{ evento.title }}"
+                        data-url-add="{% url 'organizador:equipe_apoio_adicionar' evento.id %}"
+                        data-url-rem="{% url 'organizador:equipe_apoio_remover' evento.id %}">
+                    <i class="fa-solid fa-hands-helping"></i>
+                </button>
                 {# Excluir no canto oposto, separado do resto (evita clique acidental). #}
                 <a href="{% url 'organizador:excluir_evento' evento.id %}" class="btn btn-sm btn-outline-danger btn-icon ms-auto" title="Excluir Evento" onclick="return confirm('Tem certeza que deseja excluir este evento?');">
                     <i class="fa-solid fa-trash-can"></i>
