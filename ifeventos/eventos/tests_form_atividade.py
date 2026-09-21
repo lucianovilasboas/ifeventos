@@ -49,6 +49,69 @@ class AtividadeFormTests(TestCase):
         self.assertIn(palestrante, queryset)
         self.assertNotIn(participante, queryset)
 
+    def test_palestrantes_e_opcional(self):
+        self.assertFalse(AtividadeForm().fields["palestrantes"].required)
+
+    def test_atividade_sem_palestrante_e_valida(self):
+        from eventos.models import TipoAtividade
+
+        tipo = TipoAtividade.objects.create(nome="Oficina")
+        dados = {
+            "titulo": "Exposição sem palestrante",
+            "descricao": "d",
+            "local": "",
+            "tipo": tipo.id,
+            "palestrantes": [],
+            "data_hora_inicio": "2026-10-10T08:00",
+            "data_hora_fim": "2026-10-10T09:00",
+            "n_vagas": 10,
+            "emite_certificado": False,
+        }
+        formulario = AtividadeForm(data=dados)
+        self.assertTrue(formulario.is_valid(), formulario.errors)
+
+
+class CriarAtividadeSemPalestranteTests(TestCase):
+    """Criar atividade pelo formulário sem palestrante salva com 0."""
+
+    def setUp(self):
+        from eventos.models import Atividade, TipoAtividade
+
+        self.Atividade = Atividade
+        self.org = U.objects.create_user(
+            email="org_sempal@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        self.evento = Evento.objects.create(
+            title="Evento", description="d", local="l",
+            data_inicio="2026-10-10", data_fim="2026-10-12",
+            organizador=self.org,
+        )
+
+    def test_cria_atividade_sem_palestrante(self):
+        from django.utils import timezone
+
+        self.client.force_login(self.org)
+        inicio = timezone.localtime() + timedelta(days=1)
+        resposta = self.client.post(
+            reverse("organizador:criar_editar_atividade_criar", args=[self.evento.id]),
+            {
+                "titulo": "Feira sem palestrante",
+                "descricao": "d",
+                "local": "",
+                "tipo": self.tipo.id,
+                "palestrantes": [],
+                "data_hora_inicio": inicio.strftime("%Y-%m-%dT%H:%M"),
+                "data_hora_fim": (inicio + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M"),
+                "n_vagas": 10,
+                "emite_certificado": False,
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        atividade = self.Atividade.objects.get(titulo="Feira sem palestrante")
+        self.assertEqual(atividade.palestrantes.count(), 0)
+
 
 class AdicionarEspacoTests(TestCase):
     def setUp(self):

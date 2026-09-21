@@ -143,12 +143,14 @@ class AtividadeForm(forms.ModelForm):
 
     # Select múltiplo com altura fixa: mostra vários nomes de uma vez e rola
     # dentro da caixa, em vez de esticar o formulário quando há muitos
-    # palestrantes cadastrados.
+    # palestrantes cadastrados. Opcional de propósito: exposições, feiras e
+    # outras atividades podem não ter palestrante formal (a API, o copiloto e a
+    # importação já permitem atividade sem palestrante).
     palestrantes = forms.ModelMultipleChoiceField(
         queryset=Participante.objects.filter(is_palestrante=True),
         label='Palestrantes',
         widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': 6}),
-        required=True
+        required=False
     )
 
     class Meta:
