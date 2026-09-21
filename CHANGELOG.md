@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.6] — 2026-09-21
+
+### Corrigido
+
+- **"Definir senha" com o layout do app**: a página de definição de senha
+  (allauth, para contas sem senha — ex.: login social) usava o template padrão
+  do allauth: ficava sem estilo e mostrava o menu antigo ("Menu: Alterar
+  e-mail / Alterar senha / Conexões de conta / Sair"). Agora tem template
+  próprio (`account/password_set.html`) no mesmo padrão das outras telas de
+  conta ("Alterar senha", "Redefinir senha"): container estilizado, campos com
+  rótulo e ícone de cadeado, erros por campo, as regras da senha exibidas e o
+  botão **"Definir senha"**. O menu do allauth desapareceu.
+
 ## [2.2.5] — 2026-09-21
 
 ### Corrigido
