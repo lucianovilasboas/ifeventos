@@ -96,16 +96,28 @@ def dashboard(request):
             # form.save()
 
             return redirect("organizador:dashboard")
-        
-    return render(request, 'organizador/dashboard.html', {
-        # 'inscricoes': inscricoes,
-        # 'atividades': atividades, 
+        # POST inválido: o modal precisa mostrar os erros. Sem isto o `perfil_form`
+        # (context processor) vinha novo (sem os erros) e o usuário via o modal
+        # "resetado", sem saber que nada foi salvo.
+        messages.error(
+            request,
+            "Não foi possível salvar o perfil: "
+            + "; ".join(
+                m for mensagens in form.errors.values() for m in mensagens
+            ),
+        )
+
+    contexto = {
         'eventos': eventos,
         'form': form,
         'is_participante': organizador.is_participante,
         'organizador': organizador,
         'form_evt': EventoForm(),
-        })
+    }
+    if request.method == "POST" and not form.is_valid():
+        contexto['perfil_form'] = form      # formulário ligado, com os erros
+        contexto['perfil_abrir'] = True     # abre o modal para o usuário ver
+    return render(request, 'organizador/dashboard.html', contexto)
 
 # -- Profile --
 

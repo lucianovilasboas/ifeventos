@@ -136,3 +136,14 @@
             </div>
         </div>
     </div>
+    {% if perfil_abrir %}
+    {# POST inválido: reabre o modal para o usuário ver os erros de validação. #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var modal = document.getElementById('editProfileModal');
+            if (modal && window.bootstrap && window.bootstrap.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modal).show();
+            }
+        });
+    </script>
+    {% endif %}

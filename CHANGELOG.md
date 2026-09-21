@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.5] — 2026-09-21
+
+### Corrigido
+
+- **Perfil — erros de validação agora aparecem**: quando o formulário de perfil
+  falha ao salvar (ex.: campos obrigatórios vazios como **Vínculo** ou **CPF**),
+  o modal **reabre automaticamente mostrando os erros por campo** e o usuário
+  vê por que nada foi gravado (antes o modal reabria "zerado", sem nenhum
+  aviso, parecendo que o sistema não salvava). O POST inválido já retornava o
+  dashboard com o formulário ligado — agora esse formulário (com os erros) é
+  repassado ao modal e o modal é aberto.
+- **Erro duplicado removido**: "Este campo é obrigatório." aparecia duas vezes
+  para os campos de metadados obrigatórios (a obrigatoriedade era cobrada no
+  campo **e** na validação). A validação agora é a fonte única — uma mensagem só.
+- **Detalhe**: o formulário de perfil exige **Vínculo** (e **CPF**) — são campos
+  obrigatórios. Contas criadas sem esses dados (ex.: organizadores vindos do
+  Google/admin) só salvam o perfil depois de preenchê-los no modal, e agora a
+  tela avisa qual campo está faltando.
+
 ## [2.2.4] — 2026-09-20
 
 ### Corrigido
