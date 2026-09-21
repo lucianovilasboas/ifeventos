@@ -19,6 +19,8 @@
 <div class="app-page">
     {% include 'includes/data_eventos_cards_only.html' %}
 </div>
+{{ equipe_por_evento|json_script:"equipe-por-evento" }}
+{% include 'includes/modal_equipe_apoio.html' %}
 {% include 'includes/modal_novo_evento.html' %}
 {% endblock content %}
 

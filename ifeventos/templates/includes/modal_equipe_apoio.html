@@ -1,0 +1,136 @@
+{% comment %}
+Equipe de apoio — modal único no dashboard, dirigido por JS.
+
+Os botões por evento (`[data-equipe-abrir]`) carregam o id/nome e as URLs de
+adicionar/remover. A lista de membros vem do JSON `#equipe-por-evento` (montado
+na view do dashboard). Adicionar/remover mantêm o objeto JS em sincronia, para
+reabrir o modal sem dado velho.
+{% endcomment %}
+<div class="modal fade" id="modalEquipeApoio" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-hands-helping"></i> Equipe de apoio — <span id="equipeEventoNome"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">
+                    A equipe de apoio faz o <b>check-in das atividades</b> (câmera ou código manual),
+                    vê a programação e o QR de presença — sem poder de organização.
+                    Pessoas já cadastradas têm a conta reaproveitada; e-mail novo cria uma conta mínima.
+                </p>
+
+                <div class="input-group mb-3">
+                    <input type="email" id="equipeEmail" class="form-control"
+                           placeholder="E-mail da pessoa da equipe" aria-label="E-mail da pessoa">
+                    <button type="button" class="btn btn-app" id="equipeAdicionar">
+                        <i class="fa-solid fa-user-plus"></i> Adicionar
+                    </button>
+                </div>
+
+                <div id="equipeAviso"></div>
+
+                <ul class="list-group" id="equipeLista"></ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const CSRF = '{{ csrf_token }}';
+    const aviso = document.getElementById("equipeAviso");
+    const lista = document.getElementById("equipeLista");
+    const tituloEvento = document.getElementById("equipeEventoNome");
+    const dados = JSON.parse(document.getElementById("equipe-por-evento").textContent);
+
+    let atual = { id: null, addUrl: "", remUrl: "" };
+
+    function mensagem(texto, tipo) {
+        aviso.innerHTML = `<div class="alert alert-${tipo} py-2">${texto}</div>`;
+    }
+
+    function desenhar(itens) {
+        lista.innerHTML = "";
+        if (!itens.length) {
+            lista.innerHTML = '<li class="list-group-item text-muted">Ninguém na equipe de apoio ainda.</li>';
+            return;
+        }
+        itens.forEach(function (p) {
+            const li = document.createElement("li");
+            li.className = "list-group-item d-flex justify-content-between align-items-center";
+            li.dataset.equipeItem = p.id;
+            li.innerHTML = `<span><i class="fa-solid fa-user"></i> ${p.nome}</span>` +
+                `<button type="button" class="btn btn-sm btn-outline-danger" data-equipe-remover="${p.id}" data-equipe-nome="${p.nome}"><i class="fa-solid fa-user-minus"></i> Remover</button>`;
+            lista.appendChild(li);
+        });
+    }
+
+    document.querySelectorAll("[data-equipe-abrir]").forEach(function (botao) {
+        botao.addEventListener("click", function () {
+            atual = {
+                id: Number(botao.dataset.eventoId),
+                addUrl: botao.dataset.urlAdd,
+                remUrl: botao.dataset.urlRem,
+            };
+            tituloEvento.textContent = botao.dataset.eventoNome;
+            aviso.innerHTML = "";
+            document.getElementById("equipeEmail").value = "";
+            desenhar(dados[atual.id] || []);
+            window.bootstrap.Modal.getOrCreateInstance(
+                document.getElementById("modalEquipeApoio")
+            ).show();
+        });
+    });
+
+    document.getElementById("equipeAdicionar").addEventListener("click", function () {
+        const email = document.getElementById("equipeEmail").value.trim();
+        if (!email) { mensagem("Informe o e-mail da pessoa.", "warning"); return; }
+        if (!atual.id) return;
+        fetch(atual.addUrl, {
+            method: "POST",
+            headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({email: email}),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) { mensagem(d.erro || "Não deu para adicionar.", "danger"); return; }
+            if (d.reusada) {
+                mensagem(`✅ ${d.nome} já tinha conta e foi adicionada à equipe.`, "success");
+            } else {
+                mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha temporária: <code>${d.senha_temporaria}</code> — repasse para a pessoa e avise que ela deve trocar.`, "success");
+            }
+            document.getElementById("equipeEmail").value = "";
+            const itens = dados[atual.id] || (dados[atual.id] = []);
+            itens.push({id: d.pessoa_id, nome: d.nome});
+            desenhar(itens);
+        })
+        .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+    });
+
+    lista.addEventListener("click", function (e) {
+        const botao = e.target.closest("[data-equipe-remover]");
+        if (!botao) return;
+        const id = Number(botao.dataset.equipeRemover);
+        const nome = botao.dataset.equipeNome;
+        if (!confirm(`Remover ${nome} da equipe de apoio deste evento?`)) return;
+        fetch(atual.remUrl, {
+            method: "POST",
+            headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({pessoa_id: id}),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                dados[atual.id] = (dados[atual.id] || []).filter(p => p.id !== id);
+                desenhar(dados[atual.id]);
+                mensagem(`Removida. A conta de ${nome} continua existindo, só perdeu o acesso de apoio deste evento.`, "success");
+            }
+        })
+        .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+    });
+});
+</script>
