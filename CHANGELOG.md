@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.2.8] — 2026-09-21
+
+### Alterado
+
+- **Palestrante agora é opcional na atividade**: o formulário de criar/editar
+  atividade do organizador aceita atividade **sem palestrante** (o campo
+  deixou de ser obrigatório; o `*` saiu do rótulo). Exposições, feiras e
+  atividades sem ministrante formal podem ser cadastradas. O restante do
+  sistema já suportava (API, proposta, copiloto, importação, crachás,
+  relatórios, certificado) — inclusive já havia atividades sem palestrante em
+  produção. A exibição continua deixando a linha em branco quando não há
+  palestrante.
+
 ## [2.2.7] — 2026-09-21
 
 ### Adicionado
