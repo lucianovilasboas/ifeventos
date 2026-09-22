@@ -138,3 +138,27 @@ excluir tudo; conferir `count=0` no fim. **NUNCA usar o evento 107** (SNCT 2026,
 - **SIAPE removido** dos metadados (Servidor passou a ter só Função) + comando `limpar_metadado`.
 - **Botão "Ver programação"** direto no card do evento em `/eventos/`.
 - **Relatórios gráficos** do evento e **ocupação por salas** (com cartões no mobile e "Voltar" dinâmico).
+
+## 7. Pendências abertas (pós-2.3.1 — suíte por requisitos)
+
+> Registrado em 22/09/2026, ao fechar as correções da suíte `tests_requisitos/` (v2.3.1). Estes itens
+> **não** fazem parte do que foi entregue — ficam para uma próxima rodada, com decisão sua.
+
+1. **Auditoria de edição de proposta** — não existe registro de quem editou (o model só tem
+   `decidida_por`/`decidida_em`, que são da decisão). Se houver exigência de auditoria, é **migration
+   nova** (`editada_por`/`editada_em`) — só com autorização.
+2. **Assunção a confirmar (pergunta 7)** — organizador **sem vínculo** com o evento **não** edita
+   proposta. Já implementado e provado por `T_CH16b`; falta a confirmação formal. Se a resposta for
+   "pode", o caso muda e o furo de escopo precisa ser documentado.
+3. **Varredura das demais views do organizador (achado E completo)** — a v2.3.1 fechou apenas
+   `dashboard` e `metadados/modelo.csv` (as exigidas pela suíte). `importar_metadados` ainda responde
+   **302 em vez de 403**; as demais views com `@login_required` precisam de auditoria dedicada (a
+   matriz `T_PE01–T_PE17` cobre só um subconjunto).
+4. **`EventoSerializer.get_n_atividades`** conta rascunhos no detalhe público do evento (vazamento de
+   **contagem**, não de conteúdo). Decidir se filtra junto com `atividades`.
+5. **Mensagem enganosa** em `eventos/propostas.py:590` ("só ele pode alterá-la") — o código bloqueia
+   edição de proposta já decidida para **todos**, inclusive o organizador.
+6. **`README.md`** não menciona o limite de tentativas de login (o `API.md` menciona).
+7. **MCP** — o docstring de `listar_vagas` pode explicitar o escopo por evento (opcional; a verificação
+   de leitura não encontrou dependência de `organizador.email`).
+8. **Deploy** — decidir quando subir a v2.3.1 para produção/VM (intocadas até aqui).
