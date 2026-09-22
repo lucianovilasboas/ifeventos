@@ -49,6 +49,10 @@ token antes (`Token.objects.filter(user__email="...").delete()`).
 Sem token válido, endpoints autenticados respondem **403** (não 401): a
 autenticação por sessão do DRF não manda o cabeçalho `WWW-Authenticate`.
 
+O endpoint de token tem **limite de tentativas** (10/min por origem): passando
+disso, `POST /auth/token/` responde **429** até a janela virar. O login do site
+(allauth) também bloqueia a conta por alguns minutos após erros seguidos.
+
 ## Convenções
 
 - **Paginação** (lista): `?page=N`, 50 por página; a resposta é
@@ -67,16 +71,29 @@ autenticação por sessão do DRF não manda o cabeçalho `WWW-Authenticate`.
 
 - **Catálogo público** (leitura sem login): eventos, atividades publicadas,
   tipos de atividade, espaços.
-- **`is_organizador`** é uma flag **global**: quem tem a flag **opera qualquer
-  evento** (check-in, presenças, chamada, decidir proposta). É a mesma regra do
-  site (`eventos.crachas.pode_gerenciar_evento`).
+- **Quem gerencia um evento** (2.3.0): o **dono** (`Evento.organizador`), um
+  **co-organizador** (`Evento.organizadores`) ou **staff/superuser** — é a regra
+  de `eventos.crachas.pode_gerenciar_evento`. A flag `is_organizador` sozinha
+  **não** dá acesso a evento alheio.
 - **Editar conteúdo** (criar/editar/excluir evento, atividade, vaga) é do
   **dono do evento** (`Evento.organizador`) ou superuser — `IsDonoEvento`.
 - **Dados pessoais** (palestrantes, metadados): exigem a flag em **qualquer**
   método, inclusive leitura (`IsOrganizadorEstrito`), porque trazem CPF,
-  telefone e endereço.
+  telefone e endereço. No **catálogo público** (eventos/atividades) o **e-mail
+  não sai para anônimo**: ele aparece apenas para o próprio, para organizador ou
+  staff (`ParticipanteResumoSerializer.get_email`).
 - **Rascunho e proposta pendente não são catálogo público**: a leitura anônima
-  de atividades filtra `publicada=True`.
+  de atividades filtra `publicada=True` — tanto na listagem quanto no campo
+  `atividades` do detalhe do evento (`eventos.regras.atividades_publicas`).
+
+| persona | gerencia o evento | vê dados pessoais | check-in / QR |
+| --- | --- | --- | --- |
+| dono | sim | sim | sim |
+| co-organizador | sim | sim | sim |
+| equipe de apoio | não (só o check-in) | não | sim, no evento vinculado |
+| organizador sem vínculo | não | não | não |
+| participante | não | não | só a própria (`token_atividade`) |
+| staff / superuser | sim (todos) | sim | sim |
 
 ## Endpoints
 
@@ -143,8 +160,27 @@ Sem `vaga`, `local`, `data_hora_inicio` e `data_hora_fim` continuam obrigatório
 | GET | `verificar/{token}/` | **público** (crachá ou certificado; sem dados pessoais) |
 
 O check-in (`POST /presencas/`) aceita três formas, como na portaria:
-`{atividade, participante}` (marcação manual), `{atividade, codigo}` (código
-ditado) ou `{token_atividade}` (a própria pessoa confirma pelo QR da atividade).
+
+- `{atividade, participante}` — **marcação manual** na lista (a organização
+  ignora a janela de propósito, para fechar a lista depois).
+- `{atividade, codigo}` — **código ditado** por quem está sem celular. É o
+  código curto impresso no crachá (`codigo_curto`), exposto em
+  `GET /api/v1/meus-crachas/` no campo `codigo`.
+- `{token_atividade}` — a **própria pessoa** confirma pelo QR da atividade. O
+  token é assinado e rotativo, obtido em `GET /api/v1/atividades/{id}/qrcode/`
+  (campo `url`, no formato `/p/<token>/`). Vale só dentro da janela da atividade.
+
+```bash
+# manual
+curl -s -X POST "$B/presencas/" -H "$T" -H "$H" \
+  -d '{"atividade":12,"participante":45}'
+# código ditado (o "codigo" do crachá)
+curl -s -X POST "$B/presencas/" -H "$T" -H "$H" \
+  -d '{"atividade":12,"codigo":"ABC123"}'
+# a própria pessoa, pelo token rotativo do QR da atividade
+curl -s "$B/atividades/12/qrcode/" -H "$T"          # -> {"url":"/p/<token>/", ...}
+curl -s -X POST "$B/presencas/" -H "$T" -H "$H" -d '{"token_atividade":"<token>"}'
+```
 
 ### Catálogo de espaços (chamada)
 
@@ -155,7 +191,8 @@ ditado) ou `{token_atividade}` (a própria pessoa confirma pelo QR da atividade)
 | PUT/PATCH/DELETE | `espacos/{id}/` | organizador |
 
 O espaço é da **escola** (catálogo reaproveitado entre eventos), com `nome`
-único e `capacidade` sugerida.
+único e `capacidade` sugerida. Na geração de grade, a `capacidade` omitida
+assume a capacidade sugerida de cada espaço.
 
 ### Grade de vagas
 
@@ -165,9 +202,16 @@ O espaço é da **escola** (catálogo reaproveitado entre eventos), com `nome`
 | POST | `vagas/` | organizador |
 | PUT/PATCH/DELETE | `vagas/{id}/` | organizador dono do evento |
 
+`GET /vagas/` é a grade que o **proponente** lê para escolher a vaga. O
+organizador vê as vagas dos eventos que gerencia; um organizador **sem vínculo**
+com o evento recebe **403** ao pedir `?evento=` de evento alheio (regra de
+escopo de 2.3.0).
+
 `POST /vagas/` usa as **mesmas regras da tela** (`propostas.validar_vaga`):
 janela dentro do período do evento, sem duplicar espaço+janela e — se a vaga já
 tem proposta ativa — espaço e horário ficam travados (a capacidade ainda muda).
+O campo `capacidade` é opcional: **omitido, vale a capacidade sugerida do
+`Espaco`**; um valor explícito vale para todas as vagas criadas.
 
 ### Propostas (chamada de proposições)
 
@@ -175,12 +219,17 @@ tem proposta ativa — espaço e horário ficam travados (a capacidade ainda mud
 | --- | --- | --- |
 | GET | `propostas/` | autenticado (participante vê só as próprias; organizador vê todas) |
 | POST | `propostas/` | autenticado (propõe) |
-| PATCH | `propostas/{id}/` | autor (enquanto pendente e com a chamada aberta) |
+| PATCH | `propostas/{id}/` | autor (pendente, chamada aberta) **ou** organizador do evento |
 | DELETE | `propostas/{id}/` | autor cancela (pendente) **ou** organizador remove (sempre) |
 | POST | `propostas/{id}/aprovar/` | organizador |
 | POST | `propostas/{id}/rejeitar/` | organizador (motivo obrigatório) |
 
 Filtros: `?evento=`, `?situacao=pendente|aprovada|rejeitada`, `?minhas=1`.
+
+`PATCH /propostas/{id}/` pode ser feito pelo **autor** (enquanto pendente e com a
+chamada aberta) **ou pelo organizador do evento** (dono/co-organizador) — o
+organizador ajusta o texto sem precisar decidir. A decisão de mérito continua em
+`aprovar`/`rejeitar`, não na edição.
 
 Corpo da proposta (o espaço/horário **não** vêm soltos — vêm da vaga):
 
@@ -213,8 +262,9 @@ curl -s -X PUT "$B/eventos/107/chamada/" -H "$T" -H "$H" \
   -d '{"inicio":"2026-10-01T00:00:00-03:00","fim":"2026-10-05T23:59:00-03:00","aberta":true}'
 
 # 2) monta a grade em lote (dias x blocos x espaços; idempotente)
+#    "capacidade" é opcional: omitida, vale a capacidade de cada espaço.
 curl -s -X POST "$B/eventos/107/vagas/gerar/" -H "$T" -H "$H" \
-  -d '{"dias":["2026-10-05","2026-10-06"],"blocos":["08:00-10:00","10:00-12:00"],"espacos":[1,2],"capacidade":1}'
+  -d '{"dias":["2026-10-05","2026-10-06"],"blocos":["08:00-10:00","10:00-12:00"],"espacos":[1,2],"capacidade":30}'
 # -> {"criadas": 8, "existentes": 0}   (rodar de novo: {"criadas": 0, ...})
 
 # 3) quem propõe lê a janela e o que está livre

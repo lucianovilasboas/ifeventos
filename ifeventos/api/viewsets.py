@@ -1,11 +1,12 @@
 from django.conf import settings
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -29,6 +30,7 @@ from eventos.crachas import (
 )
 from eventos import metadados as metadados_config
 from eventos import propostas
+from eventos.regras import atividades_publicas
 from eventos.models import (
     Atividade,
     Certificado,
@@ -49,6 +51,7 @@ from .permissions import (
     IsDonoOuOrganizador,
     IsOrganizador,
     IsOrganizadorEstrito,
+    PodeLerPresencas,
 )
 from .serializers import (
     AtividadeSerializer,
@@ -166,7 +169,7 @@ class EventoViewSet(viewsets.ModelViewSet):
             dias=dados["dias"],
             blocos=dados["blocos_limpos"],
             espacos=dados["espacos"],
-            capacidade=dados["capacidade"],
+            capacidade=dados.get("capacidade"),
         )
         return Response(resultado, status=status.HTTP_201_CREATED)
 
@@ -224,7 +227,7 @@ class AtividadeViewSet(viewsets.ModelViewSet):
         # Sem isto, a API devolvia rascunhos (e, agora, propostas) para qualquer
         # um. Quem gerencia continua vendo tudo.
         if self.action in ("list", "retrieve") and not gerencia:
-            return base.filter(publicada=True)
+            return atividades_publicas(base)
         return base
 
     @extend_schema(responses=QrAtividadeSerializer)
@@ -540,6 +543,13 @@ class PresencaViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "delete", "head", "options"]
     queryset = Presenca.objects.none()  # idem: tipa o `{id}` na doc
 
+    def get_permissions(self):
+        # Ler a lista é do organizador do evento/equipe de apoio (API.md:142);
+        # registrar (create) segue aberto a quem tem papel no evento.
+        if self.action in ("list", "retrieve"):
+            return [IsAuthenticated(), PodeLerPresencas()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         qs = Presenca.objects.select_related(
             "participante", "atividade", "atividade__evento", "registrada_por"
@@ -554,10 +564,16 @@ class PresencaViewSet(viewsets.ModelViewSet):
             qs = qs.filter(participante_id=parametros["participante"])
 
         usuario = self.request.user
-        if usuario.is_staff or usuario.is_superuser or getattr(usuario, "is_organizador", False):
+        if usuario.is_staff or usuario.is_superuser:
             return qs
-        # Sem as permissões amplas, só as presenças dos eventos que organiza.
-        return qs.filter(atividade__evento__organizador=usuario)
+        # Escopo por evento (2.3.0): só as presenças dos eventos que a pessoa
+        # organiza/co-organiza ou onde é da equipe de apoio. A flag sozinha não
+        # abre evento alheio.
+        return qs.filter(
+            Q(atividade__evento__organizador=usuario)
+            | Q(atividade__evento__organizadores=usuario)
+            | Q(atividade__evento__equipe=usuario)
+        ).distinct()
 
     @extend_schema(request=PresencaCreateSerializer, responses=PresencaSerializer)
     def create(self, request, *args, **kwargs):
@@ -577,7 +593,9 @@ class PresencaViewSet(viewsets.ModelViewSet):
                     {"detail": erro, "atividade_id": atividade.id if atividade else None},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            dados = PresencaSerializer(presenca).data
+            dados = PresencaSerializer(
+                presenca, context=self.get_serializer_context()
+            ).data
             dados["criada"] = criada
             return Response(dados, status=status.HTTP_201_CREATED if criada else status.HTTP_200_OK)
 
@@ -624,7 +642,9 @@ class PresencaViewSet(viewsets.ModelViewSet):
             # com o evento ou estar fora da janela de confirmação da atividade.
             return Response({"detail": motivo}, status=status.HTTP_400_BAD_REQUEST)
 
-        dados = PresencaSerializer(presenca).data
+        dados = PresencaSerializer(
+            presenca, context=self.get_serializer_context()
+        ).data
         dados["criada"] = criada
         return Response(dados, status=status.HTTP_201_CREATED if criada else status.HTTP_200_OK)
 
@@ -828,6 +848,22 @@ class VagaViewSet(viewsets.ModelViewSet):
             base = base.filter(evento_id=parametros["evento"])
         if self.request.query_params.get("espaco"):
             base = base.filter(espaco_id=parametros["espaco"])
+
+        usuario = self.request.user
+        if usuario.is_staff or usuario.is_superuser:
+            return base
+        # 2.3.0: a flag de organizador não abre evento alheio. Quem gerencia vê a
+        # grade dos seus eventos; o proponente (sem a flag) continua lendo a
+        # grade para escolher a vaga (`API.md:164`, fluxo do MCP).
+        if getattr(usuario, "is_organizador", False):
+            evento_id = parametros.get("evento")
+            if evento_id:
+                evento = Evento.objects.filter(pk=evento_id).first()
+                if evento is not None and not pode_gerenciar_evento(usuario, evento):
+                    raise PermissionDenied("Você não gerencia este evento.")
+            return base.filter(
+                Q(evento__organizador=usuario) | Q(evento__organizadores=usuario)
+            ).distinct()
         return base
 
     def get_permissions(self):

@@ -5,6 +5,56 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.3.1] — 2026-09-22
+
+Correções e endurecimentos encontrados pela suíte por requisitos
+(`tests_requisitos/`). Um item é **mudança de contrato documentada** (ver
+"Alterado").
+
+### Corrigido
+
+- **E-mail não vaza mais no catálogo público** (`GET /eventos/`,
+  `/eventos/{id}/`, `/atividades/`): o `email` do organizador, dos palestrantes
+  e do proponente agora só sai para o próprio, organizador ou staff. As leituras
+  já organizer-scoped (inscrições, presenças, certificados, MCP) continuam
+  trazendo o e-mail.
+- **Detalhe público do evento não expõe mais rascunho nem proposta pendente**:
+  o campo `atividades` passou a usar a mesma regra da listagem
+  (`eventos.regras.atividades_publicas`) — antes só a listagem filtrava.
+- **Grade em lote herda a capacidade do espaço**: `POST /eventos/{id}/vagas/gerar/`
+  sem `capacidade` criava vagas com capacidade 1; agora usa a capacidade
+  sugerida de cada `Espaco`.
+- **Presenças e vagas com escopo por evento**: `GET /presencas/` exige
+  organizador/co-organizador/equipe (não mais qualquer autenticado) e o
+  `get_queryset` só devolve eventos em que a pessoa atua; `GET /vagas/?evento=`
+  nega organizador **sem vínculo** com o evento (o proponente continua lendo a
+  grade).
+- **Ações globais do organizador exigem o papel**: `/organizador/dashboard/` e
+  `/organizador/metadados/modelo.csv` devolvem **403** a quem não é
+  organizador/superuser (antes: 200 e 302).
+- **Emissão de crachá não quebra com `MEDIA_ROOT` string**: `arquivo_logo_cracha`
+  normaliza com `Path(settings.MEDIA_ROOT)` (antes, `str / str` → 500).
+
+### Segurança
+
+- **Limite de tentativas de login**: `POST /auth/token/` ganhou throttle
+  (`ScopedRateThrottle`, escopo `login`, 10/min) e o login web ganhou
+  `ACCOUNT_LOGIN_ATTEMPTS_LIMIT`/`TIMEOUT` do allauth. Antes, 10 senhas erradas
+  não mudavam nada.
+
+### Alterado
+
+- **Edição de proposta pelo organizador (mudança de contrato documentada)**:
+  `PATCH /propostas/{id}/` é permitido ao **autor** (pendente, chamada aberta)
+  **ou ao organizador do evento** (dono/co-organizador). A decisão de mérito
+  segue em `aprovar`/`rejeitar`. Documentado em `API.md`.
+
+### Documentação
+
+- `API.md`: matriz de permissões por persona, origens dos três códigos de
+  check-in, escopo de `/vagas/`, capacidade da grade e o PATCH de proposta.
+- `BACKLOG.md`: regra de decisão de proposta alinhada ao escopo por evento (2.3.0).
+
 ## [2.3.0] — 2026-09-21
 
 ### Adicionado

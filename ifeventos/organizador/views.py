@@ -11,6 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
 from .forms import ParticipanteUpdateForm
+from .decorators import organizador_required
 from eventos.forms import EventoForm, PalestranteForm, TipoAtividadeForm
 from eventos.forms import ChamadaProposicoesForm, EspacoForm, GradeVagasForm, VagaForm
 from eventos.models import Evento
@@ -48,6 +49,7 @@ from eventos.imagens import imagem_cortada
 
 # -- Dashboard do Organizador --
 @login_required(login_url='/accounts/login/')
+@organizador_required
 def dashboard(request):
     organizador = get_object_or_404(Participante, id=request.user.id)  
 
@@ -190,6 +192,7 @@ def importar_metadados(request):
 
 
 @login_required(login_url='/accounts/login/')
+@organizador_required
 def modelo_metadados_csv(request):
     """Baixa o CSV-modelo (só o cabeçalho) com as colunas configuradas."""
     import csv
@@ -199,8 +202,9 @@ def modelo_metadados_csv(request):
     from eventos import importacao
 
     if not (request.user.is_superuser or getattr(request.user, "is_organizador", False)):
-        messages.warning(request, "Apenas organizadores podem baixar o modelo de metadados.")
-        return redirect("organizador:dashboard")
+        raise PermissionDenied(
+            "Apenas organizadores podem baixar o modelo de metadados."
+        )
 
     resposta = HttpResponse(content_type="text/csv; charset=utf-8")
     resposta["Content-Disposition"] = 'attachment; filename="modelo_metadados.csv"'

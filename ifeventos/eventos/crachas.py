@@ -19,6 +19,7 @@ import base64
 import hashlib
 import io
 from datetime import date, datetime, timedelta
+from pathlib import Path
 import threading
 
 import qrcode
@@ -314,7 +315,7 @@ LOGO_CRACHA_ANTERIOR = "logo_ifmg.png"
 def arquivo_logo_cracha():
     """Caminho da logo do crachá dentro de `media/` (None se não houver nenhuma)."""
     for nome in (LOGO_CRACHA, LOGO_CRACHA_ANTERIOR):
-        caminho = settings.MEDIA_ROOT / nome
+        caminho = Path(settings.MEDIA_ROOT) / nome
         if caminho.exists():
             return caminho
     return None

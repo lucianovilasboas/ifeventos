@@ -181,19 +181,43 @@ class PropostaTests(_BaseChamada):
         anon = self.api("get", f"{API}/atividades/?search=Proposta Interna").json()
         self.assertEqual(anon["count"], 0, "publicar=false nao pode vazar para o publico")
 
-    def test_T_CH16_editar_proposta_de_outra_pessoa_e_recusado(self):
-        self.requisito("RF-10", "API.md:178-179")
-        meu = self.participante("autor@req.test")
-        prop = self.proposta(self.v1.id, usuario=meu).json()
+    def test_T_CH16_autor_e_organizador_do_evento_editam(self):
+        """Decisao 4-b: o autor edita (pendente + chamada aberta) E o organizador do evento tambem."""
+        self.requisito("RF-10", "API.md:178")
+        autor = self.participante("autor@req.test")
+        prop = self.proposta(self.v1.id, usuario=autor).json()
         pid = prop.get("id") or prop.get("atividade") or prop.get("atividade_id")
-        r = self.api("patch", f"{API}/propostas/{pid}/", {"titulo": "Invadida"}, token=self.tk)
+
+        # (i) o autor edita a propria proposta
+        r = self.api("patch", f"{API}/propostas/{pid}/", {"titulo": "Editada pelo autor"},
+                     token=self.token(autor))
+        self.assertEqual(r.status_code, 200, f"autor edita a propria proposta: {r.content[:200]}")
+
+        # (ii) o organizador do evento (dono) tambem edita — comportamento documentado
+        r = self.api("patch", f"{API}/propostas/{pid}/", {"titulo": "Editada pelo organizador"},
+                     token=self.tk)
+        self.assertEqual(r.status_code, 200, f"organizador do evento edita: {r.content[:200]}")
+
+        # (iii) quem nao e autor nem organiza nao edita
+        terceiro = self.participante("terceiro-edicao@req.test")
+        r = self.api("patch", f"{API}/propostas/{pid}/", {"titulo": "Invadida"},
+                     token=self.token(terceiro))
+        self.assertIn(r.status_code, (403, 404),
+                      f"nao-autor e nao-organizador nao edita: {r.status_code}")
+
+    def test_T_CH16b_organizador_sem_vinculo_nao_edita_proposta(self):
+        self.requisito("RF-11", "CHANGELOG.md:8-24")
+        autor = self.participante("autor-b@req.test")
+        prop = self.proposta(self.v1.id, usuario=autor).json()
+        pid = prop.get("id") or prop.get("atividade") or prop.get("atividade_id")
+        intruso = self.dono("org-sem-vinculo-edicao@req.test")
+        r = self.api("patch", f"{API}/propostas/{pid}/", {"titulo": "Invadida"},
+                     token=self.token(intruso))
+        self.assertIn(r.status_code, (403, 404),
+                      f"organizador sem vinculo nao edita proposta alheia: {r.status_code}")
         from eventos.models import Atividade
         titulo_depois = Atividade.objects.filter(pk=pid).values_list("titulo", flat=True).first()
-        self.assertIn(
-            r.status_code, (403, 404),
-            f"API.md:178 diz 'autor (enquanto pendente)'; resposta={r.status_code} e o titulo "
-            f"gravado ficou {titulo_depois!r}",
-        )
+        self.assertNotEqual(titulo_depois, "Invadida", "nada pode ter sido gravado")
 
     @override_settings(MAX_PROPOSTAS_POR_PROPONENTE=1)
     def test_T_CH17_limite_de_propostas_por_pessoa(self):

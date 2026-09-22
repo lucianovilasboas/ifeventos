@@ -299,7 +299,7 @@ def dias_do_evento(evento, limite=DIAS_MAXIMOS_NO_FORM):
     return dias
 
 
-def gerar_grade(evento, dias, blocos, espacos, capacidade=1):
+def gerar_grade(evento, dias, blocos, espacos, capacidade=None):
     """Cria vagas em lote: dias × blocos × espaços, sem duplicar.
 
     `dias` são `date`, `blocos` é uma lista de `(time, time)` e `espacos` são
@@ -307,6 +307,9 @@ def gerar_grade(evento, dias, blocos, espacos, capacidade=1):
     pulada e contada em "existentes" — a constraint `unique_vaga_espaco_janela`
     é global (a sala não pode ter duas vagas idênticas), então rodar o gerador
     de novo não duplica nada.
+
+    `capacidade=None` usa a capacidade sugerida de cada `Espaco`; um valor
+    explícito vale para todas as vagas criadas.
 
     Devolve `{"criadas": int, "existentes": int}`.
     """
@@ -332,7 +335,7 @@ def gerar_grade(evento, dias, blocos, espacos, capacidade=1):
     )
     novas = [
         Vaga(evento=evento, espaco=espaco, inicio=inicio, fim=fim,
-             capacidade=capacidade)
+             capacidade=capacidade if capacidade is not None else espaco.capacidade)
         for (espaco_id, inicio, fim), espaco in desejadas.items()
         if (espaco_id, inicio, fim) not in existentes
     ]

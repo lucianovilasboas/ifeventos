@@ -489,15 +489,18 @@ class PropostaApiTests(_BaseChamadaApiTests):
         # Participante não decide (nem o dono da proposta).
         self.assertEqual(self.client.post(url, {}, format="json").status_code, 403)
 
-        # Espelha o site (`pode_gerenciar_evento`): qualquer organizador decide.
+        # 2.3.0: escopo por evento — organizador SEM vínculo não decide evento alheio.
         self._autenticar(self.outro_organizador)
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 403)
+
+        # O dono do evento decide (`pode_gerenciar_evento`).
+        self._autenticar(self.organizador)
         resposta = self.client.post(url, {}, format="json")
         self.assertEqual(resposta.status_code, 200, resposta.data)
         self.assertEqual(resposta.data["situacao"], Atividade.SITUACAO_APROVADA)
         self.assertTrue(resposta.data["publicada"])
 
         # Decidida, não se decide de novo.
-        self._autenticar(self.organizador)
         self.assertEqual(self.client.post(url, {}, format="json").status_code, 400)
 
     def test_aprovacao_sem_publicar(self):

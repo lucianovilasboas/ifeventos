@@ -97,9 +97,10 @@ excluir tudo; conferir `count=0` no fim. **NUNCA usar o evento 107** (SNCT 2026,
   resolvem (ver `.chip-evento` e o precedente `.app-hero .chip`). Há uma guarda em
   `.app-content-top { overflow-x: clip }` — prefira `clip` a `hidden` (não cria contêiner de rolagem,
   então não quebra `sticky` nem as áreas com `overflow-x: auto`).
-- **Quem decide proposta é qualquer `is_organizador`**, não só o dono do evento (regra do site,
-  `eventos.crachas.pode_gerenciar_evento`). A API espelha isso — de propósito: o token de serviço do
-  MCP não é dono dos eventos. Editar **conteúdo** (evento, atividade, vaga) é que é do dono.
+- **Quem decide proposta é quem gerencia o evento** (dono ou co-organizador), não qualquer
+  `is_organizador`: desde a 2.3.0 a flag sozinha **não** abre evento alheio
+  (`eventos.crachas.pode_gerenciar_evento`). O token de serviço do MCP precisa ter vínculo
+  (dono/co-organizador) com o evento. Editar **conteúdo** (evento, atividade, vaga) é que é do dono.
 - **Dev local** (não é produção): o evento 107 (SNCT 2026) está com **160 vagas** e **1 proposta
   pendente** de teste. Não apagar.
 

@@ -9,6 +9,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 
@@ -100,6 +101,10 @@ class ObtainTokenView(APIView):
     authentication_classes = []
     permission_classes = []
     serializer_class = EmailAuthTokenSerializer
+    # Freio anti-força-bruta: sem isto, tentativas erradas em série não mudavam
+    # nada. A taxa fica em REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["login"].
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     @extend_schema(
         request=EmailAuthTokenSerializer,
