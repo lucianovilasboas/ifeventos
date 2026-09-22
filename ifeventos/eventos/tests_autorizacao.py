@@ -163,7 +163,7 @@ class AcoesGlobaisTests(_BaseAutorizacao):
     def test_participante_nao_baixa_modelo_csv(self):
         self.client.force_login(self.participante)
         resposta = self.client.get(reverse("organizador:modelo_metadados_csv"))
-        self.assertEqual(resposta.status_code, 302)  # redirect para o painel
+        self.assertEqual(resposta.status_code, 403)  # 2.2.2: recusa explícita
 
 
 class CertificadosTests(_BaseAutorizacao):

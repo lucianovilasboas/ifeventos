@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from eventos import metadados as metadados_config
+from eventos.crachas import pode_gerenciar_evento
+from eventos.regras import atividades_publicas
 from eventos.models import (
     Atividade,
     Certificado,
@@ -47,6 +49,7 @@ class ParticipanteResumoSerializer(serializers.ModelSerializer):
 
     nome_completo = serializers.SerializerMethodField()
     foto_url = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
 
     class Meta:
         model = Participante
@@ -62,6 +65,24 @@ class ParticipanteResumoSerializer(serializers.ModelSerializer):
     def get_nome_completo(self, obj) -> str:
         name = (obj.first_name or "") + " " + (obj.last_name or "")
         return name.strip() or obj.username or obj.email
+
+    def get_email(self, obj) -> str | None:
+        """E-mail é dado pessoal: só sai para o próprio, organizador ou staff.
+
+        Sem `request` no contexto (uso avulso) o fallback seguro é não expor.
+        """
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return None
+        if (
+            user.pk == obj.pk
+            or user.is_staff
+            or user.is_superuser
+            or getattr(user, "is_organizador", False)
+        ):
+            return obj.email
+        return None
 
     def get_foto_url(self, obj) -> str | None:
         return obj.get_foto_url() if hasattr(obj, "get_foto_url") else None
@@ -214,7 +235,7 @@ class AtividadeSerializer(serializers.ModelSerializer):
         )
         if not organiza and obj.proponente_id != usuario.pk:
             return None
-        return ParticipanteResumoSerializer(obj.proponente).data
+        return ParticipanteResumoSerializer(obj.proponente, context=self.context).data
 
     def get_imagem_url(self, obj) -> str | None:
         if hasattr(obj, "get_url_imagem"):
@@ -224,7 +245,7 @@ class AtividadeSerializer(serializers.ModelSerializer):
 
 class EventoSerializer(serializers.ModelSerializer):
     organizador = ParticipanteResumoSerializer(read_only=True)
-    atividades = AtividadeSerializer(many=True, read_only=True)
+    atividades = serializers.SerializerMethodField()
     imagem_url = serializers.SerializerMethodField()
     n_inscricoes = serializers.SerializerMethodField()
     n_atividades = serializers.SerializerMethodField()
@@ -265,6 +286,20 @@ class EventoSerializer(serializers.ModelSerializer):
         # O viewset já anota `n_atividades`; o fallback cobre usos avulsos.
         anotado = getattr(obj, "n_atividades", None)
         return anotado if anotado is not None else obj.atividades.count()
+
+    def get_atividades(self, obj) -> list:
+        """Atividades do evento: públicas para o anônimo, todas para quem gerencia.
+
+        Mesma regra da listagem (`atividades_publicas`) — sem isto o detalhe do
+        evento expunha rascunho e proposta pendente (achado B).
+        """
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated and pode_gerenciar_evento(user, obj):
+            qs = obj.atividades.all()
+        else:
+            qs = atividades_publicas(obj.atividades.all())
+        return AtividadeSerializer(qs, many=True, context=self.context).data
 
 
 class InscricaoSerializer(serializers.ModelSerializer):
@@ -837,7 +872,7 @@ class GradeVagasSerializer(serializers.Serializer):
     espacos = serializers.PrimaryKeyRelatedField(
         queryset=Espaco.objects.all(), many=True
     )
-    capacidade = serializers.IntegerField(required=False, min_value=1, default=1)
+    capacidade = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
     def validate(self, attrs):
         from eventos import propostas

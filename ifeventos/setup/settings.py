@@ -273,6 +273,11 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Freio anti-força-bruta do login por token (achado I). Só as views com
+    # `throttle_scope` usam estes limites (hoje, `ObtainTokenView`).
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "10/min",
+    },
 }
 
 
@@ -524,6 +529,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = "/accounts/email-confirmation/"
 # ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 # ACCOUNT_ADAPTER = "eventos.adapters.CustomAccountAdapter"
+
+# Anti-força-bruta do login web (allauth). Vale para o formulário do site; a API
+# de token tem o seu próprio limite (ScopedRateThrottle, `login` em REST_FRAMEWORK).
+ACCOUNT_RATE_LIMITS = {"login_failed": "10/5m"}
 
 
 

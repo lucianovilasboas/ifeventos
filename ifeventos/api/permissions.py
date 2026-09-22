@@ -94,3 +94,25 @@ class IsDonoInscricao(BasePermission):
             return True
         participante = getattr(obj, "participante", None)
         return bool(participante is not None and participante.pk == user.pk)
+
+
+class PodeLerPresencas(BasePermission):
+    """Leitura de presenças: quem organiza o evento ou é da equipe de apoio.
+
+    O escopo por evento é aplicado no `get_queryset` (a pessoa só enxerga as
+    presenças dos eventos em que atua); aqui barra-se o participante comum, que
+    não tem papel de operação (`API.md:142`). O `create` (check-in) segue com
+    `IsAuthenticated`, porque a equipe de apoio e a própria pessoa (via
+    `token_atividade`) também registram presença.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user.is_authenticated:
+            return False
+        return bool(
+            user.is_staff
+            or user.is_superuser
+            or getattr(user, "is_organizador", False)
+            or getattr(user, "is_equipe", False)
+        )
