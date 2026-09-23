@@ -31,6 +31,10 @@ from .models import Certificado, Inscricao, Participante, Presenca
 
 logger = logging.getLogger(__name__)
 
+
+class LibreOfficeIndisponivel(RuntimeError):
+    """O binário do LibreOffice não está instalado neste servidor."""
+
 # ---------------------------------------------------------------------------
 # Elegibilidade
 # ---------------------------------------------------------------------------
@@ -303,12 +307,18 @@ def _docx_para_pdf(docx_path, outdir):
     import os
     import subprocess
 
-    subprocess.run(
-        ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", outdir, docx_path],
-        check=True,
-        capture_output=True,
-        timeout=180,
-    )
+    try:
+        subprocess.run(
+            ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", outdir, docx_path],
+            check=True,
+            capture_output=True,
+            timeout=180,
+        )
+    except FileNotFoundError as erro:
+        raise LibreOfficeIndisponivel(
+            "O LibreOffice não está instalado neste servidor; ele é necessário "
+            "para o layout em modelo .docx."
+        ) from erro
     base = os.path.splitext(os.path.basename(docx_path))[0] + ".pdf"
     return os.path.join(outdir, base)
 
@@ -354,7 +364,14 @@ def render_pdf(contexto, config) -> bytes:
 
     modo = getattr(config, "modo_layout", ConfiguracaoCertificado.MODO_FUNDO)
     if modo == ConfiguracaoCertificado.MODO_DOCX and getattr(config, "template_docx", None):
-        return render_docx(contexto, config)
+        try:
+            return render_docx(contexto, config)
+        except (LibreOfficeIndisponivel, FileNotFoundError):
+            # Sem LibreOffice (ex.: ambiente sem o pacote), não derruba a tela:
+            # cai no modo fundo. No servidor com LibreOffice, o .docx é usado.
+            logger.warning(
+                "certificados: LibreOffice indisponivel; usando o modo fundo."
+            )
     return _render_fundo(contexto, config)
 
 

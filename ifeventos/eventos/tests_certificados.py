@@ -280,3 +280,13 @@ class DocxRenderTests(TestCase):
             dados = certificados.render_pdf(contexto, self.config)
         chamada.assert_called_once()
         self.assertEqual(dados, b"%PDF-x")
+
+    def test_fallback_para_fundo_sem_libreoffice(self):
+        from unittest import mock
+
+        contexto = certificados.contexto_certificado(self.dono, evento=self.evento)
+        with mock.patch.object(
+            certificados, "_docx_para_pdf", side_effect=FileNotFoundError("libreoffice")
+        ):
+            dados = certificados.render_pdf(contexto, self.config)
+        self.assertTrue(dados.startswith(b"%PDF"))  # caiu no modo fundo, sem 500
