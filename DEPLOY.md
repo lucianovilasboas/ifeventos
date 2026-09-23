@@ -45,8 +45,10 @@ git pull --ff-only origin main
 git describe --tags        # deve mostrar a tag (ex.: v2.0.0)
 
 # 3. (recomendado) backup do banco ANTES de rodar as migrações
+#    (fora do repo, para não poluir o git status)
+mkdir -p /opt/docker/backups/ifeventos
 docker compose exec -T db pg_dump -U django_user django_db \
-  > backup_$(date +%F-%H%M)-pre-$(git describe --tags).sql
+  > /opt/docker/backups/ifeventos/backup_$(date +%F-%H%M)-pre-$(git describe --tags).sql
 
 # 4. Build e subida (breve indisponibilidade durante o rebuild)
 docker compose up -d --build
@@ -87,6 +89,6 @@ dump feito no passo 3 do deploy.
 docker compose logs -f app                      # logs em tempo real
 docker compose exec app python manage.py migrate # migrar manualmente (se preciso)
 docker compose exec app python manage.py createsuperuser
-docker compose exec -T db pg_dump -U django_user django_db > backup.sql
-docker compose exec -T db psql -U django_user -d django_db < backup.sql
+docker compose exec -T db pg_dump -U django_user django_db > /opt/docker/backups/ifeventos/backup.sql
+docker compose exec -T db psql -U django_user -d django_db < /opt/docker/backups/ifeventos/backup.sql
 ```

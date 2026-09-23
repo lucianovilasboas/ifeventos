@@ -66,6 +66,7 @@ _staging_*/
 _prototipo_*/
 
 # ---------- Backups locais e arquivos de composição substituídos ----------
+backup_*.sql
 _backup_*/
 docker-compose.yml.bak*
 
