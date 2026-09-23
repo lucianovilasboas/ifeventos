@@ -5,6 +5,32 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.3.2] — 2026-09-23
+
+### Corrigido
+
+- **A pré-carga (planilha) agora completa o perfil no primeiro ACESSO, não só na
+  criação da conta.** Contas pré-cadastradas (importação em lote, com senha
+  inutilizável) e o *auto-connect* do Google passam a receber os
+  metadados/CPF/nome da planilha no primeiro login (`user_logged_in`), uma única
+  vez. Antes, quem já tinha conta quando a planilha foi importada nunca era
+  completado — a rotina só rodava no `user_signed_up`. Era o caso de contas
+  criadas em lote em 14/09 com a planilha importada depois.
+- **Placeholder de palestrante** (sugestão convertida e `POST /palestrantes/`)
+  também passa pela pré-carga na criação, quando o e-mail está na planilha.
+
+### Adicionado
+
+- **Comando `completar_roster`** — aplica a planilha nas contas existentes
+  (`--dry-run`, `--email`), para resolver o passivo de pré-cadastros. É ação de
+  dados: executar em produção **somente com autorização**.
+
+### Alterado
+
+- **E-mail "conta já existe"** ganhou texto próprio em PT-BR explicando que o
+  e-mail tem pré-cadastro e as duas saídas (entrar com o Google ou redefinir a
+  senha). Mantém a proteção contra enumeração.
+
 ## [2.3.1] — 2026-09-22
 
 Correções e endurecimentos encontrados pela suíte por requisitos

@@ -246,6 +246,10 @@ def completar_do_roster(participante):
         linha = PessoaRoster.objects.filter(email=email).first()
         if linha is None:
             return False
+        if linha.usado_em is not None:
+            # Já aplicada num acesso anterior: não reaplica nem reescreve o
+            # rastreio (permite chamar em todo login, de forma barata).
+            return False
 
         atual = metadados.dados_de(participante)
         base = dict(linha.dados or {})

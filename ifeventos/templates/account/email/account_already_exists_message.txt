@@ -1,0 +1,15 @@
+{% extends "account/email/base_message.txt" %}
+{% load i18n %}
+
+{% block content %}{% autoescape off %}{% blocktrans with site_name=current_site.name %}Você (ou alguém) tentou criar uma conta no {{ site_name }} com o e-mail:
+
+{{ email }}
+
+Esse e-mail já tem uma conta — provavelmente por um pré-cadastro feito pela escola.
+
+Para entrar, use uma destas opções:
+
+1) Entrar com o Google, usando este mesmo e-mail; ou
+2) Redefinir a sua senha em: {{ password_reset_url }}
+
+Se não foi você, pode ignorar este e-mail.{% endblocktrans %}{% endautoescape %}{% endblock content %}
