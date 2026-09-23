@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.4.0] — 2026-09-23
+
+### Adicionado
+
+- **Avatar e nome do Google no primeiro acesso.** Ao entrar pelo Google, o
+  sistema aproveita o que já vem no perfil do provedor (`extra_data`):
+  - **avatar**: baixa a `picture` uma vez, recorta no centro e salva em
+    `Participante.foto` (256 px). Se o download falhar, guarda a URL em
+    `Participante.foto_social_url` e `get_foto_url()` usa como fallback;
+  - **nome**: preenche `first_name`/`last_name` **só quando estiverem vazios**.
+
+  Nunca sobrescreve foto/nome já definidos e nunca quebra o login (falhas são
+  registradas e ignoradas). Cobre o cadastro social novo (adapter) e o
+  auto-connect de conta existente (signals `social_account_added`/`_updated`).
+
+### Notas
+
+- Novo campo `Participante.foto_social_url` (migration `0039`).
+
 ## [2.3.2] — 2026-09-23
 
 ### Corrigido

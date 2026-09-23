@@ -60,6 +60,9 @@ class Participante(AbstractUser):
     user_permissions = models.ManyToManyField(Permission, related_name="participante_permissions_set", blank=True)
 
     foto = models.ImageField(upload_to=participante_foto_upload, blank=True, null=True)  # Diretório onde as imagens serão salvas
+    # Avatar vindo do login social (Google): usado como fallback quando o
+    # download do arquivo não acontece — `get_foto_url()` devolve esta URL.
+    foto_social_url = models.URLField(blank=True, default="")
     bio = models.TextField(max_length=500, blank=True, null=True)
 
     # CPF: guardamos SOMENTE os 11 dígitos (a máscara fica na exibição).
@@ -124,6 +127,8 @@ class Participante(AbstractUser):
     def get_foto_url(self):
         if self.foto:
             return self.foto.url
+        if self.foto_social_url:
+            return self.foto_social_url
         return "/media/usuarios/default.jpeg"
 
 
