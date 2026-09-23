@@ -1,6 +1,7 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from allauth.account.signals import user_signed_up
+from allauth.socialaccount.signals import social_account_added, social_account_updated
 from .models import Inscricao 
 from .models import Atividade
 from .models import Presenca
@@ -133,4 +134,22 @@ def completar_perfil_pelo_roster(request, user, **kwargs):
     from . import roster
 
     roster.completar_do_roster(user)
+
+
+# Enriquecimento do perfil pelo login social (nome/avatar do Google).
+#
+# `social_account_added` cobre o auto-connect de uma conta que JÁ existia (caso
+# em que o `save_user` do adapter não roda); `social_account_updated` cobre os
+# logins seguintes. Só age quando ainda falta algo no perfil.
+@receiver(social_account_added)
+@receiver(social_account_updated)
+def enriquecer_perfil_social(request, sociallogin, **kwargs):
+    from . import social
+
+    conta = getattr(sociallogin, "account", None)
+    if getattr(conta, "provider", "") != "google":
+        return
+    user = getattr(sociallogin, "user", None)
+    if user is not None:
+        social.enriquecer_do_google(user, sociallogin)
 
