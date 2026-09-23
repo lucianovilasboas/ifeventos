@@ -162,3 +162,7 @@ excluir tudo; conferir `count=0` no fim. **NUNCA usar o evento 107** (SNCT 2026,
 7. **MCP** — o docstring de `listar_vagas` pode explicitar o escopo por evento (opcional; a verificação
    de leitura não encontrou dependência de `organizador.email`).
 8. **Deploy** — decidir quando subir a v2.3.1 para produção/VM (intocadas até aqui).
+9. **Backfill do roster (ação de dados)** — depois de subir a 2.3.2, rodar
+   `python manage.py completar_roster --dry-run` e, conferido, `python manage.py
+   completar_roster` para aplicar a planilha nas contas pré-cadastradas cujo
+   e-mail está na planilha. **Só com autorização** (mexe no banco de produção).

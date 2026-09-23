@@ -367,6 +367,11 @@ class PalestranteViewSet(viewsets.ModelViewSet):
         novo.save(update_fields=["password"])
         if metadados_novos is not None:
             metadados_config.salvar(novo, metadados_novos)
+        # Pré-carga: se o e-mail do palestrante estiver na planilha, completa os
+        # dados que faltam (os metadados do payload têm prioridade).
+        from eventos import roster
+
+        roster.completar_do_roster(novo)
         return Response(
             PalestranteSerializer(novo).data, status=status.HTTP_201_CREATED
         )

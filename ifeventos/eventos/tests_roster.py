@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from allauth.account.signals import user_signed_up
+from allauth.account.signals import user_logged_in, user_signed_up
 
 from eventos import metadados, roster
 from eventos.models import PessoaRoster
@@ -287,6 +287,110 @@ class SignalTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(metadados.dados_de(user)["curso"], "Informática")
         self.assertEqual(user.cpf, CPF_DIGITOS)
+
+    @override_settings(METADADOS_PARTICIPANTE=CONFIG)
+    def test_user_logged_in_completa_o_perfil(self):
+        """Conta que já existia (importação/auto-connect) completa no 1º login."""
+        PessoaRoster.objects.create(
+            email="logado@example.com", nome="Aluno Teste", cpf=CPF_DIGITOS,
+            dados=linha(**{"email": "logado@example.com"}),
+        )
+        user = U.objects.create_user(email="logado@example.com", password=SENHA)
+        self.assertEqual(metadados.dados_de(user), {})
+
+        user_logged_in.send(sender=U, request=None, user=user)
+
+        user.refresh_from_db()
+        self.assertEqual(metadados.dados_de(user)["curso"], "Informática")
+        self.assertEqual(user.cpf, CPF_DIGITOS)
+        self.assertIsNotNone(PessoaRoster.objects.get().usado_em)
+
+    @override_settings(METADADOS_PARTICIPANTE=CONFIG)
+    def test_nao_reaplica_apos_usado(self):
+        """A linha usada não é reaplicada: edição posterior da pessoa prevalece."""
+        PessoaRoster.objects.create(
+            email="idem@example.com", nome="Aluno Teste", cpf=CPF_DIGITOS,
+            dados=linha(**{"email": "idem@example.com"}),
+        )
+        user = U.objects.create_user(email="idem@example.com", password=SENHA)
+        user_logged_in.send(sender=U, request=None, user=user)
+        user.refresh_from_db()
+        self.assertEqual(metadados.dados_de(user)["turma"], "Turma 1")
+
+        # A pessoa troca a turma; um novo login NÃO pode sobrescrever.
+        dados = metadados.dados_de(user)
+        dados["turma"] = "Turma 2"
+        metadados.salvar(user, dados)
+
+        user_logged_in.send(sender=U, request=None, user=user)
+        user.refresh_from_db()
+        self.assertEqual(metadados.dados_de(user)["turma"], "Turma 2")
+        self.assertFalse(roster.completar_do_roster(user))
+
+
+class ComandoCompletarRosterTests(TestCase):
+    @override_settings(METADADOS_PARTICIPANTE=CONFIG)
+    def test_dry_run_nao_altera_e_aplicacao_preenche(self):
+        PessoaRoster.objects.create(
+            email="comando@example.com", nome="Aluno Teste", cpf=CPF_DIGITOS,
+            dados=linha(**{"email": "comando@example.com"}),
+        )
+        user = U.objects.create_user(email="comando@example.com", password=SENHA)
+
+        call_command("completar_roster", "--dry-run")
+        user.refresh_from_db()
+        self.assertEqual(metadados.dados_de(user), {})
+        self.assertIsNone(PessoaRoster.objects.get().usado_em)
+
+        call_command("completar_roster")
+        user.refresh_from_db()
+        self.assertEqual(metadados.dados_de(user)["curso"], "Informática")
+        self.assertIsNotNone(PessoaRoster.objects.get().usado_em)
+
+    @override_settings(METADADOS_PARTICIPANTE=CONFIG)
+    def test_email_sem_conta_nao_quebra(self):
+        PessoaRoster.objects.create(
+            email="semconta@example.com", nome="X", cpf=CPF_DIGITOS,
+            dados=linha(**{"email": "semconta@example.com"}),
+        )
+        call_command("completar_roster")  # não deve estourar
+        self.assertIsNone(PessoaRoster.objects.get().usado_em)
+
+
+class PlaceholderPalestranteTests(TestCase):
+    @override_settings(METADADOS_PARTICIPANTE=CONFIG)
+    def test_cadastrar_sugerido_completa_pelo_roster(self):
+        from datetime import datetime, timezone as tz
+
+        from eventos import propostas
+        from eventos.models import Atividade, Evento, PalestranteSugerido
+
+        dono = U.objects.create_user(email="dono@example.com", password=SENHA)
+        evento = Evento.objects.create(
+            title="E", description="d", local="L",
+            data_inicio=datetime(2026, 10, 10, tzinfo=tz.utc),
+            data_fim=datetime(2026, 10, 11, tzinfo=tz.utc),
+            organizador=dono,
+        )
+        atividade = Atividade.objects.create(
+            evento=evento, titulo="A", descricao="d", local="L",
+            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc), n_vagas=10,
+        )
+        PessoaRoster.objects.create(
+            email="sugerido@example.com", nome="Aluno Teste", cpf=CPF_DIGITOS,
+            dados=linha(**{"email": "sugerido@example.com"}),
+        )
+        sugestao = PalestranteSugerido.objects.create(
+            atividade=atividade, nome="Sugerido", email="sugerido@example.com",
+        )
+
+        propostas.cadastrar_sugerido(sugestao)
+
+        pessoa = sugestao.participante
+        self.assertIsNotNone(pessoa)
+        self.assertEqual(metadados.dados_de(pessoa)["curso"], "Informática")
+        self.assertIsNotNone(PessoaRoster.objects.get().usado_em)
 
 
 class PessoaRosterAdminFormTests(TestCase):

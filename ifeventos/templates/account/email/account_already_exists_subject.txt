@@ -1,0 +1,1 @@
+{% load i18n %}{% autoescape off %}{% blocktrans with site_name=current_site.name %}Sua conta já existe no {{ site_name }}{% endblocktrans %}{% endautoescape %}

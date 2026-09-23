@@ -777,6 +777,11 @@ def cadastrar_sugerido(sugestao, *, nome=None, email=None, telefone=None):
         )
         participante.set_unusable_password()
         participante.save()
+        # Pré-carga: se o e-mail estiver na planilha, completa os metadados que
+        # faltam (a sugestão do proponente continua tendo prioridade).
+        from . import roster
+
+        roster.completar_do_roster(participante)
 
     if not participante.is_palestrante:
         participante.is_palestrante = True
