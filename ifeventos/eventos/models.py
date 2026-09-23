@@ -271,6 +271,16 @@ class Evento(models.Model):
     )
 
     # ----------------------------------------------------------------------
+    # Certificados do evento
+    # ----------------------------------------------------------------------
+    # Carga horária padrão (horas): usada no certificado DO EVENTO e como
+    # padrão das atividades que não informarem a sua.
+    carga_horaria = models.PositiveIntegerField(null=True, blank=True)
+    # Percentual mínimo de presença (nas atividades que emitem certificado)
+    # para ter direito ao certificado DO EVENTO. Configurável pelo organizador.
+    percentual_certificado = models.PositiveSmallIntegerField(default=75)
+
+    # ----------------------------------------------------------------------
     # Modelo dos crachás DESTE evento (decisão do organizador).
     # Antes cada pessoa escolhia o seu na tela, e o evento saía com crachás de
     # dois desenhos. Agora o organizador define aqui e o participante recebe
@@ -362,6 +372,8 @@ class Atividade(models.Model):
     n_inscricoes = models.PositiveIntegerField(default=0)
 
     emite_certificado = models.BooleanField(default=False)
+    # Carga horária própria da atividade (horas). Vazio = herda a do evento.
+    carga_horaria = models.PositiveIntegerField(null=True, blank=True)
 
     # Rascunho: o organizador monta a grade sem expor ao público. Atividades
     # não publicadas ficam fora da programação, da landing, do .ics e do PDF.
@@ -704,6 +716,24 @@ class Certificado(models.Model):
     
     pdf = models.FileField(upload_to="usuarios/certificados/", blank=True, null=True)
 
+    # Certificado de uma atividade ou do evento (>= percentual de presença).
+    TIPO_ATIVIDADE = "atividade"
+    TIPO_EVENTO = "evento"
+    TIPO_CHOICES = [
+        (TIPO_ATIVIDADE, "Atividade"),
+        (TIPO_EVENTO, "Evento"),
+    ]
+    tipo = models.CharField(
+        max_length=10, choices=TIPO_CHOICES, default=TIPO_ATIVIDADE, db_index=True
+    )
+    # Carga horária impressa no certificado (horas).
+    carga_horaria = models.PositiveIntegerField(null=True, blank=True)
+    # Configuração usada na emissão (rastreabilidade: qual texto/layout gerou).
+    config = models.ForeignKey(
+        "ConfiguracaoCertificado", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="certificados",
+    )
+
     class Meta:
         verbose_name = "Certificado"
         verbose_name_plural = "Certificados"
@@ -999,3 +1029,130 @@ class PalestranteSugerido(models.Model):
 
     def __str__(self):
         return "%s (proposta %s)" % (self.nome, self.atividade_id)
+
+
+# ===========================================================================
+# Certificados — configuração, assinaturas e catálogo de assinantes
+# ===========================================================================
+
+
+def assinatura_imagem_upload(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f"certificados/assinaturas/assinatura_{uuid.uuid4().hex}{ext}"
+
+
+def certificado_fundo_upload(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f"certificados/fundos/fundo_{uuid.uuid4().hex}{ext}"
+
+
+def certificado_template_upload(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f"certificados/templates/template_{uuid.uuid4().hex}{ext}"
+
+
+class Assinante(models.Model):
+    """Assinante reutilizável do certificado (diretor, coordenação...).
+
+    Catálogo da escola: o organizador (ou staff) cadastra uma vez e escolhe
+    1–2 por evento. `imagem` é a assinatura digitalizada (opcional — sem ela,
+    o certificado sai só com nome e cargo).
+    """
+
+    nome = models.CharField(max_length=150)
+    cargo = models.CharField(max_length=150, blank=True, default="")
+    imagem = models.ImageField(
+        upload_to=assinatura_imagem_upload, blank=True, null=True
+    )
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Assinante de certificado"
+        verbose_name_plural = "Assinantes de certificado"
+        ordering = ["nome"]
+
+    def __str__(self):
+        return f"{self.nome} ({self.cargo})" if self.cargo else self.nome
+
+
+class ConfiguracaoCertificado(models.Model):
+    """Como os certificados DESTE evento são desenhados e assinados.
+
+    Uma por evento. A MESMA configuração serve para o certificado de ATIVIDADE
+    e o do EVENTO: o `corpo` usa variáveis (`{{nome}}`, `{{atividade}}`,
+    `{{evento}}`, `{{carga_horaria}}`, `{{data}}`, `{{local}}`, `{{qr}}`); no
+    certificado de evento, `{{atividade}}` sai vazio.
+    """
+
+    MODO_FUNDO = "fundo"
+    MODO_DOCX = "docx"
+    MODO_CHOICES = [
+        (MODO_FUNDO, "Fundo (imagem/PDF) + texto"),
+        (MODO_DOCX, "Modelo .docx"),
+    ]
+
+    evento = models.OneToOneField(
+        Evento, on_delete=models.CASCADE, related_name="certificado_config"
+    )
+    titulo = models.CharField(max_length=150, default="CERTIFICADO")
+    corpo = models.TextField(
+        blank=True, default="",
+        help_text="Texto do certificado. Aceita variáveis entre {{ }}.",
+    )
+    rodape = models.CharField(max_length=255, blank=True, default="")
+    modo_layout = models.CharField(
+        max_length=10, choices=MODO_CHOICES, default=MODO_FUNDO
+    )
+    # Modo "fundo": imagem (PNG/JPG) ou PDF usado como pano de fundo.
+    layout_fundo = models.FileField(
+        upload_to=certificado_fundo_upload, blank=True, null=True
+    )
+    # Modo "docx": template com tags {{...}} (docxtpl).
+    template_docx = models.FileField(
+        upload_to=certificado_template_upload, blank=True, null=True
+    )
+    # Carga horária padrão do certificado (vazio = usa a do evento).
+    carga_horaria_padrao = models.PositiveIntegerField(null=True, blank=True)
+    # Percentual mínimo de presença (sobrepõe o do evento quando preenchido).
+    percentual = models.PositiveSmallIntegerField(null=True, blank=True)
+    enviar_email = models.BooleanField(default=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuração de certificado"
+        verbose_name_plural = "Configurações de certificado"
+
+    def __str__(self):
+        return f"Certificado de {self.evento.title}"
+
+    @property
+    def percentual_efetivo(self):
+        """Percentual a usar: o da config, senão o do evento."""
+        return self.percentual if self.percentual is not None else self.evento.percentual_certificado
+
+
+class AssinaturaCertificado(models.Model):
+    """Assinatura (1 ou 2) impressa no certificado — cópia do catálogo.
+
+    É um SNAPSHOT: guarda nome/cargo/imagem no momento da configuração, para o
+    PDF continuar reproduzível mesmo que o catálogo mude depois.
+    """
+
+    config = models.ForeignKey(
+        ConfiguracaoCertificado, on_delete=models.CASCADE, related_name="assinaturas"
+    )
+    nome = models.CharField(max_length=150)
+    cargo = models.CharField(max_length=150, blank=True, default="")
+    imagem = models.ImageField(
+        upload_to=assinatura_imagem_upload, blank=True, null=True
+    )
+    ordem = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        verbose_name = "Assinatura do certificado"
+        verbose_name_plural = "Assinaturas do certificado"
+        ordering = ["ordem", "id"]
+
+    def __str__(self):
+        return f"{self.ordem}. {self.nome}"
