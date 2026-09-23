@@ -1,15 +1,18 @@
 """Testes dos certificados: elegibilidade, render e telas de configuração."""
 
+import shutil
+import tempfile
 from datetime import date, datetime
 from datetime import timezone as tz
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from eventos import certificados
 from eventos.models import (
     Atividade,
+    Certificado,
     ConfiguracaoCertificado,
     Evento,
     Inscricao,
@@ -144,3 +147,65 @@ class ConfigViewTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r["Content-Type"], "application/pdf")
         self.assertTrue(r.content.startswith(b"%PDF"))
+
+
+class EmissaoTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._media = tempfile.mkdtemp(prefix="media_cert_")
+        cls.enterClassContext(override_settings(MEDIA_ROOT=cls._media))
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls._media, ignore_errors=True)
+
+    def setUp(self):
+        from django.core import mail
+
+        mail.outbox = []
+        self.dono = U.objects.create_user(
+            email="dono4@cert.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+        self.pessoa = U.objects.create_user(email="aluno@cert.test", password=SENHA)
+        self.atividade = _atividade(self.evento)
+        Presenca.objects.create(atividade=self.atividade, participante=self.pessoa)
+
+    def test_emitir_atividade_idempotente(self):
+        certificado, criado = certificados.emitir(self.pessoa, atividade=self.atividade)
+        self.assertTrue(criado)
+        self.assertEqual(certificado.tipo, "atividade")
+        certificado2, criado2 = certificados.emitir(self.pessoa, atividade=self.atividade)
+        self.assertFalse(criado2)
+        self.assertEqual(certificado2.pk, certificado.pk)
+        self.assertEqual(Certificado.objects.count(), 1)
+
+    def test_emitir_evento_tipo_evento(self):
+        certificado, criado = certificados.emitir(self.pessoa, evento=self.evento)
+        self.assertTrue(criado)
+        self.assertEqual(certificado.tipo, "evento")
+
+    def test_email_enviado_quando_configurado(self):
+        from django.core import mail
+
+        ConfiguracaoCertificado.objects.create(evento=self.evento, enviar_email=True)
+        certificados.emitir(self.pessoa, atividade=self.atividade)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].attachments[0][0], "certificado.pdf")
+
+    def test_email_nao_enviado_quando_desligado(self):
+        from django.core import mail
+
+        ConfiguracaoCertificado.objects.create(evento=self.evento, enviar_email=False)
+        certificados.emitir(self.pessoa, atividade=self.atividade)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_view_emitir_certificados_atividade(self):
+        self.client.force_login(self.dono)
+        r = self.client.post(
+            reverse("organizador:emitir_certificados_atividade", args=[self.atividade.id])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Certificado.objects.count(), 1)

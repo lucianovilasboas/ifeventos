@@ -48,8 +48,7 @@ from eventos.crachas import (
     pode_checkin_apoio,
     pode_gerenciar_evento,
 )
-from eventos.models import Inscricao, Certificado
-from eventos.utils import gerar_certificado
+from eventos.models import Inscricao
 
 from eventos.imagens import imagem_cortada
 
@@ -709,18 +708,17 @@ class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
         if not pode_gerenciar_evento(request.user, inscricao.atividade.evento):
             raise PermissionDenied("Você não organiza o evento desta inscrição.")
 
-        if inscricao.certificado_emitido or Certificado.objects.filter(participante=inscricao.participante, atividade=inscricao.atividade).exists():
+        if inscricao.certificado_emitido:
             return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
 
-        pdf_file = gerar_certificado(inscricao.participante, atividade=inscricao.atividade, evento=inscricao.atividade.evento)
-        Certificado.objects.create(
-            participante=inscricao.participante,
-            atividade=inscricao.atividade,
-            pdf=pdf_file
+        _certificado, criado = certificados.emitir(
+            inscricao.participante, atividade=inscricao.atividade
         )
+        if not criado:
+            return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
 
         inscricao.certificado_emitido = True
-        inscricao.save()
+        inscricao.save(update_fields=["certificado_emitido"])
 
         return JsonResponse({"message": "Certificado emitido com sucesso!", "certificado": True})
 
@@ -735,22 +733,18 @@ class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
         atividade = get_object_or_404(Atividade, id=atividade_id)
         if not pode_gerenciar_evento(request.user, atividade.evento):
             raise PermissionDenied("Você não organiza o evento desta atividade.")
-        inscritos = Inscricao.objects.filter(atividade=atividade, confirmada=True, certificado_emitido=False)
+        inscritos = certificados.participantes_da_atividade(atividade)
 
         certificados_gerados = []
-        for inscrito in inscritos:
-            if not Certificado.objects.filter(participante=inscrito.participante, atividade=atividade).exists():
-                pdf_file = gerar_certificado(inscrito.participante, atividade=atividade, evento=atividade.evento)
-                certificado = Certificado.objects.create(
-                    participante=inscrito.participante,
-                    atividade=atividade,
-                    pdf=pdf_file
-                )
+        for pessoa in inscritos:
+            _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
+            if criado:
+                certificados_gerados.append(pessoa.id)
 
-                inscrito.certificado_emitido = True
-                inscrito.save()
-
-                certificados_gerados.append(inscrito.id)
+        if certificados_gerados:
+            Inscricao.objects.filter(
+                atividade=atividade, participante_id__in=certificados_gerados
+            ).update(certificado_emitido=True)
 
         return JsonResponse({"message": "Certificados gerados com sucesso!", "certificados": certificados_gerados})
 
@@ -790,22 +784,15 @@ class EmitirCertificadosEventoView(LoginRequiredMixin, View):
         evento = get_object_or_404(Evento, id=evento_id)
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
-        participantes = Participante.objects.all()
 
-        for participante in participantes:
-            atividades_participadas = Inscricao.objects.filter(participante=participante, atividade__evento=evento, confirmada=True).count()
-            total_atividades = evento.atividades.count()
+        config = getattr(evento, "certificado_config", None)
+        gerados = []
+        for pessoa in certificados.participantes_do_evento(evento, config):
+            _certificado, criado = certificados.emitir(pessoa, evento=evento)
+            if criado:
+                gerados.append(pessoa.id)
 
-            if total_atividades > 0 and (atividades_participadas / total_atividades) >= 0.75:
-                if not Certificado.objects.filter(participante=participante, evento=evento).exists():
-                    pdf_file = gerar_certificado(participante, evento=evento)
-                    Certificado.objects.create(
-                        participante=participante,
-                        evento=evento,
-                        pdf=pdf_file
-                    )
-
-        return JsonResponse({"message": "Certificados emitidos para o evento!"})
+        return JsonResponse({"message": "Certificados emitidos para o evento!", "certificados": gerados})
 
 
 # -- Configuração de certificados e catálogo de assinantes --

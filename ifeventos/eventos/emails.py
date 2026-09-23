@@ -13,7 +13,7 @@ são texto puro, em `templates/emails/`.
 import logging
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage, send_mail
 from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
@@ -47,4 +47,27 @@ def enviar(assunto, destinatarios, template, contexto):
         return True
     except Exception:
         logger.exception("Falha ao enviar o e-mail %r para %s", assunto, destinos)
+        return False
+
+
+def enviar_com_anexo(assunto, destinatarios, corpo, anexos=()):
+    """Envia e-mail com anexos `(nome, bytes, mimetype)`. Nunca levanta."""
+    destinos = [email for email in (destinatarios or []) if email]
+    if not destinos:
+        return False
+    try:
+        mensagem = EmailMessage(
+            assunto,
+            corpo,
+            getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            destinos,
+        )
+        for nome, conteudo, tipo in anexos:
+            mensagem.attach(nome, conteudo, tipo)
+        mensagem.send(fail_silently=False)
+        return True
+    except Exception:
+        logger.exception(
+            "Falha ao enviar o e-mail com anexo %r para %s", assunto, destinos
+        )
         return False

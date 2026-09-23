@@ -17,6 +17,7 @@ O QR aponta para a verificação pública já existente (`/c/<token>/`).
 from __future__ import annotations
 
 import io
+import logging
 
 from django.db.models import Count
 from django.utils import timezone
@@ -27,6 +28,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
 from .models import Certificado, Inscricao, Participante, Presenca
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Elegibilidade
@@ -320,3 +323,96 @@ def _render_padrao(contexto, atividade, evento):
         ),
     )
     return render_pdf(contexto, virtual)
+
+
+# ---------------------------------------------------------------------------
+# Emissão e entrega
+# ---------------------------------------------------------------------------
+
+
+def _enviar_email(certificado, config, evento):
+    """Envia o certificado por e-mail (best-effort) quando configurado."""
+    if config is None or not config.enviar_email:
+        return
+    participante = certificado.participante
+    if not participante.email or not certificado.pdf:
+        return
+
+    from django.conf import settings
+    from django.template.loader import render_to_string
+
+    from . import emails
+
+    try:
+        certificado.pdf.open("rb")
+        conteudo = certificado.pdf.read()
+    except Exception:
+        logger.exception("certificados: falha ao ler o PDF de %r", participante.email)
+        return
+    finally:
+        try:
+            certificado.pdf.close()
+        except Exception:
+            pass
+
+    escopo = (
+        f"atividade {certificado.atividade.titulo}"
+        if certificado.atividade_id
+        else f"evento {evento.title if evento else ''}"
+    )
+    corpo = render_to_string(
+        "emails/certificado.txt",
+        {
+            "nome": participante.get_full_name(),
+            "escopo": escopo,
+            "site_url": emails.site_url(),
+            "site_nome": getattr(settings, "SITE_NAME", "Nossos Eventos"),
+        },
+    )
+    emails.enviar_com_anexo(
+        f"Seu certificado — {escopo}",
+        [participante.email],
+        corpo,
+        [("certificado.pdf", conteudo, "application/pdf")],
+    )
+
+
+def emitir(participante, *, atividade=None, evento=None):
+    """Gera (uma única vez) o certificado de uma atividade ou do evento.
+
+    Idempotente: se já existir, devolve o existente sem gerar de novo nem
+    reenviar e-mail. Devolve `(certificado, criado)`.
+    """
+    if evento is None and atividade is not None:
+        evento = atividade.evento
+    config = getattr(evento, "certificado_config", None) if evento is not None else None
+
+    if atividade is not None:
+        tipo = Certificado.TIPO_ATIVIDADE
+        evento_gravado = None
+        existente = Certificado.objects.filter(
+            participante=participante, atividade=atividade, evento__isnull=True
+        ).first()
+    else:
+        tipo = Certificado.TIPO_EVENTO
+        evento_gravado = evento
+        existente = Certificado.objects.filter(
+            participante=participante, evento=evento, atividade__isnull=True
+        ).first()
+    if existente is not None:
+        return existente, False
+
+    arquivo = gerar_certificado(
+        participante, atividade=atividade, evento=evento, config=config
+    )
+    certificado = Certificado.objects.create(
+        participante=participante,
+        atividade=atividade,
+        evento=evento_gravado,
+        tipo=tipo,
+        carga_horaria=carga_horaria_efetiva(atividade, evento, config),
+        config=config,
+        pdf=arquivo,
+    )
+    _enviar_email(certificado, config, evento)
+    return certificado, True

@@ -1,0 +1,7 @@
+Olá, {{ nome }}!
+
+Seu certificado de {{ escopo }} está disponível e segue em anexo neste e-mail.
+
+Você também pode baixá-lo em "Meus certificados", em {{ site_url }}.
+
+{{ site_nome }}
