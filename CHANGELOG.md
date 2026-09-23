@@ -5,6 +5,35 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.5.0] — 2026-09-23
+
+### Adicionado
+
+- **Área de certificados do organizador.** Uma tela por evento (botão
+  **Certificado** na tela de atividades) para definir:
+  - **texto** (título, corpo com variáveis e rodapé);
+  - **layout**: fundo próprio (imagem/PDF) **ou** um **modelo `.docx`** com tags
+    (`{{nome}}`, `{{atividade}}`, `{{evento}}`, `{{carga_horaria}}`, `{{data}}`,
+    `{{local}}`, `{{qr}}`, `{{assinatura1}}`/`{{assinatura2}}`);
+  - **assinaturas** (1 ou 2) escolhidas de um **catálogo de assinantes**
+    reutilizável (organizador e staff), com imagem;
+  - **carga horária** e **percentual mínimo de presença** do evento.
+- **Carga horária** por atividade e por evento; **percentual do evento**
+  configurável (antes: 75% fixo no código).
+- **Elegibilidade correta**: certificado de **atividade** = a atividade emite
+  certificado e a pessoa participou (presença; fallback inscrição confirmada);
+  certificado de **evento** = presença mínima nas atividades que emitem
+  certificado.
+- **Entrega** na área do participante **e** por **e-mail com o PDF anexo**
+  (configurável por evento).
+- **Pré-visualização** do certificado em PDF para o organizador conferir.
+
+### Notas
+
+- Novos modelos: `Assinante`, `ConfiguracaoCertificado`, `AssinaturaCertificado`;
+  novos campos em `Evento`/`Atividade`/`Certificado` (migration `0040`).
+- O modo `.docx` usa **LibreOffice** na imagem (build maior) e `docxtpl`.
+
 ## [2.4.0] — 2026-09-23
 
 ### Adicionado
