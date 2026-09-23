@@ -57,6 +57,18 @@ docker compose up -d --build
 docker compose logs --tail=120 -f app
 ```
 
+## Logs do deploy (rastreabilidade)
+
+O script `/opt/docker/ifeventos-deploy.sh` (e qualquer execução manual que redirecione a
+saída) grava os logs em **`/opt/docker/logs/ifeventos/`** — fora do repositório. Cada rodada
+gera `deploy-<AAAA-MM-DD-HHMMSS>.log` com tudo (saída e erros), o **commit antes/depois** e o
+status final; o atalho `deploy-latest.log` aponta para a última execução.
+
+```bash
+ls -lt /opt/docker/logs/ifeventos/                        # execucoes (mais recente no topo)
+tail -n 60 /opt/docker/logs/ifeventos/deploy-latest.log   # ultima execucao
+```
+
 ## Validação pós-deploy
 
 ```bash
