@@ -14,6 +14,13 @@ from .forms import ParticipanteUpdateForm
 from .decorators import organizador_required
 from eventos.forms import EventoForm, PalestranteForm, TipoAtividadeForm
 from eventos.forms import ChamadaProposicoesForm, EspacoForm, GradeVagasForm, VagaForm
+from eventos.forms import (
+    AssinanteForm,
+    AssinaturaCertificadoFormSet,
+    ConfiguracaoCertificadoForm,
+)
+from eventos.models import Assinante, ConfiguracaoCertificado
+from eventos import certificados
 from eventos.models import Evento
 from eventos.forms import AtividadeForm
 from eventos.models import Atividade
@@ -799,6 +806,116 @@ class EmitirCertificadosEventoView(LoginRequiredMixin, View):
                     )
 
         return JsonResponse({"message": "Certificados emitidos para o evento!"})
+
+
+# -- Configuração de certificados e catálogo de assinantes --
+
+
+class CertificadoConfigView(LoginRequiredMixin, View):
+    """Configura o certificado do evento: texto, layout e assinaturas (1–2)."""
+
+    template_name = "organizador/certificado_config.html"
+
+    def _get_evento(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+        return evento
+
+    def _contexto(self, evento, form, formset):
+        return {
+            "evento": evento,
+            "form": form,
+            "formset": formset,
+            "assinantes": Assinante.objects.filter(ativo=True),
+            "config": getattr(evento, "certificado_config", None),
+        }
+
+    def get(self, request, evento_id):
+        evento = self._get_evento(request, evento_id)
+        config, _ = ConfiguracaoCertificado.objects.get_or_create(evento=evento)
+        form = ConfiguracaoCertificadoForm(instance=config)
+        formset = AssinaturaCertificadoFormSet(instance=config)
+        return render(request, self.template_name, self._contexto(evento, form, formset))
+
+    def post(self, request, evento_id):
+        evento = self._get_evento(request, evento_id)
+        config, _ = ConfiguracaoCertificado.objects.get_or_create(evento=evento)
+        form = ConfiguracaoCertificadoForm(request.POST, request.FILES, instance=config)
+        formset = AssinaturaCertificadoFormSet(request.POST, request.FILES, instance=config)
+        if form.is_valid() and formset.is_valid():
+            form.save()
+            formset.save()
+            # A ordem é a posição na tela (1, 2): o organizador não digita.
+            for i, assinatura in enumerate(config.assinaturas.order_by("id"), start=1):
+                if assinatura.ordem != i:
+                    assinatura.ordem = i
+                    assinatura.save(update_fields=["ordem"])
+            messages.success(request, "Configuração do certificado salva.")
+            return redirect("organizador:certificado_config", evento.id)
+        messages.warning(request, "Confira os campos destacados.")
+        return render(request, self.template_name, self._contexto(evento, form, formset))
+
+
+class CertificadoPreviewView(LoginRequiredMixin, View):
+    """PDF de amostra do certificado (usa o organizador como exemplo)."""
+
+    def get(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+        config = getattr(evento, "certificado_config", None)
+        atividade = evento.atividades.filter(emite_certificado=True).first()
+        arquivo = certificados.gerar_certificado(
+            request.user, atividade=atividade, evento=evento, config=config
+        )
+        resposta = HttpResponse(arquivo.read(), content_type="application/pdf")
+        resposta["Content-Disposition"] = 'inline; filename="certificado_amostra.pdf"'
+        return resposta
+
+
+def _pode_gerir_assinantes(user):
+    return bool(
+        user.is_superuser
+        or user.is_staff
+        or getattr(user, "is_organizador", False)
+    )
+
+
+class AssinantesView(LoginRequiredMixin, View):
+    """Catálogo reutilizável de assinantes (organizador e staff)."""
+
+    template_name = "organizador/assinantes.html"
+
+    def get(self, request):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        return render(request, self.template_name, {
+            "assinantes": Assinante.objects.all(),
+            "form": AssinanteForm(),
+        })
+
+    def post(self, request):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        form = AssinanteForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Assinante cadastrado.")
+            return redirect("organizador:assinantes")
+        return render(request, self.template_name, {
+            "assinantes": Assinante.objects.all(),
+            "form": form,
+        })
+
+
+class AssinanteRemoverView(LoginRequiredMixin, View):
+    def post(self, request, assinante_id):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        Assinante.objects.filter(id=assinante_id).delete()
+        messages.success(request, "Assinante removido.")
+        return redirect("organizador:assinantes")
 
 
 # -- Crachás --

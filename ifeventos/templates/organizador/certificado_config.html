@@ -1,0 +1,115 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}Certificado do evento{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="fw-semibold"><i class="fa-solid fa-award"></i> Certificado — {{ evento.title }}</span>
+    <div class="d-flex gap-2">
+        <a href="{% url 'organizador:certificado_preview' evento.id %}" target="_blank"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="fa-solid fa-eye"></i> Pré-visualizar
+        </a>
+        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="app-page mt-2">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="app-panel p-3 mb-3">
+            <h6 class="mb-3">Texto e layout</h6>
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="{{ form.titulo.id_for_label }}">Título</label>
+                    {{ form.titulo }}
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="{{ form.rodape.id_for_label }}">Rodapé</label>
+                    {{ form.rodape }}
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="{{ form.corpo.id_for_label }}">Texto do certificado</label>
+                    {{ form.corpo }}
+                    <div class="form-text">{{ form.corpo.help_text }}</div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="{{ form.modo_layout.id_for_label }}">Layout</label>
+                    {{ form.modo_layout }}
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="{{ form.layout_fundo.id_for_label }}">Fundo (imagem/PDF)</label>
+                    {{ form.layout_fundo }}
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="{{ form.template_docx.id_for_label }}">Modelo .docx</label>
+                    {{ form.template_docx }}
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label" for="{{ form.carga_horaria_padrao.id_for_label }}">Carga horária padrão (h)</label>
+                    {{ form.carga_horaria_padrao }}
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label" for="{{ form.percentual.id_for_label }}">Presença mínima (%)</label>
+                    {{ form.percentual }}
+                    <div class="form-text">Vazio = usa o do evento ({{ evento.percentual_certificado }}%).</div>
+                </div>
+                <div class="col-12 col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        {{ form.enviar_email }}
+                        <label class="form-check-label ms-1" for="{{ form.enviar_email.id_for_label }}">Enviar por e-mail</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="app-panel p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Assinaturas (até 2)</h6>
+                <a href="{% url 'organizador:assinantes' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa-solid fa-users"></i> Catálogo de assinantes
+                </a>
+            </div>
+            {{ formset.management_form }}
+            <div class="row g-3">
+                {% for f in formset %}
+                <div class="col-12 col-md-6">
+                    <div class="border rounded p-3 h-100">
+                        {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="form-label small">Nome</label>{{ f.nome }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small">Cargo</label>{{ f.cargo }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small">Assinatura (imagem)</label>{{ f.imagem }}
+                            </div>
+                            {% if f.instance.pk %}
+                            <div class="col-12 form-check ms-1">
+                                {{ f.DELETE }}
+                                <label class="form-check-label ms-1" for="{{ f.DELETE.id_for_label }}">Remover</label>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-app">
+                <i class="fa-solid fa-floppy-disk"></i> Salvar
+            </button>
+            <a href="{% url 'organizador:certificado_preview' evento.id %}" target="_blank"
+               class="btn btn-outline-secondary">Pré-visualizar</a>
+        </div>
+    </form>
+</div>
+{% endblock content %}

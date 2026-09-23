@@ -3,9 +3,11 @@ from datetime import date, time
 from django.utils import timezone
 
 from django import forms
+from django.forms import inlineformset_factory
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
 from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
+from .models import Assinante, AssinaturaCertificado, ConfiguracaoCertificado
 from .propostas import dias_do_evento, parse_blocos, validar_vaga
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
@@ -696,3 +698,83 @@ class GradeVagasForm(forms.Form):
             return parse_blocos(self.cleaned_data.get("blocos"))
         except ValueError as erro:
             raise forms.ValidationError(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Certificados — configuração do evento e catálogo de assinantes
+# ---------------------------------------------------------------------------
+
+
+class AssinanteForm(forms.ModelForm):
+    """Cadastro do assinante reutilizável (nome, cargo e assinatura)."""
+
+    class Meta:
+        model = Assinante
+        fields = ["nome", "cargo", "imagem", "ativo"]
+        labels = {"nome": "Nome", "cargo": "Cargo", "imagem": "Assinatura (imagem)",
+                  "ativo": "Ativo"}
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": "form-control"}),
+            "cargo": forms.TextInput(attrs={"class": "form-control"}),
+            "imagem": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "ativo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class ConfiguracaoCertificadoForm(forms.ModelForm):
+    """Configuração do certificado do evento (texto, layout e assinaturas)."""
+
+    corpo = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 6}),
+        help_text=(
+            "Variáveis: {{nome}}, {{atividade}}, {{evento}}, {{carga_horaria}}, "
+            "{{data}}, {{local}}."
+        ),
+    )
+
+    class Meta:
+        model = ConfiguracaoCertificado
+        fields = [
+            "titulo", "corpo", "rodape",
+            "modo_layout", "layout_fundo", "template_docx",
+            "carga_horaria_padrao", "percentual", "enviar_email",
+        ]
+        labels = {
+            "titulo": "Título",
+            "corpo": "Texto do certificado",
+            "rodape": "Rodapé",
+            "modo_layout": "Layout",
+            "layout_fundo": "Fundo (imagem/PDF)",
+            "template_docx": "Modelo .docx",
+            "carga_horaria_padrao": "Carga horária padrão (horas)",
+            "percentual": "Percentual mínimo de presença (%)",
+            "enviar_email": "Enviar por e-mail",
+        }
+        widgets = {
+            "titulo": forms.TextInput(attrs={"class": "form-control"}),
+            "corpo": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
+            "rodape": forms.TextInput(attrs={"class": "form-control"}),
+            "modo_layout": forms.Select(attrs={"class": "form-select"}),
+            "layout_fundo": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*,application/pdf"}),
+            "template_docx": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".docx"}),
+            "carga_horaria_padrao": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "percentual": forms.NumberInput(attrs={"class": "form-control", "min": 0, "max": 100}),
+            "enviar_email": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+AssinaturaCertificadoFormSet = inlineformset_factory(
+    ConfiguracaoCertificado,
+    AssinaturaCertificado,
+    fields=["nome", "cargo", "imagem"],
+    extra=2,
+    max_num=2,
+    can_delete=True,
+    validate_max=True,
+    widgets={
+        "nome": forms.TextInput(attrs={"class": "form-control"}),
+        "cargo": forms.TextInput(attrs={"class": "form-control"}),
+        "imagem": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
+    },
+)
