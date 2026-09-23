@@ -1,5 +1,7 @@
 """Testes dos certificados: elegibilidade, render e telas de configuração."""
 
+import io
+import os
 import shutil
 import tempfile
 from datetime import date, datetime
@@ -209,3 +211,72 @@ class EmissaoTests(TestCase):
         )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Certificado.objects.count(), 1)
+
+
+def _docx_template_bytes(texto="Certificado de {{ nome }}"):
+    from docx import Document
+
+    documento = Document()
+    documento.add_paragraph(texto)
+    buffer = io.BytesIO()
+    documento.save(buffer)
+    return buffer.getvalue()
+
+
+class DocxRenderTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._media = tempfile.mkdtemp(prefix="media_docx_")
+        cls.enterClassContext(override_settings(MEDIA_ROOT=cls._media))
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls._media, ignore_errors=True)
+
+    def setUp(self):
+        from django.core.files.base import ContentFile
+
+        self.dono = U.objects.create_user(
+            email="donodocx@cert.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+        self.config = ConfiguracaoCertificado.objects.create(
+            evento=self.evento, modo_layout="docx"
+        )
+        self.config.template_docx.save(
+            "modelo.docx", ContentFile(_docx_template_bytes()), save=True
+        )
+
+    def test_render_docx_converte_e_usa_o_nome(self):
+        from unittest import mock
+
+        contexto = certificados.contexto_certificado(self.dono, evento=self.evento)
+        capturado = {}
+
+        def conversao_falsa(docx_path, outdir):
+            from docx import Document
+
+            capturado["texto"] = "\n".join(
+                p.text for p in Document(docx_path).paragraphs
+            )
+            pdf = os.path.join(outdir, "certificado.pdf")
+            with open(pdf, "wb") as arquivo:
+                arquivo.write(b"%PDF-1.4 falso")
+            return pdf
+
+        with mock.patch.object(certificados, "_docx_para_pdf", side_effect=conversao_falsa):
+            dados = certificados.render_docx(contexto, self.config)
+
+        self.assertTrue(dados.startswith(b"%PDF"))
+        self.assertIn(self.dono.get_full_name(), capturado["texto"])
+
+    def test_render_pdf_despacha_para_docx(self):
+        from unittest import mock
+
+        contexto = certificados.contexto_certificado(self.dono, evento=self.evento)
+        with mock.patch.object(certificados, "render_docx", return_value=b"%PDF-x") as chamada:
+            dados = certificados.render_pdf(contexto, self.config)
+        chamada.assert_called_once()
+        self.assertEqual(dados, b"%PDF-x")

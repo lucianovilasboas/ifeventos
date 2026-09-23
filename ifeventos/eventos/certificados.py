@@ -247,7 +247,7 @@ def _desenhar_assinaturas(c, assinaturas, width):
             c.drawCentredString(x, y_linha - 27, a.cargo)
 
 
-def render_pdf(contexto, config) -> bytes:
+def _render_fundo(contexto, config) -> bytes:
     """Gera o PDF do certificado no modo 'fundo'. Devolve os bytes."""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
@@ -287,6 +287,75 @@ def render_pdf(contexto, config) -> bytes:
     c.showPage()
     c.save()
     return buffer.getvalue()
+
+
+def _qr_png(contexto) -> bytes:
+    import qrcode
+
+    qr = qrcode.make(contexto.get("qr_url") or "")
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _docx_para_pdf(docx_path, outdir):
+    """Converte .docx em .pdf com o LibreOffice (headless)."""
+    import os
+    import subprocess
+
+    subprocess.run(
+        ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", outdir, docx_path],
+        check=True,
+        capture_output=True,
+        timeout=180,
+    )
+    base = os.path.splitext(os.path.basename(docx_path))[0] + ".pdf"
+    return os.path.join(outdir, base)
+
+
+def render_docx(contexto, config) -> bytes:
+    """Gera o PDF a partir do template .docx (docxtpl) + LibreOffice.
+
+    Tags de texto: `{{nome}}`, `{{atividade}}`, `{{evento}}`, `{{carga_horaria}}`,
+    `{{data}}`, `{{local}}`. Tags de imagem: `{{qr}}`, `{{assinatura1}}`,
+    `{{assinatura2}}`. Tags de assinante: `{{assinante1}}`, `{{cargo_assinante1}}`.
+    """
+    import os
+    import tempfile
+
+    from docx.shared import Mm
+    from docxtpl import DocxTemplate, InlineImage
+
+    doc = DocxTemplate(config.template_docx.path)
+    ctx = dict(contexto)
+    ctx["qr"] = InlineImage(doc, io.BytesIO(_qr_png(contexto)), width=Mm(25))
+
+    for i, assinatura in enumerate(config.assinaturas.all(), start=1):
+        ctx[f"assinante{i}"] = assinatura.nome
+        ctx[f"cargo_assinante{i}"] = assinatura.cargo
+        if assinatura.imagem:
+            ctx[f"assinatura{i}"] = InlineImage(
+                doc, assinatura.imagem.path, height=Mm(12)
+            )
+
+    doc.render(ctx)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        docx_path = os.path.join(tmp, "certificado.docx")
+        doc.save(docx_path)
+        pdf_path = _docx_para_pdf(docx_path, tmp)
+        with open(pdf_path, "rb") as arquivo:
+            return arquivo.read()
+
+
+def render_pdf(contexto, config) -> bytes:
+    """Despacha o render pelo modo escolhido (fundo ou .docx)."""
+    from .models import ConfiguracaoCertificado
+
+    modo = getattr(config, "modo_layout", ConfiguracaoCertificado.MODO_FUNDO)
+    if modo == ConfiguracaoCertificado.MODO_DOCX and getattr(config, "template_docx", None):
+        return render_docx(contexto, config)
+    return _render_fundo(contexto, config)
 
 
 def gerar_certificado(participante, *, atividade=None, evento=None, config=None):
