@@ -81,6 +81,12 @@ Bootstrap.
         </a>
         {% endif %}
 
+        {% if request.user.is_staff %}
+        <a class="menu-usuario-item" href="{% url 'admin:index' %}" target="_blank" rel="noopener">
+            <i class="fa-solid fa-gear"></i> Admin
+        </a>
+        {% endif %}
+
         <button type="button" class="menu-usuario-item" data-menu-perfil
                 data-perfil-url="{% if request.user.is_participante and not request.user.is_organizador %}{% url 'participante:dashboard' %}{% elif request.user.is_organizador and not request.user.is_participante %}{% url 'organizador:dashboard' %}{% elif request.user.is_equipe and not request.user.is_participante and not request.user.is_organizador %}{% url 'apoio:dashboard' %}{% else %}{% if request.resolver_match.namespace == 'organizador' %}{% url 'organizador:dashboard' %}{% elif request.resolver_match.namespace == 'apoio' %}{% url 'apoio:dashboard' %}{% else %}{% url 'participante:dashboard' %}{% endif %}{% endif %}">
             <i class="fa-solid fa-user-pen"></i> Meu perfil

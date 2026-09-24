@@ -25,6 +25,11 @@ class AvatarSuperuserTests(TestCase):
         self.comum = U.objects.create_user(
             email="com_ava@example.com", password=SENHA, cpf="11144477735"
         )
+        # is_staff sem ser superusuário: deve ver o link do /admin.
+        self.staff = U.objects.create_user(
+            email="staff_ava@example.com", password=SENHA, cpf="52998224725",
+            is_staff=True,
+        )
 
     def _html(self, user):
         self.client.force_login(user)
@@ -43,6 +48,18 @@ class AvatarSuperuserTests(TestCase):
         html = self._html(self.comum)
         self.assertNotIn('is-superuser', html)
         self.assertNotIn('menu-usuario-badge', html)
+
+    def test_superusuario_tem_link_admin(self):
+        html = self._html(self.super)
+        self.assertIn('href="/admin/"', html)
+
+    def test_staff_tem_link_admin(self):
+        html = self._html(self.staff)
+        self.assertIn('href="/admin/"', html)
+        self.assertIn('target="_blank"', html)
+
+    def test_usuario_comum_nao_tem_link_admin(self):
+        self.assertNotIn('href="/admin/"', self._html(self.comum))
 
 
 class EquipeApoioNoDashboardTests(TestCase):
