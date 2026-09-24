@@ -52,8 +52,7 @@ admin é **somente leitura**.
 ## API (agentes e integrações)
 
 Somente leitura, em `/api/v1/auditoria/` (token como no resto da API — ver
-`API.md`). Escopo: staff/superuser veem tudo; demais organizadores, só os seus
-eventos/ações.
+`API.md`). **Acesso restrito ao superusuário (admin)**.
 
 - Lista paginada com filtros `acao`, `entidade`, `origem`, `evento`, `usuario`,
   `objeto_id`, `desde`, `ate` e `search`.
@@ -63,7 +62,7 @@ eventos/ações.
 
 ## Agente interno (AuditorIA)
 
-Página em **`/organizador/auditoria/`** (organizador/staff; item "Auditoria" no
+Página em **`/organizador/auditoria/`** (**superusuário**; item "Auditoria" no
 menu do usuário): você pergunta em linguagem natural e o agente responde.
 
 Como funciona (`eventos/auditor_ia.py`), **sem text-to-SQL**:

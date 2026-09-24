@@ -252,8 +252,8 @@ publica na programação. Rejeitar exige `{"motivo": "..."}`.
 
 ### Auditoria (trilha de ações)
 
-Somente leitura, para organizadores/staff. Registra **quem fez o quê, quando e
-onde** (ver `AUDITORIA.md`). O e-mail do usuário vem **mascarado**.
+Somente leitura, **restrita ao superusuário (admin)**. Registra **quem fez o
+quê, quando e onde** (ver `AUDITORIA.md`). O e-mail do usuário vem **mascarado**.
 
 ```bash
 GET /api/v1/auditoria/                        # lista paginada (50/página)
@@ -266,8 +266,7 @@ Filtros: `acao`, `entidade`, `origem`, `evento`, `usuario`, `objeto_id`,
 `desde`, `ate` (ISO) e `search` (resumo/objeto/usuário). O `resumo` aceita os
 mesmos filtros — **para um agente de IA, prefira `resumo`** (poucos tokens).
 
-Escopo: staff/superuser veem tudo; os demais organizadores veem apenas o que se
-refere aos seus eventos ou às próprias ações.
+Acesso restrito ao **superusuário** (admin).
 
 ## Fluxo completo da chamada (exemplo)
 

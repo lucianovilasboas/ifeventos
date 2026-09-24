@@ -1257,9 +1257,12 @@ class FundoCertificadoRemoverView(LoginRequiredMixin, View):
 
 @login_required(login_url="/accounts/login/")
 def auditoria_agente(request):
-    """Página do agente "AuditorIA" (perguntas sobre o histórico de ações)."""
-    if not _pode_gerir_assinantes(request.user):
-        raise PermissionDenied("Área restrita a organizadores.")
+    """Página do agente "AuditorIA" (perguntas sobre o histórico de ações).
+
+    Restrita ao **superusuário** (admin): a trilha tem dados sensíveis.
+    """
+    if not request.user.is_superuser:
+        raise PermissionDenied("Área restrita ao superusuário.")
     return render(request, "organizador/auditoria.html", {})
 
 
@@ -1277,8 +1280,8 @@ def auditoria_responder(request):
 
     if request.method != "POST":
         return JsonResponse({"erro": "Método não permitido"}, status=405)
-    if not _pode_gerir_assinantes(request.user):
-        return JsonResponse({"erro": "Área restrita a organizadores."}, status=403)
+    if not request.user.is_superuser:
+        return JsonResponse({"erro": "Área restrita ao superusuário."}, status=403)
     try:
         dados = json.loads(request.body.decode("utf-8"))
     except Exception:

@@ -1,4 +1,4 @@
-"""Testes da API da trilha de auditoria (/api/v1/auditoria/)."""
+"""Testes da API da trilha de auditoria (/api/v1/auditoria/) — superusuário."""
 
 from datetime import date
 
@@ -25,31 +25,35 @@ def _evento(organizador, **kwargs):
 
 class AuditoriaApiTests(TestCase):
     def setUp(self):
+        self.admin = U.objects.create_user(
+            email="admin@audapi.test", password=SENHA,
+            is_superuser=True, is_staff=True,
+        )
         self.org = U.objects.create_user(
             email="org@audapi.test", password=SENHA, is_organizador=True
-        )
-        self.outro_org = U.objects.create_user(
-            email="outro@audapi.test", password=SENHA, is_organizador=True
         )
         self.participante = U.objects.create_user(
             email="part@audapi.test", password=SENHA
         )
         self.evento = _evento(self.org, title="Meu evento")  # gera linha "criar"
-        self.evento_outro = _evento(self.outro_org, title="Evento alheio")
         self.client = APIClient()
+
+    def test_organizador_recebe_403(self):
+        self.client.force_authenticate(user=self.org)
+        self.assertEqual(self.client.get(LISTA).status_code, 403)
 
     def test_participante_recebe_403(self):
         self.client.force_authenticate(user=self.participante)
         self.assertEqual(self.client.get(LISTA).status_code, 403)
 
-    def test_organizador_lista(self):
-        self.client.force_authenticate(user=self.org)
+    def test_superuser_lista(self):
+        self.client.force_authenticate(user=self.admin)
         resposta = self.client.get(LISTA)
         self.assertEqual(resposta.status_code, 200)
         self.assertIn("results", resposta.json())
 
     def test_filtro_por_entidade(self):
-        self.client.force_authenticate(user=self.org)
+        self.client.force_authenticate(user=self.admin)
         resposta = self.client.get(LISTA, {"entidade": "Evento"})
         self.assertEqual(resposta.status_code, 200)
         linha = next(
@@ -58,19 +62,12 @@ class AuditoriaApiTests(TestCase):
         )
         self.assertEqual(linha["acao"], "criar")
 
-    def test_escopo_nao_mostra_evento_alheio(self):
-        self.client.force_authenticate(user=self.org)
-        resposta = self.client.get(LISTA, {"entidade": "Evento"})
-        ids = {str(r["objeto_id"]) for r in resposta.json()["results"]}
-        self.assertIn(str(self.evento.id), ids)
-        self.assertNotIn(str(self.evento_outro.id), ids)
-
     def test_email_mascarado(self):
         RegistroAuditoria.objects.create(
             acao="criar", entidade="Evento", objeto_id="x",
             usuario=self.org, usuario_email=self.org.email,
         )
-        self.client.force_authenticate(user=self.org)
+        self.client.force_authenticate(user=self.admin)
         resposta = self.client.get(LISTA)
         emails = {r["usuario_email"] for r in resposta.json()["results"] if r["usuario_email"]}
         self.assertTrue(emails)
@@ -78,7 +75,7 @@ class AuditoriaApiTests(TestCase):
             self.assertIn("***", email)
 
     def test_resumo_agrega(self):
-        self.client.force_authenticate(user=self.org)
+        self.client.force_authenticate(user=self.admin)
         resposta = self.client.get(RESUMO)
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
@@ -87,7 +84,7 @@ class AuditoriaApiTests(TestCase):
         self.assertTrue(dados["por_dia"])
 
     def test_filtro_desde(self):
-        self.client.force_authenticate(user=self.org)
+        self.client.force_authenticate(user=self.admin)
         resposta = self.client.get(LISTA, {"desde": "2000-01-01"})
         self.assertEqual(resposta.status_code, 200)
         resposta = self.client.get(LISTA, {"desde": "2999-01-01"})

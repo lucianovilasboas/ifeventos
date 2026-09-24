@@ -75,7 +75,7 @@ Bootstrap.
             <i class="fa-solid fa-id-card"></i> Crachás
         </a>
 
-        {% if request.user.is_organizador or request.user.is_staff or request.user.is_superuser %}
+        {% if request.user.is_superuser %}
         <a class="menu-usuario-item" href="{% url 'organizador:auditoria' %}">
             <i class="fa-solid fa-magnifying-glass-chart"></i> Auditoria
         </a>

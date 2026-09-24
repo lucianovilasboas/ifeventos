@@ -116,3 +116,10 @@ class PodeLerPresencas(BasePermission):
             or getattr(user, "is_organizador", False)
             or getattr(user, "is_equipe", False)
         )
+
+class IsSuperuser(BasePermission):
+    """Exige superusuário (admin). Usada na trilha de auditoria."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user.is_authenticated and user.is_superuser)

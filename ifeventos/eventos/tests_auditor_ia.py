@@ -140,12 +140,19 @@ class ResponderTests(TestCase):
 class PaginaAuditoriaTests(TestCase):
     URL = "/organizador/auditoria/"
 
-    def test_organizador_acessa(self):
+    def test_superuser_acessa(self):
+        admin = U.objects.create_user(
+            email="adm@ia.test", password=SENHA, is_superuser=True, is_staff=True
+        )
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(self.URL).status_code, 200)
+
+    def test_organizador_bloqueado(self):
         org = U.objects.create_user(
             email="pg@ia.test", password=SENHA, is_organizador=True
         )
         self.client.force_login(org)
-        self.assertEqual(self.client.get(self.URL).status_code, 200)
+        self.assertEqual(self.client.get(self.URL).status_code, 403)
 
     def test_participante_bloqueado(self):
         part = U.objects.create_user(email="pgp@ia.test", password=SENHA)
@@ -153,10 +160,10 @@ class PaginaAuditoriaTests(TestCase):
         self.assertEqual(self.client.get(self.URL).status_code, 403)
 
     def test_endpoint_responder(self):
-        org = U.objects.create_user(
-            email="resp@ia.test", password=SENHA, is_organizador=True
+        admin = U.objects.create_user(
+            email="resp@ia.test", password=SENHA, is_superuser=True, is_staff=True
         )
-        self.client.force_login(org)
+        self.client.force_login(admin)
         spec = json.dumps({"filtros": {"acao": "criar"}, "agrupar_por": "acao"})
         with mock.patch.object(
             auditor_ia.services,

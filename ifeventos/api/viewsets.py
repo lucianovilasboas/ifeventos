@@ -54,6 +54,7 @@ from .permissions import (
     IsDonoOuOrganizador,
     IsOrganizador,
     IsOrganizadorEstrito,
+    IsSuperuser,
     PodeLerPresencas,
 )
 from .serializers import (
@@ -1086,13 +1087,12 @@ class RegistroAuditoriaViewSet(viewsets.ReadOnlyModelViewSet):
     usuário). A ação `resumo` devolve contagens agregadas (poucos tokens para
     um agente de IA).
 
-    Escopo: staff/superuser veem tudo; demais organizadores veem apenas o que
-    se refere aos seus eventos ou às próprias ações.
+    Acesso restrito ao **superusuário** (admin).
     """
 
     queryset = RegistroAuditoria.objects.none()  # tipa o `{id}` na doc
     serializer_class = RegistroAuditoriaSerializer
-    permission_classes = [IsOrganizadorEstrito]
+    permission_classes = [IsSuperuser]
     search_fields = [
         "usuario_nome", "usuario_email", "resumo", "objeto_repr", "objeto_id",
     ]
