@@ -83,6 +83,44 @@
         {% csrf_token %}
 
         <div class="app-panel p-3 mb-3">
+            <h6 class="mb-3">Layout</h6>
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="{{ form.modo_layout.id_for_label }}">Formato</label>
+                    {{ form.modo_layout }}
+                </div>
+            </div>
+
+            <div class="mt-3" data-modo="texto">
+                <div class="alert alert-light border mb-0 small">
+                    <i class="fa-solid fa-align-left"></i>
+                    Você escreve o texto abaixo e o sistema monta o certificado (com o QR e as
+                    assinaturas escolhidas).
+                </div>
+            </div>
+
+            <div class="mt-3 d-none" data-modo="fundo">
+                <label class="form-label" for="{{ form.layout_fundo.id_for_label }}">Imagem de fundo (PNG/JPG)</label>
+                {{ form.layout_fundo }}
+                <div class="form-text">O texto e as assinaturas são desenhados por cima da imagem.</div>
+            </div>
+
+            <div class="mt-3 d-none" data-modo="docx">
+                <label class="form-label" for="{{ form.template_docx.id_for_label }}">Modelo .docx</label>
+                {{ form.template_docx }}
+                <div class="form-text">
+                    O conteúdo e as assinaturas ficam dentro do arquivo. Tags disponíveis:
+                    <code>&#123;&#123;nome&#125;&#125;</code>, <code>&#123;&#123;tipo_atividade&#125;&#125;</code>,
+                    <code>&#123;&#123;atividade&#125;&#125;</code>, <code>&#123;&#123;evento&#125;&#125;</code>,
+                    <code>&#123;&#123;carga_horaria&#125;&#125;</code>,
+                    <code>&#123;&#123;percentual_participacao&#125;&#125;</code>,
+                    <code>&#123;&#123;percentual_minimo&#125;&#125;</code>,
+                    <code>&#123;&#123;qr&#125;&#125;</code>, <code>&#123;&#123;qr_url&#125;&#125;</code>.
+                </div>
+            </div>
+        </div>
+
+        <div class="app-panel p-3 mb-3" data-modo="texto fundo">
             <h6 class="mb-3">Conteúdo</h6>
             <div class="row g-3">
                 <div class="col-12 col-md-8">
@@ -101,49 +139,13 @@
             </div>
         </div>
 
-        <div class="app-panel p-3 mb-3">
-            <h6 class="mb-3">Aparência</h6>
-            <div class="row g-3">
-                <div class="col-12 col-md-4">
-                    <label class="form-label" for="{{ form.modo_layout.id_for_label }}">Layout</label>
-                    {{ form.modo_layout }}
-                </div>
-            </div>
-
-            <div class="mt-3" data-modo="texto">
-                <div class="alert alert-light border mb-0 small">
-                    <i class="fa-solid fa-align-left"></i>
-                    O texto acima é impresso sobre o <b>fundo padrão</b> do sistema, com o QR de
-                    verificação e as assinaturas escolhidas.
-                </div>
-            </div>
-
-            <div class="mt-3 d-none" data-modo="fundo">
-                <label class="form-label" for="{{ form.layout_fundo.id_for_label }}">Imagem de fundo (PNG/JPG)</label>
-                {{ form.layout_fundo }}
-                <div class="form-text">
-                    O texto, as assinaturas e o QR são desenhados por cima da imagem.
-                </div>
-            </div>
-
-            <div class="mt-3 d-none" data-modo="docx">
-                <label class="form-label" for="{{ form.template_docx.id_for_label }}">Modelo .docx</label>
-                {{ form.template_docx }}
-                <div class="form-text">
-                    Documento do Word com as tags (ex.: <code>&#123;&#123;nome&#125;&#125;</code>,
-                    <code>&#123;&#123;atividade&#125;&#125;</code>, <code>&#123;&#123;qr&#125;&#125;</code>). O layout é livre.
-                </div>
-            </div>
-        </div>
-
-        <div class="app-panel p-3 mb-3">
+        <div class="app-panel p-3 mb-3" data-modo="texto fundo">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">Assinaturas (até 2)</h6>
                 <a href="{% url 'organizador:assinantes' %}" class="btn btn-sm btn-outline-secondary">
                     <i class="fa-solid fa-users"></i> Catálogo de assinantes
                 </a>
             </div>
-
             {% if assinantes %}
             <div class="row g-2">
                 {% for assinante in assinantes %}
@@ -180,11 +182,14 @@
         <div class="app-panel p-3 mb-3">
             <h6 class="mb-3">Regras e entrega</h6>
             <div class="row g-3">
+                {% if form.carga_horaria_padrao %}
                 <div class="col-6 col-md-3">
                     <label class="form-label" for="{{ form.carga_horaria_padrao.id_for_label }}">Carga horária padrão (h)</label>
                     {{ form.carga_horaria_padrao }}
+                    <div class="form-text">Vazio = calcula pelo horário da atividade.</div>
                 </div>
-                {% if escopo == 'evento' %}
+                {% endif %}
+                {% if form.percentual %}
                 <div class="col-6 col-md-3">
                     <label class="form-label" for="{{ form.percentual.id_for_label }}">Presença mínima (%)</label>
                     {{ form.percentual }}
@@ -265,7 +270,8 @@
     if (!sel) return;
     function atualizar() {
         document.querySelectorAll("[data-modo]").forEach(function (el) {
-            el.classList.toggle("d-none", el.getAttribute("data-modo") !== sel.value);
+            var modos = (el.getAttribute("data-modo") || "").split(/\s+/);
+            el.classList.toggle("d-none", modos.indexOf(sel.value) === -1);
         });
     }
     sel.addEventListener("change", atualizar);

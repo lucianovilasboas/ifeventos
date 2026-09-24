@@ -346,3 +346,74 @@ class AtividadeOverrideTests(TestCase):
         )
         self.assertEqual(r.status_code, 200)
         self.assertIn(self.atividade.titulo, r.content.decode("utf-8", "ignore"))
+
+
+class CargaHorariaTests(TestCase):
+    def setUp(self):
+        self.dono = U.objects.create_user(
+            email="carga@cert.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+
+    def test_carga_calculada_pelo_horario(self):
+        a = _atividade(self.evento)  # 10:00–11:00
+        ctx = certificados.contexto_certificado(self.dono, atividade=a, evento=self.evento)
+        self.assertEqual(ctx["carga_horaria"], "1h")
+
+    def test_carga_com_minutos(self):
+        a = _atividade(
+            self.evento,
+            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 11, 30, tzinfo=tz.utc),
+        )
+        ctx = certificados.contexto_certificado(self.dono, atividade=a, evento=self.evento)
+        self.assertEqual(ctx["carga_horaria"], "1h30")
+
+    def test_campo_explicito_vence(self):
+        a = _atividade(self.evento, carga_horaria=4)
+        ctx = certificados.contexto_certificado(self.dono, atividade=a, evento=self.evento)
+        self.assertEqual(ctx["carga_horaria"], "4h")
+
+    def test_evento_sem_carga_horaria(self):
+        ctx = certificados.contexto_certificado(self.dono, evento=self.evento)
+        self.assertEqual(ctx["carga_horaria"], "")
+
+
+class PercentualTests(TestCase):
+    def setUp(self):
+        self.dono = U.objects.create_user(
+            email="perc@cert.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+        self.pessoa = U.objects.create_user(email="alunoP@cert.test", password=SENHA)
+
+    def test_percentual_atingido_e_minimo(self):
+        a1 = _atividade(self.evento, titulo="A1")
+        a2 = _atividade(self.evento, titulo="A2")
+        _atividade(self.evento, titulo="A3")
+        _atividade(self.evento, titulo="A4")
+        Presenca.objects.create(atividade=a1, participante=self.pessoa)
+        Presenca.objects.create(atividade=a2, participante=self.pessoa)
+        self.assertEqual(certificados.percentual_participacao(self.pessoa, self.evento), 50)
+        ctx = certificados.contexto_certificado(self.pessoa, evento=self.evento)
+        self.assertEqual(ctx["percentual_participacao"], "50%")
+        self.assertEqual(ctx["percentual_minimo"], "75%")
+
+    def test_atividade_sem_percentual(self):
+        a = _atividade(self.evento)
+        ctx = certificados.contexto_certificado(self.pessoa, atividade=a, evento=self.evento)
+        self.assertEqual(ctx["percentual_participacao"], "")
+        self.assertEqual(ctx["percentual_minimo"], "")
+
+
+class FormEscopoTests(TestCase):
+    def test_campos_por_escopo(self):
+        from eventos.forms import ConfiguracaoCertificadoForm
+
+        evento = ConfiguracaoCertificadoForm(escopo="evento")
+        self.assertNotIn("carga_horaria_padrao", evento.fields)
+        self.assertIn("percentual", evento.fields)
+
+        atividade = ConfiguracaoCertificadoForm(escopo="atividade")
+        self.assertIn("carga_horaria_padrao", atividade.fields)
+        self.assertNotIn("percentual", atividade.fields)

@@ -724,6 +724,10 @@ CORPO_PADRAO = (
     'Certificamos que {{nome}} participou da {{tipo_atividade}} "{{atividade}}", '
     "no evento {{evento}}, com carga horária de {{carga_horaria}}."
 )
+CORPO_PADRAO_EVENTO = (
+    "Certificamos que {{nome}} participou do evento {{evento}}, com participação "
+    "de {{percentual_participacao}} (mínimo de {{percentual_minimo}})."
+)
 
 
 class ConfiguracaoCertificadoForm(forms.ModelForm):
@@ -735,8 +739,9 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 6}),
         help_text=(
             "Variáveis: {{nome}}, {{tipo_atividade}}, {{atividade}}, {{evento}}, "
-            "{{carga_horaria}}, {{data}}, {{local}}. No modo .docx também valem "
-            "{{qr}}, {{assinatura1}} e {{assinatura2}}."
+            "{{carga_horaria}} (atividade), {{percentual_participacao}} e "
+            "{{percentual_minimo}} (evento), {{data}}, {{local}}. No modo .docx "
+            "também valem {{qr}}, {{qr_url}}, {{assinatura1}} e {{assinatura2}}."
         ),
     )
     assinantes_escolhidos = forms.ModelMultipleChoiceField(
@@ -776,8 +781,13 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
             "enviar_email": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, escopo=None, **kwargs):
         super().__init__(*args, **kwargs)
+        # Regras por escopo: evento não tem carga horária; atividade não tem percentual.
+        if escopo == "evento":
+            self.fields.pop("carga_horaria_padrao", None)
+        elif escopo in ("atividade", "atividades"):
+            self.fields.pop("percentual", None)
         self.fields["assinantes_escolhidos"].queryset = Assinante.objects.filter(ativo=True)
         if self.instance and self.instance.pk:
             self.fields["assinantes_escolhidos"].initial = list(

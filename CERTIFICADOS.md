@@ -17,21 +17,33 @@ fica em `/organizador/assinantes/` (organizador e staff).
 
 ## O que se configura
 
-- **Conteúdo**: título, corpo e rodapé. O corpo aceita variáveis entre `{{ }}`.
-- **Aparência** (um modo):
-  - **Só texto** — o texto é impresso no fundo padrão do sistema.
-  - **Imagem de fundo** — envie uma imagem (PNG/JPG); o texto, as assinaturas e o
-    QR são desenhados por cima.
-  - **Modelo `.docx`** — envie um documento do Word com as tags; o layout é livre.
-    Requer LibreOffice no servidor (já previsto no `Dockerfile`).
-- **Assinaturas (1 ou 2)**: escolhidas do **catálogo**. A imagem do assinante é
-  copiada para o certificado (snapshot), então trocar o catálogo depois não muda
-  certificados já configurados.
-- **Carga horária**: por atividade; se vazia, a da configuração, senão a do evento.
-- **Presença mínima (%)** (só na config do evento): quanto o aluno precisa
-  comparecer, entre as atividades que **emitem certificado**, para ganhar o
-  certificado do evento. Padrão 75%.
-- **Enviar por e-mail**: manda o PDF em anexo ao participante.
+A tela começa pelo **Layout** e mostra **só o que ele usa**:
+
+- **Só texto** — você escreve o conteúdo (título, texto, rodapé) e escolhe as
+  assinaturas; o sistema monta o certificado no fundo padrão.
+- **Imagem de fundo** — você envia uma imagem (PNG/JPG); o texto e as
+  assinaturas são desenhados por cima.
+- **Modelo `.docx`** — você envia um documento do Word com as tags. **O conteúdo
+  e as assinaturas ficam dentro do arquivo** (por isso a tela não mostra os
+  campos de texto nem a lista de assinaturas). Requer LibreOffice no servidor
+  (já previsto no `Dockerfile`).
+
+Comuns a todos os escopos:
+
+- **Assinaturas (1 ou 2)** — nos modos **só texto** e **imagem de fundo**:
+  escolhidas do **catálogo**. A imagem do assinante é copiada (snapshot), então
+  trocar o catálogo depois não muda certificados já configurados.
+- **Enviar por e-mail** — manda o PDF em anexo ao participante.
+
+Por **escopo** (aba):
+
+- **Evento**: **presença mínima (%)** — quanto o aluno precisa comparecer, entre
+  as atividades que **emitem certificado**, para ganhar o certificado do evento
+  (padrão 75%). **Não há carga horária no certificado do evento** (o texto usa o
+  percentual de participação).
+- **Atividade**: **carga horária padrão** (opcional). Sem ela, a carga é
+  calculada pela **diferença entre o horário final e o inicial** da atividade
+  (`2h`, `2h30`, `45min`).
 
 ## Variáveis do texto/template
 
@@ -42,16 +54,20 @@ fica em `/organizador/assinantes/` (organizador e staff).
 | `{{tipo_atividade}}` | tipo da atividade (ex.: Oficina) |
 | `{{atividade}}` | título da atividade (vazio no certificado do evento) |
 | `{{evento}}` | título do evento |
-| `{{carga_horaria}}` | ex.: `8h` |
+| `{{carga_horaria}}` | carga da atividade (`2h`, `1h30`…) — **vazio no evento** |
+| `{{percentual_participacao}}` | % que a pessoa atingiu no evento (ex.: `80%`) — só no evento |
+| `{{percentual_minimo}}` | % exigido pelo evento (ex.: `75%`) — só no evento |
 | `{{data}}` | data de emissão (`dd/mm/aaaa`) |
 | `{{local}}` | local da atividade ou do evento |
 | `{{qr}}` | imagem do QR de verificação (só no modo `.docx`) |
+| `{{qr_url}}` | URL de verificação (texto) — só no modo `.docx` |
 | `{{assinatura1}}` / `{{assinatura2}}` | imagem da assinatura (só no modo `.docx`) |
 | `{{assinante1}}` / `{{cargo_assinante1}}` | nome/cargo do assinante (e 2) |
 
 No modo **só texto** e **imagem de fundo**, use as variáveis de texto (o QR e as
-assinaturas são desenhados automaticamente). No modo **`.docx`**, todas funcionam,
-inclusive as imagens.
+assinaturas são desenhados automaticamente; o QR sai com a **URL de confirmação
+logo abaixo, clicável**). No modo **`.docx`**, todas funcionam, inclusive as
+imagens.
 
 ## Elegibilidade
 

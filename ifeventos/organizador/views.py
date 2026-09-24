@@ -17,6 +17,7 @@ from eventos.forms import EventoForm, PalestranteForm, TipoAtividadeForm
 from eventos.forms import ChamadaProposicoesForm, EspacoForm, GradeVagasForm, VagaForm
 from eventos.forms import (
     CORPO_PADRAO,
+    CORPO_PADRAO_EVENTO,
     AssinanteForm,
     ConfiguracaoCertificadoForm,
 )
@@ -845,8 +846,9 @@ class CertificadoConfigView(LoginRequiredMixin, View):
             evento=evento, atividade__isnull=True, escopo=escopo_db
         ).first()
         if config is None:
+            corpo = CORPO_PADRAO_EVENTO if escopo_db == ConfiguracaoCertificado.ESCOPO_EVENTO else CORPO_PADRAO
             config = ConfiguracaoCertificado.objects.create(
-                evento=evento, escopo=escopo_db, corpo=CORPO_PADRAO
+                evento=evento, escopo=escopo_db, corpo=corpo
             )
         return config
 
@@ -875,13 +877,15 @@ class CertificadoConfigView(LoginRequiredMixin, View):
     def get(self, request, evento_id, escopo="evento"):
         evento = self._get_evento(request, evento_id)
         config = self._get_config(evento, escopo)
-        form = ConfiguracaoCertificadoForm(instance=config)
+        form = ConfiguracaoCertificadoForm(instance=config, escopo=escopo)
         return render(request, self.template_name, self._contexto(evento, escopo, config, form))
 
     def post(self, request, evento_id, escopo="evento"):
         evento = self._get_evento(request, evento_id)
         config = self._get_config(evento, escopo)
-        form = ConfiguracaoCertificadoForm(request.POST, request.FILES, instance=config)
+        form = ConfiguracaoCertificadoForm(
+            request.POST, request.FILES, instance=config, escopo=escopo
+        )
         if form.is_valid():
             config = form.save()
             _sincronizar_assinaturas(
@@ -950,7 +954,7 @@ class CertificadoAtividadeView(LoginRequiredMixin, View):
     def get(self, request, atividade_id):
         atividade = self._get_atividade(request, atividade_id)
         config = getattr(atividade, "certificado_config", None)
-        form = ConfiguracaoCertificadoForm(instance=config) if config else None
+        form = ConfiguracaoCertificadoForm(instance=config, escopo="atividade") if config else None
         return render(request, self.template_name, self._contexto(atividade, config, form))
 
     def post(self, request, atividade_id):
@@ -981,7 +985,9 @@ class CertificadoAtividadeView(LoginRequiredMixin, View):
         config = getattr(atividade, "certificado_config", None)
         if config is None:
             return redirect("organizador:certificado_atividade", atividade.id)
-        form = ConfiguracaoCertificadoForm(request.POST, request.FILES, instance=config)
+        form = ConfiguracaoCertificadoForm(
+            request.POST, request.FILES, instance=config, escopo="atividade"
+        )
         if form.is_valid():
             config = form.save()
             _sincronizar_assinaturas(

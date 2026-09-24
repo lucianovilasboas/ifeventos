@@ -109,15 +109,72 @@ def participantes_do_evento(evento, config=None):
     return Participante.objects.filter(id__in=ids)
 
 
-def carga_horaria_efetiva(atividade, evento, config=None):
-    """Carga horária a imprimir: atividade → config → evento."""
-    if atividade is not None and atividade.carga_horaria:
-        return atividade.carga_horaria
+def percentual_participacao(participante, evento):
+    """Percentual do participante nas atividades do evento que emitem certificado.
+
+    Devolve um inteiro 0–100, ou None quando o evento não tem atividades que
+    emitem certificado.
+    """
+    atividades_ids = list(
+        evento.atividades.filter(emite_certificado=True).values_list("id", flat=True)
+    )
+    total = len(atividades_ids)
+    if total == 0:
+        return None
+
+    pres = set(
+        Presenca.objects.filter(
+            participante=participante, atividade_id__in=atividades_ids
+        ).values_list("atividade_id", flat=True)
+    )
+    insc = set(
+        Inscricao.objects.filter(
+            participante=participante,
+            atividade_id__in=atividades_ids,
+            confirmada=True,
+        ).values_list("atividade_id", flat=True)
+    )
+    feitas = len(pres | insc)
+    return round(feitas * 100 / total)
+
+
+def _minutos_efetivos(atividade, config=None):
+    """Minutos de carga horária: campo da atividade → fim−início → config.
+
+    O evento NÃO entra aqui de propósito: o certificado do evento não tem carga
+    horária (usa o percentual de participação).
+    """
+    if atividade is not None:
+        if atividade.carga_horaria:
+            return atividade.carga_horaria * 60
+        if atividade.data_hora_inicio and atividade.data_hora_fim:
+            delta = atividade.data_hora_fim - atividade.data_hora_inicio
+            minutos = int(delta.total_seconds() // 60)
+            if minutos > 0:
+                return minutos
     if config is not None and config.carga_horaria_padrao:
-        return config.carga_horaria_padrao
-    if evento is not None and evento.carga_horaria:
-        return evento.carga_horaria
+        return config.carga_horaria_padrao * 60
     return None
+
+
+def _formatar_carga(minutos):
+    """Formata minutos como '2h', '2h30' ou '45min'."""
+    if not minutos or minutos <= 0:
+        return ""
+    horas, resto = divmod(minutos, 60)
+    if horas and resto:
+        return f"{horas}h{resto:02d}"
+    if horas:
+        return f"{horas}h"
+    return f"{resto}min"
+
+
+def carga_horaria_efetiva(atividade, evento=None, config=None):
+    """Carga horária em horas inteiras (para o registro do Certificado)."""
+    minutos = _minutos_efetivos(atividade, config)
+    if minutos is None:
+        return None
+    return max(1, round(minutos / 60))
 
 
 # ---------------------------------------------------------------------------
@@ -186,13 +243,32 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
             atividade_id=getattr(atividade, "id", None),
         )
     )
-    horas = carga_horaria_efetiva(atividade, evento, config)
     tipo_atividade = ""
     if atividade is not None:
         if atividade.tipo_id:
             tipo_atividade = atividade.tipo.nome
         elif atividade.tipo_sugerido:
             tipo_atividade = atividade.tipo_sugerido
+
+    # Carga horária existe só no certificado de ATIVIDADE.
+    carga_horaria = ""
+    if atividade is not None:
+        carga_horaria = _formatar_carga(_minutos_efetivos(atividade, config))
+
+    # Percentual de participação existe só no certificado do EVENTO.
+    percentual_participacao_txt = ""
+    percentual_minimo_txt = ""
+    if atividade is None and evento is not None:
+        valor = percentual_participacao(participante, evento)
+        if valor is not None:
+            percentual_participacao_txt = f"{valor}%"
+        minimo = (
+            config.percentual_efetivo
+            if config is not None
+            else evento.percentual_certificado
+        )
+        percentual_minimo_txt = f"{minimo}%"
+
     return {
         "nome": participante.get_full_name(),
         "cpf": participante.cpf,
@@ -200,7 +276,9 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
         "tipo_atividade": tipo_atividade,
         "evento": evento.title if evento is not None else "",
         "local": (atividade.local if atividade is not None and atividade.local else (evento.local if evento else "")),
-        "carga_horaria": f"{horas}h" if horas else "",
+        "carga_horaria": carga_horaria,
+        "percentual_participacao": percentual_participacao_txt,
+        "percentual_minimo": percentual_minimo_txt,
         "data": timezone.localtime().strftime("%d/%m/%Y"),
         "qr_url": qr_url,
         "tipo": "atividade" if atividade is not None else "evento",
@@ -265,13 +343,31 @@ def _desenhar_fundo(c, config, width, height):
 
 
 def _desenhar_qr(c, contexto, width):
+    """QR maior + URL de confirmação logo abaixo (clicável)."""
     import qrcode
 
-    qr = qrcode.make(contexto.get("qr_url") or "")
+    url = contexto.get("qr_url") or ""
+    if not url:
+        return
+    qr = qrcode.make(url)
     buffer = io.BytesIO()
     qr.save(buffer, format="PNG")
     buffer.seek(0)
-    c.drawImage(ImageReader(buffer), width - 130, 40, width=90, height=90, mask="auto")
+
+    lado = 120
+    x = width - lado - 30
+    y = 60
+    c.drawImage(ImageReader(buffer), x, y, width=lado, height=lado, mask="auto")
+
+    # URL de confirmação abaixo do QR, clicável (confirma pelo link também).
+    c.setFont("Helvetica", 6.5)
+    c.setFillColor(_CINZA)
+    linhas = _quebrar(url, "Helvetica", 6.5, lado + 40, c)[:2]
+    y_texto = y - 9
+    for linha in linhas:
+        c.drawCentredString(x + lado / 2, y_texto, linha)
+        y_texto -= 8
+    c.linkURL(url, (x - 20, y_texto + 2, x + lado + 20, y + lado), relative=0)
 
 
 def _desenhar_assinaturas(c, assinaturas, width):

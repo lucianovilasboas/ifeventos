@@ -30,6 +30,15 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 - **Entrega** na área do participante **e** por **e-mail com o PDF anexo**
   (configurável por config).
 - **Pré-visualização** do certificado em PDF, por escopo (evento/atividades/atividade).
+- **Tela “layout-primeiro”**: escolhe-se o formato e a tela mostra **só os campos
+  que ele usa** (texto livre, imagem de fundo ou modelo `.docx`). No `.docx`, o
+  conteúdo e as assinaturas ficam no arquivo (a tela não os pede).
+- **Certificado do evento usa o percentual de participação** no texto
+  (`{{percentual_participacao}}`, ex. `80%`, e `{{percentual_minimo}}`) — **sem
+  carga horária** no evento. `{{carga_horaria}}` é do certificado de atividade e,
+  quando não informada, é **calculada pelo horário** (fim − início).
+- **QR maior** com a **URL de confirmação logo abaixo, clicável** (nos modos texto
+  e imagem); no `.docx`, `{{qr}}` (imagem) e `{{qr_url}}` (texto).
 
 ### Notas
 
