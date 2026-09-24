@@ -18,9 +18,13 @@
     <p><strong>Total de Inscrições:</strong> {{ total_inscricoes }} · <strong>Total de Confirmadas:</strong> {{ total_confirmadas }}</p>
 
     <div class="d-flex flex-wrap gap-2">
+        {% if atividade.encerrada %}
         <button class="btn btn-app" data-atividade="{{ atividade.id }}" id="btn-emitir-certificado">
             🎓 Emitir Certificados
         </button>
+        {% else %}
+        <span class="text-muted small align-self-center">A emissão fica disponível após o encerramento da atividade.</span>
+        {% endif %}
         <button class="btn btn-outline-secondary no-print" onclick="window.print()">🖨️ Imprimir Lista</button>
     </div>
     <div id="mensagem" class="mt-3"></div>
@@ -160,6 +164,10 @@
                 })
                 .then(response => response.json())
                 .then(data => {
+                    const falhas = data.falhas || [];
+                    if (falhas.length) {
+                        mensagem.innerHTML = `<div class='alert alert-danger'>⚠ ${falhas[0]}</div>`;
+                    }
                     if (data.certificados.length > 0) {
                         console.table(data.certificados);
                         mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${data.certificados.length} ${data.message}</div>`;
@@ -167,7 +175,7 @@
                         for (let certificadoId of data.certificados) {
                             setCertStatus(certificadoId, "✅ Sim");
                         }
-                    } else {
+                    } else if (!falhas.length) {
                         mensagem.innerHTML = `<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>`;
                     }
                 })

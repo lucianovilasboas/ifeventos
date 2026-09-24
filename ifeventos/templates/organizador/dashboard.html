@@ -202,6 +202,36 @@
                 el.hidden = !data.pendentes;
             });
         });
+
+        // Emitir o certificado do evento (quem cumpre o percentual mínimo).
+        document.querySelectorAll(".js-emitir-evento").forEach(function (button) {
+            button.addEventListener("click", function (e) {
+                e.preventDefault();
+                var url = this.getAttribute("data-url");
+                var nome = this.getAttribute("data-evento-nome") || "este evento";
+                if (!confirm("Emitir os certificados de " + nome + " agora?")) return;
+                message_("Gerando certificados...", "info");
+                fetch(url, {
+                    method: "POST",
+                    headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" }
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var falhas = data.falhas || [];
+                    if (falhas.length) {
+                        message_(falhas[0], "danger");
+                    } else if (data.certificados.length > 0) {
+                        message_("🎉 " + data.certificados.length + " " + data.message);
+                    } else {
+                        message_("Nenhum certificado foi gerado.", "warning");
+                    }
+                })
+                .catch(function (err) {
+                    console.error("Erro ao emitir certificados do evento:", err);
+                    message_("Erro ao emitir os certificados do evento.", "danger");
+                });
+            });
+        });
     });
 </script>
 {% endblock scripts %}

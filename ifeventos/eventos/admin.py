@@ -13,6 +13,9 @@ from .models import PresencaCancelada
 from .models import PalestranteSugerido
 from .models import PessoaRoster
 from .models import ContextoIA
+from .models import Assinante
+from .models import AssinaturaCertificado
+from .models import ConfiguracaoCertificado
 from django.utils.html import format_html
 from django.http import JsonResponse
 from django.urls import path
@@ -42,6 +45,10 @@ class EventoAdmin(admin.ModelAdmin):
     list_display = ('title', 'local','get_total_participantes','get_participantes', 'organizador', 'data_inicio', 'data_fim')
     date_hierarchy = ('data_inicio')
     ordering = ('data_inicio',)
+    search_fields = (
+        'title', 'description', 'local',
+        'organizador__first_name', 'organizador__last_name', 'organizador__email',
+    )
     # list_editable = ('description', 'local', 'data_inicio', 'data_fim')
 
 
@@ -82,6 +89,7 @@ class ParticipanteAdmin(admin.ModelAdmin):
 
     list_display = ( 'mostrar_foto', 'first_name','last_name','username', 'cpf', 'get_atividades_inscritas','is_active','is_staff', 'is_organizador', 'is_participante','is_palestrante')
     readonly_fields = ('mostrar_foto',)  # Exibir no detalhe do objeto
+    search_fields = ('first_name', 'last_name', 'email', 'cpf', 'username')
 
 
     def mostrar_foto(self, obj):
@@ -132,7 +140,7 @@ class AtividadeAdmin(admin.ModelAdmin):
 
     list_display = ('titulo', 'evento', 'situacao', 'proponente', 'codigo_confirmacao', 'get_palestrantes','get_participantes','vagas_disponiveis', 'tipo', 'n_vagas','data_hora_inicio','data_hora_inicio',)
     list_filter = ('evento', 'tipo', 'situacao', 'publicada', 'data_hora_inicio')
-    search_fields = ('titulo', 'descricao', 'tipo')
+    search_fields = ('titulo', 'descricao', 'tipo__nome')
     date_hierarchy = 'data_hora_inicio'
     ordering = ('data_hora_inicio',)
     filter_horizontal = ('palestrantes',)
@@ -194,7 +202,10 @@ class TipoAtividadeAdmin(admin.ModelAdmin):
 @admin.register(Inscricao)
 class InscricaoAdmin(admin.ModelAdmin):
     list_display = ('atividade','id', 'participante', 'confirmada','certificado_emitido', 'codigo_confirmacao','created_at', 'updated_at')
-    search_fields = ('participante', )
+    search_fields = (
+        'participante__first_name', 'participante__last_name',
+        'participante__email', 'participante__cpf', 'atividade__titulo',
+    )
     list_editable = ('participante', )
     list_filter = ('atividade', 'atividade__evento',)
 
@@ -223,9 +234,13 @@ class InscricaoAdmin(admin.ModelAdmin):
 
 @admin.register(Certificado)
 class CertificadoAdmin(admin.ModelAdmin):
-    list_display = ('participante', 'atividade', 'evento', 'data_emissao', 'codigo')
-    search_fields = ('participante', )
-    list_filter = ('atividade', 'atividade__evento',)
+    list_display = ('participante', 'tipo', 'atividade', 'evento', 'carga_horaria', 'data_emissao', 'codigo')
+    search_fields = (
+        'participante__first_name', 'participante__last_name',
+        'participante__email', 'participante__cpf',
+        'atividade__titulo', 'evento__title',
+    )
+    list_filter = ('tipo', 'atividade', 'atividade__evento',)
 
 
 @admin.register(PresencaCancelada)
@@ -412,5 +427,27 @@ class PalestranteSugeridoAdmin(admin.ModelAdmin):
     list_display = ("nome", "email", "atividade", "participante", "criado_em")
     list_filter = ("atividade__evento",)
     search_fields = ("nome", "email")
+
+
+@admin.register(Assinante)
+class AssinanteAdmin(admin.ModelAdmin):
+    list_display = ("nome", "cargo", "ativo", "criado_em")
+    list_filter = ("ativo",)
+    search_fields = ("nome", "cargo")
+
+
+class AssinaturaCertificadoInline(admin.TabularInline):
+    model = AssinaturaCertificado
+    extra = 1
+    max_num = 2
+    fields = ("ordem", "nome", "cargo", "imagem")
+
+
+@admin.register(ConfiguracaoCertificado)
+class ConfiguracaoCertificadoAdmin(admin.ModelAdmin):
+    list_display = ("evento", "escopo", "atividade", "modo_layout", "titulo", "enviar_email")
+    list_filter = ("escopo", "modo_layout", "enviar_email")
+    search_fields = ("evento__title", "atividade__titulo")
+    inlines = [AssinaturaCertificadoInline]
 
 

@@ -22,7 +22,7 @@
 
 {% block content %}
 <div class="app-list mb-3">
-    <div class="d-flex flex-wrap gap-2 align-items-center">
+    <div class="d-flex flex-wrap flex-lg-nowrap gap-2 align-items-center barra-acoes-evento">
         <a href="{% url 'organizador:criar_editar_atividade_criar' evento.id %}" class="btn btn-app">
             <i class="fa-solid fa-plus"></i> Criar Nova Atividade
         </a>
@@ -78,6 +78,9 @@
               action="{% url 'organizador:modelo_cracha_evento' evento.id %}" class="d-none">
             {% csrf_token %}
         </form>
+        <a href="{% url 'organizador:certificado_config' evento.id 'evento' %}" class="btn btn-outline-primary">
+            <i class="fa-solid fa-award"></i> Configurar certificados
+        </a>
     </div>
     <p class="text-muted small mb-0 mt-2">
         <i class="fa-solid fa-print"></i>
@@ -258,6 +261,7 @@
         const inscritos = data.n_inscricoes != null ? data.n_inscricoes : 0;
         const quando = data.quando || "";
         const certificado = !!data.emite_certificado;
+        const encerrada = data.data_hora_fim ? new Date(data.data_hora_fim) < new Date() : false;
         const t = esc(titulo), ty = esc(tipo);
         const tAttr = escAttr(titulo), q = esc(quando);
         const loc = esc(data.local || "");
@@ -287,7 +291,7 @@
                     <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" title="Lista de Presença" class="btn btn-success btn-sm"><i class="fa-solid fa-list-check"></i></a>
                     <a href="/eventos/gerar-qr-code-atividade/${id}/" title="QR Code de Confirmação de Presença" class="btn btn-dark btn-sm" target="_blank"><i class="fa-solid fa-qrcode"></i></a>
                     <span><i class="fa-solid fa-circle"></i></span>
-                    ${certificado ? `<button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
+                    ${certificado && encerrada ? `<button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
                 </td>`;
             tableBody.appendChild(newRow);
             reordenarTabela();   // a nova linha entra na posição certa
@@ -318,7 +322,7 @@
                         <a href="/organizador/excluir_atividade/${id}/" class="btn btn-sm btn-danger btn-icon" title="Excluir Atividade" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');"><i class="fa-solid fa-trash-can"></i></a>
                         <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" class="btn btn-sm btn-success btn-icon" title="Lista de Presença"><i class="fa-solid fa-list-check"></i></a>
                         <a href="/eventos/gerar-qr-code-atividade/${id}/" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de Confirmação de Presença"><i class="fa-solid fa-qrcode"></i></a>
-                        ${certificado ? `<button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
+                        ${certificado && encerrada ? `<button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
                     </div>
                 </div>`;
             cardList.appendChild(card);
@@ -395,11 +399,14 @@
                             })
                             .then(response => response.json())
                             .then(data => {
-                                
+                                const falhas = data.falhas || [];
+                                if (falhas.length) {
+                                    message_(falhas[0], "danger");
+                                }
                                 if (data.certificados.length > 0) {
                                     console.table(data.certificados);
                                     message_( `🎉 ${data.certificados.length} ${data.message}`  )
-                                } else {
+                                } else if (!falhas.length) {
                                     message_( "Nenhum certificado foi gerado.", "warning");                               }
                             })
                             .catch(error => {
@@ -410,7 +417,8 @@
 
                 });
             }
-            
+
+
             
 
 

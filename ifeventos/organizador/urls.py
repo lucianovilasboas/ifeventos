@@ -51,7 +51,11 @@ from organizador.views import (
 from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_categoria_ajax
 from .views import EmitirCertificadosAtividadeView
 from .views import EmitirCertificadosEventoView
+from .views import EmitirCertificadosTodasAtividadesView
 from .views import EmitirCertificadoInscricaoView
+from .views import CertificadoConfigView, CertificadoPreviewView
+from .views import CertificadoAtividadeView, CertificadoAtividadeUsarPadraoView
+from .views import AssinantesView, AssinanteRemoverView
 from .views import CheckinAtividadeView, CrachasEventoView, QrAtividadeView
 
 
@@ -154,6 +158,15 @@ urlpatterns = [
     path("emitir-certificado/inscricao/<int:inscricao_id>/", EmitirCertificadoInscricaoView.as_view(), name="emitir_certificado_inscricao"),
 
     path("emitir-certificados/evento/<int:evento_id>/", EmitirCertificadosEventoView.as_view(), name="emitir_certificados_evento"),
+    path("emitir-certificados/evento/<int:evento_id>/atividades/", EmitirCertificadosTodasAtividadesView.as_view(), name="emitir_certificados_todas_atividades"),
+
+    # Configuração do certificado (texto/layout/assinaturas) e catálogo
+    path("certificado/<int:evento_id>/config/<str:escopo>/", CertificadoConfigView.as_view(), name="certificado_config"),
+    path("certificado/atividade/<int:atividade_id>/", CertificadoAtividadeView.as_view(), name="certificado_atividade"),
+    path("certificado/atividade/<int:atividade_id>/usar-padrao/", CertificadoAtividadeUsarPadraoView.as_view(), name="certificado_atividade_usar_padrao"),
+    path("certificado/<int:evento_id>/preview/", CertificadoPreviewView.as_view(), name="certificado_preview"),
+    path("assinantes/", AssinantesView.as_view(), name="assinantes"),
+    path("assinantes/<int:assinante_id>/remover/", AssinanteRemoverView.as_view(), name="assinante_remover"),
 
     # -- Crachás --
     path("crachas/evento/<int:evento_id>/", CrachasEventoView.as_view(), name="crachas_evento"),

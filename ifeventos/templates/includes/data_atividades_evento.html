@@ -60,7 +60,7 @@
                 <a href="{% url 'organizador:checkin_atividade' atividade.id %}" class="btn btn-sm btn-outline-success btn-icon" title="Check-in lendo os crachás pela câmera">
                     <i class="fa-solid fa-camera"></i>
                 </a>
-                {% if atividade.emite_certificado %}
+                {% if atividade.emite_certificado and atividade.encerrada %}
                 <button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="{{ atividade.id }}">
                     🎓
                 </button>
@@ -135,7 +135,7 @@
                                 <i class="fa-solid fa-camera"></i>
                             </a>
                             <span><i class="fa-solid fa-circle"></i></span>
-                            {% if atividade.emite_certificado %}
+                            {% if atividade.emite_certificado and atividade.encerrada %}
                             <button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="{{ atividade.id }}">
                                 🎓
                             </button>

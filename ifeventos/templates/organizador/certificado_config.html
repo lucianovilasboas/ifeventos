@@ -1,0 +1,340 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}Certificado{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="fw-semibold">
+        <i class="fa-solid fa-award"></i>
+        {% if escopo == 'atividade' %}
+            Certificado — {{ atividade.titulo }}
+            <span class="text-muted small">({{ evento.title }})</span>
+        {% else %}
+            Certificado — {{ evento.title }}
+            <span class="text-muted small">
+                ({% if escopo == 'evento' %}do evento{% else %}padrão das atividades{% endif %})
+            </span>
+        {% endif %}
+    </span>
+    <div class="d-flex gap-2">
+        {% if escopo != 'atividade' or config %}
+        <a href="{% url 'organizador:certificado_preview' evento.id %}?escopo={{ escopo }}{% if escopo == 'atividade' %}&atividade={{ atividade.id }}{% endif %}"
+           target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="fa-solid fa-eye"></i> Pré-visualizar
+        </a>
+        {% endif %}
+        {% if escopo == 'atividade' %}
+        <a href="{% url 'organizador:certificado_config' evento.id 'atividades' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Padrão das atividades
+        </a>
+        {% else %}
+        <a href="{% url 'organizador:atividades_evento' evento.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="app-page mt-2">
+
+    {% if escopo != 'atividade' %}
+    <ul class="nav nav-pills mb-3">
+        <li class="nav-item">
+            <a class="nav-link {% if escopo == 'evento' %}active{% endif %}"
+               href="{% url 'organizador:certificado_config' evento.id 'evento' %}">
+                <i class="fa-solid fa-calendar-check"></i> Certificado do evento
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if escopo == 'atividades' %}active{% endif %}"
+               href="{% url 'organizador:certificado_config' evento.id 'atividades' %}">
+                <i class="fa-solid fa-list-check"></i> Padrão das atividades
+            </a>
+        </li>
+    </ul>
+    <p class="text-muted small">
+        {% if escopo == 'evento' %}
+        Usado no <b>certificado do evento</b> (quem cumpre o percentual mínimo de presença).
+        {% else %}
+        Usado nos <b>certificados das atividades</b> que não tiverem configuração própria
+        (veja a lista abaixo para personalizar uma atividade específica).
+        {% endif %}
+    </p>
+    {% endif %}
+
+    {% if escopo == 'atividade' and not config %}
+    <div class="app-panel p-3 mb-3">
+        <p class="mb-3">
+            Esta atividade <b>usa a configuração padrão das atividades</b> do evento.
+            Você pode manter assim ou criar uma configuração só para ela.
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="criar">
+            <button type="submit" class="btn btn-app">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Personalizar esta atividade
+            </button>
+        </form>
+    </div>
+    {% else %}
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="app-panel p-3 mb-3">
+            <h6 class="mb-3">Layout</h6>
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="{{ form.modo_layout.id_for_label }}">Formato</label>
+                    {{ form.modo_layout }}
+                </div>
+            </div>
+
+            <div class="mt-3" data-modo="texto">
+                <div class="alert alert-light border small">
+                    <i class="fa-solid fa-align-left"></i>
+                    Você escreve o texto abaixo e o sistema monta o certificado (com o QR e as
+                    assinaturas escolhidas). A imagem de fundo é <b>opcional</b>.
+                </div>
+                <label class="form-label" for="{{ form.layout_fundo.id_for_label }}">Imagem de fundo (opcional)</label>
+                {{ form.layout_fundo }}
+                <div class="form-text">
+                    Sem imagem, o certificado usa o fundo padrão. Com imagem, o texto e as
+                    assinaturas são desenhados por cima.
+                </div>
+            </div>
+
+            <div class="mt-3 d-none" data-modo="docx">
+                <label class="form-label" for="{{ form.template_docx.id_for_label }}">Modelo .docx</label>
+                {{ form.template_docx }}
+                <div class="form-text">
+                    O conteúdo e as assinaturas ficam dentro do arquivo. Tags disponíveis:
+                    <code>&#123;&#123;nome&#125;&#125;</code>, <code>&#123;&#123;tipo_atividade&#125;&#125;</code>,
+                    <code>&#123;&#123;atividade&#125;&#125;</code>, <code>&#123;&#123;evento&#125;&#125;</code>,
+                    <code>&#123;&#123;carga_horaria&#125;&#125;</code>,
+                    <code>&#123;&#123;percentual_participacao&#125;&#125;</code>,
+                    <code>&#123;&#123;percentual_minimo&#125;&#125;</code>,
+                    <code>&#123;&#123;qr&#125;&#125;</code>, <code>&#123;&#123;qr_url&#125;&#125;</code>.
+                </div>
+            </div>
+        </div>
+
+        <div class="app-panel p-3 mb-3" data-modo="texto">
+            <h6 class="mb-3">Conteúdo</h6>
+            <div class="row g-3">
+                <div class="col-12 col-md-8">
+                    <label class="form-label" for="{{ form.titulo.id_for_label }}">Título</label>
+                    {{ form.titulo }}
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="{{ form.rodape.id_for_label }}">Rodapé</label>
+                    {{ form.rodape }}
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="{{ form.corpo.id_for_label }}">Texto do certificado</label>
+                    {{ form.corpo }}
+                    <div class="form-text">{{ form.corpo.help_text }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="app-panel p-3 mb-3" data-modo="texto">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Assinaturas (até 2)</h6>
+                <a href="{% url 'organizador:assinantes' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa-solid fa-users"></i> Catálogo de assinantes
+                </a>
+            </div>
+            {% if assinantes %}
+            <div class="row g-2">
+                {% for assinante in assinantes %}
+                <div class="col-12 col-md-6">
+                    <label class="border rounded p-2 d-flex align-items-center gap-2 w-100 mb-0">
+                        <input type="checkbox" class="form-check-input mt-0"
+                               name="{{ form.assinantes_escolhidos.html_name }}"
+                               value="{{ assinante.id }}"
+                               {% if assinante.id|stringformat:"s" in selecionados %}checked{% endif %}>
+                        {% if assinante.imagem %}
+                        <img src="{{ assinante.imagem.url }}" alt="" style="height:32px">
+                        {% else %}
+                        <i class="fa-solid fa-signature text-muted"></i>
+                        {% endif %}
+                        <span>
+                            <b>{{ assinante.nome }}</b>
+                            {% if assinante.cargo %}<span class="text-muted small">— {{ assinante.cargo }}</span>{% endif %}
+                        </span>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">
+                Nenhum assinante no catálogo ainda.
+                <a href="{% url 'organizador:assinantes' %}">Cadastre um assinante</a>.
+            </p>
+            {% endif %}
+            {% if form.assinantes_escolhidos.errors %}
+            <div class="text-danger small mt-2">{{ form.assinantes_escolhidos.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="app-panel p-3 mb-3">
+            <h6 class="mb-3">Regras e entrega</h6>
+            <div class="row g-3">
+                {% if form.carga_horaria_padrao %}
+                <div class="col-6 col-md-3">
+                    <label class="form-label" for="{{ form.carga_horaria_padrao.id_for_label }}">Carga horária padrão (h)</label>
+                    {{ form.carga_horaria_padrao }}
+                    <div class="form-text">Vazio = calcula pelo horário da atividade.</div>
+                </div>
+                {% endif %}
+                {% if form.percentual %}
+                <div class="col-6 col-md-3">
+                    <label class="form-label" for="{{ form.percentual.id_for_label }}">Presença mínima (%)</label>
+                    {{ form.percentual }}
+                    <div class="form-text">Vazio = usa o do evento ({{ evento.percentual_certificado }}%).</div>
+                </div>
+                {% endif %}
+                <div class="col-12 col-md-3 d-flex align-items-end">
+                    <div class="form-check">
+                        {{ form.enviar_email }}
+                        <label class="form-check-label ms-1" for="{{ form.enviar_email.id_for_label }}">Enviar por e-mail</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-app">
+                <i class="fa-solid fa-floppy-disk"></i> Salvar
+            </button>
+            <a href="{% url 'organizador:certificado_preview' evento.id %}?escopo={{ escopo }}{% if escopo == 'atividade' %}&atividade={{ atividade.id }}{% endif %}"
+               target="_blank" class="btn btn-outline-secondary">Pré-visualizar</a>
+        </div>
+    </form>
+
+    {% if escopo == 'evento' or escopo == 'atividades' %}
+    <div class="app-panel p-3 mt-3">
+        <h6 class="mb-2">Emitir</h6>
+        <p class="text-muted small mb-2">
+            {% if escopo == 'evento' %}
+            Gera o certificado <b>do evento</b> para quem cumpre o percentual mínimo.
+            {% else %}
+            Gera os certificados de <b>todas as atividades</b> que emitem certificado.
+            {% endif %}
+            O e-mail sai conforme a opção “Enviar por e-mail” desta configuração.
+        </p>
+        {% if evento.encerrado %}
+        <button type="button" class="btn btn-app" id="btn-emitir-certificados">
+            <i class="fa-solid fa-certificate"></i>
+            {% if escopo == 'evento' %}Emitir certificados do evento{% else %}Emitir certificados de todas as atividades{% endif %}
+        </button>
+        <div id="msg-emitir" class="mt-2"></div>
+        {% else %}
+        <p class="text-muted small mb-0">
+            <i class="fa-regular fa-clock"></i>
+            A emissão fica disponível após o encerramento do evento.
+        </p>
+        {% endif %}
+    </div>
+    {% if evento.encerrado %}
+    <script>
+    (function () {
+        var btn = document.getElementById("btn-emitir-certificados");
+        if (!btn) return;
+        var url = "{% if escopo == 'evento' %}{% url 'organizador:emitir_certificados_evento' evento.id %}{% else %}{% url 'organizador:emitir_certificados_todas_atividades' evento.id %}{% endif %}";
+        var msg = document.getElementById("msg-emitir");
+        btn.addEventListener("click", function () {
+            if (!confirm("Emitir os certificados agora?")) return;
+            msg.innerHTML = "<div class='alert alert-info'>Gerando certificados...</div>";
+            fetch(url, {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var falhas = data.falhas || [];
+                if (falhas.length) {
+                    msg.innerHTML = "<div class='alert alert-danger'>⚠ " + falhas[0] + "</div>";
+                    return;
+                }
+                var n = data.certificados.length;
+                if (n > 0) {
+                    msg.innerHTML = "<div class='alert alert-success'>🎉 " + n + " " + data.message + "</div>";
+                } else {
+                    msg.innerHTML = "<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>";
+                }
+            })
+            .catch(function () { msg.innerHTML = "<div class='alert alert-danger'>Erro ao emitir.</div>"; });
+        });
+    })();
+    </script>
+    {% endif %}
+    {% endif %}
+
+    {% if escopo == 'atividade' %}
+    <form method="post" action="{% url 'organizador:certificado_atividade_usar_padrao' atividade.id %}"
+          class="mt-3" onsubmit="return confirm('Voltar a usar a configuração padrão do evento?')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="fa-solid fa-rotate-left"></i> Usar o padrão do evento
+        </button>
+    </form>
+    {% endif %}
+
+    {% endif %}
+
+    {% if escopo == 'atividades' %}
+    <div class="app-panel p-3 mt-3">
+        <h6 class="mb-2">Certificados por atividade</h6>
+        <p class="text-muted small">
+            Atividades que emitem certificado. As marcadas como <b>padrão do evento</b> usam a
+            configuração acima.
+        </p>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="table-dark">
+                    <tr><th>Atividade</th><th>Certificado</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for a in atividades %}
+                    <tr>
+                        <td>{{ a.titulo }}</td>
+                        <td>
+                            {% if a.id in com_override %}
+                            <span class="badge bg-primary">personalizado</span>
+                            {% else %}
+                            <span class="badge bg-secondary">padrão do evento</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'organizador:certificado_atividade' a.id %}"
+                               class="btn btn-sm btn-outline-secondary">Configurar</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-muted text-center">Nenhuma atividade emite certificado.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    var sel = document.getElementById("{{ form.modo_layout.id_for_label }}");
+    if (!sel) return;
+    function atualizar() {
+        document.querySelectorAll("[data-modo]").forEach(function (el) {
+            var modos = (el.getAttribute("data-modo") || "").split(/\s+/);
+            el.classList.toggle("d-none", modos.indexOf(sel.value) === -1);
+        });
+    }
+    sel.addEventListener("change", atualizar);
+    atualizar();
+})();
+</script>
+{% endblock content %}

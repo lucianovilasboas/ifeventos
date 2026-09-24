@@ -10,10 +10,19 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
+import os
 from .forms import ParticipanteUpdateForm
 from .decorators import organizador_required
 from eventos.forms import EventoForm, PalestranteForm, TipoAtividadeForm
 from eventos.forms import ChamadaProposicoesForm, EspacoForm, GradeVagasForm, VagaForm
+from eventos.forms import (
+    CORPO_PADRAO,
+    CORPO_PADRAO_EVENTO,
+    AssinanteForm,
+    ConfiguracaoCertificadoForm,
+)
+from eventos.models import Assinante, AssinaturaCertificado, ConfiguracaoCertificado
+from eventos import certificados
 from eventos.models import Evento
 from eventos.forms import AtividadeForm
 from eventos.models import Atividade
@@ -31,7 +40,7 @@ from asgiref.sync import sync_to_async, async_to_sync
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from eventos.crachas import (
     atividade_aceita_presenca_agora,
     gerar_pdf_crachas_evento,
@@ -41,8 +50,7 @@ from eventos.crachas import (
     pode_checkin_apoio,
     pode_gerenciar_evento,
 )
-from eventos.models import Inscricao, Certificado
-from eventos.utils import gerar_certificado
+from eventos.models import Inscricao
 
 from eventos.imagens import imagem_cortada
 
@@ -702,18 +710,20 @@ class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
         if not pode_gerenciar_evento(request.user, inscricao.atividade.evento):
             raise PermissionDenied("Você não organiza o evento desta inscrição.")
 
-        if inscricao.certificado_emitido or Certificado.objects.filter(participante=inscricao.participante, atividade=inscricao.atividade).exists():
+        if inscricao.certificado_emitido:
             return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
 
-        pdf_file = gerar_certificado(inscricao.participante, atividade=inscricao.atividade, evento=inscricao.atividade.evento)
-        Certificado.objects.create(
-            participante=inscricao.participante,
-            atividade=inscricao.atividade,
-            pdf=pdf_file
-        )
+        try:
+            _certificado, criado = certificados.emitir(
+                inscricao.participante, atividade=inscricao.atividade
+            )
+        except certificados.CertificadoLayoutError as erro:
+            return JsonResponse({"message": str(erro), "certificado": False}, status=503)
+        if not criado:
+            return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
 
         inscricao.certificado_emitido = True
-        inscricao.save()
+        inscricao.save(update_fields=["certificado_emitido"])
 
         return JsonResponse({"message": "Certificado emitido com sucesso!", "certificado": True})
 
@@ -728,24 +738,28 @@ class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
         atividade = get_object_or_404(Atividade, id=atividade_id)
         if not pode_gerenciar_evento(request.user, atividade.evento):
             raise PermissionDenied("Você não organiza o evento desta atividade.")
-        inscritos = Inscricao.objects.filter(atividade=atividade, confirmada=True, certificado_emitido=False)
+        inscritos = certificados.participantes_da_atividade(atividade)
 
         certificados_gerados = []
-        for inscrito in inscritos:
-            if not Certificado.objects.filter(participante=inscrito.participante, atividade=atividade).exists():
-                pdf_file = gerar_certificado(inscrito.participante, atividade=atividade, evento=atividade.evento)
-                certificado = Certificado.objects.create(
-                    participante=inscrito.participante,
-                    atividade=atividade,
-                    pdf=pdf_file
-                )
+        falhas = []
+        for pessoa in inscritos:
+            try:
+                _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
+            except certificados.CertificadoLayoutError as erro:
+                falhas = [str(erro)]
+                break
+            if criado:
+                certificados_gerados.append(pessoa.id)
 
-                inscrito.certificado_emitido = True
-                inscrito.save()
+        if certificados_gerados:
+            Inscricao.objects.filter(
+                atividade=atividade, participante_id__in=certificados_gerados
+            ).update(certificado_emitido=True)
 
-                certificados_gerados.append(inscrito.id)
-
-        return JsonResponse({"message": "Certificados gerados com sucesso!", "certificados": certificados_gerados})
+        resposta = {"message": "Certificados gerados com sucesso!", "certificados": certificados_gerados}
+        if falhas:
+            resposta["falhas"] = falhas
+        return JsonResponse(resposta)
 
 
 
@@ -783,22 +797,325 @@ class EmitirCertificadosEventoView(LoginRequiredMixin, View):
         evento = get_object_or_404(Evento, id=evento_id)
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
-        participantes = Participante.objects.all()
 
-        for participante in participantes:
-            atividades_participadas = Inscricao.objects.filter(participante=participante, atividade__evento=evento, confirmada=True).count()
-            total_atividades = evento.atividades.count()
+        config = certificados.config_do_evento(evento)
+        gerados = []
+        falhas = []
+        for pessoa in certificados.participantes_do_evento(evento, config):
+            try:
+                _certificado, criado = certificados.emitir(pessoa, evento=evento)
+            except certificados.CertificadoLayoutError as erro:
+                falhas = [str(erro)]
+                break
+            if criado:
+                gerados.append(pessoa.id)
 
-            if total_atividades > 0 and (atividades_participadas / total_atividades) >= 0.75:
-                if not Certificado.objects.filter(participante=participante, evento=evento).exists():
-                    pdf_file = gerar_certificado(participante, evento=evento)
-                    Certificado.objects.create(
-                        participante=participante,
-                        evento=evento,
-                        pdf=pdf_file
+        resposta = {"message": "Certificados emitidos para o evento!", "certificados": gerados}
+        if falhas:
+            resposta["falhas"] = falhas
+        return JsonResponse(resposta)
+
+
+class EmitirCertificadosTodasAtividadesView(LoginRequiredMixin, View):
+    """Emite os certificados de TODAS as atividades que emitem certificado."""
+
+    def post(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+
+        gerados = set()
+        falhas = []
+        for atividade in evento.atividades.filter(emite_certificado=True):
+            ids_atividade = []
+            for pessoa in certificados.participantes_da_atividade(atividade):
+                try:
+                    _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
+                except certificados.CertificadoLayoutError as erro:
+                    falhas = [str(erro)]
+                    break
+                if criado:
+                    gerados.add(pessoa.id)
+                    ids_atividade.append(pessoa.id)
+            if falhas:
+                break
+            if ids_atividade:
+                Inscricao.objects.filter(
+                    atividade=atividade, participante_id__in=ids_atividade
+                ).update(certificado_emitido=True)
+
+        resposta = {
+            "message": "Certificados gerados com sucesso!",
+            "certificados": sorted(gerados),
+        }
+        if falhas:
+            resposta["falhas"] = falhas
+        return JsonResponse(resposta)
+
+
+# -- Configuração de certificados e catálogo de assinantes --
+
+
+def _sincronizar_assinaturas(config, assinantes):
+    """Recria os snapshots de assinatura a partir do catálogo escolhido."""
+    from django.core.files.base import ContentFile
+
+    config.assinaturas.all().delete()
+    for i, assinante in enumerate(assinantes, start=1):
+        snapshot = AssinaturaCertificado(
+            config=config, origem=assinante, nome=assinante.nome,
+            cargo=assinante.cargo, ordem=i,
+        )
+        if assinante.imagem:
+            assinante.imagem.open("rb")
+            conteudo = assinante.imagem.read()
+            assinante.imagem.close()
+            nome = os.path.basename(assinante.imagem.name) or "assinatura.png"
+            snapshot.imagem.save(nome, ContentFile(conteudo), save=False)
+        snapshot.save()
+
+
+class CertificadoConfigView(LoginRequiredMixin, View):
+    """Configura o certificado do evento ou o padrão dos certificados de atividade.
+
+    `escopo` na URL: `evento` (certificado do evento) ou `atividades` (padrão
+    usado por todas as atividades que não tiverem configuração própria).
+    """
+
+    template_name = "organizador/certificado_config.html"
+    ESCOPOS = {
+        "evento": ConfiguracaoCertificado.ESCOPO_EVENTO,
+        "atividades": ConfiguracaoCertificado.ESCOPO_ATIVIDADE,
+    }
+
+    def _get_evento(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+        return evento
+
+    def _get_config(self, evento, escopo):
+        escopo_db = self.ESCOPOS.get(escopo)
+        if escopo_db is None:
+            raise Http404("Escopo de certificado inválido.")
+        config = ConfiguracaoCertificado.objects.filter(
+            evento=evento, atividade__isnull=True, escopo=escopo_db
+        ).first()
+        if config is None:
+            corpo = CORPO_PADRAO_EVENTO if escopo_db == ConfiguracaoCertificado.ESCOPO_EVENTO else CORPO_PADRAO
+            config = ConfiguracaoCertificado.objects.create(
+                evento=evento, escopo=escopo_db, corpo=corpo
+            )
+        return config
+
+    def _contexto(self, evento, escopo, config, form):
+        contexto = {
+            "evento": evento,
+            "escopo": escopo,
+            "config": config,
+            "form": form,
+            "assinantes": Assinante.objects.filter(ativo=True),
+            "selecionados": {str(i) for i in (form["assinantes_escolhidos"].value() or [])},
+        }
+        if escopo == "atividades":
+            contexto["atividades"] = list(
+                evento.atividades.filter(emite_certificado=True).order_by(
+                    "data_hora_inicio", "id"
+                )
+            )
+            contexto["com_override"] = set(
+                ConfiguracaoCertificado.objects.filter(
+                    evento=evento, atividade__isnull=False
+                ).values_list("atividade_id", flat=True)
+            )
+        return contexto
+
+    def get(self, request, evento_id, escopo="evento"):
+        evento = self._get_evento(request, evento_id)
+        config = self._get_config(evento, escopo)
+        form = ConfiguracaoCertificadoForm(instance=config, escopo=escopo)
+        return render(request, self.template_name, self._contexto(evento, escopo, config, form))
+
+    def post(self, request, evento_id, escopo="evento"):
+        evento = self._get_evento(request, evento_id)
+        config = self._get_config(evento, escopo)
+        form = ConfiguracaoCertificadoForm(
+            request.POST, request.FILES, instance=config, escopo=escopo
+        )
+        if form.is_valid():
+            config = form.save()
+            _sincronizar_assinaturas(
+                config, form.cleaned_data.get("assinantes_escolhidos") or []
+            )
+            messages.success(request, "Configuração do certificado salva.")
+            return redirect("organizador:certificado_config", evento.id, escopo)
+        messages.warning(request, "Confira os campos destacados.")
+        return render(request, self.template_name, self._contexto(evento, escopo, config, form))
+
+
+class CertificadoPreviewView(LoginRequiredMixin, View):
+    """PDF de amostra do certificado (escopo evento ou atividade)."""
+
+    def get(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+
+        escopo = request.GET.get("escopo", "evento")
+        atividade = None
+        if escopo == "atividade":
+            atividade_id = request.GET.get("atividade")
+            if atividade_id:
+                atividade = evento.atividades.filter(id=atividade_id).first()
+            config = certificados.config_efetiva(atividade, evento)
+        elif escopo == "atividades":
+            atividade = evento.atividades.filter(emite_certificado=True).first()
+            config = certificados.config_padrao_atividades(evento)
+        else:
+            config = certificados.config_do_evento(evento)
+
+        try:
+            arquivo = certificados.gerar_certificado(
+                request.user, atividade=atividade, evento=evento, config=config
+            )
+        except certificados.CertificadoLayoutError as erro:
+            return HttpResponse(
+                "Não foi possível gerar a pré-visualização: " + str(erro),
+                status=503,
+                content_type="text/plain; charset=utf-8",
+            )
+        resposta = HttpResponse(arquivo.read(), content_type="application/pdf")
+        resposta["Content-Disposition"] = 'inline; filename="certificado_amostra.pdf"'
+        return resposta
+
+
+class CertificadoAtividadeView(LoginRequiredMixin, View):
+    """Config própria (override) do certificado de UMA atividade."""
+
+    template_name = "organizador/certificado_config.html"
+
+    def _get_atividade(self, request, atividade_id):
+        atividade = get_object_or_404(Atividade, id=atividade_id)
+        if not pode_gerenciar_evento(request.user, atividade.evento):
+            raise PermissionDenied("Você não organiza o evento desta atividade.")
+        return atividade
+
+    def _contexto(self, atividade, config, form):
+        selecionados = set()
+        if form is not None:
+            selecionados = {str(i) for i in (form["assinantes_escolhidos"].value() or [])}
+        return {
+            "evento": atividade.evento,
+            "escopo": "atividade",
+            "atividade": atividade,
+            "config": config,
+            "form": form,
+            "assinantes": Assinante.objects.filter(ativo=True),
+            "selecionados": selecionados,
+        }
+
+    def get(self, request, atividade_id):
+        atividade = self._get_atividade(request, atividade_id)
+        config = getattr(atividade, "certificado_config", None)
+        form = ConfiguracaoCertificadoForm(instance=config, escopo="atividade") if config else None
+        return render(request, self.template_name, self._contexto(atividade, config, form))
+
+    def post(self, request, atividade_id):
+        atividade = self._get_atividade(request, atividade_id)
+
+        if request.POST.get("acao") == "criar":
+            if getattr(atividade, "certificado_config", None) is None:
+                padrao = certificados.config_padrao_atividades(atividade.evento)
+                config = ConfiguracaoCertificado.objects.create(
+                    evento=atividade.evento,
+                    atividade=atividade,
+                    escopo=ConfiguracaoCertificado.ESCOPO_ATIVIDADE,
+                    titulo=padrao.titulo if padrao else "CERTIFICADO",
+                    corpo=(padrao.corpo if padrao and padrao.corpo else CORPO_PADRAO),
+                    rodape=padrao.rodape if padrao else "",
+                    modo_layout=(padrao.modo_layout if padrao else ConfiguracaoCertificado.MODO_TEXTO),
+                    carga_horaria_padrao=(padrao.carga_horaria_padrao if padrao else None),
+                    enviar_email=(padrao.enviar_email if padrao else True),
+                )
+                if padrao:
+                    _sincronizar_assinaturas(
+                        config,
+                        [s.origem for s in padrao.assinaturas.all() if s.origem_id],
                     )
+            messages.success(request, "Configuração própria da atividade criada.")
+            return redirect("organizador:certificado_atividade", atividade.id)
 
-        return JsonResponse({"message": "Certificados emitidos para o evento!"})
+        config = getattr(atividade, "certificado_config", None)
+        if config is None:
+            return redirect("organizador:certificado_atividade", atividade.id)
+        form = ConfiguracaoCertificadoForm(
+            request.POST, request.FILES, instance=config, escopo="atividade"
+        )
+        if form.is_valid():
+            config = form.save()
+            _sincronizar_assinaturas(
+                config, form.cleaned_data.get("assinantes_escolhidos") or []
+            )
+            messages.success(request, "Configuração do certificado da atividade salva.")
+            return redirect("organizador:certificado_atividade", atividade.id)
+        messages.warning(request, "Confira os campos destacados.")
+        return render(request, self.template_name, self._contexto(atividade, config, form))
+
+
+class CertificadoAtividadeUsarPadraoView(LoginRequiredMixin, View):
+    """Remove o override da atividade (volta a usar o padrão do evento)."""
+
+    def post(self, request, atividade_id):
+        atividade = get_object_or_404(Atividade, id=atividade_id)
+        if not pode_gerenciar_evento(request.user, atividade.evento):
+            raise PermissionDenied("Você não organiza o evento desta atividade.")
+        ConfiguracaoCertificado.objects.filter(atividade=atividade).delete()
+        messages.success(request, "Esta atividade volta a usar a configuração padrão.")
+        return redirect("organizador:certificado_config", atividade.evento_id, "atividades")
+
+
+def _pode_gerir_assinantes(user):
+    return bool(
+        user.is_superuser
+        or user.is_staff
+        or getattr(user, "is_organizador", False)
+    )
+
+
+class AssinantesView(LoginRequiredMixin, View):
+    """Catálogo reutilizável de assinantes (organizador e staff)."""
+
+    template_name = "organizador/assinantes.html"
+
+    def get(self, request):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        return render(request, self.template_name, {
+            "assinantes": Assinante.objects.all(),
+            "form": AssinanteForm(),
+        })
+
+    def post(self, request):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        form = AssinanteForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Assinante cadastrado.")
+            return redirect("organizador:assinantes")
+        return render(request, self.template_name, {
+            "assinantes": Assinante.objects.all(),
+            "form": form,
+        })
+
+
+class AssinanteRemoverView(LoginRequiredMixin, View):
+    def post(self, request, assinante_id):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        Assinante.objects.filter(id=assinante_id).delete()
+        messages.success(request, "Assinante removido.")
+        return redirect("organizador:assinantes")
 
 
 # -- Crachás --

@@ -65,7 +65,7 @@
                 <a href="{% url 'eventos:gerar_qr_code' inscricao.id %}" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de confirmação">
                     <i class="fa fa-qrcode"></i>
                 </a>
-                {% if inscricao.confirmada and not inscricao.certificado_emitido %}
+                {% if inscricao.confirmada and not inscricao.certificado_emitido and inscricao.atividade.encerrada %}
                 <button class="btn btn-sm btn-app btn-icon gerar-inscricao" data-inscricao="{{ inscricao.id }}" title="Emitir Certificado">
                     🎓
                 </button>
@@ -113,7 +113,7 @@
                             <a href="{% url 'eventos:gerar_qr_code' inscricao.id %}" target="_blank" class="btn btn-sm btn-dark" title="QR Code de confirmação">
                                 <i class="fa fa-qrcode"></i>
                             </a>
-                            {% if inscricao.confirmada and not inscricao.certificado_emitido %}
+                            {% if inscricao.confirmada and not inscricao.certificado_emitido and inscricao.atividade.encerrada %}
                             <button class="btn btn-sm btn-app gerar-inscricao" data-inscricao="{{ inscricao.id }}" title="Emitir Certificado">
                                 🎓 Emitir Certificado
                             </button>

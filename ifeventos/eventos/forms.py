@@ -6,6 +6,7 @@ from django import forms
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
 from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
+from .models import Assinante, ConfiguracaoCertificado
 from .propostas import dias_do_evento, parse_blocos, validar_vaga
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
@@ -696,3 +697,105 @@ class GradeVagasForm(forms.Form):
             return parse_blocos(self.cleaned_data.get("blocos"))
         except ValueError as erro:
             raise forms.ValidationError(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Certificados — configuração do evento e catálogo de assinantes
+# ---------------------------------------------------------------------------
+
+
+class AssinanteForm(forms.ModelForm):
+    """Cadastro do assinante reutilizável (nome, cargo e assinatura)."""
+
+    class Meta:
+        model = Assinante
+        fields = ["nome", "cargo", "imagem", "ativo"]
+        labels = {"nome": "Nome", "cargo": "Cargo", "imagem": "Assinatura (imagem)",
+                  "ativo": "Ativo"}
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": "form-control"}),
+            "cargo": forms.TextInput(attrs={"class": "form-control"}),
+            "imagem": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "ativo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+CORPO_PADRAO = (
+    'Certificamos que {{nome}} participou da {{tipo_atividade}} "{{atividade}}", '
+    "no evento {{evento}}, com carga horária de {{carga_horaria}}."
+)
+CORPO_PADRAO_EVENTO = (
+    "Certificamos que {{nome}} participou do evento {{evento}}, com participação "
+    "de {{percentual_participacao}} (mínimo de {{percentual_minimo}})."
+)
+
+
+class ConfiguracaoCertificadoForm(forms.ModelForm):
+    """Configuração do certificado (texto, layout e assinaturas do catálogo)."""
+
+    corpo = forms.CharField(
+        required=False,
+        initial=CORPO_PADRAO,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 6}),
+        help_text=(
+            "Variáveis: {{nome}}, {{tipo_atividade}}, {{atividade}}, {{evento}}, "
+            "{{carga_horaria}} (atividade), {{percentual_participacao}} e "
+            "{{percentual_minimo}} (evento), {{data}}, {{local}}. No modo .docx "
+            "também valem {{qr}}, {{qr_url}}, {{assinatura1}} e {{assinatura2}}."
+        ),
+    )
+    assinantes_escolhidos = forms.ModelMultipleChoiceField(
+        queryset=Assinante.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        label="Quem assina (até 2)",
+    )
+
+    class Meta:
+        model = ConfiguracaoCertificado
+        fields = [
+            "titulo", "corpo", "rodape",
+            "modo_layout", "layout_fundo", "template_docx",
+            "carga_horaria_padrao", "percentual", "enviar_email",
+        ]
+        labels = {
+            "titulo": "Título",
+            "corpo": "Texto do certificado",
+            "rodape": "Rodapé",
+            "modo_layout": "Layout",
+            "layout_fundo": "Imagem de fundo (opcional)",
+            "template_docx": "Modelo .docx",
+            "carga_horaria_padrao": "Carga horária padrão (horas)",
+            "percentual": "Percentual mínimo de presença (%)",
+            "enviar_email": "Enviar por e-mail",
+        }
+        widgets = {
+            "titulo": forms.TextInput(attrs={"class": "form-control"}),
+            "corpo": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
+            "rodape": forms.TextInput(attrs={"class": "form-control"}),
+            "modo_layout": forms.Select(attrs={"class": "form-select"}),
+            "layout_fundo": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "template_docx": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".docx"}),
+            "carga_horaria_padrao": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "percentual": forms.NumberInput(attrs={"class": "form-control", "min": 0, "max": 100}),
+            "enviar_email": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def __init__(self, *args, escopo=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Regras por escopo: evento não tem carga horária; atividade não tem percentual.
+        if escopo == "evento":
+            self.fields.pop("carga_horaria_padrao", None)
+        elif escopo in ("atividade", "atividades"):
+            self.fields.pop("percentual", None)
+        self.fields["assinantes_escolhidos"].queryset = Assinante.objects.filter(ativo=True)
+        if self.instance and self.instance.pk:
+            self.fields["assinantes_escolhidos"].initial = list(
+                self.instance.assinaturas.values_list("origem_id", flat=True)
+            )
+
+    def clean_assinantes_escolhidos(self):
+        escolhidos = self.cleaned_data.get("assinantes_escolhidos") or []
+        if len(escolhidos) > 2:
+            raise forms.ValidationError("Escolha no máximo 2 assinantes.")
+        return escolhidos
