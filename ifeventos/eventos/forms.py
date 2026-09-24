@@ -3,11 +3,10 @@ from datetime import date, time
 from django.utils import timezone
 
 from django import forms
-from django.forms import inlineformset_factory
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
 from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
-from .models import Assinante, AssinaturaCertificado, ConfiguracaoCertificado
+from .models import Assinante, ConfiguracaoCertificado
 from .propostas import dias_do_evento, parse_blocos, validar_vaga
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
@@ -721,16 +720,30 @@ class AssinanteForm(forms.ModelForm):
         }
 
 
+CORPO_PADRAO = (
+    'Certificamos que {{nome}} participou da {{tipo_atividade}} "{{atividade}}", '
+    "no evento {{evento}}, com carga horária de {{carga_horaria}}."
+)
+
+
 class ConfiguracaoCertificadoForm(forms.ModelForm):
-    """Configuração do certificado do evento (texto, layout e assinaturas)."""
+    """Configuração do certificado (texto, layout e assinaturas do catálogo)."""
 
     corpo = forms.CharField(
         required=False,
+        initial=CORPO_PADRAO,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 6}),
         help_text=(
-            "Variáveis: {{nome}}, {{atividade}}, {{evento}}, {{carga_horaria}}, "
-            "{{data}}, {{local}}."
+            "Variáveis: {{nome}}, {{tipo_atividade}}, {{atividade}}, {{evento}}, "
+            "{{carga_horaria}}, {{data}}, {{local}}. No modo .docx também valem "
+            "{{qr}}, {{assinatura1}} e {{assinatura2}}."
         ),
+    )
+    assinantes_escolhidos = forms.ModelMultipleChoiceField(
+        queryset=Assinante.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        label="Quem assina (até 2)",
     )
 
     class Meta:
@@ -745,7 +758,7 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
             "corpo": "Texto do certificado",
             "rodape": "Rodapé",
             "modo_layout": "Layout",
-            "layout_fundo": "Fundo (imagem/PDF)",
+            "layout_fundo": "Imagem de fundo (PNG/JPG)",
             "template_docx": "Modelo .docx",
             "carga_horaria_padrao": "Carga horária padrão (horas)",
             "percentual": "Percentual mínimo de presença (%)",
@@ -756,25 +769,23 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
             "corpo": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
             "rodape": forms.TextInput(attrs={"class": "form-control"}),
             "modo_layout": forms.Select(attrs={"class": "form-select"}),
-            "layout_fundo": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*,application/pdf"}),
+            "layout_fundo": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
             "template_docx": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".docx"}),
             "carga_horaria_padrao": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
             "percentual": forms.NumberInput(attrs={"class": "form-control", "min": 0, "max": 100}),
             "enviar_email": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["assinantes_escolhidos"].queryset = Assinante.objects.filter(ativo=True)
+        if self.instance and self.instance.pk:
+            self.fields["assinantes_escolhidos"].initial = list(
+                self.instance.assinaturas.values_list("origem_id", flat=True)
+            )
 
-AssinaturaCertificadoFormSet = inlineformset_factory(
-    ConfiguracaoCertificado,
-    AssinaturaCertificado,
-    fields=["nome", "cargo", "imagem"],
-    extra=2,
-    max_num=2,
-    can_delete=True,
-    validate_max=True,
-    widgets={
-        "nome": forms.TextInput(attrs={"class": "form-control"}),
-        "cargo": forms.TextInput(attrs={"class": "form-control"}),
-        "imagem": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
-    },
-)
+    def clean_assinantes_escolhidos(self):
+        escolhidos = self.cleaned_data.get("assinantes_escolhidos") or []
+        if len(escolhidos) > 2:
+            raise forms.ValidationError("Escolha no máximo 2 assinantes.")
+        return escolhidos

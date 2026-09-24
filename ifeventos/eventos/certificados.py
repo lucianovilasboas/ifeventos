@@ -153,8 +153,10 @@ def config_padrao_atividades(evento):
 
 def config_efetiva(atividade=None, evento=None):
     """Config a usar: override da atividade → padrão de atividades → do evento."""
+    from .models import ConfiguracaoCertificado
+
     if atividade is not None:
-        config = getattr(atividade, "certificado_config", None)
+        config = ConfiguracaoCertificado.objects.filter(atividade=atividade).first()
         if config is not None:
             return config
         evento = evento or atividade.evento

@@ -117,31 +117,32 @@ class ConfigViewTests(TestCase):
 
     def test_participante_recebe_403(self):
         self.client.force_login(self.participante)
-        r = self.client.get(reverse("organizador:certificado_config", args=[self.evento.id]))
+        r = self.client.get(
+            reverse("organizador:certificado_config", args=[self.evento.id, "evento"])
+        )
         self.assertEqual(r.status_code, 403)
 
     def test_dono_abre_e_salva(self):
+        from eventos.models import Assinante
+
+        assinante = Assinante.objects.create(nome="Diretor Geral", cargo="Diretor")
         self.client.force_login(self.dono)
-        url = reverse("organizador:certificado_config", args=[self.evento.id])
+        url = reverse("organizador:certificado_config", args=[self.evento.id, "evento"])
         r = self.client.get(url)
         self.assertEqual(r.status_code, 200)
         r = self.client.post(url, {
             "titulo": "CERTIFICADO DE PARTICIPAÇÃO",
             "corpo": "Certificamos que {{nome}}.",
-            "modo_layout": "fundo",
+            "modo_layout": "texto",
             "enviar_email": "on",
-            "assinaturas-TOTAL_FORMS": "2",
-            "assinaturas-INITIAL_FORMS": "0",
-            "assinaturas-MIN_NUM_FORMS": "0",
-            "assinaturas-MAX_NUM_FORMS": "2",
-            "assinaturas-0-nome": "Diretor Geral",
-            "assinaturas-0-cargo": "Diretor",
-            "assinaturas-1-nome": "",
-            "assinaturas-1-cargo": "",
+            "assinantes_escolhidos": [assinante.id],
         })
         self.assertEqual(r.status_code, 302)
-        config = ConfiguracaoCertificado.objects.get(evento=self.evento)
+        config = ConfiguracaoCertificado.objects.get(
+            evento=self.evento, escopo="evento", atividade__isnull=True
+        )
         self.assertEqual(config.assinaturas.count(), 1)
+        self.assertEqual(config.assinaturas.first().nome, "Diretor Geral")
 
     def test_preview_retorna_pdf(self):
         self.client.force_login(self.dono)
@@ -294,3 +295,54 @@ class DocxRenderTests(TestCase):
         ):
             dados = certificados.render_pdf(contexto, self.config)
         self.assertTrue(dados.startswith(b"%PDF"))  # caiu no modo fundo, sem 500
+
+
+class AtividadeOverrideTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._media = tempfile.mkdtemp(prefix="media_ovr_")
+        cls.enterClassContext(override_settings(MEDIA_ROOT=cls._media))
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls._media, ignore_errors=True)
+
+    def setUp(self):
+        self.dono = U.objects.create_user(
+            email="donoovr@cert.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+        self.atividade = _atividade(self.evento)
+        self.padrao = ConfiguracaoCertificado.objects.create(
+            evento=self.evento, escopo="atividade", corpo="Padrão {{nome}}."
+        )
+        self.client.force_login(self.dono)
+
+    def test_config_efetiva_usa_padrao_sem_override(self):
+        self.assertEqual(certificados.config_efetiva(self.atividade), self.padrao)
+
+    def test_criar_override_e_voltar_ao_padrao(self):
+        url = reverse("organizador:certificado_atividade", args=[self.atividade.id])
+        r = self.client.post(url, {"acao": "criar"})
+        self.assertEqual(r.status_code, 302)
+        override = ConfiguracaoCertificado.objects.get(atividade=self.atividade)
+        self.assertEqual(override.escopo, "atividade")
+        self.assertEqual(certificados.config_efetiva(self.atividade), override)
+
+        r = self.client.post(
+            reverse("organizador:certificado_atividade_usar_padrao", args=[self.atividade.id])
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(
+            ConfiguracaoCertificado.objects.filter(atividade=self.atividade).exists()
+        )
+        self.assertEqual(certificados.config_efetiva(self.atividade), self.padrao)
+
+    def test_tela_padrao_das_atividades_lista(self):
+        r = self.client.get(
+            reverse("organizador:certificado_config", args=[self.evento.id, "atividades"])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(self.atividade.titulo, r.content.decode("utf-8", "ignore"))

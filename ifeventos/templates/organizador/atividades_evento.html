@@ -78,7 +78,7 @@
               action="{% url 'organizador:modelo_cracha_evento' evento.id %}" class="d-none">
             {% csrf_token %}
         </form>
-        <a href="{% url 'organizador:certificado_config' evento.id %}" class="btn btn-outline-primary">
+        <a href="{% url 'organizador:certificado_config' evento.id 'evento' %}" class="btn btn-outline-primary">
             <i class="fa-solid fa-award"></i> Certificado
         </a>
     </div>

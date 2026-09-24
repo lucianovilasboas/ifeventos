@@ -1179,6 +1179,11 @@ class AssinaturaCertificado(models.Model):
     config = models.ForeignKey(
         ConfiguracaoCertificado, on_delete=models.CASCADE, related_name="assinaturas"
     )
+    # Assinante do catálogo que originou este snapshot (permite reabrir a seleção
+    # na tela de configuração). O snapshot (nome/cargo/imagem) é o que vale.
+    origem = models.ForeignKey(
+        "Assinante", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
     nome = models.CharField(max_length=150)
     cargo = models.CharField(max_length=150, blank=True, default="")
     imagem = models.ImageField(
