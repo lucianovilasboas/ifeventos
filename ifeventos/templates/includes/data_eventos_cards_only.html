@@ -69,8 +69,10 @@
                         data-url-rem="{% url 'organizador:equipe_apoio_remover' evento.id %}">
                     <i class="fa-solid fa-hands-helping"></i>
                 </button>
-                {# Emitir o certificado do evento (quem cumpre o percentual mínimo).
-                   Só depois do encerramento do evento. #}
+                {% comment %}
+                Emitir o certificado do evento (quem cumpre o percentual mínimo).
+                Só depois do encerramento do evento.
+                {% endcomment %}
                 {% if evento.encerrado %}
                 <button type="button" class="btn btn-sm btn-outline-primary btn-icon js-emitir-evento"
                         title="Emitir certificados do evento"
