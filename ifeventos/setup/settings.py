@@ -157,6 +157,8 @@ TEMPLATES = [
                 "eventos.context_processors.metadados_config",
                 # Versão do produto no footer (fonte: setup/version.py)
                 "eventos.context_processors.app_version",
+                # Itens do menu do avatar que só aparecem quando há conteúdo.
+                "eventos.context_processors.menu_participante",
             ],
         },
     },

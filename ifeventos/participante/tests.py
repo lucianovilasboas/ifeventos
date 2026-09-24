@@ -7,7 +7,14 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from eventos.models import Atividade, Evento, ParticipanteMetadados, TipoAtividade
+from eventos.models import (
+    Atividade,
+    Certificado,
+    Evento,
+    Inscricao,
+    ParticipanteMetadados,
+    TipoAtividade,
+)
 
 U = get_user_model()
 SENHA = "SenhaForte123!"
@@ -191,19 +198,83 @@ class MenuDoUsuarioTests(TestCase):
         html = self.client.get(reverse("account_login")).content.decode()
         self.assertNotIn("menu-usuario", html)
 
-    def test_participante_tem_atalhos_da_visao(self):
-        pessoa = U.objects.create_user(
-            email="menu_part@example.com", password=SENHA, cpf="11144477735",
+    def _evento(self, **kwargs):
+        dados = dict(
+            title="Evento Menu", description="d", local="l",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
         )
-        self.client.force_login(pessoa)
+        dados.update(kwargs)
+        return Evento.objects.create(**dados)
 
-        menu = self._menu(
+    def _atividade(self, evento, **kwargs):
+        dados = dict(
+            evento=evento, titulo="Atividade", descricao="d",
+            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+            n_vagas=10,
+        )
+        dados.update(kwargs)
+        return Atividade.objects.create(**dados)
+
+    def _menu_de(self, pessoa):
+        self.client.force_login(pessoa)
+        return self._menu(
             self.client.get(reverse("participante:dashboard")).content.decode()
         )
 
-        for item in ("Meu painel", "Certificados", "Propostas", "Crachás", "Meu perfil", "Sair"):
+    def test_participante_sem_conteudo_nao_tem_atalhos_vazios(self):
+        pessoa = U.objects.create_user(
+            email="menu_part@example.com", password=SENHA, cpf="11144477735",
+        )
+        menu = self._menu_de(pessoa)
+
+        for item in ("Meu painel", "Meu perfil", "Sair"):
             self.assertIn(item, menu)
+        for vazio in (
+            "Meus certificados", "Minhas propostas", "Minhas palestras", "Meus crachás",
+        ):
+            self.assertNotIn(vazio, menu)
         self.assertNotIn("Trocar para", menu)
+
+    def test_menu_mostra_certificados_quando_ha(self):
+        pessoa = U.objects.create_user(
+            email="menu_cert@example.com", password=SENHA, cpf="11144477735",
+        )
+        Certificado.objects.create(participante=pessoa, evento=self._evento())
+        menu = self._menu_de(pessoa)
+        self.assertIn("Meus certificados", menu)
+
+    def test_menu_mostra_crachas_quando_inscrito(self):
+        pessoa = U.objects.create_user(
+            email="menu_cracha@example.com", password=SENHA, cpf="11144477735",
+        )
+        Inscricao.objects.create(
+            participante=pessoa, atividade=self._atividade(self._evento())
+        )
+        menu = self._menu_de(pessoa)
+        self.assertIn("Meus crachás", menu)
+        self.assertNotIn("Minhas palestras", menu)
+
+    def test_menu_mostra_palestras_quando_palestrante(self):
+        pessoa = U.objects.create_user(
+            email="menu_palestra@example.com", password=SENHA, cpf="11144477735",
+        )
+        atividade = self._atividade(self._evento())
+        atividade.palestrantes.add(pessoa)
+        menu = self._menu_de(pessoa)
+        self.assertIn("Minhas palestras", menu)
+        self.assertIn("Meus crachás", menu)
+
+    def test_menu_mostra_propostas_quando_ha(self):
+        pessoa = U.objects.create_user(
+            email="menu_prop@example.com", password=SENHA, cpf="11144477735",
+        )
+        self._atividade(
+            self._evento(), proponente=pessoa,
+            situacao=Atividade.SITUACAO_PENDENTE,
+        )
+        menu = self._menu_de(pessoa)
+        self.assertIn("Minhas propostas", menu)
 
     def test_duplo_papel_mostra_alternancia_para_o_outro_lado(self):
         pessoa = U.objects.create_user(

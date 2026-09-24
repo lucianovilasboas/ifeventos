@@ -104,21 +104,29 @@ def papel_no_evento(usuario, evento):
     return papeis[0] if papeis else None
 
 
+def _eventos_com_papel(usuario):
+    """Queryset dos eventos em que o usuário tem algum papel."""
+    return (
+        # `atividades` é o related_name de Atividade.evento — o padrão
+        # (`atividade_set`) não vale aqui.
+        Evento.objects.filter(organizador=usuario)
+        | Evento.objects.filter(atividades__palestrantes=usuario)
+        | Evento.objects.filter(atividades__inscritos__participante=usuario)
+    ).distinct()
+
+
 def eventos_com_papel(usuario):
     """Eventos em que o usuário tem algum papel, do mais recente para o mais antigo."""
     if not usuario or not getattr(usuario, "is_authenticated", False):
         return []
-    return list(
-        (
-            # `atividades` é o related_name de Atividade.evento — o padrão
-            # (`atividade_set`) não vale aqui.
-            Evento.objects.filter(organizador=usuario)
-            | Evento.objects.filter(atividades__palestrantes=usuario)
-            | Evento.objects.filter(atividades__inscritos__participante=usuario)
-        )
-        .distinct()
-        .order_by("-data_inicio", "-id")
-    )
+    return list(_eventos_com_papel(usuario).order_by("-data_inicio", "-id"))
+
+
+def tem_cracha(usuario):
+    """O usuário tem crachá (papel em algum evento)? Checagem barata (EXISTS)."""
+    if not usuario or not getattr(usuario, "is_authenticated", False):
+        return False
+    return _eventos_com_papel(usuario).exists()
 
 
 def pessoas_do_evento(evento):
