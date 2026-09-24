@@ -5,6 +5,15 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.7.2] — 2026-09-24
+
+### Alterado
+
+- **Menu do avatar**: os itens de **certificados, propostas, palestras e crachás**
+  só aparecem quando há conteúdo para o usuário (antes ficavam sempre visíveis).
+  Rótulos ajustados para **“Meus certificados”**, **“Minhas propostas”** e
+  **“Meus crachás”** (e **“Minhas palestras”**, inalterado).
+
 ## [2.7.1] — 2026-09-24
 
 ### Adicionado

@@ -58,22 +58,29 @@ Bootstrap.
             <i class="fa-solid fa-gauge-high"></i> Meu painel
         </a>
 
-        {% if request.user.is_participante %}
+        {% if request.user.is_participante and menu_participante.certificados %}
         <a class="menu-usuario-item" href="{% url 'participante:meus_certificados' %}">
-            <i class="fa-solid fa-award"></i> Certificados
-        </a>
-        <a class="menu-usuario-item" href="{% url 'participante:minhas_propostas' %}">
-            <i class="fa-solid fa-lightbulb"></i> Propostas
+            <i class="fa-solid fa-award"></i> Meus certificados
         </a>
         {% endif %}
 
+        {% if request.user.is_participante and menu_participante.propostas %}
+        <a class="menu-usuario-item" href="{% url 'participante:minhas_propostas' %}">
+            <i class="fa-solid fa-lightbulb"></i> Minhas propostas
+        </a>
+        {% endif %}
+
+        {% if menu_participante.palestras %}
         <a class="menu-usuario-item" href="{% url 'participante:minhas_palestras' %}">
             <i class="fa-solid fa-person-chalkboard"></i> Minhas palestras
         </a>
+        {% endif %}
 
+        {% if menu_participante.crachas %}
         <a class="menu-usuario-item" href="{% url 'participante:meus_crachas' %}">
-            <i class="fa-solid fa-id-card"></i> Crachás
+            <i class="fa-solid fa-id-card"></i> Meus crachás
         </a>
+        {% endif %}
 
         {% if request.user.is_superuser %}
         <a class="menu-usuario-item" href="{% url 'organizador:auditoria' %}">

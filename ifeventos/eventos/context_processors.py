@@ -79,3 +79,27 @@ def metadados_config(request):
     from eventos.metadados import campos
 
     return {"METADADOS_CONFIG": campos()}
+
+
+def menu_participante(request):
+    """Sinaliza ao menu do avatar o que o usuário realmente tem a mostrar.
+
+    Evita itens de menu "vazios" (certificados, propostas, palestras, crachás)
+    quando não há conteúdo para aquele usuário. Só roda para autenticados e usa
+    checagens baratas (`exists`).
+    """
+    user = getattr(request, "user", None)
+    if user is None or not getattr(user, "is_authenticated", False):
+        return {}
+
+    from eventos.crachas import tem_cracha
+    from eventos.models import Atividade, Certificado
+
+    return {
+        "menu_participante": {
+            "certificados": Certificado.objects.filter(participante=user).exists(),
+            "propostas": Atividade.objects.filter(proponente=user).exists(),
+            "palestras": user.atividades.exists(),
+            "crachas": tem_cracha(user),
+        }
+    }
