@@ -1,0 +1,111 @@
+{% extends 'dashboard_base.html' %}
+{% load static %}
+{% block title %}Auditoria | Nossos Eventos{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="fa-solid fa-magnifying-glass-chart"></i> Auditoria — pergunte sobre o histórico</span>
+    <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/app/assistente.css' %}?v={{ ASSET_VERSION }}">
+{% endblock extra_css %}
+
+{% block content %}
+<div class="assistente-wrap">
+    <div class="app-panel assistente-painel">
+        <div id="auditoriaChat" class="assistente-chat" aria-live="polite"></div>
+        <form id="auditoriaForm" class="assistente-prompt" autocomplete="off">
+            {% csrf_token %}
+            <div class="assistente-campo">
+                <input id="auditoriaInput" class="form-control" type="text" maxlength="600"
+                       autocomplete="off" placeholder="Ex.: quantos certificados foram emitidos esta semana?">
+            </div>
+            <button class="btn btn-app" type="submit" aria-label="Enviar">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </form>
+        <div class="assistente-status text-muted" id="auditoriaStatus">
+            As respostas são geradas por IA a partir da trilha de auditoria. Confira os números.
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+(function () {
+    const chat = document.getElementById("auditoriaChat");
+    const form = document.getElementById("auditoriaForm");
+    const input = document.getElementById("auditoriaInput");
+    const status = document.getElementById("auditoriaStatus");
+
+    function fim() { chat.scrollTop = chat.scrollHeight; }
+
+    function esc(t) {
+        const d = document.createElement("div");
+        d.textContent = t == null ? "" : t;
+        return d.innerHTML;
+    }
+
+    function bolha(papel, texto) {
+        const div = document.createElement("div");
+        div.className = "assistente-bolha " + (papel === "user" ? "user" : "bot");
+        div.innerHTML = esc(texto);
+        chat.appendChild(div);
+        fim();
+        return div;
+    }
+
+    function pensando() {
+        const el = bolha("bot", "");
+        el.innerHTML = '<span data-frase>Consultando a auditoria…</span> ' +
+            '<span class="assistente-digitando"><span></span><span></span><span></span></span>';
+        fim();
+        return el;
+    }
+
+    form.addEventListener("submit", async function (ev) {
+        ev.preventDefault();
+        const texto = input.value.trim();
+        if (!texto) return;
+        bolha("user", texto);
+        input.value = "";
+        input.disabled = true;
+        status.textContent = "Consultando a auditoria…";
+        const espera = pensando();
+        try {
+            const resposta = await fetch("{% url 'organizador:auditoria_responder' %}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                body: JSON.stringify({ pergunta: texto })
+            });
+            const dados = await resposta.json();
+            espera.remove();
+            if (dados.ok) {
+                bolha("bot", dados.resposta);
+                const filtros = dados.consulta && dados.consulta.filtros;
+                status.textContent = "Registros considerados: " + (dados.total != null ? dados.total : "—") +
+                    (filtros && Object.keys(filtros).length ? " · filtros: " + JSON.stringify(filtros) : "");
+            } else {
+                bolha("bot", dados.erro || "Não consegui responder agora.");
+                status.textContent = "";
+            }
+        } catch (erro) {
+            espera.remove();
+            bolha("bot", "Falha ao consultar a auditoria. Tente novamente.");
+            status.textContent = "";
+        } finally {
+            input.disabled = false;
+            input.focus();
+        }
+    });
+
+    bolha("bot", "Olá! Pergunte sobre o que aconteceu no sistema: certificados emitidos, presenças canceladas, eventos editados, login dos usuários…");
+})();
+</script>
+{% endblock scripts %}

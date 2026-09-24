@@ -123,6 +123,50 @@ def rotulo(obj):
         return ""
 
 
+def escopo_para_usuario(qs, usuario):
+    """Limita a consulta ao que o usuário pode ver.
+
+    Staff/superuser veem tudo; os demais organizadores veem apenas as ações
+    ligadas aos seus eventos ou as próprias ações.
+    """
+    from django.db.models import Q
+
+    from .models import Evento
+
+    if usuario is None or not getattr(usuario, "is_authenticated", False):
+        return qs.none()
+    if getattr(usuario, "is_staff", False) or getattr(usuario, "is_superuser", False):
+        return qs
+    eventos = Evento.objects.filter(
+        Q(organizador=usuario) | Q(organizadores=usuario)
+    )
+    return qs.filter(Q(evento__in=eventos) | Q(usuario=usuario))
+
+
+def limite_data(valor, fim=False):
+    """Converte `desde`/`ate` (ISO data ou datetime) num datetime aware.
+
+    Data sem hora vira 00:00 (início) ou 23:59:59.999 (fim), para
+    `ate=2026-09-24` incluir o dia inteiro.
+    """
+    from datetime import datetime, time
+
+    from django.utils import timezone
+    from django.utils.dateparse import parse_date, parse_datetime
+
+    if not valor:
+        return None
+    momento = parse_datetime(str(valor))
+    if momento is None:
+        dia = parse_date(str(valor))
+        if dia is None:
+            return None
+        momento = datetime.combine(dia, time.max if fim else time.min)
+    if timezone.is_naive(momento):
+        momento = timezone.make_aware(momento, timezone.get_current_timezone())
+    return momento
+
+
 def _resolver_evento(objeto, evento):
     if evento is not None:
         return evento

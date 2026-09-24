@@ -1252,6 +1252,35 @@ class FundoCertificadoRemoverView(LoginRequiredMixin, View):
         return JsonResponse({"ok": True})
 
 
+# -- Auditoria (agente) --
+
+
+@login_required(login_url="/accounts/login/")
+def auditoria_agente(request):
+    """Página do agente "AuditorIA" (perguntas sobre o histórico de ações)."""
+    if not _pode_gerir_assinantes(request.user):
+        raise PermissionDenied("Área restrita a organizadores.")
+    return render(request, "organizador/auditoria.html", {})
+
+
+@csrf_exempt
+@login_required(login_url="/accounts/login/")
+async def auditoria_responder(request):
+    """Responde, em linguagem natural, a uma pergunta sobre a auditoria."""
+    from eventos import auditor_ia
+
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    if not _pode_gerir_assinantes(request.user):
+        return JsonResponse({"erro": "Área restrita a organizadores."}, status=403)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+    resultado = await auditor_ia.responder(dados.get("pergunta"), request.user)
+    return JsonResponse(resultado, status=200 if resultado.get("ok") else 400)
+
+
 # -- Crachás --
 
 

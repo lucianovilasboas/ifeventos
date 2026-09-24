@@ -20,6 +20,9 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 - **API da auditoria** (`/api/v1/auditoria/`, somente leitura) com filtros e a
   ação `resumo/` (agregações por ação/entidade/origem/dia), pensada para consulta
   por pessoas e por **agentes de IA/MCP**. E-mail do usuário mascarado.
+- **Agente interno "AuditorIA"** (`/organizador/auditoria/`): perguntas em
+  linguagem natural sobre o histórico, respondidas por IA a partir de uma consulta
+  estruturada validada e executada no ORM (sem text-to-SQL).
 
 ## [2.6.0] — 2026-09-24
 

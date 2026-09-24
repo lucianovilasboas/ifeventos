@@ -58,6 +58,8 @@ CONTEXTOS = [
      "grupo": "organizador", "tipo_padrao": "classificacao", "ordem": 80},
     {"chave": "briefing_operacional", "rotulo": "Briefing operacional",
      "grupo": "organizador", "tipo_padrao": "classificacao", "ordem": 90},
+    {"chave": "auditoria", "rotulo": "Auditoria (perguntas sobre ações)",
+     "grupo": "organizador", "tipo_padrao": "texto", "ordem": 95},
     {"chave": "comunicacao", "rotulo": "Comunicação (divulgação)",
      "grupo": "organizador", "tipo_padrao": "classificacao", "ordem": 100},
     {"chave": "relatorio_narrado", "rotulo": "Relatórios narrados",

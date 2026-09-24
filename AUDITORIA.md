@@ -61,10 +61,24 @@ eventos/ações.
   o agente).
 - O serializer mascara o e-mail do usuário.
 
+## Agente interno (AuditorIA)
+
+Página em **`/organizador/auditoria/`** (organizador/staff; item "Auditoria" no
+menu do usuário): você pergunta em linguagem natural e o agente responde.
+
+Como funciona (`eventos/auditor_ia.py`), **sem text-to-SQL**:
+1. o LLM traduz a pergunta numa **consulta estruturada** (JSON: filtros +
+   agrupamento + limite), num contexto de IA próprio (`auditoria`, configurável
+   no admin);
+2. o backend **valida** (allowlist de ação/entidade/origem, datas, limite 1–100)
+   e roda a consulta **no ORM**, com o **escopo do usuário**;
+3. o resultado (reduzido) volta ao LLM, que **resume** em português.
+
+O LLM nunca recebe os dados crus nem escreve SQL/ORM; a resposta final é só um
+resumo — confira os números nos filtros exibidos.
+
 ## Roadmap
 
-- **Fase 3** — agente interno "AuditorIA" (pergunta em linguagem natural → consulta
-  estruturada no ORM → resumo).
 - **Fase 4** — captura de erros (self-contained e/ou Sentry).
 - **Fase 5** — retenção (`limpar_auditoria --dias 90`).
 

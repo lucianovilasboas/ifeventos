@@ -29,6 +29,7 @@ from eventos.crachas import (
     url_presenca_atividade,
     verificar_token,
 )
+from eventos import auditoria
 from eventos import metadados as metadados_config
 from eventos import propostas
 from eventos.regras import atividades_publicas
@@ -1077,30 +1078,6 @@ class PropostaViewSet(viewsets.ModelViewSet):
         return self._resposta(proposta)
 
 
-def _limite_data(valor, fim=False):
-    """Converte `desde`/`ate` (ISO data ou datetime) num datetime aware.
-
-    Data sem hora vira 00:00 (início) ou 23:59:59.999 (fim), para `ate=2026-09-24`
-    incluir o dia inteiro.
-    """
-    from datetime import datetime, time
-
-    from django.utils import timezone
-    from django.utils.dateparse import parse_date, parse_datetime
-
-    if not valor:
-        return None
-    momento = parse_datetime(valor)
-    if momento is None:
-        dia = parse_date(valor)
-        if dia is None:
-            return None
-        momento = datetime.combine(dia, time.max if fim else time.min)
-    if timezone.is_naive(momento):
-        momento = timezone.make_aware(momento, timezone.get_current_timezone())
-    return momento
-
-
 class RegistroAuditoriaViewSet(viewsets.ReadOnlyModelViewSet):
     """Trilha de auditoria — somente leitura (pessoas e agentes).
 
@@ -1123,12 +1100,7 @@ class RegistroAuditoriaViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         base = RegistroAuditoria.objects.select_related("usuario", "evento")
-        usuario = self.request.user
-        if not (usuario.is_staff or usuario.is_superuser):
-            eventos = Evento.objects.filter(
-                Q(organizador=usuario) | Q(organizadores=usuario)
-            )
-            base = base.filter(Q(evento__in=eventos) | Q(usuario=usuario))
+        base = auditoria.escopo_para_usuario(base, self.request.user)
 
         parametros = self.request.query_params
         filtros = {
@@ -1143,10 +1115,10 @@ class RegistroAuditoriaViewSet(viewsets.ReadOnlyModelViewSet):
             valor = parametros.get(chave)
             if valor:
                 base = base.filter(**{campo: valor})
-        desde = _limite_data(parametros.get("desde"))
+        desde = auditoria.limite_data(parametros.get("desde"))
         if desde:
             base = base.filter(criado_em__gte=desde)
-        ate = _limite_data(parametros.get("ate"), fim=True)
+        ate = auditoria.limite_data(parametros.get("ate"), fim=True)
         if ate:
             base = base.filter(criado_em__lte=ate)
         return base
