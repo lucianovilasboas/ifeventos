@@ -1265,8 +1265,14 @@ def auditoria_agente(request):
 
 @csrf_exempt
 @login_required(login_url="/accounts/login/")
-async def auditoria_responder(request):
-    """Responde, em linguagem natural, a uma pergunta sobre a auditoria."""
+def auditoria_responder(request):
+    """Responde, em linguagem natural, a uma pergunta sobre a auditoria.
+
+    View **síncrona** de propósito: acessa `request.user` (que pode exigir
+    query no banco) e faz a ponte para o agente async via `async_to_sync`.
+    """
+    from asgiref.sync import async_to_sync
+
     from eventos import auditor_ia
 
     if request.method != "POST":
@@ -1277,7 +1283,9 @@ async def auditoria_responder(request):
         dados = json.loads(request.body.decode("utf-8"))
     except Exception:
         return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
-    resultado = await auditor_ia.responder(dados.get("pergunta"), request.user)
+    resultado = async_to_sync(auditor_ia.responder)(
+        dados.get("pergunta"), request.user
+    )
     return JsonResponse(resultado, status=200 if resultado.get("ok") else 400)
 
 

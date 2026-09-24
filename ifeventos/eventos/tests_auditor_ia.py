@@ -151,3 +151,22 @@ class PaginaAuditoriaTests(TestCase):
         part = U.objects.create_user(email="pgp@ia.test", password=SENHA)
         self.client.force_login(part)
         self.assertEqual(self.client.get(self.URL).status_code, 403)
+
+    def test_endpoint_responder(self):
+        org = U.objects.create_user(
+            email="resp@ia.test", password=SENHA, is_organizador=True
+        )
+        self.client.force_login(org)
+        spec = json.dumps({"filtros": {"acao": "criar"}, "agrupar_por": "acao"})
+        with mock.patch.object(
+            auditor_ia.services,
+            "gerar_chat",
+            new=mock.AsyncMock(side_effect=[_Resposta(spec), _Resposta("Ok.")]),
+        ):
+            resposta = self.client.post(
+                "/organizador/auditoria/responder/",
+                data=json.dumps({"pergunta": "quantas acoes?"}),
+                content_type="application/json",
+            )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta.json()["ok"])
