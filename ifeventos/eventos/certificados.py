@@ -343,7 +343,7 @@ def _desenhar_fundo(c, config, width, height):
 
 
 def _desenhar_qr(c, contexto, width):
-    """QR maior + URL de confirmação logo abaixo (clicável)."""
+    """QR de verificação no canto inferior direito (clicável)."""
     import qrcode
 
     url = contexto.get("qr_url") or ""
@@ -356,18 +356,26 @@ def _desenhar_qr(c, contexto, width):
 
     lado = 120
     x = width - lado - 30
-    y = 60
+    y = 72
     c.drawImage(ImageReader(buffer), x, y, width=lado, height=lado, mask="auto")
+    c.linkURL(url, (x, y, x + lado, y + lado), relative=0)
 
-    # URL de confirmação abaixo do QR, clicável (confirma pelo link também).
-    c.setFont("Helvetica", 6.5)
+
+def _desenhar_url(c, contexto, width):
+    """URL de confirmação em uma linha, abaixo do rodapé, clicável."""
+    url = contexto.get("qr_url") or ""
+    if not url:
+        return
+    c.setFont("Helvetica", 6)
     c.setFillColor(_CINZA)
-    linhas = _quebrar(url, "Helvetica", 6.5, lado + 40, c)[:2]
-    y_texto = y - 9
-    for linha in linhas:
-        c.drawCentredString(x + lado / 2, y_texto, linha)
-        y_texto -= 8
-    c.linkURL(url, (x - 20, y_texto + 2, x + lado + 20, y + lado), relative=0)
+    y = 56
+    c.drawCentredString(width / 2, y, url)
+    largura = pdfmetrics.stringWidth(url, "Helvetica", 6)
+    c.linkURL(
+        url,
+        (width / 2 - largura / 2, y - 1, width / 2 + largura / 2, y + 6),
+        relative=0,
+    )
 
 
 def _desenhar_assinaturas(c, assinaturas, width):
@@ -430,7 +438,10 @@ def _render_fundo(contexto, config) -> bytes:
     # Rodapé
     if config.rodape:
         c.setFont("Helvetica-Oblique", 10)
-        c.drawCentredString(width / 2, 70, config.rodape)
+        c.drawCentredString(width / 2, 72, config.rodape)
+
+    # URL de confirmação abaixo do rodapé (uma linha, clicável).
+    _desenhar_url(c, contexto, width)
 
     _desenhar_assinaturas(c, config.assinaturas.all() if config.pk else [], width)
     _desenhar_qr(c, contexto, width)

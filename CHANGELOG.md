@@ -37,8 +37,9 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
   (`{{percentual_participacao}}`, ex. `80%`, e `{{percentual_minimo}}`) — **sem
   carga horária** no evento. `{{carga_horaria}}` é do certificado de atividade e,
   quando não informada, é **calculada pelo horário** (fim − início).
-- **QR maior** com a **URL de confirmação logo abaixo, clicável** (nos modos texto
-  e imagem); no `.docx`, `{{qr}}` (imagem) e `{{qr_url}}` (texto).
+- **QR maior** no canto inferior direito e a **URL de confirmação em uma linha
+  abaixo do rodapé, clicável** (nos modos texto e imagem); no `.docx`, `{{qr}}`
+  (imagem) e `{{qr_url}}` (texto).
 
 ### Notas
 

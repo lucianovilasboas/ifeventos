@@ -65,9 +65,9 @@ Por **escopo** (aba):
 | `{{assinante1}}` / `{{cargo_assinante1}}` | nome/cargo do assinante (e 2) |
 
 No modo **só texto** e **imagem de fundo**, use as variáveis de texto (o QR e as
-assinaturas são desenhados automaticamente; o QR sai com a **URL de confirmação
-logo abaixo, clicável**). No modo **`.docx`**, todas funcionam, inclusive as
-imagens.
+assinaturas são desenhados automaticamente; o QR fica no canto inferior direito e
+a **URL de confirmação sai em uma linha abaixo do rodapé, clicável**). No modo
+**`.docx`**, todas funcionam, inclusive as imagens.
 
 ## Elegibilidade
 
