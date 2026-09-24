@@ -46,6 +46,14 @@ python manage.py collectstatic --noinput --clear >/dev/null
 python manage.py createcachetable >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------
+# 3b. Contextos de IA (modelos por contexto, editáveis no admin).
+#     Idempotente: cria/atualiza as linhas a partir do código SEM tocar no que
+#     o admin escolheu (modelo/temperatura/max_tokens/ativo). Garante que
+#     contextos novos (ex.: "auditoria") apareçam no admin após o deploy.
+# ---------------------------------------------------------------------
+python manage.py sincronizar_contextos_ia >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------
 # 4. Servidor Socket.IO (porta 8500), em segundo plano
 # ---------------------------------------------------------------------
 if [ "$RELOAD" = "1" ]; then
