@@ -123,8 +123,10 @@
                     O proponente sugeriu <b>{{ proposta.tipo_sugerido }}</b>: escolha um tipo da
                     lista ou cadastre o tipo sugerido abaixo.
                 </small>
-                {# Botão com formaction (não é um form aninhado): o form de aprovar
-                   precisa continuar íntegro para o botão Aprovar funcionar. #}
+                {% comment %}
+                Botão com formaction (não é um form aninhado): o form de aprovar
+                precisa continuar íntegro para o botão Aprovar funcionar.
+                {% endcomment %}
                 <button type="submit" formnovalidate
                         class="btn btn-outline-primary btn-sm mb-2"
                         formaction="{% url 'organizador:cadastrar_tipo_sugerido' proposta.id %}">
