@@ -605,9 +605,16 @@ LOGGING = {
             "stream": "ext://sys.stderr",
             "formatter": "simples",
         },
+        # Grava erros (ERROR+) na trilha de auditoria (acao="erro"), além do
+        # console. Só ERROR+, nunca levanta e tem guarda anti-recursão.
+        "auditoria_db": {
+            "class": "eventos.logging_handlers.AuditoriaErroHandler",
+            "level": "ERROR",
+            "formatter": "simples",
+        },
     },
     "root": {
-        "handlers": ["console"],
+        "handlers": ["console", "auditoria_db"],
         "level": "WARNING",
     },
     "loggers": {
@@ -616,7 +623,7 @@ LOGGING = {
         # faltava para achar o bug do CPF. Para silenciar os 404, troque para
         # "ERROR".
         "django.request": {
-            "handlers": ["console"],
+            "handlers": ["console", "auditoria_db"],
             "level": "WARNING",
             "propagate": False,
         },
@@ -639,19 +646,41 @@ LOGGING = {
         },
         # Loggers da aplicação.
         "eventos": {
-            "handlers": ["console"],
+            "handlers": ["console", "auditoria_db"],
             "level": LOG_LEVEL,
             "propagate": False,
         },
         "api": {
-            "handlers": ["console"],
+            "handlers": ["console", "auditoria_db"],
             "level": LOG_LEVEL,
             "propagate": False,
         },
         "organizador": {
-            "handlers": ["console"],
+            "handlers": ["console", "auditoria_db"],
             "level": LOG_LEVEL,
             "propagate": False,
         },
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Sentry (opcional) — só ativa se SENTRY_DSN estiver no ambiente.
+# Captura exceções com stacktrace/agrupamento. Sem o DSN (ou sem o pacote),
+# nada acontece — o "self-contained" (acima) continua valendo.
+# ---------------------------------------------------------------------------
+SENTRY_DSN = config("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=0.0,
+            send_default_pii=False,
+            release=APP_VERSION_LABEL,
+        )
+    except Exception:  # pacote ausente ou DSN inválido: segue sem Sentry
+        pass

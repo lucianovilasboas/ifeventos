@@ -77,10 +77,31 @@ Como funciona (`eventos/auditor_ia.py`), **sem text-to-SQL**:
 O LLM nunca recebe os dados crus nem escreve SQL/ORM; a resposta final é só um
 resumo — confira os números nos filtros exibidos.
 
+## Erros
+
+Além do traceback no console (`django.request`), um handler de logging
+(`eventos/logging_handlers.AuditoriaErroHandler`) grava **ERROR+** como uma linha
+de auditoria (`acao="erro"`), com logger, nível e traceback (truncado) em
+`detalhes`. É _self-contained_ (fica no banco, aparece no admin e na API).
+
+- Só ERROR+; nunca levanta; tem guarda anti-recursão.
+- **Contexto async é ignorado** (o ORM é síncrono): erros em views/testes async
+  ficam só no console. O caminho web normal (gunicorn WSGI) é capturado.
+- **Sentry (opcional):** se `SENTRY_DSN` estiver no `.env` (e o pacote
+  `sentry-sdk` instalado), o Sentry é inicializado com
+  `send_default_pii=False`. Sem DSN, nada muda — nada sai do servidor.
+
+## Retenção
+
+```bash
+python manage.py limpar_auditoria                # dry-run (padrão 90 dias)
+python manage.py limpar_auditoria --dias 365
+python manage.py limpar_auditoria --dias 90 --confirmar
+```
+
 ## Roadmap
 
-- **Fase 4** — captura de erros (self-contained e/ou Sentry).
-- **Fase 5** — retenção (`limpar_auditoria --dias 90`).
+- (concluído) Fases 0–5 entregues.
 
 ## Operação
 

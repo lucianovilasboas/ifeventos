@@ -170,3 +170,65 @@ class AdminTests(TestCase):
         self.assertFalse(instancia.has_change_permission(None))
         self.assertFalse(instancia.has_delete_permission(None))
         self.assertIn(RegistroAuditoria, admin.site._registry)
+
+
+class ErroHandlerTests(TestCase):
+    """O handler grava ERROR+ como acao='erro', sem recursão e sem levantar."""
+
+    def test_error_vira_registro(self):
+        import logging
+
+        logger = logging.getLogger("eventos.teste_erro")
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            logger.exception("falhou de proposito")
+
+        linha = RegistroAuditoria.objects.filter(acao="erro").first()
+        self.assertIsNotNone(linha)
+        self.assertIn("falhou", linha.resumo)
+        self.assertIn("ValueError", (linha.detalhes or {}).get("traceback", ""))
+
+    def test_warning_nao_registra(self):
+        import logging
+
+        logging.getLogger("eventos.teste_warn").warning("apenas aviso")
+        self.assertFalse(RegistroAuditoria.objects.filter(acao="erro").exists())
+
+    def test_handler_nao_levanta_em_falha(self):
+        import logging
+        from unittest import mock
+
+        from eventos.logging_handlers import AuditoriaErroHandler
+
+        handler = AuditoriaErroHandler()
+        record = logging.LogRecord(
+            "x", logging.ERROR, __file__, 1, "erro", None, None
+        )
+        with mock.patch.object(
+            RegistroAuditoria.objects, "create", side_effect=RuntimeError("db")
+        ):
+            handler.emit(record)  # não pode levantar
+
+
+class LimparAuditoriaCommandTests(TestCase):
+    def test_retencao_dry_run_e_confirmar(self):
+        from datetime import timedelta
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.utils import timezone
+
+        antigo = RegistroAuditoria.objects.create(acao="criar", entidade="Evento")
+        RegistroAuditoria.objects.filter(id=antigo.id).update(
+            criado_em=timezone.now() - timedelta(days=200)
+        )
+        recente = RegistroAuditoria.objects.create(acao="criar", entidade="Evento")
+
+        saida = StringIO()
+        call_command("limpar_auditoria", "--dias", "90", stdout=saida)
+        self.assertTrue(RegistroAuditoria.objects.filter(id=antigo.id).exists())
+
+        call_command("limpar_auditoria", "--dias", "90", "--confirmar", stdout=saida)
+        self.assertFalse(RegistroAuditoria.objects.filter(id=antigo.id).exists())
+        self.assertTrue(RegistroAuditoria.objects.filter(id=recente.id).exists())

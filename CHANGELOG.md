@@ -23,6 +23,9 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 - **Agente interno "AuditorIA"** (`/organizador/auditoria/`): perguntas em
   linguagem natural sobre o histórico, respondidas por IA a partir de uma consulta
   estruturada validada e executada no ORM (sem text-to-SQL).
+- **Captura de erros na auditoria**: handler de logging grava ERROR+ como
+  `acao="erro"` (com traceback). **Sentry** opcional via `SENTRY_DSN`.
+- Comando **`limpar_auditoria`** (retenção; dry-run por padrão).
 
 ## [2.6.0] — 2026-09-24
 
