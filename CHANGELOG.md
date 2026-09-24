@@ -5,6 +5,15 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Adicionado
+
+- **Contextos de IA como ponto único de configuração** (documentado em `IA.md`):
+  o `entrypoint` passa a rodar `sincronizar_contextos_ia` a cada start, então
+  contextos novos (ex.: o do agente **AuditorIA**) aparecem no admin já após o
+  deploy, prontos para escolher o modelo e **habilitar/desabilitar**.
+
 ## [2.7.0] — 2026-09-24
 
 ### Adicionado

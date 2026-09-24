@@ -77,7 +77,8 @@ curl -I https://ifeventos.lucianovilasboas.com.br
 ```
 
 - O rodapé do site e o admin devem mostrar a versão (`v2.0.0`).
-- No admin → **Contextos de IA**, conferir os contextos criados pela migration de seed.
+- No admin → **Contextos de IA**, conferir os contextos (o `entrypoint` roda
+  `sincronizar_contextos_ia` a cada start; ver `IA.md`).
 - Funcionalidades novas (relatórios por participante/turma/tipo, "criar gráfico com IA",
   minhas palestras etc.) funcionando na área do organizador.
 

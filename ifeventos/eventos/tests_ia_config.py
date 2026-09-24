@@ -103,6 +103,14 @@ class IAConfigTests(TestCase):
         self.assertEqual(resultado["criados"], 0)
         self.assertEqual(resultado["total"], len(ia_config.CONTEXTOS))
 
+    def test_sincronizar_recria_contexto_ausente(self):
+        # Simula um banco que já passou das migrations: um contexto novo do
+        # código ainda não tem linha. O sync (que o entrypoint roda) recria.
+        ContextoIA.objects.filter(chave="auditoria").delete()
+        resultado = ia_config.sincronizar()
+        self.assertGreaterEqual(resultado["criados"], 1)
+        self.assertTrue(ContextoIA.objects.filter(chave="auditoria").exists())
+
     def test_admin_registrado(self):
         self.assertIn(ContextoIA, admin.site._registry)
 
