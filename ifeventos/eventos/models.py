@@ -1065,7 +1065,8 @@ def certificado_fundo_upload(instance, filename):
 
 def certificado_template_upload(instance, filename):
     ext = os.path.splitext(filename)[1].lower()
-    return f"certificados/templates/template_{uuid.uuid4().hex}{ext}"
+    escopo = getattr(instance, "escopo", "") or "modelo"
+    return f"certificados/templates/template_{escopo}_{uuid.uuid4().hex}{ext}"
 
 
 class Assinante(models.Model):
@@ -1091,6 +1092,63 @@ class Assinante(models.Model):
 
     def __str__(self):
         return f"{self.nome} ({self.cargo})" if self.cargo else self.nome
+
+
+class FundoCertificado(models.Model):
+    """Imagem de fundo do certificado (modo texto) — biblioteca reutilizável.
+
+    O organizador mantém a lista de fundos e escolhe um em cada configuração
+    de certificado (ver `ConfiguracaoCertificado.layout_fundo`). O upload sai
+    como `certificados/fundos/fundo_<uuid>.<ext>`.
+    """
+
+    nome = models.CharField(max_length=150)
+    arquivo = models.ImageField(upload_to=certificado_fundo_upload)
+    criado_por = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Fundo de certificado"
+        verbose_name_plural = "Fundos de certificado"
+        ordering = ["-criado_em", "id"]
+
+    def __str__(self):
+        return self.nome
+
+
+class TemplateCertificadoDocx(models.Model):
+    """Modelo .docx do certificado — biblioteca reutilizável da escola.
+
+    O organizador mantém a lista de modelos por tipo (evento/atividade) e
+    escolhe um em cada configuração de certificado (ver
+    `ConfiguracaoCertificado.template`). O upload sai como
+    `template_<escopo>_<uuid>.docx` (ver `certificado_template_upload`).
+    """
+
+    ESCOPO_EVENTO = "evento"
+    ESCOPO_ATIVIDADE = "atividade"
+    ESCOPO_CHOICES = [
+        (ESCOPO_EVENTO, "Evento"),
+        (ESCOPO_ATIVIDADE, "Atividade"),
+    ]
+
+    nome = models.CharField(max_length=150)
+    escopo = models.CharField(max_length=12, choices=ESCOPO_CHOICES)
+    arquivo = models.FileField(upload_to=certificado_template_upload)
+    criado_por = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Modelo .docx de certificado"
+        verbose_name_plural = "Modelos .docx de certificado"
+        ordering = ["-criado_em", "id"]
+
+    def __str__(self):
+        return self.nome
 
 
 class ConfiguracaoCertificado(models.Model):
@@ -1140,13 +1198,17 @@ class ConfiguracaoCertificado(models.Model):
     modo_layout = models.CharField(
         max_length=10, choices=MODO_CHOICES, default=MODO_TEXTO
     )
-    # Modo "fundo": imagem (PNG/JPG) usada como pano de fundo.
-    layout_fundo = models.ImageField(
-        upload_to=certificado_fundo_upload, blank=True, null=True
+    # Modo "texto": imagem de fundo escolhida do catálogo (FundoCertificado).
+    # Vazio = usa o fundo padrão desenhado pelo sistema.
+    layout_fundo = models.ForeignKey(
+        FundoCertificado, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="configuracoes",
     )
-    # Modo "docx": template com tags {{...}} (docxtpl).
-    template_docx = models.FileField(
-        upload_to=certificado_template_upload, blank=True, null=True
+    # Modo "docx": modelo escolhido do catálogo (TemplateCertificadoDocx),
+    # com tags {{...}} (docxtpl). Vazio = nenhum modelo selecionado.
+    template = models.ForeignKey(
+        TemplateCertificadoDocx, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="configuracoes",
     )
     # Carga horária padrão do certificado (vazio = usa a do evento).
     carga_horaria_padrao = models.PositiveIntegerField(null=True, blank=True)

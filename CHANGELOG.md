@@ -5,6 +5,23 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.6.0] — 2026-09-24
+
+### Adicionado
+
+- **Catálogos de modelos do certificado** na tela de configuração:
+  - **modelos `.docx`** por tipo (evento/atividade), com lista, seleção, upload e
+    remoção por AJAX; o arquivo sai como `template_<escopo>_<uuid>.docx`;
+  - **imagens de fundo** do modo texto, com lista (com miniatura), seleção, upload
+    e remoção por AJAX.
+- Comando `limpar_arquivos_certificado` para remover arquivos órfãos (modelos
+  `.docx` e fundos): dry-run por padrão, `--confirmar` para apagar.
+
+### Corrigido
+
+- Comentário de template `{# … #}` em várias linhas vazava como texto no
+  dashboard do organizador e na tela de propostas (trocado por `{% comment %}`).
+
 ## [2.5.0] — 2026-09-23
 
 ### Adicionado

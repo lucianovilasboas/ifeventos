@@ -334,7 +334,7 @@ def _desenhar_fundo(c, config, width, height):
     fundo = getattr(config, "layout_fundo", None)
     if fundo:
         try:
-            c.drawImage(ImageReader(fundo.path), 0, 0, width=width, height=height,
+            c.drawImage(ImageReader(fundo.arquivo.path), 0, 0, width=width, height=height,
                         preserveAspectRatio=False, mask="auto")
             return
         except Exception:
@@ -499,7 +499,7 @@ def render_docx(contexto, config) -> bytes:
     from docx.shared import Mm
     from docxtpl import DocxTemplate, InlineImage
 
-    doc = DocxTemplate(config.template_docx.path)
+    doc = DocxTemplate(config.template.arquivo.path)
     ctx = dict(contexto)
     ctx["qr"] = InlineImage(doc, io.BytesIO(_qr_png(contexto)), width=Mm(25))
 
@@ -530,7 +530,7 @@ def render_pdf(contexto, config) -> bytes:
     from .models import ConfiguracaoCertificado
 
     modo = getattr(config, "modo_layout", ConfiguracaoCertificado.MODO_TEXTO)
-    if modo == ConfiguracaoCertificado.MODO_DOCX and getattr(config, "template_docx", None):
+    if modo == ConfiguracaoCertificado.MODO_DOCX and getattr(config, "template", None):
         try:
             return render_docx(contexto, config)
         except (
