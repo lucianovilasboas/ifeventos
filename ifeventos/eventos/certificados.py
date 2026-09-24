@@ -121,6 +121,48 @@ def carga_horaria_efetiva(atividade, evento, config=None):
 
 
 # ---------------------------------------------------------------------------
+# Configuração efetiva (evento, padrão de atividades e override por atividade)
+# ---------------------------------------------------------------------------
+
+
+def config_do_evento(evento):
+    """Config usada no certificado DO EVENTO."""
+    from .models import ConfiguracaoCertificado
+
+    if evento is None:
+        return None
+    return ConfiguracaoCertificado.objects.filter(
+        evento=evento,
+        atividade__isnull=True,
+        escopo=ConfiguracaoCertificado.ESCOPO_EVENTO,
+    ).first()
+
+
+def config_padrao_atividades(evento):
+    """Config padrão dos certificados de atividade."""
+    from .models import ConfiguracaoCertificado
+
+    if evento is None:
+        return None
+    return ConfiguracaoCertificado.objects.filter(
+        evento=evento,
+        atividade__isnull=True,
+        escopo=ConfiguracaoCertificado.ESCOPO_ATIVIDADE,
+    ).first()
+
+
+def config_efetiva(atividade=None, evento=None):
+    """Config a usar: override da atividade → padrão de atividades → do evento."""
+    if atividade is not None:
+        config = getattr(atividade, "certificado_config", None)
+        if config is not None:
+            return config
+        evento = evento or atividade.evento
+        return config_padrao_atividades(evento)
+    return config_do_evento(evento)
+
+
+# ---------------------------------------------------------------------------
 # Contexto (variáveis do texto)
 # ---------------------------------------------------------------------------
 
@@ -129,8 +171,8 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
     """Variáveis disponíveis no corpo/template do certificado."""
     if evento is None and atividade is not None:
         evento = atividade.evento
-    if config is None and evento is not None:
-        config = getattr(evento, "certificado_config", None)
+    if config is None:
+        config = config_efetiva(atividade, evento)
 
     from .crachas import gerar_token, url_verificacao
 
@@ -143,10 +185,17 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
         )
     )
     horas = carga_horaria_efetiva(atividade, evento, config)
+    tipo_atividade = ""
+    if atividade is not None:
+        if atividade.tipo_id:
+            tipo_atividade = atividade.tipo.nome
+        elif atividade.tipo_sugerido:
+            tipo_atividade = atividade.tipo_sugerido
     return {
         "nome": participante.get_full_name(),
         "cpf": participante.cpf,
         "atividade": atividade.titulo if atividade is not None else "",
+        "tipo_atividade": tipo_atividade,
         "evento": evento.title if evento is not None else "",
         "local": (atividade.local if atividade is not None and atividade.local else (evento.local if evento else "")),
         "carga_horaria": f"{horas}h" if horas else "",
@@ -381,8 +430,8 @@ def gerar_certificado(participante, *, atividade=None, evento=None, config=None)
 
     if evento is None and atividade is not None:
         evento = atividade.evento
-    if config is None and evento is not None:
-        config = getattr(evento, "certificado_config", None)
+    if config is None:
+        config = config_efetiva(atividade, evento)
 
     contexto = contexto_certificado(
         participante, atividade=atividade, evento=evento, config=config
@@ -471,7 +520,7 @@ def emitir(participante, *, atividade=None, evento=None):
     """
     if evento is None and atividade is not None:
         evento = atividade.evento
-    config = getattr(evento, "certificado_config", None) if evento is not None else None
+    config = config_efetiva(atividade, evento)
 
     if atividade is not None:
         tipo = Certificado.TIPO_ATIVIDADE

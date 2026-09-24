@@ -433,9 +433,9 @@ class AssinaturaCertificadoInline(admin.TabularInline):
 
 @admin.register(ConfiguracaoCertificado)
 class ConfiguracaoCertificadoAdmin(admin.ModelAdmin):
-    list_display = ("evento", "modo_layout", "titulo", "percentual_efetivo", "enviar_email")
-    list_filter = ("modo_layout", "enviar_email")
-    search_fields = ("evento__title",)
+    list_display = ("evento", "escopo", "atividade", "modo_layout", "titulo", "enviar_email")
+    list_filter = ("escopo", "modo_layout", "enviar_email")
+    search_fields = ("evento__title", "atividade__titulo")
     inlines = [AssinaturaCertificadoInline]
 
 

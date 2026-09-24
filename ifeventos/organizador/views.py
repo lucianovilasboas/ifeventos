@@ -785,7 +785,7 @@ class EmitirCertificadosEventoView(LoginRequiredMixin, View):
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
 
-        config = getattr(evento, "certificado_config", None)
+        config = certificados.config_do_evento(evento)
         gerados = []
         for pessoa in certificados.participantes_do_evento(evento, config):
             _certificado, criado = certificados.emitir(pessoa, evento=evento)
@@ -815,19 +815,23 @@ class CertificadoConfigView(LoginRequiredMixin, View):
             "form": form,
             "formset": formset,
             "assinantes": Assinante.objects.filter(ativo=True),
-            "config": getattr(evento, "certificado_config", None),
+            "config": certificados.config_do_evento(evento),
         }
 
     def get(self, request, evento_id):
         evento = self._get_evento(request, evento_id)
-        config, _ = ConfiguracaoCertificado.objects.get_or_create(evento=evento)
+        config = certificados.config_do_evento(evento)
+        if config is None:
+            config = ConfiguracaoCertificado.objects.create(evento=evento)
         form = ConfiguracaoCertificadoForm(instance=config)
         formset = AssinaturaCertificadoFormSet(instance=config)
         return render(request, self.template_name, self._contexto(evento, form, formset))
 
     def post(self, request, evento_id):
         evento = self._get_evento(request, evento_id)
-        config, _ = ConfiguracaoCertificado.objects.get_or_create(evento=evento)
+        config = certificados.config_do_evento(evento)
+        if config is None:
+            config = ConfiguracaoCertificado.objects.create(evento=evento)
         form = ConfiguracaoCertificadoForm(request.POST, request.FILES, instance=config)
         formset = AssinaturaCertificadoFormSet(request.POST, request.FILES, instance=config)
         if form.is_valid() and formset.is_valid():
@@ -851,7 +855,7 @@ class CertificadoPreviewView(LoginRequiredMixin, View):
         evento = get_object_or_404(Evento, id=evento_id)
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
-        config = getattr(evento, "certificado_config", None)
+        config = certificados.config_do_evento(evento)
         atividade = evento.atividades.filter(emite_certificado=True).first()
         arquivo = certificados.gerar_certificado(
             request.user, atividade=atividade, evento=evento, config=config

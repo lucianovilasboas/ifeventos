@@ -192,7 +192,9 @@ class EmissaoTests(TestCase):
     def test_email_enviado_quando_configurado(self):
         from django.core import mail
 
-        ConfiguracaoCertificado.objects.create(evento=self.evento, enviar_email=True)
+        ConfiguracaoCertificado.objects.create(
+            evento=self.evento, escopo="atividade", enviar_email=True
+        )
         certificados.emitir(self.pessoa, atividade=self.atividade)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].attachments[0][0], "certificado.pdf")
@@ -200,7 +202,9 @@ class EmissaoTests(TestCase):
     def test_email_nao_enviado_quando_desligado(self):
         from django.core import mail
 
-        ConfiguracaoCertificado.objects.create(evento=self.evento, enviar_email=False)
+        ConfiguracaoCertificado.objects.create(
+            evento=self.evento, escopo="atividade", enviar_email=False
+        )
         certificados.emitir(self.pessoa, atividade=self.atividade)
         self.assertEqual(len(mail.outbox), 0)
 

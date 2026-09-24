@@ -1077,23 +1077,44 @@ class Assinante(models.Model):
 
 
 class ConfiguracaoCertificado(models.Model):
-    """Como os certificados DESTE evento são desenhados e assinados.
+    """Como um certificado é desenhado e assinado.
 
-    Uma por evento. A MESMA configuração serve para o certificado de ATIVIDADE
-    e o do EVENTO: o `corpo` usa variáveis (`{{nome}}`, `{{atividade}}`,
-    `{{evento}}`, `{{carga_horaria}}`, `{{data}}`, `{{local}}`, `{{qr}}`); no
-    certificado de evento, `{{atividade}}` sai vazio.
+    Três registros possíveis por evento:
+      * escopo="evento", atividade=None     -> certificado DO EVENTO;
+      * escopo="atividade", atividade=None  -> PADRÃO dos certificados de atividade;
+      * escopo="atividade", atividade=A     -> OVERRIDE da atividade A.
+
+    A config efetiva de uma atividade é o override (se houver) ou o padrão de
+    atividades; a do evento é a de escopo "evento". O `corpo` usa variáveis
+    (`{{nome}}`, `{{tipo_atividade}}`, `{{atividade}}`, `{{evento}}`,
+    `{{carga_horaria}}`, `{{data}}`, `{{local}}`, `{{qr}}`).
     """
 
+    ESCOPO_EVENTO = "evento"
+    ESCOPO_ATIVIDADE = "atividade"
+    ESCOPO_CHOICES = [
+        (ESCOPO_EVENTO, "Evento"),
+        (ESCOPO_ATIVIDADE, "Atividade"),
+    ]
+
+    MODO_TEXTO = "texto"
     MODO_FUNDO = "fundo"
     MODO_DOCX = "docx"
     MODO_CHOICES = [
-        (MODO_FUNDO, "Fundo (imagem/PDF) + texto"),
+        (MODO_TEXTO, "Só texto (fundo padrão)"),
+        (MODO_FUNDO, "Imagem de fundo + texto"),
         (MODO_DOCX, "Modelo .docx"),
     ]
 
-    evento = models.OneToOneField(
-        Evento, on_delete=models.CASCADE, related_name="certificado_config"
+    evento = models.ForeignKey(
+        Evento, on_delete=models.CASCADE, related_name="certificado_configs"
+    )
+    atividade = models.OneToOneField(
+        Atividade, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="certificado_config",
+    )
+    escopo = models.CharField(
+        max_length=12, choices=ESCOPO_CHOICES, default=ESCOPO_EVENTO
     )
     titulo = models.CharField(max_length=150, default="CERTIFICADO")
     corpo = models.TextField(
@@ -1102,10 +1123,10 @@ class ConfiguracaoCertificado(models.Model):
     )
     rodape = models.CharField(max_length=255, blank=True, default="")
     modo_layout = models.CharField(
-        max_length=10, choices=MODO_CHOICES, default=MODO_FUNDO
+        max_length=10, choices=MODO_CHOICES, default=MODO_TEXTO
     )
-    # Modo "fundo": imagem (PNG/JPG) ou PDF usado como pano de fundo.
-    layout_fundo = models.FileField(
+    # Modo "fundo": imagem (PNG/JPG) usada como pano de fundo.
+    layout_fundo = models.ImageField(
         upload_to=certificado_fundo_upload, blank=True, null=True
     )
     # Modo "docx": template com tags {{...}} (docxtpl).
@@ -1122,9 +1143,25 @@ class ConfiguracaoCertificado(models.Model):
     class Meta:
         verbose_name = "Configuração de certificado"
         verbose_name_plural = "Configurações de certificado"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["evento"],
+                condition=models.Q(atividade__isnull=True, escopo="evento"),
+                name="uniq_cert_config_evento",
+            ),
+            models.UniqueConstraint(
+                fields=["evento"],
+                condition=models.Q(atividade__isnull=True, escopo="atividade"),
+                name="uniq_cert_config_atividades",
+            ),
+        ]
 
     def __str__(self):
-        return f"Certificado de {self.evento.title}"
+        if self.atividade_id:
+            return f"Certificado (atividade {self.atividade.titulo})"
+        if self.escopo == self.ESCOPO_EVENTO:
+            return f"Certificado do evento {self.evento.title}"
+        return f"Certificado das atividades de {self.evento.title}"
 
     @property
     def percentual_efetivo(self):
