@@ -115,3 +115,29 @@ as migrações, remova os que não são usados por nenhuma configuração:
 docker compose exec app python manage.py limpar_arquivos_certificado             # só lista
 docker compose exec app python manage.py limpar_arquivos_certificado --confirmar # apaga
 ```
+
+### Logs da aplicação
+
+Os contêineres rotacionam os logs (`json-file`, 10 MB × 5), então os arquivos
+recentes ficam disponíveis e são pesquisáveis via `docker compose logs`:
+
+```bash
+docker compose logs --since 1h app                        # última hora
+docker compose logs --since 24h app | grep -iE "error|traceback|500"
+```
+
+Os **tracebacks de erro (HTTP 500)** aparecem com o logger `django.request`
+(nível WARNING). Ajuste o detalhe com `LOG_LEVEL=DEBUG` no `.env`.
+
+### Auditoria — retenção e Sentry (opcional)
+
+Os erros também são gravados na trilha de auditoria. Para não crescer sem
+limite, rode a retenção periodicamente (ou por cron):
+
+```bash
+docker compose exec app python manage.py limpar_auditoria --dias 90             # dry-run
+docker compose exec app python manage.py limpar_auditoria --dias 90 --confirmar
+```
+
+Para monitoramento externo de erros, defina `SENTRY_DSN` no `.env` (instalando
+`sentry-sdk`); sem o DSN, nada é enviado para fora.

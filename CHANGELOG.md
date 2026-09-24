@@ -5,6 +5,28 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.7.0] — 2026-09-24
+
+### Adicionado
+
+- **Trilha de auditoria** (`RegistroAuditoria`, append-only, somente leitura no
+  admin): registra **quem fez o quê, quando e onde** — criar/editar/excluir das
+  entidades editoriais (evento, atividade, espaço, vaga, chamada), criar
+  inscrição/presença, login/logout, emissão de certificado, configuração de
+  certificado, decisão de proposta e cancelamento de presença. CPF/e-mail são
+  mascarados nos detalhes.
+- **Log de contêiner com rotação** (`json-file`, 10 MB × 5) no `docker-compose`,
+  para os tracebacks de erro persistirem e serem pesquisáveis.
+- **API da auditoria** (`/api/v1/auditoria/`, somente leitura) com filtros e a
+  ação `resumo/` (agregações por ação/entidade/origem/dia), pensada para consulta
+  por pessoas e por **agentes de IA/MCP**. E-mail do usuário mascarado.
+- **Agente interno "AuditorIA"** (`/organizador/auditoria/`): perguntas em
+  linguagem natural sobre o histórico, respondidas por IA a partir de uma consulta
+  estruturada validada e executada no ORM (sem text-to-SQL).
+- **Captura de erros na auditoria**: handler de logging grava ERROR+ como
+  `acao="erro"` (com traceback). **Sentry** opcional via `SENTRY_DSN`.
+- Comando **`limpar_auditoria`** (retenção; dry-run por padrão).
+
 ## [2.6.0] — 2026-09-24
 
 ### Adicionado

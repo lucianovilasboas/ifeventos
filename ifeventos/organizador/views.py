@@ -29,6 +29,8 @@ from eventos.models import (
     TemplateCertificadoDocx,
 )
 from eventos import certificados
+from eventos import auditoria
+from eventos.models import RegistroAuditoria
 from eventos.models import Evento
 from eventos.forms import AtividadeForm
 from eventos.models import Atividade
@@ -731,6 +733,14 @@ class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
         inscricao.certificado_emitido = True
         inscricao.save(update_fields=["certificado_emitido"])
 
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
+            objeto=inscricao.atividade,
+            evento=inscricao.atividade.evento,
+            resumo="Emitiu certificado de "
+            + (inscricao.participante.get_full_name() or inscricao.participante.email),
+            detalhes={"tipo": "atividade", "participante_id": inscricao.participante_id},
+        )
         return JsonResponse({"message": "Certificado emitido com sucesso!", "certificado": True})
 
 
@@ -765,6 +775,13 @@ class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
         resposta = {"message": "Certificados gerados com sucesso!", "certificados": certificados_gerados}
         if falhas:
             resposta["falhas"] = falhas
+
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
+            objeto=atividade,
+            resumo=f"Emitiu {len(certificados_gerados)} certificado(s) da atividade",
+            detalhes={"tipo": "atividade", "gerados": len(certificados_gerados), "falhas": falhas},
+        )
         return JsonResponse(resposta)
 
 
@@ -819,6 +836,14 @@ class EmitirCertificadosEventoView(LoginRequiredMixin, View):
         resposta = {"message": "Certificados emitidos para o evento!", "certificados": gerados}
         if falhas:
             resposta["falhas"] = falhas
+
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
+            objeto=evento,
+            evento=evento,
+            resumo=f"Emitiu {len(gerados)} certificado(s) do evento",
+            detalhes={"tipo": "evento", "gerados": len(gerados), "falhas": falhas},
+        )
         return JsonResponse(resposta)
 
 
@@ -856,6 +881,14 @@ class EmitirCertificadosTodasAtividadesView(LoginRequiredMixin, View):
         }
         if falhas:
             resposta["falhas"] = falhas
+
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
+            objeto=evento,
+            evento=evento,
+            resumo=f"Emitiu {len(gerados)} certificado(s) de todas as atividades",
+            detalhes={"tipo": "atividades", "gerados": len(gerados), "falhas": falhas},
+        )
         return JsonResponse(resposta)
 
 
@@ -953,6 +986,13 @@ class CertificadoConfigView(LoginRequiredMixin, View):
             _sincronizar_assinaturas(
                 config, form.cleaned_data.get("assinantes_escolhidos") or []
             )
+            auditoria.registrar(
+                acao=RegistroAuditoria.ACAO_CONFIGURAR_CERTIFICADO,
+                objeto=evento,
+                evento=evento,
+                resumo=f"Configurou o certificado ({escopo})",
+                detalhes={"escopo": escopo, "modo_layout": config.modo_layout},
+            )
             messages.success(request, "Configuração do certificado salva.")
             return redirect("organizador:certificado_config", evento.id, escopo)
         messages.warning(request, "Confira os campos destacados.")
@@ -1030,7 +1070,8 @@ class CertificadoAtividadeView(LoginRequiredMixin, View):
         atividade = self._get_atividade(request, atividade_id)
 
         if request.POST.get("acao") == "criar":
-            if getattr(atividade, "certificado_config", None) is None:
+            config = getattr(atividade, "certificado_config", None)
+            if config is None:
                 padrao = certificados.config_padrao_atividades(atividade.evento)
                 config = ConfiguracaoCertificado.objects.create(
                     evento=atividade.evento,
@@ -1048,6 +1089,13 @@ class CertificadoAtividadeView(LoginRequiredMixin, View):
                         config,
                         [s.origem for s in padrao.assinaturas.all() if s.origem_id],
                     )
+            auditoria.registrar(
+                acao=RegistroAuditoria.ACAO_CONFIGURAR_CERTIFICADO,
+                objeto=atividade,
+                evento=atividade.evento,
+                resumo="Criou configuração própria do certificado da atividade",
+                detalhes={"escopo": "atividade", "modo_layout": getattr(config, "modo_layout", "")},
+            )
             messages.success(request, "Configuração própria da atividade criada.")
             return redirect("organizador:certificado_atividade", atividade.id)
 
@@ -1061,6 +1109,13 @@ class CertificadoAtividadeView(LoginRequiredMixin, View):
             config = form.save()
             _sincronizar_assinaturas(
                 config, form.cleaned_data.get("assinantes_escolhidos") or []
+            )
+            auditoria.registrar(
+                acao=RegistroAuditoria.ACAO_CONFIGURAR_CERTIFICADO,
+                objeto=atividade,
+                evento=atividade.evento,
+                resumo="Configurou o certificado da atividade",
+                detalhes={"escopo": "atividade", "modo_layout": config.modo_layout},
             )
             messages.success(request, "Configuração do certificado da atividade salva.")
             return redirect("organizador:certificado_atividade", atividade.id)
@@ -1195,6 +1250,46 @@ class FundoCertificadoRemoverView(LoginRequiredMixin, View):
         if nome_arquivo:
             arquivo.storage.delete(nome_arquivo)
         return JsonResponse({"ok": True})
+
+
+# -- Auditoria (agente) --
+
+
+@login_required(login_url="/accounts/login/")
+def auditoria_agente(request):
+    """Página do agente "AuditorIA" (perguntas sobre o histórico de ações).
+
+    Restrita ao **superusuário** (admin): a trilha tem dados sensíveis.
+    """
+    if not request.user.is_superuser:
+        raise PermissionDenied("Área restrita ao superusuário.")
+    return render(request, "organizador/auditoria.html", {})
+
+
+@csrf_exempt
+@login_required(login_url="/accounts/login/")
+def auditoria_responder(request):
+    """Responde, em linguagem natural, a uma pergunta sobre a auditoria.
+
+    View **síncrona** de propósito: acessa `request.user` (que pode exigir
+    query no banco) e faz a ponte para o agente async via `async_to_sync`.
+    """
+    from asgiref.sync import async_to_sync
+
+    from eventos import auditor_ia
+
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    if not request.user.is_superuser:
+        return JsonResponse({"erro": "Área restrita ao superusuário."}, status=403)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
+    resultado = async_to_sync(auditor_ia.responder)(
+        dados.get("pergunta"), request.user
+    )
+    return JsonResponse(resultado, status=200 if resultado.get("ok") else 400)
 
 
 # -- Crachás --
@@ -1575,6 +1670,13 @@ def aprovar_proposta(request, atividade_id):
             "Proposta aprovada e publicada na programação." if publicar
             else "Proposta aprovada, mantida como rascunho.",
         )
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_APROVAR_PROPOSTA,
+            objeto=atividade,
+            evento=atividade.evento,
+            resumo="Aprovou a proposta" + (" e publicou" if publicar else ""),
+            detalhes={"publicar": publicar, "tipo_id": getattr(tipo, "id", None)},
+        )
     return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
 
 
@@ -1590,6 +1692,13 @@ def rejeitar_proposta(request, atividade_id):
         messages.error(request, erro.messages[0])
     else:
         messages.success(request, "Proposta rejeitada e vaga liberada.")
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_REJEITAR_PROPOSTA,
+            objeto=atividade,
+            evento=atividade.evento,
+            resumo="Rejeitou a proposta",
+            detalhes={"motivo": (request.POST.get('motivo') or "")[:300]},
+        )
     return redirect('organizador:propostas_pendentes', evento_id=atividade.evento_id)
 
 

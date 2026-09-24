@@ -12,6 +12,7 @@ from eventos.models import (
     Inscricao,
     Participante,
     Presenca,
+    RegistroAuditoria,
     TipoAtividade,
     Vaga,
 )
@@ -899,3 +900,28 @@ class RejeicaoPropostaSerializer(serializers.Serializer):
     motivo = serializers.CharField(
         help_text="Explicação que o proponente recebe (obrigatória)."
     )
+
+
+class RegistroAuditoriaSerializer(serializers.ModelSerializer):
+    """Trilha de auditoria (somente leitura).
+
+    O e-mail do usuário vai **mascarado** (o `detalhes` já é sanitizado na
+    gravação). Serve tanto para pessoas quanto para um agente de IA.
+    """
+
+    usuario_email = serializers.SerializerMethodField()
+    acao_display = serializers.CharField(source="get_acao_display", read_only=True)
+
+    class Meta:
+        model = RegistroAuditoria
+        fields = [
+            "id", "criado_em", "request_id", "usuario", "usuario_nome",
+            "usuario_email", "origem", "acao", "acao_display", "entidade",
+            "objeto_id", "objeto_repr", "evento", "resumo", "detalhes",
+            "ip", "path", "metodo", "status",
+        ]
+
+    def get_usuario_email(self, obj) -> str:
+        from eventos.auditoria import mascarar_email
+
+        return mascarar_email(obj.usuario_email)

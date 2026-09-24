@@ -250,6 +250,24 @@ Corpo da proposta (o espaço/horário **não** vêm soltos — vêm da vaga):
 IA do site). Aprovar aceita `{"publicar": true, "tipo": 3}` — por padrão já
 publica na programação. Rejeitar exige `{"motivo": "..."}`.
 
+### Auditoria (trilha de ações)
+
+Somente leitura, **restrita ao superusuário (admin)**. Registra **quem fez o
+quê, quando e onde** (ver `AUDITORIA.md`). O e-mail do usuário vem **mascarado**.
+
+```bash
+GET /api/v1/auditoria/                        # lista paginada (50/página)
+GET /api/v1/auditoria/?acao=emitir_certificado&entidade=Certificado
+GET /api/v1/auditoria/?desde=2026-09-01&ate=2026-09-30&search=oficina
+GET /api/v1/auditoria/resumo/                 # contagens por ação/entidade/origem/dia
+```
+
+Filtros: `acao`, `entidade`, `origem`, `evento`, `usuario`, `objeto_id`,
+`desde`, `ate` (ISO) e `search` (resumo/objeto/usuário). O `resumo` aceita os
+mesmos filtros — **para um agente de IA, prefira `resumo`** (poucos tokens).
+
+Acesso restrito ao **superusuário** (admin).
+
 ## Fluxo completo da chamada (exemplo)
 
 ```bash

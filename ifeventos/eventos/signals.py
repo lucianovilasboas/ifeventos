@@ -156,3 +156,150 @@ def enriquecer_perfil_social(request, sociallogin, **kwargs):
     if user is not None:
         social.enriquecer_do_google(user, sociallogin)
 
+
+
+# ---------------------------------------------------------------------------
+# Trilha de auditoria
+# ---------------------------------------------------------------------------
+# Camada automática (models): registra criar/editar/excluir das entidades
+# editoriais. As ações de negócio (emissão, propostas, login, config…) e a
+# configuração de certificado são registradas explicitamente nas views para
+# não poluir com criações implícitas (ex.: `_get_config` num GET).
+from django.db.models.signals import pre_save
+from django.contrib.auth.signals import (
+    user_logged_in as django_user_logged_in,
+    user_logged_out as django_user_logged_out,
+)
+
+from .models import (
+    ChamadaProposicoes,
+    Espaco,
+    Evento,
+    RegistroAuditoria,
+    Vaga,
+)
+
+# Campos relevantes por model: o "editar" só registra se algum mudou, e guarda
+# o antes/depois no `detalhes`.
+_CAMPOS_AUDITADOS = {
+    "evento": [
+        "title", "description", "local", "data_inicio", "data_fim",
+        "categoria", "carga_horaria", "percentual_certificado", "modelo_cracha",
+    ],
+    "atividade": [
+        "titulo", "descricao", "local", "data_hora_inicio", "data_hora_fim",
+        "n_vagas", "emite_certificado", "tipo_id", "situacao", "motivo_rejeicao",
+    ],
+    "espaco": ["nome", "capacidade"],
+    "vaga": ["espaco_id", "inicio", "fim", "capacidade"],
+    "chamadaproposicoes": ["titulo", "descricao", "inicio", "fim", "aberta"],
+}
+# Movimentação em massa: interessa criar/excluir, não cada update.
+_SO_CRIAR = {"inscricao", "presenca"}
+
+
+def _valor_texto(valor, limite=300):
+    if valor is None:
+        return ""
+    return str(valor)[:limite]
+
+
+@receiver(pre_save)
+def auditoria_pre_save(sender, instance, **kwargs):
+    campos = _CAMPOS_AUDITADOS.get(sender.__name__.lower())
+    if not campos or not instance.pk:
+        return
+    try:
+        antigo = sender.objects.filter(pk=instance.pk).only(*campos).first()
+    except Exception:
+        antigo = None
+    if antigo is not None:
+        instance._auditoria_antes = {
+            c: _valor_texto(getattr(antigo, c, None)) for c in campos
+        }
+
+
+@receiver(post_save)
+def auditoria_post_save(sender, instance, created, **kwargs):
+    from . import auditoria
+
+    nome = sender.__name__.lower()
+    audita_edicao = nome in _CAMPOS_AUDITADOS
+    if not (audita_edicao or nome in _SO_CRIAR):
+        return
+    if created:
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_CRIAR,
+            objeto=instance,
+            resumo=f"Criou {sender.__name__}",
+        )
+        return
+    if not audita_edicao:
+        return
+    antes = getattr(instance, "_auditoria_antes", None)
+    if not antes:
+        return
+    alteracoes = {}
+    for campo in _CAMPOS_AUDITADOS[nome]:
+        depois = _valor_texto(getattr(instance, campo, None))
+        if antes.get(campo, "") != depois:
+            alteracoes[campo] = {"antes": antes.get(campo, ""), "depois": depois}
+    if not alteracoes:
+        return
+    auditoria.registrar(
+        acao=RegistroAuditoria.ACAO_EDITAR,
+        objeto=instance,
+        resumo=f"Editou {sender.__name__}",
+        detalhes={"alteracoes": alteracoes},
+    )
+
+
+@receiver(post_delete)
+def auditoria_post_delete(sender, instance, **kwargs):
+    from . import auditoria
+
+    nome = sender.__name__.lower()
+    if nome not in _CAMPOS_AUDITADOS:
+        return
+    # No delete não usamos FK para o evento nem para o objeto: podem estar indo
+    # embora em cascata (apagar um evento apaga as atividades/vagas junto).
+    auditoria.registrar(
+        acao=RegistroAuditoria.ACAO_EXCLUIR,
+        entidade=sender.__name__,
+        objeto_id=str(getattr(instance, "pk", "") or ""),
+        objeto_repr=_valor_texto(instance, 255),
+        evento=None,
+        resumo=f"Excluiu {sender.__name__}",
+    )
+
+
+@receiver(django_user_logged_in)
+def auditoria_login(request, user, **kwargs):
+    from . import auditoria
+
+    auditoria.registrar(
+        acao=RegistroAuditoria.ACAO_LOGIN,
+        entidade="Participante",
+        objeto_id=str(getattr(user, "pk", "") or ""),
+        objeto_repr=_valor_texto(user, 255),
+        usuario=user,
+        request=request,
+        resumo="Entrou no sistema",
+    )
+
+
+@receiver(django_user_logged_out)
+def auditoria_logout(request, user, **kwargs):
+    from . import auditoria
+
+    if user is None:
+        return
+    auditoria.registrar(
+        acao=RegistroAuditoria.ACAO_LOGOUT,
+        entidade="Participante",
+        objeto_id=str(getattr(user, "pk", "") or ""),
+        objeto_repr=_valor_texto(user, 255),
+        usuario=user,
+        request=request,
+        resumo="Saiu do sistema",
+    )

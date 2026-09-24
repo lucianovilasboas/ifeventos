@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -28,6 +29,7 @@ from eventos.crachas import (
     url_presenca_atividade,
     verificar_token,
 )
+from eventos import auditoria
 from eventos import metadados as metadados_config
 from eventos import propostas
 from eventos.regras import atividades_publicas
@@ -40,6 +42,7 @@ from eventos.models import (
     Inscricao,
     Participante,
     Presenca,
+    RegistroAuditoria,
     TipoAtividade,
     Vaga,
 )
@@ -51,6 +54,7 @@ from .permissions import (
     IsDonoOuOrganizador,
     IsOrganizador,
     IsOrganizadorEstrito,
+    IsSuperuser,
     PodeLerPresencas,
 )
 from .serializers import (
@@ -75,6 +79,7 @@ from .serializers import (
     PresencaSerializer,
     PropostaWriteSerializer,
     RejeicaoPropostaSerializer,
+    RegistroAuditoriaSerializer,
     QrAtividadeSerializer,
     TipoAtividadeSerializer,
     TipoAtividadeWriteSerializer,
@@ -1072,3 +1077,74 @@ class PropostaViewSet(viewsets.ModelViewSet):
                 {"detail": erro.messages[0]}, status=status.HTTP_400_BAD_REQUEST
             )
         return self._resposta(proposta)
+
+
+class RegistroAuditoriaViewSet(viewsets.ReadOnlyModelViewSet):
+    """Trilha de auditoria — somente leitura (pessoas e agentes).
+
+    Filtros por query: `acao`, `entidade`, `origem`, `evento`, `usuario`,
+    `objeto_id`, `desde`, `ate`; e busca livre em `?search=` (resumo, objeto,
+    usuário). A ação `resumo` devolve contagens agregadas (poucos tokens para
+    um agente de IA).
+
+    Acesso restrito ao **superusuário** (admin).
+    """
+
+    queryset = RegistroAuditoria.objects.none()  # tipa o `{id}` na doc
+    serializer_class = RegistroAuditoriaSerializer
+    permission_classes = [IsSuperuser]
+    search_fields = [
+        "usuario_nome", "usuario_email", "resumo", "objeto_repr", "objeto_id",
+    ]
+    ordering = ["-criado_em"]
+
+    def get_queryset(self):
+        base = RegistroAuditoria.objects.select_related("usuario", "evento")
+        base = auditoria.escopo_para_usuario(base, self.request.user)
+
+        parametros = self.request.query_params
+        filtros = {
+            "acao": "acao",
+            "entidade": "entidade",
+            "origem": "origem",
+            "evento": "evento_id",
+            "usuario": "usuario_id",
+            "objeto_id": "objeto_id",
+        }
+        for chave, campo in filtros.items():
+            valor = parametros.get(chave)
+            if valor:
+                base = base.filter(**{campo: valor})
+        desde = auditoria.limite_data(parametros.get("desde"))
+        if desde:
+            base = base.filter(criado_em__gte=desde)
+        ate = auditoria.limite_data(parametros.get("ate"), fim=True)
+        if ate:
+            base = base.filter(criado_em__lte=ate)
+        return base
+
+    @action(detail=False, methods=["get"])
+    def resumo(self, request):
+        """Contagens agregadas (por ação, entidade, origem e dia)."""
+        base = self.filter_queryset(self.get_queryset())
+
+        def _contar(campo):
+            return list(
+                base.values(campo).annotate(total=Count("id")).order_by("-total")
+            )
+
+        por_dia = list(
+            base.annotate(dia=TruncDate("criado_em"))
+            .values("dia")
+            .annotate(total=Count("id"))
+            .order_by("dia")
+        )
+        return Response(
+            {
+                "total": base.count(),
+                "por_acao": _contar("acao"),
+                "por_entidade": _contar("entidade"),
+                "por_origem": _contar("origem"),
+                "por_dia": por_dia,
+            }
+        )

@@ -12,6 +12,14 @@
 # Para desenvolvimento local, use docker-compose.dev.yml.
 # =====================================================================
 
+# Rotação de logs dos contêineres: evita crescer sem limite no disco e mantém
+# os últimos arquivos pesquisáveis via `docker compose logs`.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
 
   app:
@@ -21,6 +29,7 @@ services:
       dockerfile: Dockerfile
     image: ifeventos:latest
     restart: unless-stopped
+    logging: *default-logging
     command: ./entrypoint.sh
     env_file:
       - ./ifeventos/.env
@@ -65,6 +74,7 @@ services:
     container_name: ifeventos_db
     image: postgres:15
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - ./ifeventos/.env
     volumes:
