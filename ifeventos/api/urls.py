@@ -23,6 +23,7 @@ from .viewsets import (
     PropostaViewSet,
     QrAtividadePngView,
     QrCrachaPngView,
+    RegistroAuditoriaViewSet,
     TipoAtividadeViewSet,
     VagaViewSet,
     VerificacaoView,
@@ -41,6 +42,7 @@ router.register("presencas", PresencaViewSet, basename="presenca")
 router.register("espacos", EspacoViewSet, basename="espaco")
 router.register("vagas", VagaViewSet, basename="vaga")
 router.register("propostas", PropostaViewSet, basename="proposta")
+router.register("auditoria", RegistroAuditoriaViewSet, basename="auditoria")
 
 urlpatterns = [
     path("auth/token/", ObtainTokenView.as_view(), name="token"),

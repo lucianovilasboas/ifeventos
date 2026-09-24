@@ -49,10 +49,20 @@ admin é **somente leitura**.
   (`eventos.auditoria._sanitizar`). Senhas/tokens nunca são gravados.
 - A exposição por API/agente (fase futura) reaproveita `mascarar_cpf`/`mascarar_email`.
 
+## API (agentes e integrações)
+
+Somente leitura, em `/api/v1/auditoria/` (token como no resto da API — ver
+`API.md`). Escopo: staff/superuser veem tudo; demais organizadores, só os seus
+eventos/ações.
+
+- Lista paginada com filtros `acao`, `entidade`, `origem`, `evento`, `usuario`,
+  `objeto_id`, `desde`, `ate` e `search`.
+- Ação **`resumo/`**: contagens por ação/entidade/origem/dia (poucos tokens para
+  o agente).
+- O serializer mascara o e-mail do usuário.
+
 ## Roadmap
 
-- **Fase 2** — API read-only (`/api/v1/auditoria/`) + agregações, para um agente
-  externo/MCP consultar via token.
 - **Fase 3** — agente interno "AuditorIA" (pergunta em linguagem natural → consulta
   estruturada no ORM → resumo).
 - **Fase 4** — captura de erros (self-contained e/ou Sentry).

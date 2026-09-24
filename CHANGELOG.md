@@ -17,6 +17,9 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
   mascarados nos detalhes.
 - **Log de contêiner com rotação** (`json-file`, 10 MB × 5) no `docker-compose`,
   para os tracebacks de erro persistirem e serem pesquisáveis.
+- **API da auditoria** (`/api/v1/auditoria/`, somente leitura) com filtros e a
+  ação `resumo/` (agregações por ação/entidade/origem/dia), pensada para consulta
+  por pessoas e por **agentes de IA/MCP**. E-mail do usuário mascarado.
 
 ## [2.6.0] — 2026-09-24
 
