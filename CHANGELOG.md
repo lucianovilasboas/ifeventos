@@ -9,14 +9,17 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
 ### Adicionado
 
-- **Área de certificados do organizador.** Uma tela por evento (botão
-  **Certificado** na tela de atividades) para definir:
-  - **texto** (título, corpo com variáveis e rodapé);
-  - **layout**: fundo próprio (imagem/PDF) **ou** um **modelo `.docx`** com tags
-    (`{{nome}}`, `{{atividade}}`, `{{evento}}`, `{{carga_horaria}}`, `{{data}}`,
-    `{{local}}`, `{{qr}}`, `{{assinatura1}}`/`{{assinatura2}}`);
+- **Área de certificados do organizador.** Duas configurações por evento (abas
+  **Certificado do evento** e **Padrão das atividades**), mais um **override por
+  atividade** — a atividade usa o padrão do evento até você personalizar a dela.
+  Cada config define:
+  - **conteúdo**: título, corpo com variáveis e rodapé;
+  - **layout** (um modo): **só texto** (fundo padrão), **imagem de fundo** ou
+    **modelo `.docx`** com tags (`{{nome}}`, `{{tipo_atividade}}`, `{{atividade}}`,
+    `{{evento}}`, `{{carga_horaria}}`, `{{data}}`, `{{local}}`, `{{qr}}`,
+    `{{assinatura1}}`/`{{assinatura2}}`);
   - **assinaturas** (1 ou 2) escolhidas de um **catálogo de assinantes**
-    reutilizável (organizador e staff), com imagem;
+    reutilizável (organizador e staff), com imagem (snapshot no certificado);
   - **carga horária** e **percentual mínimo de presença** do evento.
 - **Carga horária** por atividade e por evento; **percentual do evento**
   configurável (antes: 75% fixo no código).
@@ -25,14 +28,16 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
   certificado de **evento** = presença mínima nas atividades que emitem
   certificado.
 - **Entrega** na área do participante **e** por **e-mail com o PDF anexo**
-  (configurável por evento).
-- **Pré-visualização** do certificado em PDF para o organizador conferir.
+  (configurável por config).
+- **Pré-visualização** do certificado em PDF, por escopo (evento/atividades/atividade).
 
 ### Notas
 
-- Novos modelos: `Assinante`, `ConfiguracaoCertificado`, `AssinaturaCertificado`;
-  novos campos em `Evento`/`Atividade`/`Certificado` (migration `0040`).
-- O modo `.docx` usa **LibreOffice** na imagem (build maior) e `docxtpl`.
+- Novos modelos: `Assinante`, `ConfiguracaoCertificado` (com escopo evento/atividade)
+  e `AssinaturaCertificado`; novos campos em `Evento`/`Atividade`/`Certificado`
+  (migrations `0040`, `0041`, `0042`).
+- O modo `.docx` usa **LibreOffice** na imagem (build maior) e `docxtpl`; sem o
+  LibreOffice, o render cai no modo fundo (não quebra a tela).
 
 ## [2.4.0] — 2026-09-23
 
