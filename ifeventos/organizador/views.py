@@ -713,9 +713,12 @@ class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
         if inscricao.certificado_emitido:
             return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
 
-        _certificado, criado = certificados.emitir(
-            inscricao.participante, atividade=inscricao.atividade
-        )
+        try:
+            _certificado, criado = certificados.emitir(
+                inscricao.participante, atividade=inscricao.atividade
+            )
+        except certificados.CertificadoLayoutError as erro:
+            return JsonResponse({"message": str(erro), "certificado": False}, status=503)
         if not criado:
             return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
 
@@ -738,8 +741,13 @@ class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
         inscritos = certificados.participantes_da_atividade(atividade)
 
         certificados_gerados = []
+        falhas = []
         for pessoa in inscritos:
-            _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
+            try:
+                _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
+            except certificados.CertificadoLayoutError as erro:
+                falhas = [str(erro)]
+                break
             if criado:
                 certificados_gerados.append(pessoa.id)
 
@@ -748,7 +756,10 @@ class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
                 atividade=atividade, participante_id__in=certificados_gerados
             ).update(certificado_emitido=True)
 
-        return JsonResponse({"message": "Certificados gerados com sucesso!", "certificados": certificados_gerados})
+        resposta = {"message": "Certificados gerados com sucesso!", "certificados": certificados_gerados}
+        if falhas:
+            resposta["falhas"] = falhas
+        return JsonResponse(resposta)
 
 
 
@@ -789,12 +800,57 @@ class EmitirCertificadosEventoView(LoginRequiredMixin, View):
 
         config = certificados.config_do_evento(evento)
         gerados = []
+        falhas = []
         for pessoa in certificados.participantes_do_evento(evento, config):
-            _certificado, criado = certificados.emitir(pessoa, evento=evento)
+            try:
+                _certificado, criado = certificados.emitir(pessoa, evento=evento)
+            except certificados.CertificadoLayoutError as erro:
+                falhas = [str(erro)]
+                break
             if criado:
                 gerados.append(pessoa.id)
 
-        return JsonResponse({"message": "Certificados emitidos para o evento!", "certificados": gerados})
+        resposta = {"message": "Certificados emitidos para o evento!", "certificados": gerados}
+        if falhas:
+            resposta["falhas"] = falhas
+        return JsonResponse(resposta)
+
+
+class EmitirCertificadosTodasAtividadesView(LoginRequiredMixin, View):
+    """Emite os certificados de TODAS as atividades que emitem certificado."""
+
+    def post(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+
+        gerados = set()
+        falhas = []
+        for atividade in evento.atividades.filter(emite_certificado=True):
+            ids_atividade = []
+            for pessoa in certificados.participantes_da_atividade(atividade):
+                try:
+                    _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
+                except certificados.CertificadoLayoutError as erro:
+                    falhas = [str(erro)]
+                    break
+                if criado:
+                    gerados.add(pessoa.id)
+                    ids_atividade.append(pessoa.id)
+            if falhas:
+                break
+            if ids_atividade:
+                Inscricao.objects.filter(
+                    atividade=atividade, participante_id__in=ids_atividade
+                ).update(certificado_emitido=True)
+
+        resposta = {
+            "message": "Certificados gerados com sucesso!",
+            "certificados": sorted(gerados),
+        }
+        if falhas:
+            resposta["falhas"] = falhas
+        return JsonResponse(resposta)
 
 
 # -- Configuração de certificados e catálogo de assinantes --
@@ -918,9 +974,16 @@ class CertificadoPreviewView(LoginRequiredMixin, View):
         else:
             config = certificados.config_do_evento(evento)
 
-        arquivo = certificados.gerar_certificado(
-            request.user, atividade=atividade, evento=evento, config=config
-        )
+        try:
+            arquivo = certificados.gerar_certificado(
+                request.user, atividade=atividade, evento=evento, config=config
+            )
+        except certificados.CertificadoLayoutError as erro:
+            return HttpResponse(
+                "Não foi possível gerar a pré-visualização: " + str(erro),
+                status=503,
+                content_type="text/plain; charset=utf-8",
+            )
         resposta = HttpResponse(arquivo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = 'inline; filename="certificado_amostra.pdf"'
         return resposta

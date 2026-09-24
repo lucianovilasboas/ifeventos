@@ -763,7 +763,7 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
             "corpo": "Texto do certificado",
             "rodape": "Rodapé",
             "modo_layout": "Layout",
-            "layout_fundo": "Imagem de fundo (PNG/JPG)",
+            "layout_fundo": "Imagem de fundo (opcional)",
             "template_docx": "Modelo .docx",
             "carga_horaria_padrao": "Carga horária padrão (horas)",
             "percentual": "Percentual mínimo de presença (%)",

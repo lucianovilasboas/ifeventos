@@ -323,6 +323,11 @@ class Evento(models.Model):
     def get_n_inscricoes(self):
         """ Retorna o número total de inscrições no evento """
         return Inscricao.objects.filter(atividade__evento=self).count()
+
+    @property
+    def encerrado(self):
+        """O evento terminou? Libera a emissão dos certificados DO EVENTO."""
+        return self.data_fim < timezone.localdate()
     
 
     def save(self, *args, **kwargs):
@@ -465,6 +470,16 @@ class Atividade(models.Model):
         if fim and fim.date() != inicio.date():
             dia = "%s a %s" % (dia, fim.strftime("%d/%m"))
         return "%s · %sh%s" % (dia, inicio.strftime("%H"), inicio.strftime("%M"))
+
+    @property
+    def encerrada(self):
+        """A atividade terminou? Libera a emissão dos certificados DELA."""
+        fim = self.data_hora_fim
+        if not fim:
+            return False
+        if timezone.is_naive(fim):
+            fim = timezone.make_aware(fim, timezone.get_current_timezone())
+        return fim < timezone.now()
 
     #campo para armazenar a confirmação da presença
     codigo_confirmacao = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)  # Código único por atividade
@@ -740,10 +755,12 @@ class Certificado(models.Model):
         unique_together = ('participante', 'atividade', 'evento')  # Evita duplicidade
 
     def __str__(self):
-        if self.atividade:
-            return f"Certificado de {self.participante.first_name} - Atividade {self.atividade.titulo}"
-        else:
-            return f"Certificado de {self.participante.first_name} - Evento {self.evento.title}"
+        nome = self.participante.get_full_name() if self.participante else "?"
+        if self.atividade_id:
+            return f"Certificado de {nome} - Atividade {self.atividade.titulo}"
+        if self.evento_id:
+            return f"Certificado de {nome} - Evento {self.evento.title}"
+        return f"Certificado de {nome}"
 
 
 def categorias_conhecidas():
@@ -1098,11 +1115,9 @@ class ConfiguracaoCertificado(models.Model):
     ]
 
     MODO_TEXTO = "texto"
-    MODO_FUNDO = "fundo"
     MODO_DOCX = "docx"
     MODO_CHOICES = [
-        (MODO_TEXTO, "Só texto (fundo padrão)"),
-        (MODO_FUNDO, "Imagem de fundo + texto"),
+        (MODO_TEXTO, "Texto livre (imagem de fundo opcional)"),
         (MODO_DOCX, "Modelo .docx"),
     ]
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import io
 import logging
+import subprocess
 
 from django.db.models import Count
 from django.utils import timezone
@@ -34,6 +35,10 @@ logger = logging.getLogger(__name__)
 
 class LibreOfficeIndisponivel(RuntimeError):
     """O binário do LibreOffice não está instalado neste servidor."""
+
+
+class CertificadoLayoutError(RuntimeError):
+    """O layout escolhido (ex.: .docx) não pôde ser gerado."""
 
 # ---------------------------------------------------------------------------
 # Elegibilidade
@@ -390,8 +395,8 @@ def _desenhar_assinaturas(c, assinaturas, width):
         if getattr(a, "imagem", None):
             try:
                 c.drawImage(
-                    ImageReader(a.imagem.path), x - 80, y_linha + 6,
-                    width=160, height=44, mask="auto", preserveAspectRatio=True,
+                    ImageReader(a.imagem.path), x - 115, y_linha - 4,
+                    width=230, height=70, mask="auto", preserveAspectRatio=True,
                 )
             except Exception:
                 pass
@@ -517,19 +522,28 @@ def render_docx(contexto, config) -> bytes:
 
 
 def render_pdf(contexto, config) -> bytes:
-    """Despacha o render pelo modo escolhido (fundo ou .docx)."""
+    """Despacha o render pelo modo escolhido (texto livre ou .docx).
+
+    No modo .docx, se a conversão falhar, NÃO gera o layout antigo em silêncio:
+    levanta `CertificadoLayoutError` para o organizador saber do problema.
+    """
     from .models import ConfiguracaoCertificado
 
-    modo = getattr(config, "modo_layout", ConfiguracaoCertificado.MODO_FUNDO)
+    modo = getattr(config, "modo_layout", ConfiguracaoCertificado.MODO_TEXTO)
     if modo == ConfiguracaoCertificado.MODO_DOCX and getattr(config, "template_docx", None):
         try:
             return render_docx(contexto, config)
-        except (LibreOfficeIndisponivel, FileNotFoundError):
-            # Sem LibreOffice (ex.: ambiente sem o pacote), não derruba a tela:
-            # cai no modo fundo. No servidor com LibreOffice, o .docx é usado.
-            logger.warning(
-                "certificados: LibreOffice indisponivel; usando o modo fundo."
-            )
+        except (
+            LibreOfficeIndisponivel,
+            FileNotFoundError,
+            subprocess.CalledProcessError,
+        ) as erro:
+            logger.exception("certificados: falha ao gerar o modelo .docx")
+            raise CertificadoLayoutError(
+                "O certificado está configurado no modelo .docx, mas a conversão "
+                "para PDF falhou. Verifique se o LibreOffice está instalado no "
+                "servidor ou use o modo 'Texto livre'."
+            ) from erro
     return _render_fundo(contexto, config)
 
 

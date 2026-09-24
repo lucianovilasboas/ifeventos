@@ -217,6 +217,58 @@ class EmissaoTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Certificado.objects.count(), 1)
 
+    def test_emissao_docx_sem_libreoffice_relata_falha(self):
+        from unittest import mock
+
+        from django.core.files.base import ContentFile
+        from docx import Document
+
+        buffer = io.BytesIO()
+        Document().save(buffer)
+        config = ConfiguracaoCertificado.objects.create(
+            evento=self.evento, escopo="atividade", modo_layout="docx"
+        )
+        config.template_docx.save("m.docx", ContentFile(buffer.getvalue()), save=True)
+
+        self.client.force_login(self.dono)
+        with mock.patch.object(
+            certificados, "_docx_para_pdf", side_effect=FileNotFoundError("libreoffice")
+        ):
+            r = self.client.post(
+                reverse("organizador:emitir_certificados_atividade", args=[self.atividade.id])
+            )
+        self.assertEqual(r.status_code, 200)
+        dados = r.json()
+        self.assertEqual(dados["certificados"], [])
+        self.assertTrue(dados.get("falhas"))
+        self.assertEqual(Certificado.objects.count(), 0)
+
+    def test_view_emitir_certificado_do_evento(self):
+        self.client.force_login(self.dono)
+        r = self.client.post(
+            reverse("organizador:emitir_certificados_evento", args=[self.evento.id])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["certificados"], [self.pessoa.id])
+        self.assertTrue(
+            Certificado.objects.filter(
+                participante=self.pessoa, evento=self.evento, tipo="evento"
+            ).exists()
+        )
+
+    def test_view_emitir_certificados_de_todas_as_atividades(self):
+        self.client.force_login(self.dono)
+        r = self.client.post(
+            reverse("organizador:emitir_certificados_todas_atividades", args=[self.evento.id])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(self.pessoa.id, r.json()["certificados"])
+        self.assertTrue(
+            Certificado.objects.filter(
+                participante=self.pessoa, atividade=self.atividade
+            ).exists()
+        )
+
 
 def _docx_template_bytes(texto="Certificado de {{ nome }}"):
     from docx import Document
@@ -286,15 +338,15 @@ class DocxRenderTests(TestCase):
         chamada.assert_called_once()
         self.assertEqual(dados, b"%PDF-x")
 
-    def test_fallback_para_fundo_sem_libreoffice(self):
+    def test_docx_sem_libreoffice_levanta_erro_claro(self):
         from unittest import mock
 
         contexto = certificados.contexto_certificado(self.dono, evento=self.evento)
         with mock.patch.object(
             certificados, "_docx_para_pdf", side_effect=FileNotFoundError("libreoffice")
         ):
-            dados = certificados.render_pdf(contexto, self.config)
-        self.assertTrue(dados.startswith(b"%PDF"))  # caiu no modo fundo, sem 500
+            with self.assertRaises(certificados.CertificadoLayoutError):
+                certificados.render_pdf(contexto, self.config)
 
 
 class AtividadeOverrideTests(TestCase):
@@ -417,3 +469,82 @@ class FormEscopoTests(TestCase):
         atividade = ConfiguracaoCertificadoForm(escopo="atividade")
         self.assertIn("carga_horaria_padrao", atividade.fields)
         self.assertNotIn("percentual", atividade.fields)
+
+
+class CertificadoStrTests(TestCase):
+    def test_str_sem_atividade_e_evento_nao_quebra(self):
+        dono = U.objects.create_user(email="str@cert.test", password=SENHA)
+        certificado = Certificado.objects.create(participante=dono)
+        self.assertIn("Certificado de", str(certificado))
+
+    def test_str_com_atividade(self):
+        dono = U.objects.create_user(
+            email="str2@cert.test", password=SENHA, is_organizador=True
+        )
+        evento = _evento(dono)
+        atividade = _atividade(evento)
+        certificado = Certificado.objects.create(participante=dono, atividade=atividade)
+        self.assertIn(atividade.titulo, str(certificado))
+
+    def test_str_com_evento(self):
+        dono = U.objects.create_user(
+            email="str3@cert.test", password=SENHA, is_organizador=True
+        )
+        evento = _evento(dono)
+        certificado = Certificado.objects.create(participante=dono, evento=evento)
+        self.assertIn(evento.title, str(certificado))
+
+
+class FundoTests(TestCase):
+    """No modo texto, a imagem de fundo é opcional: usa se existir, senão padrão."""
+
+    def test_com_imagem_desenha_o_fundo(self):
+        from unittest import mock
+
+        config = mock.Mock()
+        config.layout_fundo = mock.Mock()
+        config.layout_fundo.path = "/tmp/fundo.png"
+        canvas = mock.Mock()
+        with mock.patch.object(certificados, "ImageReader"):
+            certificados._desenhar_fundo(canvas, config, 842, 595)
+        canvas.drawImage.assert_called_once()
+
+    def test_sem_imagem_usa_o_padrao(self):
+        from unittest import mock
+
+        config = mock.Mock()
+        config.layout_fundo = None
+        canvas = mock.Mock()
+        certificados._desenhar_fundo(canvas, config, 842, 595)
+        canvas.drawImage.assert_not_called()
+        canvas.rect.assert_called()
+
+
+class EncerramentoTests(TestCase):
+    """O botão de emitir só aparece após o encerramento (regra da UI)."""
+
+    def setUp(self):
+        self.dono = U.objects.create_user(
+            email="dono@enc.test", password=SENHA, is_organizador=True
+        )
+
+    def test_evento_encerrado(self):
+        passado = _evento(
+            self.dono, data_inicio=date(2020, 1, 1), data_fim=date(2020, 1, 2)
+        )
+        futuro = _evento(
+            self.dono, data_inicio=date(2099, 1, 1), data_fim=date(2099, 1, 2)
+        )
+        self.assertTrue(passado.encerrado)
+        self.assertFalse(futuro.encerrado)
+
+    def test_atividade_encerrada(self):
+        evento = _evento(self.dono)
+        passada = _atividade(
+            evento, data_hora_fim=datetime(2020, 1, 1, 10, 0, tzinfo=tz.utc)
+        )
+        futura = _atividade(
+            evento, data_hora_fim=datetime(2099, 1, 1, 10, 0, tzinfo=tz.utc)
+        )
+        self.assertTrue(passada.encerrada)
+        self.assertFalse(futura.encerrada)

@@ -14,10 +14,10 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
   atividade** — a atividade usa o padrão do evento até você personalizar a dela.
   Cada config define:
   - **conteúdo**: título, corpo com variáveis e rodapé;
-  - **layout** (um modo): **só texto** (fundo padrão), **imagem de fundo** ou
-    **modelo `.docx`** com tags (`{{nome}}`, `{{tipo_atividade}}`, `{{atividade}}`,
-    `{{evento}}`, `{{carga_horaria}}`, `{{data}}`, `{{local}}`, `{{qr}}`,
-    `{{assinatura1}}`/`{{assinatura2}}`);
+  - **layout** (dois formatos): **texto livre** (com **imagem de fundo
+    opcional**) ou **modelo `.docx`** com tags (`{{nome}}`, `{{tipo_atividade}}`,
+    `{{atividade}}`, `{{evento}}`, `{{carga_horaria}}`, `{{data}}`, `{{local}}`,
+    `{{qr}}`, `{{assinatura1}}`/`{{assinatura2}}`);
   - **assinaturas** (1 ou 2) escolhidas de um **catálogo de assinantes**
     reutilizável (organizador e staff), com imagem (snapshot no certificado);
   - **carga horária** e **percentual mínimo de presença** do evento.
@@ -30,9 +30,14 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 - **Entrega** na área do participante **e** por **e-mail com o PDF anexo**
   (configurável por config).
 - **Pré-visualização** do certificado em PDF, por escopo (evento/atividades/atividade).
-- **Tela “layout-primeiro”**: escolhe-se o formato e a tela mostra **só os campos
-  que ele usa** (texto livre, imagem de fundo ou modelo `.docx`). No `.docx`, o
-  conteúdo e as assinaturas ficam no arquivo (a tela não os pede).
+- **Botões de emissão**: **“Emitir certificados do evento”** (na tela de
+  configuração, na tela de atividades e no card do dashboard) e **“Emitir
+  certificados de todas as atividades”** (aba de atividades). O e-mail segue a
+  opção “Enviar por e-mail” da configuração.
+- **Tela “layout-primeiro”**: dois formatos — **texto livre** (com **imagem de
+  fundo opcional**) e **modelo `.docx`** — e a tela mostra **só os campos que o
+  formato usa**. No `.docx`, o conteúdo e as assinaturas ficam no arquivo (a tela
+  não os pede).
 - **Certificado do evento usa o percentual de participação** no texto
   (`{{percentual_participacao}}`, ex. `80%`, e `{{percentual_minimo}}`) — **sem
   carga horária** no evento. `{{carga_horaria}}` é do certificado de atividade e,
@@ -40,6 +45,18 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 - **QR maior** no canto inferior direito e a **URL de confirmação em uma linha
   abaixo do rodapé, clicável** (nos modos texto e imagem); no `.docx`, `{{qr}}`
   (imagem) e `{{qr_url}}` (texto).
+
+### Corrigido
+
+- **Admin**: adicionada a busca em **Eventos** e **Participantes** e **corrigida**
+  a busca de **Atividades**, **Inscrições** e **Certificados** (usavam um FK
+  direto em `search_fields`, que estoura `FieldError` — o "Search" daria 500).
+- **`Certificado.__str__`** não quebra mais quando o registro não tem atividade
+  nem evento (certificado antigo/incompleto derrubava a lista do admin).
+- **Certificado `.docx` não cai mais no layout antigo em silêncio**: se a
+  conversão para PDF falhar (ex.: LibreOffice indisponível), a pré-visualização e
+  a emissão **informam o erro** e **não** geram um certificado fora do modelo. Na
+  emissão em lote, o que falha é pulado e relatado (`falhas`).
 
 ### Notas
 

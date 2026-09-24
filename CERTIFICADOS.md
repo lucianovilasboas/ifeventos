@@ -17,12 +17,12 @@ fica em `/organizador/assinantes/` (organizador e staff).
 
 ## O que se configura
 
-A tela começa pelo **Layout** e mostra **só o que ele usa**:
+A tela começa pelo **Layout** (dois formatos) e mostra **só o que ele usa**:
 
-- **Só texto** — você escreve o conteúdo (título, texto, rodapé) e escolhe as
-  assinaturas; o sistema monta o certificado no fundo padrão.
-- **Imagem de fundo** — você envia uma imagem (PNG/JPG); o texto e as
-  assinaturas são desenhados por cima.
+- **Texto livre** — você escreve o conteúdo (título, texto, rodapé) e escolhe as
+  assinaturas. A **imagem de fundo é opcional**: com imagem, o texto e as
+  assinaturas são desenhados por cima; sem imagem, o certificado usa o fundo
+  padrão.
 - **Modelo `.docx`** — você envia um documento do Word com as tags. **O conteúdo
   e as assinaturas ficam dentro do arquivo** (por isso a tela não mostra os
   campos de texto nem a lista de assinaturas). Requer LibreOffice no servidor
@@ -30,9 +30,9 @@ A tela começa pelo **Layout** e mostra **só o que ele usa**:
 
 Comuns a todos os escopos:
 
-- **Assinaturas (1 ou 2)** — nos modos **só texto** e **imagem de fundo**:
-  escolhidas do **catálogo**. A imagem do assinante é copiada (snapshot), então
-  trocar o catálogo depois não muda certificados já configurados.
+- **Assinaturas (1 ou 2)** — no modo **texto livre**: escolhidas do **catálogo**.
+  A imagem do assinante é copiada (snapshot), então trocar o catálogo depois não
+  muda certificados já configurados.
 - **Enviar por e-mail** — manda o PDF em anexo ao participante.
 
 Por **escopo** (aba):
@@ -64,10 +64,10 @@ Por **escopo** (aba):
 | `{{assinatura1}}` / `{{assinatura2}}` | imagem da assinatura (só no modo `.docx`) |
 | `{{assinante1}}` / `{{cargo_assinante1}}` | nome/cargo do assinante (e 2) |
 
-No modo **só texto** e **imagem de fundo**, use as variáveis de texto (o QR e as
-assinaturas são desenhados automaticamente; o QR fica no canto inferior direito e
-a **URL de confirmação sai em uma linha abaixo do rodapé, clicável**). No modo
-**`.docx`**, todas funcionam, inclusive as imagens.
+No modo **texto livre**, use as variáveis de texto (o QR e as assinaturas são
+desenhados automaticamente; o QR fica no canto inferior direito e a **URL de
+confirmação sai em uma linha abaixo do rodapé, clicável**). No modo **`.docx`**,
+todas funcionam, inclusive as imagens.
 
 ## Elegibilidade
 

@@ -51,6 +51,7 @@ from organizador.views import (
 from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_categoria_ajax
 from .views import EmitirCertificadosAtividadeView
 from .views import EmitirCertificadosEventoView
+from .views import EmitirCertificadosTodasAtividadesView
 from .views import EmitirCertificadoInscricaoView
 from .views import CertificadoConfigView, CertificadoPreviewView
 from .views import CertificadoAtividadeView, CertificadoAtividadeUsarPadraoView
@@ -157,6 +158,7 @@ urlpatterns = [
     path("emitir-certificado/inscricao/<int:inscricao_id>/", EmitirCertificadoInscricaoView.as_view(), name="emitir_certificado_inscricao"),
 
     path("emitir-certificados/evento/<int:evento_id>/", EmitirCertificadosEventoView.as_view(), name="emitir_certificados_evento"),
+    path("emitir-certificados/evento/<int:evento_id>/atividades/", EmitirCertificadosTodasAtividadesView.as_view(), name="emitir_certificados_todas_atividades"),
 
     # Configuração do certificado (texto/layout/assinaturas) e catálogo
     path("certificado/<int:evento_id>/config/<str:escopo>/", CertificadoConfigView.as_view(), name="certificado_config"),

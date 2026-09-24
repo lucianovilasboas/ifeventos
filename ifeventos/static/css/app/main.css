@@ -156,6 +156,13 @@ body:has(.reset-password-container) .hero-ico { display: none; }
 .btn-app:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; filter: none; }
 .btn-app:active { transform: translateY(4px); box-shadow: none; }
 
+/* Barra de ações do evento (tela de atividades): fica in-line no desktop.
+   No mobile continua quebrando; no desktop os botões ficam compactos. */
+.barra-acoes-evento .btn { white-space: nowrap; }
+@media (min-width: 992px) {
+  .barra-acoes-evento .btn { font-size: 0.8rem; padding: 0.3rem 0.5rem; }
+}
+
 /* Variante verde: agora é a mesma cor com peso semântico secundário */
 .btn-app-green {
   background: var(--bg) !important;

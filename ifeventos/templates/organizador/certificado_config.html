@@ -92,17 +92,17 @@
             </div>
 
             <div class="mt-3" data-modo="texto">
-                <div class="alert alert-light border mb-0 small">
+                <div class="alert alert-light border small">
                     <i class="fa-solid fa-align-left"></i>
                     Você escreve o texto abaixo e o sistema monta o certificado (com o QR e as
-                    assinaturas escolhidas).
+                    assinaturas escolhidas). A imagem de fundo é <b>opcional</b>.
                 </div>
-            </div>
-
-            <div class="mt-3 d-none" data-modo="fundo">
-                <label class="form-label" for="{{ form.layout_fundo.id_for_label }}">Imagem de fundo (PNG/JPG)</label>
+                <label class="form-label" for="{{ form.layout_fundo.id_for_label }}">Imagem de fundo (opcional)</label>
                 {{ form.layout_fundo }}
-                <div class="form-text">O texto e as assinaturas são desenhados por cima da imagem.</div>
+                <div class="form-text">
+                    Sem imagem, o certificado usa o fundo padrão. Com imagem, o texto e as
+                    assinaturas são desenhados por cima.
+                </div>
             </div>
 
             <div class="mt-3 d-none" data-modo="docx">
@@ -120,7 +120,7 @@
             </div>
         </div>
 
-        <div class="app-panel p-3 mb-3" data-modo="texto fundo">
+        <div class="app-panel p-3 mb-3" data-modo="texto">
             <h6 class="mb-3">Conteúdo</h6>
             <div class="row g-3">
                 <div class="col-12 col-md-8">
@@ -139,7 +139,7 @@
             </div>
         </div>
 
-        <div class="app-panel p-3 mb-3" data-modo="texto fundo">
+        <div class="app-panel p-3 mb-3" data-modo="texto">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">Assinaturas (até 2)</h6>
                 <a href="{% url 'organizador:assinantes' %}" class="btn btn-sm btn-outline-secondary">
@@ -213,6 +213,65 @@
                target="_blank" class="btn btn-outline-secondary">Pré-visualizar</a>
         </div>
     </form>
+
+    {% if escopo == 'evento' or escopo == 'atividades' %}
+    <div class="app-panel p-3 mt-3">
+        <h6 class="mb-2">Emitir</h6>
+        <p class="text-muted small mb-2">
+            {% if escopo == 'evento' %}
+            Gera o certificado <b>do evento</b> para quem cumpre o percentual mínimo.
+            {% else %}
+            Gera os certificados de <b>todas as atividades</b> que emitem certificado.
+            {% endif %}
+            O e-mail sai conforme a opção “Enviar por e-mail” desta configuração.
+        </p>
+        {% if evento.encerrado %}
+        <button type="button" class="btn btn-app" id="btn-emitir-certificados">
+            <i class="fa-solid fa-certificate"></i>
+            {% if escopo == 'evento' %}Emitir certificados do evento{% else %}Emitir certificados de todas as atividades{% endif %}
+        </button>
+        <div id="msg-emitir" class="mt-2"></div>
+        {% else %}
+        <p class="text-muted small mb-0">
+            <i class="fa-regular fa-clock"></i>
+            A emissão fica disponível após o encerramento do evento.
+        </p>
+        {% endif %}
+    </div>
+    {% if evento.encerrado %}
+    <script>
+    (function () {
+        var btn = document.getElementById("btn-emitir-certificados");
+        if (!btn) return;
+        var url = "{% if escopo == 'evento' %}{% url 'organizador:emitir_certificados_evento' evento.id %}{% else %}{% url 'organizador:emitir_certificados_todas_atividades' evento.id %}{% endif %}";
+        var msg = document.getElementById("msg-emitir");
+        btn.addEventListener("click", function () {
+            if (!confirm("Emitir os certificados agora?")) return;
+            msg.innerHTML = "<div class='alert alert-info'>Gerando certificados...</div>";
+            fetch(url, {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var falhas = data.falhas || [];
+                if (falhas.length) {
+                    msg.innerHTML = "<div class='alert alert-danger'>⚠ " + falhas[0] + "</div>";
+                    return;
+                }
+                var n = data.certificados.length;
+                if (n > 0) {
+                    msg.innerHTML = "<div class='alert alert-success'>🎉 " + n + " " + data.message + "</div>";
+                } else {
+                    msg.innerHTML = "<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>";
+                }
+            })
+            .catch(function () { msg.innerHTML = "<div class='alert alert-danger'>Erro ao emitir.</div>"; });
+        });
+    })();
+    </script>
+    {% endif %}
+    {% endif %}
 
     {% if escopo == 'atividade' %}
     <form method="post" action="{% url 'organizador:certificado_atividade_usar_padrao' atividade.id %}"
