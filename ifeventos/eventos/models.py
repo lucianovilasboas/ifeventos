@@ -891,6 +891,17 @@ class Presenca(models.Model):
             cancelada_por=por,
             motivo=motivo,
         )
+        from . import auditoria
+
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_CANCELAR_PRESENCA,
+            objeto=self.atividade,
+            evento=self.atividade.evento if self.atividade_id else None,
+            usuario=por,
+            resumo="Cancelou a presença de "
+            + (self.participante.get_full_name() if self.participante_id else ""),
+            detalhes={"motivo": motivo, "origem": self.origem, "papel": self.papel},
+        )
         self.delete()  # o delete() acima desmarca Inscricao.confirmada
         return registro
 
@@ -1275,3 +1286,101 @@ class AssinaturaCertificado(models.Model):
 
     def __str__(self):
         return f"{self.ordem}. {self.nome}"
+
+
+class RegistroAuditoria(models.Model):
+    """Trilha de auditoria (append-only): quem fez o quê, quando e onde.
+
+    Serve para rastreabilidade e para ser consultada por pessoas (admin) e por
+    um agente de IA (API). A aplicação nunca edita nem apaga estas linhas; o
+    admin é somente leitura. Dados sensíveis (CPF/e-mail) são mascarados na
+    leitura, não aqui (os helpers ficam em `eventos/auditoria.py`).
+    """
+
+    ORIGEM_WEB = "web"
+    ORIGEM_API = "api"
+    ORIGEM_ADMIN = "admin"
+    ORIGEM_CLI = "cli"
+    ORIGEM_SISTEMA = "sistema"
+    ORIGEM_CHOICES = [
+        (ORIGEM_WEB, "Site"),
+        (ORIGEM_API, "API"),
+        (ORIGEM_ADMIN, "Admin"),
+        (ORIGEM_CLI, "Linha de comando"),
+        (ORIGEM_SISTEMA, "Sistema"),
+    ]
+
+    ACAO_CRIAR = "criar"
+    ACAO_EDITAR = "editar"
+    ACAO_EXCLUIR = "excluir"
+    ACAO_LOGIN = "login"
+    ACAO_LOGOUT = "logout"
+    ACAO_EMITIR_CERTIFICADO = "emitir_certificado"
+    ACAO_APROVAR_PROPOSTA = "aprovar_proposta"
+    ACAO_REJEITAR_PROPOSTA = "rejeitar_proposta"
+    ACAO_CANCELAR_PROPOSTA = "cancelar_proposta"
+    ACAO_IMPORTAR = "importar"
+    ACAO_CONFIGURAR_CERTIFICADO = "configurar_certificado"
+    ACAO_CHECKIN = "checkin"
+    ACAO_CANCELAR_PRESENCA = "cancelar_presenca"
+    ACAO_ERRO = "erro"
+    ACAO_CHOICES = [
+        (ACAO_CRIAR, "Criar"),
+        (ACAO_EDITAR, "Editar"),
+        (ACAO_EXCLUIR, "Excluir"),
+        (ACAO_LOGIN, "Login"),
+        (ACAO_LOGOUT, "Logout"),
+        (ACAO_EMITIR_CERTIFICADO, "Emitir certificado"),
+        (ACAO_APROVAR_PROPOSTA, "Aprovar proposta"),
+        (ACAO_REJEITAR_PROPOSTA, "Rejeitar proposta"),
+        (ACAO_CANCELAR_PROPOSTA, "Cancelar proposta"),
+        (ACAO_IMPORTAR, "Importar"),
+        (ACAO_CONFIGURAR_CERTIFICADO, "Configurar certificado"),
+        (ACAO_CHECKIN, "Check-in"),
+        (ACAO_CANCELAR_PRESENCA, "Cancelar presença"),
+        (ACAO_ERRO, "Erro"),
+    ]
+
+    criado_em = models.DateTimeField(default=timezone.now, db_index=True)
+    # Correlaciona todas as linhas de uma mesma requisição.
+    request_id = models.UUIDField(null=True, blank=True, db_index=True)
+    usuario = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="auditoria",
+    )
+    # Snapshot: sobrevive à exclusão do usuário.
+    usuario_nome = models.CharField(max_length=255, blank=True, default="")
+    usuario_email = models.CharField(max_length=254, blank=True, default="")
+    origem = models.CharField(max_length=10, choices=ORIGEM_CHOICES, default=ORIGEM_WEB)
+    acao = models.CharField(max_length=30, choices=ACAO_CHOICES, db_index=True)
+    # Entidade afetada (nome do model, ex.: "Evento", "Inscricao").
+    entidade = models.CharField(max_length=60, blank=True, default="", db_index=True)
+    objeto_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    objeto_repr = models.CharField(max_length=255, blank=True, default="")
+    # Evento relacionado (quando aplicável) — permite escopo por evento.
+    evento = models.ForeignKey(
+        Evento, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="auditoria",
+    )
+    resumo = models.CharField(max_length=255, blank=True, default="")
+    detalhes = models.JSONField(null=True, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    path = models.CharField(max_length=255, blank=True, default="")
+    metodo = models.CharField(max_length=10, blank=True, default="")
+    status = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-criado_em", "-id"]
+        verbose_name = "Registro de auditoria"
+        verbose_name_plural = "Registros de auditoria"
+        indexes = [
+            models.Index(fields=["usuario", "-criado_em"], name="auditoria_usuario_idx"),
+            models.Index(fields=["acao", "-criado_em"], name="auditoria_acao_idx"),
+            models.Index(fields=["entidade", "objeto_id"], name="auditoria_objeto_idx"),
+            models.Index(fields=["-criado_em"], name="auditoria_criado_idx"),
+        ]
+
+    def __str__(self):
+        quando = self.criado_em.strftime("%d/%m %H:%M") if self.criado_em else "—"
+        autor = self.usuario_nome or "sistema"
+        return f"[{quando}] {autor} · {self.get_acao_display()} {self.entidade}".strip()

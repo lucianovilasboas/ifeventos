@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Adicionado
+
+- **Trilha de auditoria** (`RegistroAuditoria`, append-only, somente leitura no
+  admin): registra **quem fez o quê, quando e onde** — criar/editar/excluir das
+  entidades editoriais (evento, atividade, espaço, vaga, chamada), criar
+  inscrição/presença, login/logout, emissão de certificado, configuração de
+  certificado, decisão de proposta e cancelamento de presença. CPF/e-mail são
+  mascarados nos detalhes.
+- **Log de contêiner com rotação** (`json-file`, 10 MB × 5) no `docker-compose`,
+  para os tracebacks de erro persistirem e serem pesquisáveis.
+
 ## [2.6.0] — 2026-09-24
 
 ### Adicionado

@@ -16,6 +16,7 @@ from .models import ContextoIA
 from .models import Assinante
 from .models import AssinaturaCertificado
 from .models import ConfiguracaoCertificado
+from .models import RegistroAuditoria
 from django.utils.html import format_html
 from django.http import JsonResponse
 from django.urls import path
@@ -451,3 +452,37 @@ class ConfiguracaoCertificadoAdmin(admin.ModelAdmin):
     inlines = [AssinaturaCertificadoInline]
 
 
+
+@admin.register(RegistroAuditoria)
+class RegistroAuditoriaAdmin(admin.ModelAdmin):
+    """Trilha de auditoria — SOMENTE LEITURA.
+
+    É registro histórico: se pudesse ser editado/apagado, não serviria para
+    dizer quem fez o quê. A aplicação também nunca altera estas linhas.
+    """
+
+    list_display = (
+        "criado_em", "usuario_nome", "acao", "entidade", "objeto_repr",
+        "origem", "resumo",
+    )
+    list_filter = ("acao", "entidade", "origem", "criado_em")
+    search_fields = (
+        "usuario_nome", "usuario_email", "resumo", "objeto_repr", "objeto_id",
+    )
+    date_hierarchy = "criado_em"
+    list_select_related = ("usuario", "evento")
+    readonly_fields = (
+        "criado_em", "request_id", "usuario", "usuario_nome", "usuario_email",
+        "origem", "acao", "entidade", "objeto_id", "objeto_repr", "evento",
+        "resumo", "detalhes", "ip", "path", "metodo", "status",
+    )
+    ordering = ("-criado_em",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

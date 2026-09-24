@@ -121,6 +121,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Contexto da auditoria (usuário/IP/path num thread-local, para os signals
+    # e o helper `eventos.auditoria.registrar`). Depois do AuthenticationMiddleware
+    # para o `request.user` já existir.
+    "eventos.middleware.AuditoriaContextoMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 
