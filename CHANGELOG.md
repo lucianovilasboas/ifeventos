@@ -5,10 +5,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
-## [Não lançado]
+## [2.7.1] — 2026-09-24
 
 ### Adicionado
 
+- Menu do usuário: link para o **`/admin/`** quando o usuário é `is_staff`
+  (abre em nova aba).
 - **Contextos de IA como ponto único de configuração** (documentado em `IA.md`):
   o `entrypoint` passa a rodar `sincronizar_contextos_ia` a cada start, então
   contextos novos (ex.: o do agente **AuditorIA**) aparecem no admin já após o
