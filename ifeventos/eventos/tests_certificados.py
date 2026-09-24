@@ -8,6 +8,7 @@ from datetime import date, datetime
 from datetime import timezone as tz
 
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -17,8 +18,10 @@ from eventos.models import (
     Certificado,
     ConfiguracaoCertificado,
     Evento,
+    FundoCertificado,
     Inscricao,
     Presenca,
+    TemplateCertificadoDocx,
 )
 
 U = get_user_model()
@@ -225,10 +228,13 @@ class EmissaoTests(TestCase):
 
         buffer = io.BytesIO()
         Document().save(buffer)
-        config = ConfiguracaoCertificado.objects.create(
-            evento=self.evento, escopo="atividade", modo_layout="docx"
+        template = TemplateCertificadoDocx.objects.create(
+            nome="m.docx", escopo="atividade", criado_por=self.dono
         )
-        config.template_docx.save("m.docx", ContentFile(buffer.getvalue()), save=True)
+        template.arquivo.save("m.docx", ContentFile(buffer.getvalue()), save=True)
+        ConfiguracaoCertificado.objects.create(
+            evento=self.evento, escopo="atividade", modo_layout="docx", template=template
+        )
 
         self.client.force_login(self.dono)
         with mock.patch.object(
@@ -299,11 +305,14 @@ class DocxRenderTests(TestCase):
             email="donodocx@cert.test", password=SENHA, is_organizador=True
         )
         self.evento = _evento(self.dono)
-        self.config = ConfiguracaoCertificado.objects.create(
-            evento=self.evento, modo_layout="docx"
+        self.template = TemplateCertificadoDocx.objects.create(
+            nome="modelo.docx", escopo="evento", criado_por=self.dono
         )
-        self.config.template_docx.save(
+        self.template.arquivo.save(
             "modelo.docx", ContentFile(_docx_template_bytes()), save=True
+        )
+        self.config = ConfiguracaoCertificado.objects.create(
+            evento=self.evento, modo_layout="docx", template=self.template
         )
 
     def test_render_docx_converte_e_usa_o_nome(self):
@@ -503,7 +512,7 @@ class FundoTests(TestCase):
 
         config = mock.Mock()
         config.layout_fundo = mock.Mock()
-        config.layout_fundo.path = "/tmp/fundo.png"
+        config.layout_fundo.arquivo.path = "/tmp/fundo.png"
         canvas = mock.Mock()
         with mock.patch.object(certificados, "ImageReader"):
             certificados._desenhar_fundo(canvas, config, 842, 595)
@@ -548,3 +557,205 @@ class EncerramentoTests(TestCase):
         )
         self.assertTrue(passada.encerrada)
         self.assertFalse(futura.encerrada)
+
+
+class CatalogoTemplatesDocxTests(TestCase):
+    """Catálogo de modelos .docx: nome por escopo, form, upload/remoção AJAX."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._media = tempfile.mkdtemp(prefix="media_catdocx_")
+        cls._override = override_settings(MEDIA_ROOT=cls._media)
+        cls._override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._override.disable()
+        shutil.rmtree(cls._media, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        from django.core.files.base import ContentFile
+
+        self.dono = U.objects.create_user(
+            email="dono@catdocx.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+        self.tpl_evento = TemplateCertificadoDocx.objects.create(
+            nome="evento.docx", escopo="evento", criado_por=self.dono
+        )
+        self.tpl_evento.arquivo.save(
+            "evento.docx", ContentFile(_docx_template_bytes()), save=True
+        )
+        self.tpl_atividade = TemplateCertificadoDocx.objects.create(
+            nome="atividade.docx", escopo="atividade", criado_por=self.dono
+        )
+        self.tpl_atividade.arquivo.save(
+            "atividade.docx", ContentFile(_docx_template_bytes()), save=True
+        )
+
+    def test_nome_do_arquivo_tem_o_escopo(self):
+        self.assertTrue(
+            self.tpl_evento.arquivo.name.startswith(
+                "certificados/templates/template_evento_"
+            )
+        )
+        self.assertTrue(
+            self.tpl_atividade.arquivo.name.startswith(
+                "certificados/templates/template_atividade_"
+            )
+        )
+
+    def test_form_filtra_por_escopo(self):
+        from eventos.forms import ConfiguracaoCertificadoForm
+
+        form_evento = ConfiguracaoCertificadoForm(escopo="evento")
+        self.assertIn(self.tpl_evento, form_evento.fields["template"].queryset)
+        self.assertNotIn(self.tpl_atividade, form_evento.fields["template"].queryset)
+
+        form_ativ = ConfiguracaoCertificadoForm(escopo="atividades")
+        self.assertIn(self.tpl_atividade, form_ativ.fields["template"].queryset)
+        self.assertNotIn(self.tpl_evento, form_ativ.fields["template"].queryset)
+
+    def test_adicionar_template_via_ajax(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_login(self.dono)
+        arquivo = SimpleUploadedFile("novo.docx", _docx_template_bytes())
+        r = self.client.post(
+            reverse("organizador:certificado_template_adicionar"),
+            {"escopo": "evento", "arquivo": arquivo},
+        )
+        self.assertEqual(r.status_code, 200)
+        novo = TemplateCertificadoDocx.objects.get(id=r.json()["id"])
+        self.assertEqual(novo.escopo, "evento")
+        self.assertTrue(
+            novo.arquivo.name.startswith("certificados/templates/template_evento_")
+        )
+
+    def test_adicionar_recusa_nao_docx(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_login(self.dono)
+        arquivo = SimpleUploadedFile("foto.png", b"x")
+        r = self.client.post(
+            reverse("organizador:certificado_template_adicionar"),
+            {"escopo": "evento", "arquivo": arquivo},
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_remover_desvincula_e_apaga_arquivo(self):
+        config = ConfiguracaoCertificado.objects.create(
+            evento=self.evento, modo_layout="docx", template=self.tpl_evento
+        )
+        nome = self.tpl_evento.arquivo.name
+        self.client.force_login(self.dono)
+        r = self.client.post(
+            reverse(
+                "organizador:certificado_template_remover", args=[self.tpl_evento.id]
+            )
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(
+            TemplateCertificadoDocx.objects.filter(id=self.tpl_evento.id).exists()
+        )
+        config.refresh_from_db()
+        self.assertIsNone(config.template)
+        self.assertFalse(default_storage.exists(nome))
+
+    def test_sem_permissao_nao_remove(self):
+        outro = U.objects.create_user(email="nada@catdocx.test", password=SENHA)
+        self.client.force_login(outro)
+        r = self.client.post(
+            reverse(
+                "organizador:certificado_template_remover", args=[self.tpl_evento.id]
+            )
+        )
+        self.assertEqual(r.status_code, 403)
+
+
+class CatalogoFundosTests(TestCase):
+    """Catálogo de imagens de fundo: nome, form, upload/remoção AJAX e vínculo."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._media = tempfile.mkdtemp(prefix="media_catfundo_")
+        cls._override = override_settings(MEDIA_ROOT=cls._media)
+        cls._override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._override.disable()
+        shutil.rmtree(cls._media, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        from django.core.files.base import ContentFile
+
+        self.dono = U.objects.create_user(
+            email="dono@catfundo.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+        self.fundo = FundoCertificado.objects.create(
+            nome="fundo.png", criado_por=self.dono
+        )
+        self.fundo.arquivo.save("fundo.png", ContentFile(b"\x89PNG\r\n"), save=True)
+
+    def test_nome_do_arquivo(self):
+        self.assertTrue(
+            self.fundo.arquivo.name.startswith("certificados/fundos/fundo_")
+        )
+        self.assertTrue(self.fundo.arquivo.name.endswith(".png"))
+
+    def test_form_lista_os_fundos(self):
+        from eventos.forms import ConfiguracaoCertificadoForm
+
+        form = ConfiguracaoCertificadoForm(escopo="evento")
+        self.assertIn(self.fundo, form.fields["layout_fundo"].queryset)
+
+    def test_adicionar_fundo_via_ajax(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_login(self.dono)
+        arquivo = SimpleUploadedFile("novo.png", b"\x89PNG\r\n")
+        r = self.client.post(
+            reverse("organizador:certificado_fundo_adicionar"), {"arquivo": arquivo}
+        )
+        self.assertEqual(r.status_code, 200)
+        novo = FundoCertificado.objects.get(id=r.json()["id"])
+        self.assertTrue(novo.arquivo.name.startswith("certificados/fundos/fundo_"))
+
+    def test_adicionar_recusa_nao_imagem(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_login(self.dono)
+        arquivo = SimpleUploadedFile("nota.txt", b"x")
+        r = self.client.post(
+            reverse("organizador:certificado_fundo_adicionar"), {"arquivo": arquivo}
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_remover_desvincula_e_apaga_arquivo(self):
+        config = ConfiguracaoCertificado.objects.create(
+            evento=self.evento, layout_fundo=self.fundo
+        )
+        nome = self.fundo.arquivo.name
+        self.client.force_login(self.dono)
+        r = self.client.post(
+            reverse("organizador:certificado_fundo_remover", args=[self.fundo.id])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(FundoCertificado.objects.filter(id=self.fundo.id).exists())
+        config.refresh_from_db()
+        self.assertIsNone(config.layout_fundo)
+        self.assertFalse(default_storage.exists(nome))
+
+    def test_sem_permissao_nao_remove(self):
+        outro = U.objects.create_user(email="nada@catfundo.test", password=SENHA)
+        self.client.force_login(outro)
+        r = self.client.post(
+            reverse("organizador:certificado_fundo_remover", args=[self.fundo.id])
+        )
+        self.assertEqual(r.status_code, 403)

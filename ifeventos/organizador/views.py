@@ -21,7 +21,13 @@ from eventos.forms import (
     AssinanteForm,
     ConfiguracaoCertificadoForm,
 )
-from eventos.models import Assinante, AssinaturaCertificado, ConfiguracaoCertificado
+from eventos.models import (
+    Assinante,
+    AssinaturaCertificado,
+    ConfiguracaoCertificado,
+    FundoCertificado,
+    TemplateCertificadoDocx,
+)
 from eventos import certificados
 from eventos.models import Evento
 from eventos.forms import AtividadeForm
@@ -1116,6 +1122,79 @@ class AssinanteRemoverView(LoginRequiredMixin, View):
         Assinante.objects.filter(id=assinante_id).delete()
         messages.success(request, "Assinante removido.")
         return redirect("organizador:assinantes")
+
+
+class CertificadoTemplateAdicionarView(LoginRequiredMixin, View):
+    """Sobe um modelo .docx para o catálogo (chamada AJAX da tela de config)."""
+
+    def post(self, request):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        escopo = request.POST.get("escopo")
+        if escopo not in ("evento", "atividade"):
+            return JsonResponse({"erro": "Tipo de modelo inválido."}, status=400)
+        arquivo = request.FILES.get("arquivo")
+        if not arquivo:
+            return JsonResponse({"erro": "Selecione um arquivo .docx."}, status=400)
+        if not arquivo.name.lower().endswith(".docx"):
+            return JsonResponse({"erro": "O modelo precisa ser um arquivo .docx."}, status=400)
+        template = TemplateCertificadoDocx(
+            nome=arquivo.name[:150], escopo=escopo, criado_por=request.user
+        )
+        template.arquivo.save(arquivo.name, arquivo, save=True)
+        return JsonResponse({"id": template.id, "nome": template.nome})
+
+
+class CertificadoTemplateRemoverView(LoginRequiredMixin, View):
+    """Remove um modelo .docx do catálogo (AJAX): apaga o arquivo e desvincula.
+
+    Quem usava o modelo volta a ficar sem modelo (`template=None`, via
+    SET_NULL); a config continua no modo .docx até o organizador escolher outro.
+    """
+
+    def post(self, request, template_id):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        template = get_object_or_404(TemplateCertificadoDocx, id=template_id)
+        arquivo = template.arquivo
+        nome_arquivo = arquivo.name if arquivo else ""
+        template.delete()
+        if nome_arquivo:
+            arquivo.storage.delete(nome_arquivo)
+        return JsonResponse({"ok": True})
+
+
+class FundoCertificadoAdicionarView(LoginRequiredMixin, View):
+    """Sobe uma imagem de fundo para o catálogo (chamada AJAX)."""
+
+    def post(self, request):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        arquivo = request.FILES.get("arquivo")
+        if not arquivo:
+            return JsonResponse({"erro": "Selecione uma imagem."}, status=400)
+        if not arquivo.name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+            return JsonResponse({"erro": "Use uma imagem PNG, JPG ou WEBP."}, status=400)
+        fundo = FundoCertificado(nome=arquivo.name[:150], criado_por=request.user)
+        fundo.arquivo.save(arquivo.name, arquivo, save=True)
+        return JsonResponse(
+            {"id": fundo.id, "nome": fundo.nome, "url": fundo.arquivo.url}
+        )
+
+
+class FundoCertificadoRemoverView(LoginRequiredMixin, View):
+    """Remove uma imagem de fundo do catálogo (AJAX): apaga e desvincula."""
+
+    def post(self, request, fundo_id):
+        if not _pode_gerir_assinantes(request.user):
+            raise PermissionDenied("Área restrita a organizadores.")
+        fundo = get_object_or_404(FundoCertificado, id=fundo_id)
+        arquivo = fundo.arquivo
+        nome_arquivo = arquivo.name if arquivo else ""
+        fundo.delete()
+        if nome_arquivo:
+            arquivo.storage.delete(nome_arquivo)
+        return JsonResponse({"ok": True})
 
 
 # -- Crachás --

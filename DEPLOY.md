@@ -104,3 +104,14 @@ docker compose exec app python manage.py createsuperuser
 docker compose exec -T db pg_dump -U django_user django_db > /opt/docker/backups/ifeventos/backup.sql
 docker compose exec -T db psql -U django_user -d django_db < /opt/docker/backups/ifeventos/backup.sql
 ```
+
+### Limpeza de arquivos de certificado (opcional)
+
+Os arquivos de mídia (`media/`) **não** vão pelo git, então modelos `.docx` e
+imagens de fundo antigos podem ficar órfãos em cada ambiente. Depois de aplicar
+as migrações, remova os que não são usados por nenhuma configuração:
+
+```bash
+docker compose exec app python manage.py limpar_arquivos_certificado             # só lista
+docker compose exec app python manage.py limpar_arquivos_certificado --confirmar # apaga
+```

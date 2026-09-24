@@ -91,7 +91,9 @@
                 </div>
             </div>
 
-            <div class="mt-3" data-modo="texto">
+            <div class="mt-3" data-modo="texto" id="bloco-fundo-texto"
+                 data-url-adicionar="{% url 'organizador:certificado_fundo_adicionar' %}"
+                 data-url-remover="{% url 'organizador:certificado_fundo_remover' 0 %}">
                 <div class="alert alert-light border small">
                     <i class="fa-solid fa-align-left"></i>
                     Você escreve o texto abaixo e o sistema monta o certificado (com o QR e as
@@ -103,11 +105,39 @@
                     Sem imagem, o certificado usa o fundo padrão. Com imagem, o texto e as
                     assinaturas são desenhados por cima.
                 </div>
+
+                <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <input type="file" id="novo-fundo" accept="image/*"
+                           class="form-control form-control-sm" style="max-width:320px">
+                    <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" id="btn-add-fundo">
+                        <i class="fa-solid fa-plus"></i> Adicionar fundo
+                    </button>
+                </div>
+                <div id="msg-fundo" class="small mt-2"></div>
+
+                <ul class="list-group mt-3" id="lista-fundos">
+                    {% for f in form.layout_fundo.field.queryset %}
+                    <li class="list-group-item d-flex align-items-center justify-content-between" data-fundo-id="{{ f.id }}">
+                        <span class="d-flex align-items-center gap-2">
+                            <img src="{{ f.arquivo.url }}" alt="" style="height:40px">
+                            {{ f.nome }}
+                        </span>
+                        <button type="button" class="btn btn-sm btn-outline-danger js-remover-fundo" title="Remover fundo">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted" data-fundo-vazio>Nenhum fundo cadastrado ainda.</li>
+                    {% endfor %}
+                </ul>
             </div>
 
-            <div class="mt-3 d-none" data-modo="docx">
-                <label class="form-label" for="{{ form.template_docx.id_for_label }}">Modelo .docx</label>
-                {{ form.template_docx }}
+            <div class="mt-3 d-none" data-modo="docx" id="bloco-template-docx"
+                 data-url-adicionar="{% url 'organizador:certificado_template_adicionar' %}"
+                 data-url-remover="{% url 'organizador:certificado_template_remover' 0 %}"
+                 data-escopo="{% if escopo == 'evento' %}evento{% else %}atividade{% endif %}">
+                <label class="form-label" for="{{ form.template.id_for_label }}">Modelo .docx</label>
+                {{ form.template }}
                 <div class="form-text">
                     O conteúdo e as assinaturas ficam dentro do arquivo. Tags disponíveis:
                     <code>&#123;&#123;nome&#125;&#125;</code>, <code>&#123;&#123;tipo_atividade&#125;&#125;</code>,
@@ -117,6 +147,28 @@
                     <code>&#123;&#123;percentual_minimo&#125;&#125;</code>,
                     <code>&#123;&#123;qr&#125;&#125;</code>, <code>&#123;&#123;qr_url&#125;&#125;</code>.
                 </div>
+
+                <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <input type="file" id="novo-template-docx" accept=".docx"
+                           class="form-control form-control-sm" style="max-width:320px">
+                    <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" id="btn-add-template-docx">
+                        <i class="fa-solid fa-plus"></i> Adicionar modelo
+                    </button>
+                </div>
+                <div id="msg-template-docx" class="small mt-2"></div>
+
+                <ul class="list-group mt-3" id="lista-templates-docx">
+                    {% for t in form.template.field.queryset %}
+                    <li class="list-group-item d-flex align-items-center justify-content-between" data-template-id="{{ t.id }}">
+                        <span><i class="fa-regular fa-file-word"></i> {{ t.nome }}</span>
+                        <button type="button" class="btn btn-sm btn-outline-danger js-remover-template" title="Remover modelo">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted" data-template-vazio>Nenhum modelo cadastrado ainda.</li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
 
@@ -335,6 +387,179 @@
     }
     sel.addEventListener("change", atualizar);
     atualizar();
+})();
+</script>
+
+<script>
+(function () {
+    var bloco = document.getElementById("bloco-template-docx");
+    if (!bloco) return;
+    var select = document.getElementById("{{ form.template.id_for_label }}");
+    var lista = document.getElementById("lista-templates-docx");
+    var inputArquivo = document.getElementById("novo-template-docx");
+    var btnAdd = document.getElementById("btn-add-template-docx");
+    var msg = document.getElementById("msg-template-docx");
+    var csrf = document.querySelector("input[name=csrfmiddlewaretoken]");
+    var urlRemoverBase = bloco.getAttribute("data-url-remover");
+
+    function mostrar(texto, tipo) {
+        msg.innerHTML = texto ? '<div class="text-' + (tipo || "muted") + '">' + texto + "</div>" : "";
+    }
+
+    btnAdd.addEventListener("click", function () {
+        var arquivo = inputArquivo.files && inputArquivo.files[0];
+        if (!arquivo) { mostrar("Selecione um arquivo .docx.", "danger"); return; }
+        var dados = new FormData();
+        dados.append("escopo", bloco.getAttribute("data-escopo"));
+        dados.append("arquivo", arquivo);
+        mostrar("Enviando...", "muted");
+        fetch(bloco.getAttribute("data-url-adicionar"), {
+            method: "POST",
+            headers: { "X-CSRFToken": csrf.value },
+            body: dados
+        })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+            if (!res.ok) { mostrar(res.d.erro || "Não foi possível adicionar.", "danger"); return; }
+            var opt = document.createElement("option");
+            opt.value = res.d.id;
+            opt.textContent = res.d.nome;
+            opt.selected = true;
+            select.appendChild(opt);
+            var li = document.createElement("li");
+            li.className = "list-group-item d-flex align-items-center justify-content-between";
+            li.setAttribute("data-template-id", res.d.id);
+            var span = document.createElement("span");
+            var ico = document.createElement("i");
+            ico.className = "fa-regular fa-file-word";
+            span.appendChild(ico);
+            span.appendChild(document.createTextNode(" " + res.d.nome));
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-sm btn-outline-danger js-remover-template";
+            btn.title = "Remover modelo";
+            var btnIco = document.createElement("i");
+            btnIco.className = "fa-solid fa-xmark";
+            btn.appendChild(btnIco);
+            li.appendChild(span);
+            li.appendChild(btn);
+            lista.appendChild(li);
+            var vazio = lista.querySelector("[data-template-vazio]");
+            if (vazio) vazio.remove();
+            inputArquivo.value = "";
+            mostrar("Modelo adicionado. Clique em Salvar para usá-lo.", "success");
+        })
+        .catch(function () { mostrar("Erro ao enviar o arquivo.", "danger"); });
+    });
+
+    lista.addEventListener("click", function (e) {
+        var botao = e.target.closest(".js-remover-template");
+        if (!botao) return;
+        var li = botao.closest("[data-template-id]");
+        var id = li.getAttribute("data-template-id");
+        if (!confirm("Remover este modelo? Quem o usa ficará sem modelo.")) return;
+        fetch(urlRemoverBase.replace("/0/", "/" + id + "/"), {
+            method: "POST",
+            headers: { "X-CSRFToken": csrf.value }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function () {
+            li.remove();
+            var opt = select.querySelector('option[value="' + id + '"]');
+            if (opt) opt.remove();
+            if (!select.value) select.value = "";
+            mostrar("Modelo removido. Clique em Salvar se ele estava em uso.", "success");
+        })
+        .catch(function () { mostrar("Erro ao remover.", "danger"); });
+    });
+})();
+</script>
+
+<script>
+(function () {
+    var bloco = document.getElementById("bloco-fundo-texto");
+    if (!bloco) return;
+    var select = document.getElementById("{{ form.layout_fundo.id_for_label }}");
+    var lista = document.getElementById("lista-fundos");
+    var inputArquivo = document.getElementById("novo-fundo");
+    var btnAdd = document.getElementById("btn-add-fundo");
+    var msg = document.getElementById("msg-fundo");
+    var csrf = document.querySelector("input[name=csrfmiddlewaretoken]");
+    var urlRemoverBase = bloco.getAttribute("data-url-remover");
+
+    function mostrar(texto, tipo) {
+        msg.innerHTML = texto ? '<div class="text-' + (tipo || "muted") + '">' + texto + "</div>" : "";
+    }
+
+    btnAdd.addEventListener("click", function () {
+        var arquivo = inputArquivo.files && inputArquivo.files[0];
+        if (!arquivo) { mostrar("Selecione uma imagem.", "danger"); return; }
+        var dados = new FormData();
+        dados.append("arquivo", arquivo);
+        mostrar("Enviando...", "muted");
+        fetch(bloco.getAttribute("data-url-adicionar"), {
+            method: "POST",
+            headers: { "X-CSRFToken": csrf.value },
+            body: dados
+        })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+            if (!res.ok) { mostrar(res.d.erro || "Não foi possível adicionar.", "danger"); return; }
+            var opt = document.createElement("option");
+            opt.value = res.d.id;
+            opt.textContent = res.d.nome;
+            opt.selected = true;
+            select.appendChild(opt);
+
+            var li = document.createElement("li");
+            li.className = "list-group-item d-flex align-items-center justify-content-between";
+            li.setAttribute("data-fundo-id", res.d.id);
+            var span = document.createElement("span");
+            span.className = "d-flex align-items-center gap-2";
+            var img = document.createElement("img");
+            img.src = res.d.url;
+            img.alt = "";
+            img.style.height = "40px";
+            span.appendChild(img);
+            span.appendChild(document.createTextNode(res.d.nome));
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-sm btn-outline-danger js-remover-fundo";
+            btn.title = "Remover fundo";
+            var ico = document.createElement("i");
+            ico.className = "fa-solid fa-xmark";
+            btn.appendChild(ico);
+            li.appendChild(span);
+            li.appendChild(btn);
+            lista.appendChild(li);
+            var vazio = lista.querySelector("[data-fundo-vazio]");
+            if (vazio) vazio.remove();
+            inputArquivo.value = "";
+            mostrar("Fundo adicionado. Clique em Salvar para usá-lo.", "success");
+        })
+        .catch(function () { mostrar("Erro ao enviar a imagem.", "danger"); });
+    });
+
+    lista.addEventListener("click", function (e) {
+        var botao = e.target.closest(".js-remover-fundo");
+        if (!botao) return;
+        var li = botao.closest("[data-fundo-id]");
+        var id = li.getAttribute("data-fundo-id");
+        if (!confirm("Remover este fundo? Quem o usa voltará ao fundo padrão.")) return;
+        fetch(urlRemoverBase.replace("/0/", "/" + id + "/"), {
+            method: "POST",
+            headers: { "X-CSRFToken": csrf.value }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function () {
+            li.remove();
+            var opt = select.querySelector('option[value="' + id + '"]');
+            if (opt) opt.remove();
+            if (!select.value) select.value = "";
+            mostrar("Fundo removido. Clique em Salvar se ele estava em uso.", "success");
+        })
+        .catch(function () { mostrar("Erro ao remover.", "danger"); });
+    });
 })();
 </script>
 {% endblock content %}

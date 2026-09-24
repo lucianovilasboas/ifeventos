@@ -6,7 +6,12 @@ from django import forms
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
 from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
-from .models import Assinante, ConfiguracaoCertificado
+from .models import (
+    Assinante,
+    ConfiguracaoCertificado,
+    FundoCertificado,
+    TemplateCertificadoDocx,
+)
 from .propostas import dias_do_evento, parse_blocos, validar_vaga
 from django.core.exceptions import ValidationError
 from django.urls import reverse_lazy
@@ -755,7 +760,7 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
         model = ConfiguracaoCertificado
         fields = [
             "titulo", "corpo", "rodape",
-            "modo_layout", "layout_fundo", "template_docx",
+            "modo_layout", "layout_fundo", "template",
             "carga_horaria_padrao", "percentual", "enviar_email",
         ]
         labels = {
@@ -764,7 +769,7 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
             "rodape": "Rodapé",
             "modo_layout": "Layout",
             "layout_fundo": "Imagem de fundo (opcional)",
-            "template_docx": "Modelo .docx",
+            "template": "Modelo .docx",
             "carga_horaria_padrao": "Carga horária padrão (horas)",
             "percentual": "Percentual mínimo de presença (%)",
             "enviar_email": "Enviar por e-mail",
@@ -774,8 +779,8 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
             "corpo": forms.Textarea(attrs={"class": "form-control", "rows": 6}),
             "rodape": forms.TextInput(attrs={"class": "form-control"}),
             "modo_layout": forms.Select(attrs={"class": "form-select"}),
-            "layout_fundo": forms.ClearableFileInput(attrs={"class": "form-control", "accept": "image/*"}),
-            "template_docx": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".docx"}),
+            "layout_fundo": forms.Select(attrs={"class": "form-select"}),
+            "template": forms.Select(attrs={"class": "form-select"}),
             "carga_horaria_padrao": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
             "percentual": forms.NumberInput(attrs={"class": "form-control", "min": 0, "max": 100}),
             "enviar_email": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -788,6 +793,26 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
             self.fields.pop("carga_horaria_padrao", None)
         elif escopo in ("atividade", "atividades"):
             self.fields.pop("percentual", None)
+        # O seletor de modelo .docx lista só os modelos do tipo certo
+        # (evento ou atividade) — o nome do arquivo segue o mesmo escopo.
+        escopo_modelo = (
+            TemplateCertificadoDocx.ESCOPO_EVENTO
+            if escopo == "evento"
+            else TemplateCertificadoDocx.ESCOPO_ATIVIDADE
+        )
+        campo_template = self.fields.get("template")
+        if campo_template is not None:
+            campo_template.queryset = TemplateCertificadoDocx.objects.filter(
+                escopo=escopo_modelo
+            )
+            campo_template.empty_label = "— nenhum modelo —"
+            campo_template.label_from_instance = lambda o: o.nome
+        # Os fundos são uma biblioteca única (não variam por escopo).
+        campo_fundo = self.fields.get("layout_fundo")
+        if campo_fundo is not None:
+            campo_fundo.queryset = FundoCertificado.objects.all()
+            campo_fundo.empty_label = "— nenhum (usa o fundo padrão) —"
+            campo_fundo.label_from_instance = lambda o: o.nome
         self.fields["assinantes_escolhidos"].queryset = Assinante.objects.filter(ativo=True)
         if self.instance and self.instance.pk:
             self.fields["assinantes_escolhidos"].initial = list(

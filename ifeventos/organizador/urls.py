@@ -56,6 +56,8 @@ from .views import EmitirCertificadoInscricaoView
 from .views import CertificadoConfigView, CertificadoPreviewView
 from .views import CertificadoAtividadeView, CertificadoAtividadeUsarPadraoView
 from .views import AssinantesView, AssinanteRemoverView
+from .views import CertificadoTemplateAdicionarView, CertificadoTemplateRemoverView
+from .views import FundoCertificadoAdicionarView, FundoCertificadoRemoverView
 from .views import CheckinAtividadeView, CrachasEventoView, QrAtividadeView
 
 
@@ -167,6 +169,14 @@ urlpatterns = [
     path("certificado/<int:evento_id>/preview/", CertificadoPreviewView.as_view(), name="certificado_preview"),
     path("assinantes/", AssinantesView.as_view(), name="assinantes"),
     path("assinantes/<int:assinante_id>/remover/", AssinanteRemoverView.as_view(), name="assinante_remover"),
+
+    # Catálogo de modelos .docx do certificado (upload/remoção via AJAX)
+    path("certificado/template/adicionar/", CertificadoTemplateAdicionarView.as_view(), name="certificado_template_adicionar"),
+    path("certificado/template/<int:template_id>/remover/", CertificadoTemplateRemoverView.as_view(), name="certificado_template_remover"),
+
+    # Catálogo de imagens de fundo do certificado (upload/remoção via AJAX)
+    path("certificado/fundo/adicionar/", FundoCertificadoAdicionarView.as_view(), name="certificado_fundo_adicionar"),
+    path("certificado/fundo/<int:fundo_id>/remover/", FundoCertificadoRemoverView.as_view(), name="certificado_fundo_remover"),
 
     # -- Crachás --
     path("crachas/evento/<int:evento_id>/", CrachasEventoView.as_view(), name="crachas_evento"),
