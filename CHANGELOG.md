@@ -19,10 +19,13 @@ versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
   papel): ele é assinado com um sal próprio e **vale só dentro da janela da
   atividade**, que já é a regra da presença. O identificador da atividade/QR
   rotativo e o do cartaz não se misturam.
-- **Tolerância da presença por evento**: o organizador define, no próprio evento
-  (`margem_presenca_antes_min` / `margem_presenca_depois_min`), quanto tempo
-  antes do início e depois do término a confirmação por QR é aceita; em branco =
-  padrão do sistema, agora **20 min antes / 20 min depois** (era 30 min / 2 h).
+- **Tolerância da presença por atividade**: o organizador define, em cada
+  atividade (`margem_presenca_antes_min` / `margem_presenca_depois_min`), quanto
+  tempo antes do início e depois do término a confirmação por QR é aceita; se a
+  atividade não definir, vale a do evento (`Evento.margem_presenca_*`) e, se o
+  evento também não definir, o padrão do sistema — agora **20 min antes / 20 min
+  depois** (era 30 min / 2 h). O **cartaz imprime o intervalo exato** em que a
+  confirmação é aceita (ex.: “Confirme de 23/09 07:40 às 09:20”).
 - O botão **“Imprimir cartazes”** (renomeado de “Cartazes (PDF)”) abre um manual
   rápido (modal) antes de gerar o PDF: para que serve, o passo a passo e,
   principalmente, **quando o cartaz vale** — com os números reais do evento

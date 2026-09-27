@@ -151,6 +151,18 @@
                             {{ form_ativ.data_hora_fim }}
                             <small class="text-muted d-block">O término precisa ser depois do início.</small>
                         </div>
+
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="id_margem_presenca_antes_min">{{ form_ativ.margem_presenca_antes_min.label }}</label>
+                            {{ form_ativ.margem_presenca_antes_min }}
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="id_margem_presenca_depois_min">{{ form_ativ.margem_presenca_depois_min.label }}</label>
+                            {{ form_ativ.margem_presenca_depois_min }}
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Janela para confirmar presença pelo QR (o cartaz imprime o horário). Vazio = usa a tolerância do evento; se o evento também não definir, o padrão (20 min antes / 20 min depois).</small>
+                        </div>
                     </div>
                 </section>
 

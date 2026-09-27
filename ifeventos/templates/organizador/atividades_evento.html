@@ -201,11 +201,13 @@
                     <h6 class="alert-heading"><i class="fa-solid fa-clock"></i> Quando o cartaz vale</h6>
                     <p class="mb-1">
                         O QR do cartaz é fixo (não expira), mas <strong>só aceita confirmação
-                        dentro da janela da atividade</strong>: abre
+                        dentro da janela da atividade</strong>: começa
                         <strong>{{ cartaz_info.margem_antes_min }} min antes</strong> do início e
-                        fecha <strong>{{ cartaz_info.margem_depois_min }} min depois</strong> do término.
-                        Fora desse intervalo a presença é recusada — por isso pode imprimir com
-                        antecedência sem risco.
+                        termina <strong>{{ cartaz_info.margem_depois_min }} min depois</strong> do
+                        término (padrão do evento). Cada atividade pode ter a tolerância própria;
+                        sem ela, vale a do evento e, sem esta, o padrão do sistema. Fora da janela,
+                        a presença é recusada — por isso pode imprimir com antecedência sem risco.
+                        <strong>O cartaz imprime o horário exato em que a confirmação é aceita.</strong>
                     </p>
                     <p class="mb-1 small">
                         <a href="{% url 'organizador:editar_evento' evento.id %}#tolerancia-presenca">

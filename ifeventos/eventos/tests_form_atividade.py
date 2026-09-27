@@ -182,6 +182,31 @@ class CriarAtividadeSemPalestranteTests(TestCase):
         self.assertTrue(atividade.exige_inscricao)
 
 
+    def test_atividade_salva_tolerancia_propria(self):
+        self.client.force_login(self.org)
+        inicio = timezone.localtime() + timedelta(days=1)
+        resposta = self.client.post(
+            reverse("organizador:criar_editar_atividade_criar", args=[self.evento.id]),
+            {
+                "titulo": "Com tolerância",
+                "descricao": "d",
+                "local": "",
+                "tipo": self.tipo.id,
+                "palestrantes": [],
+                "data_hora_inicio": inicio.strftime("%Y-%m-%dT%H:%M"),
+                "data_hora_fim": (inicio + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M"),
+                "n_vagas": 10,
+                "emite_certificado": False,
+                "margem_presenca_antes_min": 5,
+                "margem_presenca_depois_min": 6,
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        atividade = self.Atividade.objects.get(titulo="Com tolerância")
+        self.assertEqual(atividade.margem_presenca_antes_min, 5)
+        self.assertEqual(atividade.margem_presenca_depois_min, 6)
+
+
 class AdicionarEspacoTests(TestCase):
     def setUp(self):
         self.org = U.objects.create_user(

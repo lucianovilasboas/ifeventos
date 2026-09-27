@@ -195,6 +195,29 @@ class AtividadeLocalApiTests(_BaseApiTests):
         self.assertEqual(list(atividade.palestrantes.values_list("id", flat=True)), [palestrante.id])
 
 
+    def test_atividade_aceita_e_expoe_tolerancia(self):
+        self._autenticar(self.organizador)
+        resposta = self.client.post(
+            "/api/v1/atividades/",
+            self._dados_atividade(
+                titulo="Com tolerância",
+                margem_presenca_antes_min=7,
+                margem_presenca_depois_min=9,
+            ),
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, 201, resposta.content)
+        self.assertEqual(resposta.data["margem_presenca_antes_min"], 7)
+        self.assertEqual(resposta.data["margem_presenca_depois_min"], 9)
+
+        atividade = Atividade.objects.get(titulo="Com tolerância")
+        self.assertEqual(atividade.margem_presenca_antes_min, 7)
+        self.assertEqual(atividade.margem_presenca_depois_min, 9)
+
+        detalhe = self.client.get(f"/api/v1/atividades/{atividade.id}/")
+        self.assertEqual(detalhe.data["margem_presenca_antes_min"], 7)
+
+
 class MetadadosApiTests(_BaseApiTests):
     """Metadados na API: palestrante, /meu-perfil/, /metadados/ e import."""
 

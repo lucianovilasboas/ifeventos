@@ -207,6 +207,8 @@ class AtividadeSerializer(serializers.ModelSerializer):
             "vagas_disponiveis",
             "exige_inscricao",
             "emite_certificado",
+            "margem_presenca_antes_min",
+            "margem_presenca_depois_min",
             "imagem_url",
             # --- ciclo rascunho/proposta (novos) ---
             "publicada",
@@ -433,6 +435,8 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
             "n_vagas",
             "emite_certificado",
             "exige_inscricao",
+            "margem_presenca_antes_min",
+            "margem_presenca_depois_min",
             "imagem",
             # Publicar/despublicar pela API (espelha o botão do site). Opcional
             # para não quebrar cliente que já cria atividade sem o campo.
@@ -442,6 +446,9 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
             "imagem": {"required": False, "allow_null": True},
             "publicada": {"required": False},
             "exige_inscricao": {"required": False},
+            # Tolerância da presença por atividade: vazio = herda do evento.
+            "margem_presenca_antes_min": {"required": False, "allow_null": True},
+            "margem_presenca_depois_min": {"required": False, "allow_null": True},
             # Sem `vaga` os três são cobrados no validate; com `vaga` eles vêm dela.
             "local": {"required": False},
             "data_hora_inicio": {"required": False},
