@@ -1,0 +1,21 @@
+{% comment %}
+Widget do campo `palestrantes` do AtividadeForm: checklist com foto + nome.
+
+Mesmo `name` do <select multiple> original (`palestrantes`), então a validação do
+Django e o `save_m2m` continuam iguais. A caixa rola sozinha (`.pal-lista`), sem
+esticar o formulário quando há muitos palestrantes. A ordem vem do queryset.
+{% endcomment %}
+<div class="pal-lista"{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %}>
+    {% for group, options, index in widget.optgroups %}{% for option in options %}
+    <label class="pal-item"{% if option.attrs.id %} for="{{ option.attrs.id }}"{% endif %}>
+        <input type="checkbox" name="{{ option.name }}" value="{{ option.value }}"
+               {% if option.selected %}checked{% endif %}
+               {% if option.attrs.id %}id="{{ option.attrs.id }}"{% endif %}>
+        <img class="pal-foto" src="{{ option.attrs.foto }}" alt="" loading="lazy" width="28" height="28">
+        <span class="pal-nome">{{ option.label }}</span>
+    </label>
+    {% endfor %}{% endfor %}
+    {% if not widget.optgroups.0.1 %}
+    <p class="pal-vazio">Nenhum palestrante cadastrado ainda.</p>
+    {% endif %}
+</div>

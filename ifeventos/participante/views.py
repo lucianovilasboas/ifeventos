@@ -568,6 +568,7 @@ def buscar_participante(request):
             "nome": pessoa.get_full_name() or pessoa.username,
             "email": pessoa.email,
             "palestrante": pessoa.is_palestrante,
+            "foto": pessoa.get_foto_url(),
         }
         for pessoa in pessoas
     ]})

@@ -437,3 +437,26 @@ class AtividadeSemInscricaoTests(TestCase):
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Não precisa de inscrição")
+
+
+class BuscarParticipanteTests(TestCase):
+    """A busca de palestrante devolve também a foto (usada nos chips da proposta)."""
+
+    def test_resultado_inclui_foto(self):
+        usuario = U.objects.create_user(
+            email="quem_busca@example.com", password=SENHA, cpf="12345678909"
+        )
+        U.objects.create_user(
+            email="ana_busca@example.com", password=SENHA, cpf="11144477735",
+            first_name="Ana", last_name="Souza",
+        )
+        self.client.force_login(usuario)
+
+        resposta = self.client.get(
+            reverse("participante:buscar_participante"), {"q": "Ana"}
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        resultados = resposta.json()["resultados"]
+        self.assertTrue(resultados)
+        self.assertIn("foto", resultados[0])
