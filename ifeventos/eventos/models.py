@@ -392,6 +392,11 @@ class Atividade(models.Model):
     exige_inscricao = models.BooleanField(default=True, verbose_name="Exige inscrição")
 
     emite_certificado = models.BooleanField(default=False)
+    # Tolerância da janela de confirmação de presença DESTA atividade (minutos).
+    # Vazio = herda a do evento (`Evento.margem_presenca_*`); se o evento também
+    # não definir, vale o padrão do sistema. Decisão do organizador, por atividade.
+    margem_presenca_antes_min = models.PositiveSmallIntegerField(null=True, blank=True)
+    margem_presenca_depois_min = models.PositiveSmallIntegerField(null=True, blank=True)
     # Carga horária própria da atividade (horas). Vazio = herda a do evento.
     carga_horaria = models.PositiveIntegerField(null=True, blank=True)
 

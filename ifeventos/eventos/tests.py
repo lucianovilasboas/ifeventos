@@ -31,6 +31,7 @@ from .models import Atividade, Certificado, Evento, Inscricao, Presenca, Presenc
 from .crachas import (
     MODELO_PADRAO,
     CrachaInvalido,
+    _janela_legivel,
     arquivo_logo_cracha,
     confirmar_por_token_atividade,
     crachas_do_usuario,
@@ -42,6 +43,7 @@ from .crachas import (
     janela_de_presenca,
     ler_token_atividade,
     ler_token_atividade_cartaz,
+    margens_de_presenca_atividade,
     modelo_de_cracha,
     montar_cracha,
     papel_no_evento,
@@ -1050,6 +1052,39 @@ class CartazesAtividadesTests(_BasePresencaTests):
         )
         self.assertContains(resposta, "5 min antes")
         self.assertContains(resposta, "10 min depois")
+
+    def test_janela_usa_tolerancia_da_atividade(self):
+        """Tolerância por atividade > do evento > padrão do sistema."""
+        # Padrão do sistema quando nem atividade nem evento definem.
+        self.assertEqual(margens_de_presenca_atividade(self.atividade), (20, 20))
+
+        # Evento define: a atividade herda.
+        self.evento.margem_presenca_antes_min = 15
+        self.evento.margem_presenca_depois_min = 25
+        self.evento.save()
+        self.assertEqual(margens_de_presenca_atividade(self.atividade), (15, 25))
+
+        # Atividade define: sobrepõe o evento.
+        self.atividade.margem_presenca_antes_min = 5
+        self.atividade.margem_presenca_depois_min = 8
+        self.atividade.save()
+        self.assertEqual(margens_de_presenca_atividade(self.atividade), (5, 8))
+
+        abre_em, fecha_em = janela_de_presenca(self.atividade)
+        self.assertEqual(abre_em, self.atividade.data_hora_inicio - timedelta(minutes=5))
+        self.assertEqual(fecha_em, self.atividade.data_hora_fim + timedelta(minutes=8))
+
+    def test_janela_legivel(self):
+        """A observação impressa no cartaz: mesmo dia e virada de dia."""
+        abre = datetime(2026, 9, 23, 7, 40)
+        self.assertEqual(
+            _janela_legivel(abre, datetime(2026, 9, 23, 9, 20)), "23/09 07:40 às 09:20"
+        )
+        self.assertEqual(
+            _janela_legivel(abre, datetime(2026, 9, 24, 2, 20)),
+            "23/09 07:40 a 24/09 02:20",
+        )
+        self.assertEqual(_janela_legivel(None, None), "")
 
 
 class LogoDoCrachaTests(TestCase):

@@ -904,7 +904,7 @@ def _painel_qr_cartaz(c, atividade, x, y, largura, altura, cor):
     c.roundRect(x, y, largura, altura, 6 * mm, fill=True, stroke=True)
 
     side_pad = 10 * mm
-    rodape = 26 * mm  # espaço da instrução, abaixo do QR
+    rodape = 34 * mm  # espaço da instrução + a observação da janela, abaixo do QR
     lado = max(40 * mm, min(largura - 2 * side_pad, altura - rodape - 2 * side_pad))
     centro_x = x + largura / 2.0
     qr_y = y + rodape + max(0.0, (altura - rodape - lado) / 2.0)
@@ -919,11 +919,18 @@ def _painel_qr_cartaz(c, atividade, x, y, largura, altura, cor):
 
     c.setFillColor(cor["texto"])
     c.setFont("Helvetica-Bold", 13)
-    c.drawCentredString(centro_x, y + 14 * mm,
+    c.drawCentredString(centro_x, y + 21 * mm,
                         "Aponte a câmera e confirme sua presença")
     c.setFillColor(cor["cinza"])
     c.setFont("Helvetica", 9)
-    c.drawCentredString(centro_x, y + 7 * mm, "É preciso estar logado na sua conta")
+    c.drawCentredString(centro_x, y + 15 * mm, "É preciso estar logado na sua conta")
+
+    # Observação: a janela em que a confirmação é aceita (mesma regra da presença).
+    janela = _janela_legivel(*janela_de_presenca(atividade))
+    if janela:
+        c.setFillColor(cor["verde_ink"])
+        c.setFont("Helvetica-Bold", 10)
+        c.drawCentredString(centro_x, y + 7 * mm, "Confirme de %s" % janela)
 
 
 def _cartaz_etiqueta(c, atividade, evento, x, y, largura, altura, logo_caminho):
@@ -1400,7 +1407,6 @@ def margens_de_presenca(evento):
 
     O organizador pode ajustar por evento (`Evento.margem_presenca_antes_min` /
     `margem_presenca_depois_min`); o que ficar em branco usa o padrão do sistema.
-    Fonte única para a janela E para o manual do cartaz (os dois nunca divergem).
     """
     antes = getattr(evento, "margem_presenca_antes_min", None)
     depois = getattr(evento, "margem_presenca_depois_min", None)
@@ -1411,16 +1417,52 @@ def margens_de_presenca(evento):
     return antes, depois
 
 
+def margens_de_presenca_atividade(atividade):
+    """Tolerância EFETIVA da atividade: atividade → evento → padrão do sistema.
+
+    Cada atividade pode ter a sua (`Atividade.margem_presenca_*`); o que ficar em
+    branco herda a do evento (`Evento.margem_presenca_*`); e o que nem o evento
+    definir cai no padrão do sistema. Fonte única para a janela E para o manual do
+    cartaz (os dois nunca divergem).
+    """
+    antes = getattr(atividade, "margem_presenca_antes_min", None)
+    depois = getattr(atividade, "margem_presenca_depois_min", None)
+    if antes is None or depois is None:
+        antes_evento, depois_evento = margens_de_presenca(getattr(atividade, "evento", None))
+        if antes is None:
+            antes = antes_evento
+        if depois is None:
+            depois = depois_evento
+    return antes, depois
+
+
 def janela_de_presenca(atividade, agora=None):
     """Devolve (abre_em, fecha_em) da janela de confirmação desta atividade."""
     agora = agora or timezone.now()
-    antes_min, depois_min = margens_de_presenca(getattr(atividade, "evento", None))
+    antes_min, depois_min = margens_de_presenca_atividade(atividade)
     margem_antes = timedelta(minutes=antes_min)
     margem_depois = timedelta(minutes=depois_min)
     return (
         (atividade.data_hora_inicio - margem_antes) if atividade.data_hora_inicio else None,
         (atividade.data_hora_fim + margem_depois) if atividade.data_hora_fim else None,
     )
+
+
+def _janela_legivel(abre_em, fecha_em):
+    """Janela de confirmação em texto curto para o cartaz.
+
+    Mesmo dia: `23/09 07:40 às 09:20`. Virada de dia: `23/09 22:40 a 24/09 02:20`.
+    Devolve "" quando não há janela (atividade sem horário).
+    """
+    if not abre_em or not fecha_em:
+        return ""
+    if timezone.is_aware(abre_em):
+        abre_em = timezone.localtime(abre_em)
+    if timezone.is_aware(fecha_em):
+        fecha_em = timezone.localtime(fecha_em)
+    if abre_em.date() == fecha_em.date():
+        return "%s às %s" % (abre_em.strftime("%d/%m %H:%M"), fecha_em.strftime("%H:%M"))
+    return "%s a %s" % (abre_em.strftime("%d/%m %H:%M"), fecha_em.strftime("%d/%m %H:%M"))
 
 
 def atividade_aceita_presenca_agora(atividade, agora=None):

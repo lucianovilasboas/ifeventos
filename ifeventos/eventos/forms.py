@@ -173,6 +173,7 @@ class AtividadeForm(forms.ModelForm):
             'titulo', 'descricao', 'local', 'tipo', 'palestrantes',
             'data_hora_inicio', 'data_hora_fim', 'n_vagas', 'exige_inscricao',
             'emite_certificado', 'imagem',
+            'margem_presenca_antes_min', 'margem_presenca_depois_min',
         ]
         labels = {
             'titulo': 'Título',
@@ -184,6 +185,8 @@ class AtividadeForm(forms.ModelForm):
             'exige_inscricao': 'Exige inscrição',
             'emite_certificado': 'Emite certificado',
             'imagem': 'Imagem',
+            'margem_presenca_antes_min': 'Tolerância antes (min)',
+            'margem_presenca_depois_min': 'Tolerância depois (min)',
         }
         widgets = { 
             'titulo': forms.TextInput(attrs={'class': 'form-control',
@@ -197,6 +200,8 @@ class AtividadeForm(forms.ModelForm):
             'exige_inscricao': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
             'emite_certificado': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
             'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'margem_presenca_antes_min': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'margem_presenca_depois_min': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -226,6 +231,14 @@ class AtividadeForm(forms.ModelForm):
             "Desmarque para atividades abertas, em que a pessoa só comparece — "
             "a lista mostra “Não precisa de inscrição” em vez de vagas."
         )
+        # Tolerância da presença por QR: vazio herda a do evento (e o evento, o
+        # padrão do sistema). O cartaz imprime a janela resultante.
+        for nome in ("margem_presenca_antes_min", "margem_presenca_depois_min"):
+            self.fields[nome].help_text = (
+                "Minutos que a confirmação vale antes do início / depois do "
+                "término. Vazio = usa a tolerância do evento; se o evento também "
+                "não definir, o padrão (20 / 20)."
+            )
 
     def clean(self):
         """Impede término anterior ao início (nada validava isso antes)."""
