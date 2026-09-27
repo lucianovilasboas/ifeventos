@@ -77,6 +77,25 @@
                     </div>
                 </div>
 
+                <!-- Presença por QR: tolerância da janela (o manual do cartaz linka aqui) -->
+                <div class="row mb-3" id="tolerancia-presenca">
+                    <div class="col-md-6">
+                      {{ form.margem_presenca_antes_min.label_tag }}
+                      {{ form.margem_presenca_antes_min }}
+                    </div>
+                    <div class="col-md-6">
+                      {{ form.margem_presenca_depois_min.label_tag }}
+                      {{ form.margem_presenca_depois_min }}
+                    </div>
+                    <div class="col-12">
+                      <small class="text-muted d-block mt-2">
+                        Janela para confirmar presença pelo QR da atividade: quanto tempo
+                        <b>antes</b> do início e <b>depois</b> do término a confirmação é aceita.
+                        Deixe em branco para usar o padrão do sistema (20 min antes / 20 min depois).
+                      </small>
+                    </div>
+                </div>
+
                 <!-- <div class="row mb-3">
                     <div class="col-md-12">
                       {{ form.imagem.label_tag }}

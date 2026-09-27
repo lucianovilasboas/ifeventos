@@ -78,6 +78,11 @@
               action="{% url 'organizador:modelo_cracha_evento' evento.id %}" class="d-none">
             {% csrf_token %}
         </form>
+        <button type="button" class="btn btn-outline-success"
+                data-bs-toggle="modal" data-bs-target="#modalManualCartaz"
+                title="Imprimir os cartazes de presença (1 por folha A4) — abre o manual e a impressão">
+            <i class="fa-solid fa-qrcode"></i> Imprimir cartazes
+        </button>
         <a href="{% url 'organizador:certificado_config' evento.id 'evento' %}" class="btn btn-outline-primary">
             <i class="fa-solid fa-award"></i> Configurar certificados
         </a>
@@ -87,6 +92,12 @@
         Os crachás saem <b>4 por folha A4</b> (10,5 &times; 14,85 cm cada), com linhas de corte.
         Entram todos que têm papel no evento hoje: inscritos, palestrantes e organizador.
         Para trocar o modelo, escolha uma opção no menu "Imprimir crachás".
+    </p>
+    <p class="text-muted small mb-0 mt-1">
+        <i class="fa-solid fa-qrcode"></i>
+        Os <b>cartazes</b> saem <b>1 por folha A4</b> (folha inteira, em pé), um por
+        atividade publicada, com o QR permanente para confirmar presença — imprima e
+        fixe na porta da atividade. Seguem o mesmo modelo dos crachás.
     </p>
 </div>
 <div data-vista-grupo="organizador-atividades">
@@ -155,6 +166,88 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalManualCartaz" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fa-solid fa-circle-question"></i> Como funcionam os cartazes de presença
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    O cartaz é uma folha com o <strong>QR Code da atividade</strong> para
+                    imprimir e <strong>fixar na porta</strong> de onde ela acontece. A pessoa
+                    aponta a câmera do celular para o QR, entra na conta e confirma a própria
+                    presença — sem instalar nada e sem a organização precisar marcar.
+                </p>
+
+                <h6 class="mt-3"><i class="fa-solid fa-list-ol"></i> Passo a passo</h6>
+                <ol class="mb-0">
+                    <li>Gere o PDF e imprima (<strong>1 cartaz por folha A4</strong>).</li>
+                    <li>Fixe o cartaz na porta/local da atividade.</li>
+                    <li>No horário da atividade, a pessoa aponta a câmera para o QR.</li>
+                    <li>Ela <strong>entra na conta</strong> e confirma a presença dela.</li>
+                    <li>A presença aparece na hora na lista de presença e na tela do QR.</li>
+                </ol>
+
+                <div class="alert alert-warning mt-3 mb-0">
+                    <h6 class="alert-heading"><i class="fa-solid fa-clock"></i> Quando o cartaz vale</h6>
+                    <p class="mb-1">
+                        O QR do cartaz é fixo (não expira), mas <strong>só aceita confirmação
+                        dentro da janela da atividade</strong>: abre
+                        <strong>{{ cartaz_info.margem_antes_min }} min antes</strong> do início e
+                        fecha <strong>{{ cartaz_info.margem_depois_min }} min depois</strong> do término.
+                        Fora desse intervalo a presença é recusada — por isso pode imprimir com
+                        antecedência sem risco.
+                    </p>
+                    <p class="mb-1 small">
+                        <a href="{% url 'organizador:editar_evento' evento.id %}#tolerancia-presenca">
+                            <i class="fa-solid fa-sliders"></i> Ajustar os horários de tolerância
+                        </a>
+                    </p>
+                    {% if cartaz_info.total %}
+                    <p class="mb-0 small">
+                        Neste evento: <strong>{{ cartaz_info.total }}</strong> atividade(s)
+                        publicada(s) → <strong>{{ cartaz_info.folhas }}</strong> folha(s) A4.
+                        {% if cartaz_info.primeira_abertura and cartaz_info.ultimo_fechamento %}
+                        As confirmações serão aceitas de
+                        <strong>{{ cartaz_info.primeira_abertura|date:"d/m/Y H:i" }}</strong>
+                        a <strong>{{ cartaz_info.ultimo_fechamento|date:"d/m/Y H:i" }}</strong>.
+                        {% endif %}
+                    </p>
+                    {% else %}
+                    <p class="mb-0 small">
+                        Ainda não há atividade publicada — publique a programação para gerar os
+                        cartazes.
+                    </p>
+                    {% endif %}
+                </div>
+
+                <h6 class="mt-3"><i class="fa-solid fa-user-check"></i> Quem consegue confirmar</h6>
+                <p class="mb-0">
+                    Só quem tem vínculo com o evento: inscrito em alguma atividade, palestrante
+                    ou organizador.
+                </p>
+
+                <p class="text-muted small mt-3 mb-0">
+                    <i class="fa-solid fa-lightbulb"></i> O QR que aparece na tela da atividade
+                    (no painel do organizador) é rotativo e serve para projetar/mostrar na sala;
+                    o cartaz impresso é a versão permanente para a porta.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="{% url 'organizador:cartazes_atividades' evento.id %}" class="btn btn-success"
+                   target="_blank" rel="noopener">
+                    <i class="fa-solid fa-file-pdf"></i> Imprimir cartazes
+                </a>
             </div>
         </div>
     </div>

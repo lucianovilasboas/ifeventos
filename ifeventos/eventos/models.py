@@ -281,6 +281,15 @@ class Evento(models.Model):
     percentual_certificado = models.PositiveSmallIntegerField(default=75)
 
     # ----------------------------------------------------------------------
+    # Tolerância da janela de confirmação de presença por QR (minutos).
+    # Vazio = usa o padrão do sistema (settings.PRESENCA_MARGEM_*). É o que
+    # evita uma janela frouxa demais: a pessoa só confirma perto do horário da
+    # atividade, e não horas antes/depois. Decisão do organizador, por evento.
+    # ----------------------------------------------------------------------
+    margem_presenca_antes_min = models.PositiveSmallIntegerField(null=True, blank=True)
+    margem_presenca_depois_min = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    # ----------------------------------------------------------------------
     # Modelo dos crachás DESTE evento (decisão do organizador).
     # Antes cada pessoa escolhia o seu na tela, e o evento saía com crachás de
     # dois desenhos. Agora o organizador define aqui e o participante recebe

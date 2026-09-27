@@ -552,9 +552,11 @@ ACCOUNT_RATE_LIMITS = {"login_failed": "10/5m"}
 # Janela em que a presença pode ser confirmada: abre antes da atividade começar
 # e fecha depois de acabar. É o que impede o QR da atividade (que é público) de
 # valer para sempre — foto compartilhada fora da janela não confirma nada.
-# Ajustável por ambiente, sem tocar no código.
-PRESENCA_MARGEM_ANTES_MINUTOS = config("PRESENCA_MARGEM_ANTES_MINUTOS", default=30, cast=int)
-PRESENCA_MARGEM_DEPOIS_HORAS = config("PRESENCA_MARGEM_DEPOIS_HORAS", default=2, cast=int)
+# Ajustável por ambiente, sem tocar no código — e, por evento, pelo organizador
+# (Evento.margem_presenca_antes_min / margem_presenca_depois_min), que sobrepõe
+# estes valores. Padrão enxuto de propósito: 20 min de cada lado.
+PRESENCA_MARGEM_ANTES_MINUTOS = config("PRESENCA_MARGEM_ANTES_MINUTOS", default=20, cast=int)
+PRESENCA_MARGEM_DEPOIS_MINUTOS = config("PRESENCA_MARGEM_DEPOIS_MINUTOS", default=20, cast=int)
 
 # Validade do código que vai dentro do QR da atividade, em segundos. A tela do
 # organizador regenera o código nesse intervalo, então uma foto que circulou
