@@ -78,6 +78,8 @@ SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=USE_HTTPS_PROXY, cas
 # Application definition
   
 DJANGO_APPS = [
+    # Tema do admin: PRECISA vir antes de django.contrib.admin (a ordem importa).
+    "jazzmin",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -678,6 +680,75 @@ LOGGING = {
             "level": "WARNING",
             "propagate": False,
         },
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Django Admin — tema (django-jazzmin)
+#
+# O app `jazzmin` precisa vir ANTES de `django.contrib.admin` no INSTALLED_APPS.
+# Aqui ficam a marca e a aparência: nome do produto, versão, o verde do IFMG e
+# os ícones/ordem dos modelos mais usados. Nada de regra de negócio.
+# ---------------------------------------------------------------------------
+JAZZMIN_SETTINGS = {
+    "site_title": "Nossos Eventos · Admin",
+    "site_header": "Nossos Eventos",
+    "site_brand": f"Nossos Eventos {APP_VERSION_LABEL}",
+    "welcome_sign": "Administração do portal de eventos — IFMG Campus Ponte Nova",
+    "copyright": "IFMG Campus Ponte Nova",
+    # A busca do topo consulta estes modelos (os mais usados no dia a dia).
+    "search_model": ["eventos.Participante", "eventos.Evento", "eventos.Atividade"],
+    "topmenu_links": [
+        {"name": "Início (site)", "url": "/eventos", "new_window": False},
+        {"name": "Painel do organizador", "url": "/organizador/dashboard/"},
+        {"name": "Auditoria", "url": "/organizador/auditoria/"},
+        {"name": "Documentação", "url": "/api/v1/docs/"},
+    ],
+    "show_ui_builder": False,
+    # Ordem (e agrupamento) dos apps/modelos no menu lateral.
+    "order_with_respect_to": [
+        "eventos", "eventos.Evento", "eventos.Atividade", "eventos.Participante",
+        "eventos.Inscricao", "eventos.Presenca", "eventos.Certificado",
+        "eventos.RegistroAuditoria", "auth",
+    ],
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        "eventos.Participante": "fas fa-user-tag",
+        "eventos.Evento": "fas fa-calendar-days",
+        "eventos.Atividade": "fas fa-chalkboard-user",
+        "eventos.Inscricao": "fas fa-clipboard-check",
+        "eventos.Presenca": "fas fa-user-check",
+        "eventos.Certificado": "fas fa-certificate",
+        "eventos.RegistroAuditoria": "fas fa-clipboard-list",
+        "eventos.Espaco": "fas fa-door-open",
+        "eventos.Vaga": "fas fa-clock",
+    },
+    "default_icon_parents": "fas fa-folder",
+    "default_icon_children": "fas fa-circle",
+    "related_modal_active": True,
+}
+
+JAZZMIN_UI_TWEAKS = {
+    # Verde institucional do IFMG (PANTONE 362 C).
+    "theme": "flatly",
+    "default_theme_mode": "light",
+    "brand_colour": "navbar-success",
+    "accent": "accent-success",
+    "navbar": "navbar-success navbar-dark",
+    "no_navbar_border": True,
+    "sidebar": "sidebar-dark-success",
+    "sidebar_nav_child_indent": True,
+    "sidebar_nav_compact_style": True,
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success",
     },
 }
 

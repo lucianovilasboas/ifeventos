@@ -4,6 +4,9 @@
 # de ser reproduzível e uma versão nova pode quebrar a implantação.
 
 Django==5.2.17
+# Tema do Django Admin (AdminLTE 3 / Bootstrap 5). Precisa vir ANTES de
+# `django.contrib.admin` no INSTALLED_APPS (ver setup/settings.py).
+django-jazzmin==3.0.5
 djangorestframework==3.18.1
 drf-spectacular==0.30.0
 django-cors-headers==4.9.0

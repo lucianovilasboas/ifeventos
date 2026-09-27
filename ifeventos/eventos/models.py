@@ -75,13 +75,17 @@ class Participante(AbstractUser):
     telefone = models.CharField(max_length=15, blank=True, null=True)
     endereco = models.TextField(blank=True, null=True)
 
-    is_participante = models.BooleanField(default=True)
-    is_organizador = models.BooleanField(default=False)
-    is_palestrante = models.BooleanField(default=False)
+    is_participante = models.BooleanField(default=True, verbose_name="Participante")
+    is_organizador = models.BooleanField(default=False, verbose_name="Organizador")
+    is_palestrante = models.BooleanField(default=False, verbose_name="Palestrante")
     # Equipe de apoio: faz o check-in (câmera/código) de um evento durante a
     # sua realização, sem poder de organizador. O alcance é por evento: a conta
     # só opera nos eventos que estão no M2M `Evento.equipe`.
-    is_equipe = models.BooleanField(default=False)
+    is_equipe = models.BooleanField(default=False, verbose_name="Equipe de apoio")
+
+    # Última alteração da conta (auto_now): usada no admin para ver quando a
+    # pessoa foi mexida pela última vez. A CRIAÇÃO continua sendo `date_joined`.
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
 
     objects = ParticipanteManager()
 
