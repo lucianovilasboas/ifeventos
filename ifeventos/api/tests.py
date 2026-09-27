@@ -149,6 +149,29 @@ class AtividadeLocalApiTests(_BaseApiTests):
         self.assertEqual(resposta.status_code, 201, resposta.content)
         self.assertEqual(resposta.data["palestrantes"], [])
 
+    def test_atividade_sem_inscricao_persiste_e_e_exposta(self):
+        self._autenticar(self.organizador)
+        resposta = self.client.post(
+            "/api/v1/atividades/",
+            self._dados_atividade(titulo="LUAU", exige_inscricao=False),
+            format="json",
+        )
+        self.assertEqual(resposta.status_code, 201, resposta.content)
+        self.assertFalse(resposta.data["exige_inscricao"])
+        atividade = Atividade.objects.get(titulo="LUAU")
+        self.assertFalse(atividade.exige_inscricao)
+
+        detalhe = self.client.get(f"/api/v1/atividades/{atividade.id}/")
+        self.assertFalse(detalhe.data["exige_inscricao"])
+
+    def test_atividade_exige_inscricao_por_padrao(self):
+        self._autenticar(self.organizador)
+        resposta = self.client.post(
+            "/api/v1/atividades/", self._dados_atividade(), format="json"
+        )
+        self.assertEqual(resposta.status_code, 201, resposta.content)
+        self.assertTrue(resposta.data["exige_inscricao"])
+
     def test_patch_sem_palestrantes_nao_apaga_os_existentes(self):
         self._autenticar(self.organizador)
         palestrante = U.objects.create_user(
@@ -419,6 +442,18 @@ class InscricaoApiTests(_BaseApiTests):
 
         self.assertEqual(resposta.status_code, 400)
         self.assertIn("Conflito de horário com 'Primeira'", self._mensagem(resposta))
+
+    def test_atividade_sem_inscricao_recusa(self):
+        atividade = self._atividade(titulo="LUAU")
+        atividade.exige_inscricao = False
+        atividade.save(update_fields=["exige_inscricao"])
+        self._autenticar(self.participante)
+
+        resposta = self._inscrever(atividade)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("não precisa de inscrição", self._mensagem(resposta))
+        self.assertFalse(Inscricao.objects.filter(atividade=atividade).exists())
 
     def test_cancela_a_propria(self):
         atividade = self._atividade()

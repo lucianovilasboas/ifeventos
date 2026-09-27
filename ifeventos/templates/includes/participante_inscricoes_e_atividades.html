@@ -159,16 +159,24 @@
                         <p class="mb-0 mt-1" style="font-size:12px;color:var(--app-danger)"><i class="fa-solid fa-triangle-exclamation"></i> Conflita com “{{ atividade.conflito.titulo }}”</p>
                         {% endif %}
                         <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            {% if atividade.exige_inscricao %}
                             <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">
                                 <i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos
                             </span>
+                            {% else %}
+                            <span class="badge-app" style="background:#e0f2fe;color:#0369a1">
+                                <i class="fa-solid fa-door-open"></i> Não precisa de inscrição
+                            </span>
+                            {% endif %}
                             <span class="d-inline-flex gap-2">
                                 <a href="{% url 'eventos:atividade_ics' atividade.id %}" class="btn btn-sm btn-outline-secondary" title="Adicionar ao calendário">
                                     <i class="fa-regular fa-calendar-plus"></i>
                                 </a>
+                                {% if atividade.exige_inscricao %}
                                 <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green" title="Inscrever-se">
                                     <i class="fa-solid fa-check"></i> Inscrever
                                 </a>
+                                {% endif %}
                             </span>
                         </div>
                     </div>
@@ -189,16 +197,22 @@
                     {% if atividade.local %}
                     <p class="card-meta"><i class="fa-solid fa-location-dot"></i> {{ atividade.local }}</p>
                     {% endif %}
+                    {% if atividade.exige_inscricao %}
                     <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos</p>
+                    {% else %}
+                    <p class="card-meta" style="color:#0369a1"><i class="fa-solid fa-door-open"></i> Não precisa de inscrição</p>
+                    {% endif %}
                     {% if atividade.conflito %}
                     <p class="card-meta" style="color:var(--app-danger)"><i class="fa-solid fa-triangle-exclamation"></i> Conflita com “{{ atividade.conflito.titulo }}”</p>
                     {% endif %}
                     <a href="{% url 'eventos:atividade_ics' atividade.id %}" class="btn btn-sm btn-outline-secondary w-100 mb-1">
                         <i class="fa-regular fa-calendar-plus"></i> Calendário
                     </a>
+                    {% if atividade.exige_inscricao %}
                     <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green w-100">
                         <i class="fa-solid fa-check"></i> Inscrever
                     </a>
+                    {% endif %}
                 </article>
                 {% endfor %}
                 </div>

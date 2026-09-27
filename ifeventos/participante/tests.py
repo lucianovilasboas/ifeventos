@@ -1,5 +1,6 @@
 """Testes do painel do participante."""
 
+import json
 import re
 from datetime import date, datetime, timedelta, timezone as tz
 
@@ -372,3 +373,67 @@ class MinhasPalestrasTests(TestCase):
         self.client.force_login(self.palestrante)
         html = self.client.get(reverse("participante:dashboard")).content.decode()
         self.assertIn("Minhas palestras", html)
+
+
+class AtividadeSemInscricaoTests(TestCase):
+    """Atividade aberta (ex.: LUAU): não há inscrição, só comparecimento."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_si@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.participante = U.objects.create_user(
+            email="p_si@example.com", password=SENHA, cpf="11144477735"
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Festa")
+        self.evento = Evento.objects.create(
+            title="SNCT", description="d", local="Campus",
+            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
+            organizador=self.org,
+        )
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="LUAU", descricao="d", tipo=self.tipo,
+            data_hora_inicio=datetime(2026, 10, 10, 20, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 23, 0, tzinfo=tz.utc),
+            n_vagas=0, exige_inscricao=False,
+        )
+
+    def test_inscrever_recusa_quando_nao_exige(self):
+        self.client.force_login(self.participante)
+        resposta = self.client.get(
+            reverse("participante:inscrever", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertFalse(
+            Inscricao.objects.filter(
+                participante=self.participante, atividade=self.atividade
+            ).exists()
+        )
+
+    def test_ajax_recusa_quando_nao_exige(self):
+        self.client.force_login(self.participante)
+        resposta = self.client.post(
+            reverse("participante:gerenciar_inscricoes_ajax"),
+            data=json.dumps({"atividade_id": self.atividade.id, "inscrito": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 400)
+        self.assertFalse(
+            Inscricao.objects.filter(
+                participante=self.participante, atividade=self.atividade
+            ).exists()
+        )
+
+    def test_dashboard_mostra_selo(self):
+        self.client.force_login(self.participante)
+        resposta = self.client.get(reverse("participante:dashboard"))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Não precisa de inscrição")
+
+    def test_programacao_mostra_selo(self):
+        resposta = self.client.get(
+            reverse("eventos:programacao", args=[self.evento.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Não precisa de inscrição")

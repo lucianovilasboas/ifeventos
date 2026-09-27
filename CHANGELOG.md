@@ -5,6 +5,21 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.8.0] — 2026-09-27
+
+### Adicionado
+
+- **Atividades sem inscrição** (`Atividade.exige_inscricao`, padrão `true`): o
+  organizador (e o proponente) pode marcar uma atividade aberta — como um
+  **LUAU** — em que a pessoa **só comparece**. Com a flag desmarcada, o número
+  de vagas é ignorado e a tela mostra o selo **“Não precisa de inscrição”** no
+  lugar das vagas, do botão *Inscrever* e do *Lotado* (programação pública,
+  grade/cronograma, lista de disponíveis do participante e lista do
+  organizador). A self-inscrição é recusada na tela, no AJAX e na API
+  (`POST /api/v1/minhas-inscricoes/`), e o campo aparece na leitura/escrita de
+  `atividades/` e `propostas/`. O check-in por crachá continua valendo, então a
+  atividade ainda pode emitir certificado por presença.
+
 ## [2.7.2] — 2026-09-24
 
 ### Alterado

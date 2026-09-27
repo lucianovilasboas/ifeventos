@@ -140,7 +140,9 @@
                                 </button>
                                 {{ atividade.titulo }}
                             </h5>
-                            {% if atividade.n_vagas > atividade.n_inscricoes %}
+                            {% if not atividade.exige_inscricao %}
+                                <span class="badge-app" style="background:#e0f2fe;color:#0369a1"><i class="fa-solid fa-door-open"></i> Não precisa de inscrição</span>
+                            {% elif atividade.n_vagas > atividade.n_inscricoes %}
                                 {% if request.user.is_authenticated %}
                                 <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app">
                                     <i class="fa-solid fa-circle-check"></i> Inscreva-se
@@ -179,7 +181,9 @@
                         </p>
                         {% endif %}
                         <div class="mt-3 pt-2 d-flex flex-wrap align-items-center gap-3" style="border-top:1px solid var(--app-border)">
+                            {% if atividade.exige_inscricao %}
                             <span style="font-size:12px"><i class="fa-solid fa-users"></i> <strong>{{ atividade.n_inscricoes }}/{{ atividade.n_vagas }}</strong> inscritos</span>
+                            {% endif %}
                             <span class="agora-selo" hidden><i class="fa-solid fa-circle"></i> acontecendo agora</span>
                             {% if atividade.emite_certificado %}
                             <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-certificate"></i> Emite certificado</span>

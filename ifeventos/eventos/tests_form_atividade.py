@@ -70,6 +70,31 @@ class AtividadeFormTests(TestCase):
         formulario = AtividadeForm(data=dados)
         self.assertTrue(formulario.is_valid(), formulario.errors)
 
+    def test_exige_inscricao_vem_marcada_por_padrao(self):
+        campo = AtividadeForm().fields["exige_inscricao"]
+        self.assertTrue(campo.initial)
+        self.assertFalse(campo.required)
+
+    def test_atividade_sem_inscricao_e_valida(self):
+        from eventos.models import TipoAtividade
+
+        tipo = TipoAtividade.objects.create(nome="Festa")
+        dados = {
+            "titulo": "LUAU",
+            "descricao": "d",
+            "local": "",
+            "tipo": tipo.id,
+            "palestrantes": [],
+            "data_hora_inicio": "2026-10-10T20:00",
+            "data_hora_fim": "2026-10-10T23:00",
+            "n_vagas": 0,
+            "emite_certificado": False,
+        }
+        # Checkbox ausente no POST = desmarcada.
+        formulario = AtividadeForm(data=dados)
+        self.assertTrue(formulario.is_valid(), formulario.errors)
+        self.assertFalse(formulario.cleaned_data["exige_inscricao"])
+
 
 class CriarAtividadeSemPalestranteTests(TestCase):
     """Criar atividade pelo formulário sem palestrante salva com 0."""
@@ -111,6 +136,50 @@ class CriarAtividadeSemPalestranteTests(TestCase):
         self.assertEqual(resposta.status_code, 302)
         atividade = self.Atividade.objects.get(titulo="Feira sem palestrante")
         self.assertEqual(atividade.palestrantes.count(), 0)
+
+    def test_cria_atividade_sem_inscricao(self):
+        self.client.force_login(self.org)
+        inicio = timezone.localtime() + timedelta(days=1)
+        resposta = self.client.post(
+            reverse("organizador:criar_editar_atividade_criar", args=[self.evento.id]),
+            {
+                "titulo": "LUAU",
+                "descricao": "d",
+                "local": "",
+                "tipo": self.tipo.id,
+                "palestrantes": [],
+                "data_hora_inicio": inicio.strftime("%Y-%m-%dT%H:%M"),
+                "data_hora_fim": (inicio + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M"),
+                "n_vagas": 0,
+                "emite_certificado": False,
+                # sem exige_inscricao => desmarcado => atividade aberta
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        atividade = self.Atividade.objects.get(titulo="LUAU")
+        self.assertFalse(atividade.exige_inscricao)
+
+    def test_exige_inscricao_ligada_no_post(self):
+        self.client.force_login(self.org)
+        inicio = timezone.localtime() + timedelta(days=1)
+        resposta = self.client.post(
+            reverse("organizador:criar_editar_atividade_criar", args=[self.evento.id]),
+            {
+                "titulo": "Palestra",
+                "descricao": "d",
+                "local": "",
+                "tipo": self.tipo.id,
+                "palestrantes": [],
+                "data_hora_inicio": inicio.strftime("%Y-%m-%dT%H:%M"),
+                "data_hora_fim": (inicio + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M"),
+                "n_vagas": 10,
+                "exige_inscricao": "on",
+                "emite_certificado": False,
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        atividade = self.Atividade.objects.get(titulo="Palestra")
+        self.assertTrue(atividade.exige_inscricao)
 
 
 class AdicionarEspacoTests(TestCase):

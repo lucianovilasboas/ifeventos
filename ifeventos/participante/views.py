@@ -160,6 +160,11 @@ def inscrever(request, atividade_id):
         messages.warning(request, "Você já está inscrito nesta atividade.")
         return redirect('participante:dashboard')
 
+    # Atividade aberta (ex.: LUAU): não há lista de inscritos.
+    if not atividade.exige_inscricao:
+        messages.info(request, "Esta atividade não precisa de inscrição — é só comparecer.")
+        return redirect('participante:dashboard')
+
     # Verifica se a atividade ainda possui vagas
     if atividade.n_vagas <= Inscricao.objects.filter(atividade=atividade).count():
         messages.warning(request, "Lamentamos, mas essa atividade não possui mais vagas.")
@@ -229,7 +234,14 @@ def gerenciar_inscricoes_ajax(request):
             participante = get_object_or_404(Participante, id=request.user.id) 
 
             atividade = Atividade.objects.get(id=atividade_id)
-            
+
+            if inscrito and not atividade.exige_inscricao:
+                return JsonResponse(
+                    {"status": "error",
+                     "message": "Esta atividade não precisa de inscrição."},
+                    status=400,
+                )
+
             if inscrito: 
                 # Inscrever usuário
                 Inscricao.objects.get_or_create(participante=participante, atividade=atividade)
@@ -387,6 +399,7 @@ def propor_atividade(request, evento_id):
                     palestrantes=_palestrantes_escolhidos(form, participante, request),
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
+                    exige_inscricao=form.cleaned_data.get('exige_inscricao', True),
                     imagem=imagem,
                     recursos_necessarios=form.cleaned_data.get('recursos_necessarios') or "",
                     consentimento_voluntario=form.cleaned_data.get('consentimento_voluntario'),
@@ -461,6 +474,7 @@ def editar_proposta(request, atividade_id):
                     palestrantes=_palestrantes_escolhidos(form, request.user, request),
                     n_vagas=form.cleaned_data.get('n_vagas') or 0,
                     emite_certificado=form.cleaned_data.get('emite_certificado'),
+                    exige_inscricao=form.cleaned_data.get('exige_inscricao', True),
                     imagem=imagem,
                     recursos_necessarios=form.cleaned_data.get('recursos_necessarios') or "",
                     consentimento_voluntario=form.cleaned_data.get('consentimento_voluntario'),

@@ -262,9 +262,13 @@
         const quando = data.quando || "";
         const certificado = !!data.emite_certificado;
         const encerrada = data.data_hora_fim ? new Date(data.data_hora_fim) < new Date() : false;
+        const semInscricao = data.exige_inscricao === false;
         const t = esc(titulo), ty = esc(tipo);
         const tAttr = escAttr(titulo), q = esc(quando);
         const loc = esc(data.local || "");
+        const badgeSemInscricao = semInscricao
+            ? `<span class="badge-app" style="background:#e0f2fe;color:#0369a1"><i class="fa-solid fa-door-open"></i> Sem inscrição</span>`
+            : "";
 
         // Adiciona a linha na tabela (desktop)
         // Atividade nova nasce PUBLICADA: entra no bloco das publicadas (não no
@@ -278,7 +282,7 @@
             const dataIso = escAttr(data.data_hora_inicio || "");
             newRow.innerHTML = `
                 <td></td>
-                <td class="atividade-titulo" data-valor="${tAttr}"><span class="atividade-nome">${t}</span></td>
+                <td class="atividade-titulo" data-valor="${tAttr}"><span class="atividade-nome">${t}</span>${badgeSemInscricao}</td>
                 <td data-valor="${dataIso}">${q ? `<small class="atividade-quando">${q}</small>` : ""}</td>
                 <td>${ty}</td>
                 <td>${loc}</td>
@@ -312,7 +316,7 @@
             card.innerHTML = `
                 ${dot}
                 <div class="info">
-                    <h5 class="atividade-titulo"><span class="atividade-nome">${t}</span></h5>
+                    <h5 class="atividade-titulo"><span class="atividade-nome">${t}</span>${badgeSemInscricao}</h5>
                     ${q ? `<p class="atividade-quando mb-0">${q}</p>` : ""}
                     <p><span class="badge-app" style="background:#f1f0ff;color:var(--app-indigo)"><i class="fa-solid fa-tag"></i> ${ty}</span></p>
                     ${loc ? `<p class="mb-0" style="font-size:12px;color:var(--app-muted)"><i class="fa-solid fa-location-dot"></i> ${loc}</p>` : ""}

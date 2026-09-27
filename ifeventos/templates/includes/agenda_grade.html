@@ -84,7 +84,9 @@ eventos.
                                 <span class="chip-titulo">{{ a.titulo }}</span>
                                 {% if mostrar_evento and a.evento_id %}<span class="chip-evento"><i class="fa-solid fa-calendar-day"></i> {{ a.evento.title }}</span>{% endif %}
                                 {% if a.local %}<span class="chip-local">{{ a.local }}</span>{% endif %}
-                                {% if a.n_vagas > a.n_inscricoes %}
+                                {% if not a.exige_inscricao %}
+                                <span class="chip-vagas"><i class="fa-solid fa-door-open"></i> Não precisa de inscrição</span>
+                                {% elif a.n_vagas > a.n_inscricoes %}
                                 <span class="chip-vagas"><i class="fa-solid fa-user-plus"></i> {{ a.vagas_disponiveis }} vaga{{ a.vagas_disponiveis|pluralize }}</span>
                                 {% else %}
                                 <span class="chip-vagas chip-lotado"><i class="fa-solid fa-ban"></i> Lotado</span>

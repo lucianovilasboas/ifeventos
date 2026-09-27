@@ -962,6 +962,7 @@ class PropostaViewSet(viewsets.ModelViewSet):
                 palestrantes=dados.get("palestrantes") or [],
                 n_vagas=dados.get("n_vagas") or 0,
                 emite_certificado=dados.get("emite_certificado", False),
+                exige_inscricao=dados.get("exige_inscricao", True),
                 imagem=dados.get("imagem"),
             )
         except PropostaBloqueada as erro:
@@ -1000,6 +1001,7 @@ class PropostaViewSet(viewsets.ModelViewSet):
                 emite_certificado=dados.get(
                     "emite_certificado", proposta.emite_certificado
                 ),
+                exige_inscricao=dados.get("exige_inscricao", proposta.exige_inscricao),
                 imagem=dados.get("imagem"),
             )
         except PropostaBloqueada as erro:
