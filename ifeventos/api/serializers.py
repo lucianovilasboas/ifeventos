@@ -205,6 +205,7 @@ class AtividadeSerializer(serializers.ModelSerializer):
             "n_vagas",
             "n_inscricoes",
             "vagas_disponiveis",
+            "exige_inscricao",
             "emite_certificado",
             "imagem_url",
             # --- ciclo rascunho/proposta (novos) ---
@@ -431,6 +432,7 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
             "data_hora_fim",
             "n_vagas",
             "emite_certificado",
+            "exige_inscricao",
             "imagem",
             # Publicar/despublicar pela API (espelha o botão do site). Opcional
             # para não quebrar cliente que já cria atividade sem o campo.
@@ -439,6 +441,7 @@ class AtividadeWriteSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "imagem": {"required": False, "allow_null": True},
             "publicada": {"required": False},
+            "exige_inscricao": {"required": False},
             # Sem `vaga` os três são cobrados no validate; com `vaga` eles vêm dela.
             "local": {"required": False},
             "data_hora_inicio": {"required": False},
@@ -506,6 +509,12 @@ class InscricaoCreateSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         atividade = attrs["atividade"]
         participante = Participante.from_user(user)
+
+        # 0) Atividade aberta (ex.: LUAU): não há lista de inscritos.
+        if not atividade.exige_inscricao:
+            raise serializers.ValidationError(
+                "Esta atividade não precisa de inscrição.", code="nao_exige_inscricao"
+            )
 
         # 1) Já inscrito
         if Inscricao.objects.filter(participante=participante, atividade=atividade).exists():
@@ -832,6 +841,7 @@ class PropostaWriteSerializer(serializers.Serializer):
     )
     n_vagas = serializers.IntegerField(required=False, min_value=0, default=0)
     emite_certificado = serializers.BooleanField(required=False, default=False)
+    exige_inscricao = serializers.BooleanField(required=False, default=True)
     imagem = serializers.ImageField(required=False, allow_null=True)
 
     def validate(self, attrs):

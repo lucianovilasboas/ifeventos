@@ -242,13 +242,19 @@ Corpo da proposta (o espaço/horário **não** vêm soltos — vêm da vaga):
   "tipo_sugerido": "Robótica",
   "palestrantes": [45, 46],
   "n_vagas": 30,
-  "emite_certificado": true
+  "emite_certificado": true,
+  "exige_inscricao": true
 }
 ```
 
 `tipo` é obrigatório (na criação); `tipo_sugerido` é texto livre (a sugestão por
 IA do site). Aprovar aceita `{"publicar": true, "tipo": 3}` — por padrão já
 publica na programação. Rejeitar exige `{"motivo": "..."}`.
+
+`exige_inscricao` (padrão `true`) marca as **atividades abertas** (ex.: LUAU):
+com `false`, a pessoa não se inscreve — só comparece — e o `n_vagas` é ignorado.
+A tela mostra “Não precisa de inscrição”, a self-inscrição é recusada e o campo
+aparece na leitura de `atividades/`. Vale também para o `POST /atividades/`.
 
 ### Auditoria (trilha de ações)
 

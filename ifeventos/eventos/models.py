@@ -376,6 +376,12 @@ class Atividade(models.Model):
     n_vagas = models.PositiveIntegerField(default=0)
     n_inscricoes = models.PositiveIntegerField(default=0)
 
+    # Atividades abertas (ex.: LUAU) não têm lista de inscritos: a pessoa só
+    # comparece. Quando False, `n_vagas` deixa de importar e as telas mostram
+    # "Não precisa de inscrição" em vez de vagas/Lotado. O check-in por crachá
+    # continua valendo (gera Presenca), então o certificado segue possível.
+    exige_inscricao = models.BooleanField(default=True, verbose_name="Exige inscrição")
+
     emite_certificado = models.BooleanField(default=False)
     # Carga horária própria da atividade (horas). Vazio = herda a do evento.
     carga_horaria = models.PositiveIntegerField(null=True, blank=True)

@@ -347,7 +347,15 @@
                     <label class="form-label" for="id_n_vagas">{{ form.n_vagas.label }}</label>
                     {{ form.n_vagas }}
                 </div>
-                <div class="col-6 col-md-8">
+                <div class="col-6 col-md-4">
+                    <div class="form-check form-switch mt-3">
+                        {{ form.exige_inscricao }}
+                        <label class="form-check-label" for="id_exige_inscricao">
+                            {{ form.exige_inscricao.label }}
+                        </label>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
                     <div class="form-check form-switch mt-3">
                         {{ form.emite_certificado }}
                         <label class="form-check-label" for="id_emite_certificado">

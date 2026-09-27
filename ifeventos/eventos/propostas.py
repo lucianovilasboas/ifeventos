@@ -465,7 +465,7 @@ def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
            tipo_sugerido="", palestrantes=(), n_vagas=0,
            emite_certificado=False, imagem=None,
            recursos_necessarios="", consentimento_voluntario=False,
-           sugestoes_palestrantes=(), agora=None):
+           sugestoes_palestrantes=(), exige_inscricao=True, agora=None):
     """Cria a proposta como rascunho pendente e reserva a vaga.
 
     A vaga é travada com `select_for_update` dentro da transação: é isso que faz
@@ -520,6 +520,7 @@ def propor(usuario, evento, *, vaga, titulo, descricao, tipo=None,
             data_hora_fim=travada.fim,
             n_vagas=n_vagas or travada.espaco.capacidade,
             emite_certificado=emite_certificado,
+            exige_inscricao=bool(exige_inscricao),
             imagem=imagem,
             publicada=False,
             situacao=Atividade.SITUACAO_PENDENTE,
@@ -582,7 +583,7 @@ def _substituir_sugestoes_palestrantes(atividade, sugestoes, usuario):
 def atualizar(atividade, *, vaga, titulo, descricao, tipo=None, tipo_sugerido="",
               palestrantes=None, n_vagas=0, emite_certificado=False, imagem=None,
               recursos_necessarios="", consentimento_voluntario=False,
-              sugestoes_palestrantes=None, agora=None):
+              sugestoes_palestrantes=None, exige_inscricao=True, agora=None):
     """Edita a proposta do próprio autor (exige pendente + chamada aberta).
 
     Trocar de vaga é permitido e revalida tudo: a vaga é travada, checada como
@@ -629,6 +630,7 @@ def atualizar(atividade, *, vaga, titulo, descricao, tipo=None, tipo_sugerido=""
         atividade.tipo_sugerido = (tipo_sugerido or "").strip()
         atividade.n_vagas = n_vagas or travada.espaco.capacidade
         atividade.emite_certificado = bool(emite_certificado)
+        atividade.exige_inscricao = bool(exige_inscricao)
         atividade.recursos_necessarios = (recursos_necessarios or "").strip()
         atividade.consentimento_voluntario = bool(consentimento_voluntario)
         if imagem:

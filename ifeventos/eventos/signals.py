@@ -60,6 +60,9 @@ def atividade_salva(sender, instance, created, **kwargs):
         # botão de certificado aparece naquela atividade.
         "quando": instance.quando_legivel,
         "emite_certificado": instance.emite_certificado,
+        # Atividade aberta (sem lista de inscritos): o card em tempo real mostra
+        # o selo "Não precisa de inscrição" em vez de vagas.
+        "exige_inscricao": instance.exige_inscricao,
         # Para o card criado em tempo real mostrar a miniatura da atividade.
         "imagem_url": instance.imagem.url if instance.imagem else None,
         "acao": "atividade",

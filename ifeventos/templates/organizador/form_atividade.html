@@ -101,17 +101,24 @@
                             </div>
                             {{ form_ativ.tipo }}
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <label class="form-label" for="id_n_vagas">{{ form_ativ.n_vagas.label }}</label>
                             {{ form_ativ.n_vagas }}
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
+                            <label class="form-label" for="id_exige_inscricao">{{ form_ativ.exige_inscricao.label }}</label>
+                            <div class="form-check form-switch ativ-switch">
+                                {{ form_ativ.exige_inscricao }}
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
                             <label class="form-label" for="id_emite_certificado">{{ form_ativ.emite_certificado.label }}</label>
                             <div class="form-check form-switch ativ-switch">
                                 {{ form_ativ.emite_certificado }}
                             </div>
                         </div>
                         <div class="col-12">
+                            <small class="text-muted d-block">Desmarcada, a atividade aparece como “Não precisa de inscrição” e o número de vagas é ignorado (ex.: LUAU).</small>
                             <small class="text-muted d-block">Marcada como “emite certificado”, a atividade mostra o selo na página pública do evento.</small>
                         </div>
 

@@ -24,6 +24,9 @@
                 {% if not atividade.publicada %}
                 <span class="badge-app" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-eye-slash"></i> Rascunho</span>
                 {% endif %}
+                {% if not atividade.exige_inscricao %}
+                <span class="badge-app" style="background:#e0f2fe;color:#0369a1"><i class="fa-solid fa-door-open"></i> Sem inscrição</span>
+                {% endif %}
             </h5>
             {% if atividade.quando_legivel %}
             <p class="atividade-quando mb-0"><i class="fa-regular fa-clock"></i> {{ atividade.quando_legivel }}</p>
@@ -99,6 +102,9 @@
                             <span class="atividade-nome">{{ atividade.titulo }}</span>
                             {% if not atividade.publicada %}
                             <span class="badge-app" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-eye-slash"></i> Rascunho</span>
+                            {% endif %}
+                            {% if not atividade.exige_inscricao %}
+                            <span class="badge-app" style="background:#e0f2fe;color:#0369a1"><i class="fa-solid fa-door-open"></i> Sem inscrição</span>
                             {% endif %}
                         </td>
                         <td data-valor="{{ atividade.data_hora_inicio|date:'c' }}">

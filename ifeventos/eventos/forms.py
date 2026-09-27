@@ -163,7 +163,7 @@ class AtividadeForm(forms.ModelForm):
         model = Atividade
         fields = [
             'titulo', 'descricao', 'local', 'tipo', 'palestrantes',
-            'data_hora_inicio', 'data_hora_fim', 'n_vagas',
+            'data_hora_inicio', 'data_hora_fim', 'n_vagas', 'exige_inscricao',
             'emite_certificado', 'imagem',
         ]
         labels = {
@@ -173,6 +173,7 @@ class AtividadeForm(forms.ModelForm):
             'data_hora_inicio': 'Início',
             'data_hora_fim': 'Término',
             'n_vagas': 'Vagas',
+            'exige_inscricao': 'Exige inscrição',
             'emite_certificado': 'Emite certificado',
             'imagem': 'Imagem',
         }
@@ -185,6 +186,7 @@ class AtividadeForm(forms.ModelForm):
             'data_hora_inicio': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'data_hora_fim': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'n_vagas': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'exige_inscricao': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
             'emite_certificado': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
             'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
         }
@@ -208,6 +210,13 @@ class AtividadeForm(forms.ModelForm):
         self.fields["local"].help_text = (
             "Escolha um espaço do catálogo da escola ou deixe vazio para usar o "
             "espaço do evento."
+        )
+        self.fields["n_vagas"].help_text = (
+            "Ignorado quando a atividade não exige inscrição (ex.: LUAU)."
+        )
+        self.fields["exige_inscricao"].help_text = (
+            "Desmarque para atividades abertas, em que a pessoa só comparece — "
+            "a lista mostra “Não precisa de inscrição” em vez de vagas."
         )
 
     def clean(self):
@@ -552,6 +561,14 @@ class PropostaForm(forms.ModelForm):
         min_value=0,
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 0}),
     )
+    exige_inscricao = forms.BooleanField(
+        label="Exige inscrição",
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
+        help_text="Desmarque para atividades abertas, em que a pessoa só comparece "
+                  "(ex.: LUAU). A lista mostra “Não precisa de inscrição” em vez de vagas.",
+    )
     recursos_necessarios = forms.CharField(
         label="Recursos e itens necessários",
         required=False,
@@ -574,7 +591,8 @@ class PropostaForm(forms.ModelForm):
         # EDIÇÃO receber o valor atual do banco como inicial (declarar o campo
         # não basta: o Django só monta o initial do que está em Meta.fields).
         fields = [
-            "titulo", "descricao", "n_vagas", "emite_certificado", "imagem",
+            "titulo", "descricao", "n_vagas", "exige_inscricao",
+            "emite_certificado", "imagem",
             "recursos_necessarios", "consentimento_voluntario",
             "vaga", "tipo", "tipo_sugerido",
         ]
@@ -634,6 +652,7 @@ class PropostaForm(forms.ModelForm):
         atividade.titulo = self.cleaned_data["titulo"].strip()
         atividade.descricao = self.cleaned_data["descricao"].strip()
         atividade.n_vagas = self.cleaned_data.get("n_vagas") or 0
+        atividade.exige_inscricao = bool(self.cleaned_data.get("exige_inscricao"))
         atividade.emite_certificado = bool(self.cleaned_data.get("emite_certificado"))
         atividade.tipo = self.cleaned_data.get("tipo")
         atividade.tipo_sugerido = (self.cleaned_data.get("tipo_sugerido") or "").strip()
