@@ -1708,3 +1708,66 @@ class CertificadoEDataNaListaTests(_BasePresencaTests):
         self.assertTrue(dados["emite_certificado"])
         self.assertEqual(dados["quando"], self.atividade.quando_legivel)
         self.assertIn("emite_certificado", dados)
+
+
+class FusoHorarioTests(TestCase):
+    """Datas/horas exibidas saem no FUSO LOCAL — nunca em UTC.
+
+    Regressão do QR do cartaz: a mensagem da janela de presença mostrava a hora
+    em UTC (10:50) enquanto o cartaz dizia 07:50 (America/Sao_Paulo).
+    """
+
+    def test_local_legivel(self):
+        from datetime import timezone as dt_timezone
+
+        from django.utils import timezone as dj_timezone
+
+        from eventos.tempo import local_legivel
+
+        self.assertEqual(local_legivel(None), "")
+        self.assertEqual(local_legivel("lixo"), "")
+
+        naive = datetime(2026, 10, 5, 8, 0)
+        esperado_naive = dj_timezone.localtime(
+            dj_timezone.make_aware(naive, dj_timezone.get_current_timezone())
+        ).strftime("%d/%m/%Y %H:%M")
+        self.assertEqual(local_legivel(naive), esperado_naive)
+
+        aware_utc = datetime(2026, 10, 5, 11, 0, tzinfo=dt_timezone.utc)
+        self.assertEqual(
+            local_legivel(aware_utc),
+            dj_timezone.localtime(aware_utc).strftime("%d/%m/%Y %H:%M"),
+        )
+
+    def test_mensagem_da_janela_no_fuso_local(self):
+        from datetime import timezone as dt_timezone
+
+        from django.utils import timezone as dj_timezone
+
+        from eventos.crachas import atividade_aceita_presenca_agora, janela_de_presenca
+        from eventos.tempo import local_legivel
+
+        evento = Evento.objects.create(
+            title="E", description="d", local="l",
+            data_inicio=dj_timezone.localdate(), data_fim=dj_timezone.localdate(),
+        )
+        inicio = dj_timezone.make_aware(datetime(2026, 10, 5, 8, 0))
+        atividade = Atividade.objects.create(
+            evento=evento, titulo="A", descricao="d",
+            data_hora_inicio=inicio, data_hora_fim=inicio + timedelta(hours=1),
+        )
+        abre_em, fecha_em = janela_de_presenca(atividade)
+
+        _, msg_abre = atividade_aceita_presenca_agora(
+            atividade, agora=abre_em - timedelta(minutes=5)
+        )
+        self.assertIn(local_legivel(abre_em, "%d/%m às %H:%M"), msg_abre)
+        # A hora em UTC não pode aparecer (quando o fuso local difere de UTC).
+        if abre_em.utcoffset() != timedelta(0):
+            hora_utc = abre_em.astimezone(dt_timezone.utc).strftime("%H:%M")
+            self.assertNotIn(hora_utc, msg_abre)
+
+        _, msg_fecha = atividade_aceita_presenca_agora(
+            atividade, agora=fecha_em + timedelta(minutes=5)
+        )
+        self.assertIn(local_legivel(fecha_em, "%d/%m às %H:%M"), msg_fecha)

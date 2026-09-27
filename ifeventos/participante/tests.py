@@ -460,3 +460,49 @@ class BuscarParticipanteTests(TestCase):
         resultados = resposta.json()["resultados"]
         self.assertTrue(resultados)
         self.assertIn("foto", resultados[0])
+
+
+class ConflitoFusoTests(TestCase):
+    """A mensagem de conflito de horário usa o fuso LOCAL (regressão do UTC)."""
+
+    def test_mensagem_de_conflito_no_fuso_local(self):
+        from django.contrib.messages import get_messages
+        from django.utils import timezone as dj_timezone
+
+        from eventos.tempo import local_legivel
+
+        org = U.objects.create_user(
+            email="org_fuso@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        participante = U.objects.create_user(
+            email="part_fuso@example.com", password=SENHA, cpf="11144477735"
+        )
+        tipo = TipoAtividade.objects.create(nome="Palestra")
+        evento = Evento.objects.create(
+            title="E", description="d", local="l",
+            data_inicio=date(2026, 10, 1), data_fim=date(2026, 10, 2),
+            organizador=org,
+        )
+        inicio = dj_timezone.make_aware(datetime(2026, 10, 5, 10, 0))
+        primeira = Atividade.objects.create(
+            evento=evento, titulo="Primeira", descricao="d", tipo=tipo, n_vagas=10,
+            data_hora_inicio=inicio, data_hora_fim=inicio + timedelta(hours=1),
+        )
+        segunda = Atividade.objects.create(
+            evento=evento, titulo="Segunda", descricao="d", tipo=tipo, n_vagas=10,
+            data_hora_inicio=inicio + timedelta(minutes=30),
+            data_hora_fim=inicio + timedelta(hours=2),
+        )
+        Inscricao.objects.create(participante=participante, atividade=primeira)
+        self.client.force_login(participante)
+
+        resposta = self.client.get(
+            reverse("participante:inscrever", args=[segunda.id])
+        )
+
+        mensagens = [str(m) for m in get_messages(resposta.wsgi_request)]
+        esperado = local_legivel(primeira.data_hora_inicio)
+        self.assertTrue(
+            any(esperado in mensagem for mensagem in mensagens), mensagens
+        )

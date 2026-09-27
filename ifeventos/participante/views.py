@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from eventos.models import Atividade, Evento, Inscricao, Participante
+from eventos.tempo import local_legivel
 from eventos import agenda, propostas
 from eventos.forms import PropostaForm
 from eventos.propostas import PropostaBloqueada
@@ -177,8 +178,8 @@ def inscrever(request, atividade_id):
         messages.error(
             request,
             f"Conflito de horário com '{conflito.titulo}', que ocorre de "
-            f"{conflito.data_hora_inicio.strftime('%d/%m/%Y %H:%M')} até "
-            f"{conflito.data_hora_fim.strftime('%d/%m/%Y %H:%M')}."
+            f"{local_legivel(conflito.data_hora_inicio)} até "
+            f"{local_legivel(conflito.data_hora_fim)}."
         )
         return redirect('participante:dashboard')
 
