@@ -18,12 +18,48 @@ from .models import AssinaturaCertificado
 from .models import ConfiguracaoCertificado
 from .models import RegistroAuditoria
 from django.utils.html import format_html
+from django.utils import timezone
 from django.http import JsonResponse
 from django.urls import path
 from django import forms
 from django.core.exceptions import ValidationError
 from . import metadados
 from .validators import validar_cpf
+
+
+def miniatura(arquivo, largura=40, altura=None):
+    """Miniatura CLICÁVEL de uma imagem no admin (ou "—" quando não há).
+
+    Abre a imagem original em outra aba. Usada nas listas e nos detalhes para o
+    organizador ver a cara da imagem sem baixar o arquivo.
+    """
+    if not arquivo:
+        return "—"
+    try:
+        url = arquivo.url
+    except ValueError:
+        return "—"
+    altura = altura or largura
+    return format_html(
+        '<a href="{0}" target="_blank" rel="noopener">'
+        '<img src="{0}" alt="" loading="lazy" '
+        'style="width:{1}px;height:{2}px;object-fit:cover;border-radius:6px;'
+        'border:1px solid #e5e5e5;vertical-align:middle;"/></a>',
+        url, largura, altura,
+    )
+
+
+def link_arquivo(arquivo, rotulo="Abrir"):
+    """Link que abre um arquivo (ex.: PDF) em outra aba — "—" quando não há."""
+    if not arquivo:
+        return "—"
+    try:
+        url = arquivo.url
+    except ValueError:
+        return "—"
+    return format_html(
+        '<a href="{0}" target="_blank" rel="noopener">{1}</a>', url, rotulo
+    )
 
 
 
@@ -43,7 +79,13 @@ class EventoAdmin(admin.ModelAdmin):
 
     get_participantes.short_description = "Participantes"
 
-    list_display = ('title', 'local','get_total_participantes','get_participantes', 'organizador', 'data_inicio', 'data_fim')
+    @admin.display(description="Imagem")
+    def miniatura_imagem(self, obj):
+        return miniatura(obj.imagem, 60, 40)
+
+    list_display = ('title', 'miniatura_imagem', 'local','get_total_participantes','get_participantes', 'organizador', 'data_inicio', 'data_fim')
+    list_display_links = ('title',)
+    readonly_fields = ('miniatura_imagem',)
     date_hierarchy = ('data_inicio')
     ordering = ('data_inicio',)
     search_fields = (
@@ -81,26 +123,43 @@ class InscricaoInline(admin.TabularInline):
 
 @admin.register(Participante)
 class ParticipanteAdmin(admin.ModelAdmin):
-    
+
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
-        ('Informações pessoais', {'fields': ('foto','first_name', 'last_name', 'email', 'cpf', 'bio', 'telefone', 'endereco')}),
-        ('Permissões', {'fields': ('is_active', 'is_organizador', 'is_participante', 'is_palestrante')}),
+        ('Informações pessoais', {'fields': ('foto', 'first_name', 'last_name', 'email', 'cpf', 'bio', 'telefone', 'endereco')}),
+        ('Permissões', {'fields': ('is_active', 'is_equipe', 'is_organizador', 'is_participante', 'is_palestrante')}),
+        # Readonly: quando a conta foi criada, último login e última alteração.
+        ('Registro', {'fields': ('date_joined', 'last_login', 'atualizado_em')}),
     )
 
-    list_display = ( 'mostrar_foto', 'first_name','last_name','username', 'cpf', 'get_atividades_inscritas','is_active','is_staff', 'is_organizador', 'is_participante','is_palestrante')
-    readonly_fields = ('mostrar_foto',)  # Exibir no detalhe do objeto
+    list_display = (
+        'mostrar_foto', 'first_name', 'last_name', 'username', 'cpf',
+        'get_atividades_inscritas', 'is_active', 'is_staff', 'is_equipe',
+        'is_organizador', 'is_participante', 'is_palestrante', 'criado_em',
+    )
+    list_display_links = ('first_name',)
+    list_filter = ('is_active', 'is_equipe', 'is_organizador', 'is_participante', 'is_palestrante')
+    # Mais recentes primeiro: é o que interessa ao conferir cadastros novos.
+    ordering = ('-date_joined', '-id')
+    date_hierarchy = 'date_joined'
+    readonly_fields = ('mostrar_foto', 'date_joined', 'last_login', 'atualizado_em')
     search_fields = ('first_name', 'last_name', 'email', 'cpf', 'username')
 
 
+    @admin.display(description="Foto")
     def mostrar_foto(self, obj):
-        return format_html('<img src="{}" width="30" style="border-radius: 5px;"/>', obj.foto.url if obj.foto else '/media/usuarios/default.jpeg')
-        # return format_html('<img src="{}" width="20" style="border-radius: 5px;"/>', '/media/palestrantes/foto_.jpeg')  # foto padrão
+        if obj.foto:
+            return miniatura(obj.foto, 32, 32)
+        return format_html(
+            '<img src="/media/usuarios/default.jpeg" width="32" height="32" '
+            'style="border-radius:5px;object-fit:cover;"/>'
+        )
 
-    mostrar_foto.short_description = "Foto"  # Nome da coluna no Admin
-
-
-    inlines = [InscricaoInline]  # Adiciona inscrições editáveis na página do participante
+    @admin.display(description="Criado em", ordering="date_joined")
+    def criado_em(self, obj):
+        if not obj.date_joined:
+            return "—"
+        return timezone.localtime(obj.date_joined).strftime("%d/%m/%Y %H:%M")
 
     def get_atividades_inscritas(self, obj):
         atividades = obj.inscricoes.values_list('atividade__titulo', flat=True)
@@ -108,17 +167,42 @@ class ParticipanteAdmin(admin.ModelAdmin):
 
     get_atividades_inscritas.short_description = "Atividades Inscritas"
 
+    inlines = [InscricaoInline]  # Adiciona inscrições editáveis na página do participante
 
+    # ----------------------------------------------------------------------
+    # Ações: alternar os papéis da pessoa (equipe/organizador/participante/
+    # palestrante). Usa `update()` no banco em vez de `obj.save()`: atualiza o
+    # papel E `atualizado_em` de uma vez, sem disparar o reprocessamento da
+    # imagem de perfil que o `save()` do modelo faria a cada clique.
+    # ----------------------------------------------------------------------
+    def _alternar_papel(self, queryset, campo):
+        for pessoa in queryset:
+            queryset.model.objects.filter(pk=pessoa.pk).update(
+                **{campo: not getattr(pessoa, campo), "atualizado_em": timezone.now()}
+            )
 
-    # Função para marcar atividades como concluídas
-    def trocar_status_de_organizador(modeladmin, request, queryset):
-        # queryset.update(is_organizador=True)
-        for obj in queryset:
-            obj.is_organizador = not obj.is_organizador
-            obj.save()        
-    trocar_status_de_organizador.short_description = "Marcar/descmarcar como Organizador"
+    @admin.action(description="Alternar membro da equipe de apoio")
+    def alternar_equipe(self, request, queryset):
+        self._alternar_papel(queryset, "is_equipe")
 
-    actions = [trocar_status_de_organizador]  # Adicionando ações personalizadas
+    @admin.action(description="Alternar organizador")
+    def alternar_organizador(self, request, queryset):
+        self._alternar_papel(queryset, "is_organizador")
+
+    @admin.action(description="Alternar participante")
+    def alternar_participante(self, request, queryset):
+        self._alternar_papel(queryset, "is_participante")
+
+    @admin.action(description="Alternar palestrante")
+    def alternar_palestrante(self, request, queryset):
+        self._alternar_papel(queryset, "is_palestrante")
+
+    actions = [
+        "alternar_equipe",
+        "alternar_organizador",
+        "alternar_participante",
+        "alternar_palestrante",
+    ]
 
 
 
@@ -139,7 +223,13 @@ class AtividadeAdmin(admin.ModelAdmin):
     get_participantes.short_description = "Participante(s)"    
     vagas_disponiveis.short_description = "# Vagas Disponíveis"
 
-    list_display = ('titulo', 'evento', 'situacao', 'proponente', 'codigo_confirmacao', 'get_palestrantes','get_participantes','vagas_disponiveis', 'tipo', 'n_vagas','data_hora_inicio','data_hora_inicio',)
+    @admin.display(description="Imagem")
+    def miniatura_imagem(self, obj):
+        return miniatura(obj.imagem, 60, 40)
+
+    list_display = ('titulo', 'miniatura_imagem', 'evento', 'situacao', 'proponente', 'codigo_confirmacao', 'get_palestrantes','get_participantes','vagas_disponiveis', 'tipo', 'n_vagas','data_hora_inicio','data_hora_inicio',)
+    list_display_links = ('titulo',)
+    readonly_fields = ('miniatura_imagem',)
     list_filter = ('evento', 'tipo', 'situacao', 'publicada', 'data_hora_inicio')
     search_fields = ('titulo', 'descricao', 'tipo__nome')
     date_hierarchy = 'data_hora_inicio'
@@ -235,7 +325,12 @@ class InscricaoAdmin(admin.ModelAdmin):
 
 @admin.register(Certificado)
 class CertificadoAdmin(admin.ModelAdmin):
-    list_display = ('participante', 'tipo', 'atividade', 'evento', 'carga_horaria', 'data_emissao', 'codigo')
+    @admin.display(description="PDF")
+    def arquivo_pdf(self, obj):
+        return link_arquivo(obj.pdf, "Abrir PDF")
+
+    list_display = ('participante', 'tipo', 'atividade', 'evento', 'carga_horaria', 'data_emissao', 'codigo', 'arquivo_pdf')
+    readonly_fields = ('arquivo_pdf',)
     search_fields = (
         'participante__first_name', 'participante__last_name',
         'participante__email', 'participante__cpf',
@@ -432,7 +527,13 @@ class PalestranteSugeridoAdmin(admin.ModelAdmin):
 
 @admin.register(Assinante)
 class AssinanteAdmin(admin.ModelAdmin):
-    list_display = ("nome", "cargo", "ativo", "criado_em")
+    @admin.display(description="Assinatura")
+    def miniatura_assinatura(self, obj):
+        return miniatura(obj.imagem, 120, 40)
+
+    list_display = ("nome", "miniatura_assinatura", "cargo", "ativo", "criado_em")
+    list_display_links = ("nome",)
+    readonly_fields = ("miniatura_assinatura",)
     list_filter = ("ativo",)
     search_fields = ("nome", "cargo")
 
@@ -441,7 +542,14 @@ class AssinaturaCertificadoInline(admin.TabularInline):
     model = AssinaturaCertificado
     extra = 1
     max_num = 2
-    fields = ("ordem", "nome", "cargo", "imagem")
+    fields = ("ordem", "nome", "cargo", "imagem", "miniatura_assinatura")
+    readonly_fields = ("miniatura_assinatura",)
+
+    @admin.display(description="Prévia")
+    def miniatura_assinatura(self, obj):
+        if obj is None or not obj.pk:
+            return "—"
+        return miniatura(obj.imagem, 120, 40)
 
 
 @admin.register(ConfiguracaoCertificado)

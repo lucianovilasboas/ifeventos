@@ -5,6 +5,28 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.12.0] — 2026-09-27
+
+### Adicionado
+
+- **Tema do Django Admin (django-jazzmin 3.0.5)**: admin com sidebar, dark mode
+  e a identidade do IFMG (verde institucional), busca no topo pelos modelos mais
+  usados e ícones por modelo. Nada muda nos `ModelAdmin` existentes.
+- **`Participante.atualizado_em`** (auto_now): a última alteração da conta,
+  mostrada no detalhe do participante no admin.
+- **Miniaturas no admin**: onde há imagem (Evento, Atividade, Participante e
+  Assinante), a lista e o detalhe mostram uma **miniatura clicável** (abre a
+  imagem original); a assinatura aparece também no formulário de configuração do
+  certificado. O certificado ganhou um link **“Abrir PDF”**.
+
+### Alterado
+
+- **Admin de Participantes**: coluna **“Criado em”** (`date_joined`) e
+  **`is_equipe`** na lista (mais recentes primeiro), filtros por papéis/situação,
+  seção **readonly “Registro”** (criação, último login e última atualização) e
+  **actions para alternar** membro da equipe, organizador, participante e
+  palestrante (atualizam `atualizado_em` sem reprocessar a foto).
+
 ## [2.11.0] — 2026-09-27
 
 ### Alterado
