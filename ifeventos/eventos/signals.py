@@ -1,9 +1,11 @@
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 from allauth.account.signals import user_logged_in, user_signed_up
 from allauth.socialaccount.signals import social_account_added, social_account_updated
 from .models import Inscricao 
 from .models import Atividade
+from .models import Evento
+from .models import Participante
 from .models import Presenca
 from .services import notify_socketio
 
@@ -306,3 +308,46 @@ def auditoria_logout(request, user, **kwargs):
         request=request,
         resumo="Saiu do sistema",
     )
+
+
+# ---------------------------------------------------------------------------
+# Equipe de apoio: manter `Participante.is_equipe` em sincronia com o vínculo
+# ---------------------------------------------------------------------------
+# A flag `is_equipe` é GLOBAL, mas a equipe é POR EVENTO (`Evento.equipe`). Ao
+# remover alguém da equipe de um evento, a flag só some se a pessoa não estiver
+# na equipe de NENHUM outro — senão ela perderia o menu/painel de apoio dos
+# eventos em que continua. O sinal cobre a tela do organizador E o admin.
+def _sincronizar_flag_equipe(pessoas_ids):
+    """Zera `is_equipe` de quem não está na equipe de nenhum evento."""
+    for pessoa in Participante.objects.filter(pk__in=pessoas_ids, is_equipe=True):
+        if not pessoa.eventos_equipe.exists():
+            pessoa.is_equipe = False
+            pessoa.save(update_fields=["is_equipe"])
+
+
+@receiver(m2m_changed, sender=Evento.equipe.through)
+def equipe_apoio_alterada(sender, instance, action, reverse, pk_set, **kwargs):
+    if action == "pre_clear":
+        # O post_clear não traz os ids: guarda quem estava na equipe.
+        instance.__dict__["_equipe_antes"] = (
+            {instance.pk} if reverse
+            else set(instance.equipe.values_list("pk", flat=True))
+        )
+        return
+
+    if action == "post_clear":
+        _sincronizar_flag_equipe(instance.__dict__.pop("_equipe_antes", set()))
+        return
+
+    if action not in ("post_add", "post_remove"):
+        return
+    # `reverse=True`: `instance` é o Participante e `pk_set` são os eventos.
+    pessoas_ids = {instance.pk} if reverse else set(pk_set or [])
+    if not pessoas_ids:
+        return
+    if action == "post_add":
+        Participante.objects.filter(pk__in=pessoas_ids, is_equipe=False).update(
+            is_equipe=True
+        )
+    else:
+        _sincronizar_flag_equipe(pessoas_ids)

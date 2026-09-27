@@ -5,6 +5,16 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.12.2] — 2026-09-27
+
+### Corrigido
+
+- **Equipe de apoio**: ao remover uma pessoa da equipe de um evento, a flag
+  global `Participante.is_equipe` agora é sincronizada (sinal `m2m_changed` em
+  `Evento.equipe`): ela **some** quando a pessoa sai da equipe de **todos** os
+  eventos e **permanece** se ela ainda for equipe de outro. Vale para a tela do
+  organizador e para o admin.
+
 ## [2.12.1] — 2026-09-27
 
 ### Corrigido
