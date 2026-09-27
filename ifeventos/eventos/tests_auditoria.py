@@ -195,6 +195,22 @@ class ErroHandlerTests(TestCase):
         logging.getLogger("eventos.teste_warn").warning("apenas aviso")
         self.assertFalse(RegistroAuditoria.objects.filter(acao="erro").exists())
 
+    def test_erro_de_biblioteca_de_transporte_nao_registra(self):
+        """Erro do engineio/socketio fica só no console — não vira auditoria.
+
+        Foi o aviso "websocket-client package not installed" do engineio que
+        aparecia como "Erro / Sistema" na trilha, atribuído ao usuário da
+        requisição. As bibliotecas de transporte não são ações de ninguém.
+        """
+        import logging
+
+        logging.getLogger("engineio.client").error(
+            "websocket-client package not installed, only polling transport is available"
+        )
+        logging.getLogger("socketio.client").error("falha de transporte")
+
+        self.assertFalse(RegistroAuditoria.objects.filter(acao="erro").exists())
+
     def test_handler_nao_levanta_em_falha(self):
         import logging
         from unittest import mock

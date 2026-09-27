@@ -5,6 +5,18 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.9.1] — 2026-09-27
+
+### Corrigido
+
+- **Trilha de auditoria poluída por erro do Socket.IO**: o aviso
+  `websocket-client package not installed, only polling transport is available`
+  (do `engineio.client`) aparecia como **“Erro / Sistema”** na auditoria,
+  atribuído ao usuário da requisição. Duas medidas: instalado o pacote
+  **`websocket-client`** (o cliente passa a usar websocket em vez de só
+  long-polling) e os loggers **`engineio`/`socketio`** saíram da auditoria — o
+  erro deles vai só para o console (`docker logs`).
+
 ## [2.9.0] — 2026-09-27
 
 ### Adicionado

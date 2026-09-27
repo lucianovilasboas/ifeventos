@@ -664,6 +664,20 @@ LOGGING = {
             "level": LOG_LEVEL,
             "propagate": False,
         },
+        # Bibliotecas de transporte do Socket.IO: erro/warning delas vai SÓ para o
+        # console (docker logs) — não vira linha de auditoria. Sem isto, o aviso
+        # "websocket-client package not installed" do engineio caía como
+        # "Erro / Sistema" na trilha, atribuído ao usuário da requisição.
+        "engineio": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "socketio": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
     },
 }
 
