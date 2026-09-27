@@ -74,7 +74,30 @@ Como funciona (`eventos/auditor_ia.py`), **sem text-to-SQL**:
 3. o resultado (reduzido) volta ao LLM, que **resume** em português.
 
 O LLM nunca recebe os dados crus nem escreve SQL/ORM; a resposta final é só um
-resumo — confira os números nos filtros exibidos.
+resumo — confira os números nos filtros exibidos. O chat mantém as **últimas ~6
+mensagens** como contexto, então dá para encadear perguntas (“e ontem?”, “e por
+usuário?”).
+
+### Diagnóstico (causa e solução)
+
+Além de responder perguntas, a página tem **“Analisar agora”** (janela padrão de
+7 dias): um **diagnóstico** da trilha em três camadas (`eventos/auditor_diagnostico.py`):
+
+1. **Sinais** (determinístico): erros agrupados por **logger + assinatura
+   normalizada** (ids/números viram `<n>`, para enxergar recorrência), tendência
+   por dia, picos, status HTTP (4xx/5xx) e marcos (exclusões, cancelamentos,
+   imports, logins). Os números saem do ORM — a IA não inventa.
+2. **Playbooks** (`eventos/auditoria_playbooks.py`): onde a assinatura é
+   conhecida, a **causa** e a **solução** saem prontas (curadas no código); há um
+   mapa de loggers → módulo para orientar o “onde olhar”.
+3. **IA** (contexto `auditoria_diagnostico`, configurável no admin): interpreta
+   os sinais + playbooks e devolve um **JSON validado** — severidade geral e uma
+   lista priorizada de `{título, severidade, evidência, causa provável, solução,
+   onde}`. Se a IA falhar, cai num **relatório determinístico** (nunca fica vazio).
+
+A tela mostra os itens em **cards por severidade** e uma tabela dos “erros mais
+frequentes”, com link para os registros filtrados no admin. Tracebacks passam por
+máscara de e-mail/CPF antes de virarem sinal. Restrito ao **superusuário**.
 
 ## Erros
 

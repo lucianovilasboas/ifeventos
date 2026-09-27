@@ -136,6 +136,35 @@ class ResponderTests(TestCase):
         self.assertFalse(resultado["ok"])
         self.assertIn("erro", resultado)
 
+    def test_normaliza_historico(self):
+        mensagens = auditor_ia._normaliza_historico([
+            {"papel": "user", "texto": "a"},
+            {"papel": "assistant", "texto": "b"},
+            {"papel": "outro", "texto": "c"},
+            {"papel": "user", "texto": ""},
+            "lixo",
+        ])
+        self.assertEqual([m["role"] for m in mensagens], ["user", "assistant", "user"])
+
+    def test_historico_vai_para_o_llm(self):
+        spec = json.dumps({"filtros": {"acao": "criar"}})
+        mock_chat = mock.AsyncMock(side_effect=[_Resposta(spec), _Resposta("ok")])
+        with mock.patch.object(auditor_ia.services, "gerar_chat", new=mock_chat):
+            resultado = async_to_sync(auditor_ia.responder)(
+                "e ontem?",
+                self.org,
+                historico=[
+                    {"papel": "user", "texto": "quantas ações hoje?"},
+                    {"papel": "assistant", "texto": "10."},
+                ],
+            )
+        self.assertTrue(resultado["ok"])
+        primeira = mock_chat.call_args_list[0].kwargs["messages"]
+        self.assertEqual(primeira[0]["role"], "system")
+        self.assertEqual(primeira[1], {"role": "user", "content": "quantas ações hoje?"})
+        self.assertEqual(primeira[2], {"role": "assistant", "content": "10."})
+        self.assertEqual(primeira[-1], {"role": "user", "content": "e ontem?"})
+
 
 class PaginaAuditoriaTests(TestCase):
     URL = "/organizador/auditoria/"
@@ -177,3 +206,23 @@ class PaginaAuditoriaTests(TestCase):
             )
         self.assertEqual(resposta.status_code, 200)
         self.assertTrue(resposta.json()["ok"])
+
+    def test_endpoint_repassa_historico(self):
+        admin = U.objects.create_user(
+            email="resp2@ia.test", password=SENHA, is_superuser=True, is_staff=True
+        )
+        self.client.force_login(admin)
+        spec = json.dumps({"filtros": {"acao": "criar"}})
+        mock_chat = mock.AsyncMock(side_effect=[_Resposta(spec), _Resposta("Ok.")])
+        with mock.patch.object(auditor_ia.services, "gerar_chat", new=mock_chat):
+            resposta = self.client.post(
+                "/organizador/auditoria/responder/",
+                data=json.dumps({
+                    "pergunta": "e ontem?",
+                    "historico": [{"papel": "user", "texto": "quantas hoje?"}],
+                }),
+                content_type="application/json",
+            )
+        self.assertEqual(resposta.status_code, 200)
+        mensagens = mock_chat.call_args_list[0].kwargs["messages"]
+        self.assertIn({"role": "user", "content": "quantas hoje?"}, mensagens)

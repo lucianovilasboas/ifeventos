@@ -60,6 +60,8 @@ CONTEXTOS = [
      "grupo": "organizador", "tipo_padrao": "classificacao", "ordem": 90},
     {"chave": "auditoria", "rotulo": "Auditoria (perguntas sobre ações)",
      "grupo": "organizador", "tipo_padrao": "texto", "ordem": 95},
+    {"chave": "auditoria_diagnostico", "rotulo": "Auditoria — diagnóstico (causa e solução)",
+     "grupo": "organizador", "tipo_padrao": "texto", "ordem": 96},
     {"chave": "comunicacao", "rotulo": "Comunicação (divulgação)",
      "grupo": "organizador", "tipo_padrao": "classificacao", "ordem": 100},
     {"chave": "relatorio_narrado", "rotulo": "Relatórios narrados",

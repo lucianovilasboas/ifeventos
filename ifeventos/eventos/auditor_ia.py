@@ -28,6 +28,29 @@ _RE_ACAO = re.compile(r"^[a-z_]{1,30}$")
 _RE_ENTIDADE = re.compile(r"^[A-Za-z]{1,60}$")
 _RE_ORIGEM = re.compile(r"^[a-z]{1,10}$")
 
+# Histórico do chat: quantas mensagens anteriores voltam ao LLM (pergunta+resposta)
+# e o teto de cada uma. Permite acompanhar o fio ("e ontem?", "e por usuário?").
+MAX_HISTORICO = 6
+MAX_MENSAGEM = 600
+
+
+def _normaliza_historico(historico):
+    """Converte o histórico do chat em mensagens do LLM (padrão do concierge).
+
+    Aceita `[{papel: "user"|"assistant", texto: "..."}]` e devolve
+    `[{role, content}]`, cortando vazios e limitando o tamanho do texto.
+    """
+    mensagens = []
+    for item in (historico or [])[-MAX_HISTORICO:]:
+        if not isinstance(item, dict):
+            continue
+        texto = str(item.get("texto") or "").strip()[:MAX_MENSAGEM]
+        if not texto:
+            continue
+        papel = "assistant" if item.get("papel") == "assistant" else "user"
+        mensagens.append({"role": papel, "content": texto})
+    return mensagens
+
 
 def _opcoes():
     acoes = ", ".join(c[0] for c in RegistroAuditoria.ACAO_CHOICES)
@@ -64,7 +87,10 @@ _PROMPT_RESPOSTA = (
     "(auditoria) do sistema. Recebe a pergunta, a consulta executada e o "
     "resultado (JSON). Baseie-se SOMENTE no resultado; se vier vazio, diga que "
     "não encontrou registros para o período/filtro. Não invente números. Os "
-    "e-mails já vêm mascarados — não tente desmascarar."
+    "e-mails já vêm mascarados — não tente desmascarar. Se o resultado tiver "
+    "registros de erro (acao='erro') ou status 4xx/5xx em volume, acrescente a "
+    "causa provável e UMA sugestão objetiva de ação; quando fizer sentido, "
+    "sugira usar o botão “Analisar agora” para o diagnóstico completo."
 )
 
 
@@ -175,13 +201,13 @@ def executar_consulta(spec, usuario) -> dict:
     return {"agrupado_por": None, "total": base.count(), "itens": itens}
 
 
-async def _especificar(pergunta: str) -> dict:
+async def _especificar(pergunta: str, historico=None) -> dict:
+    mensagens = [{"role": "system", "content": _prompt_especificacao()}]
+    mensagens += _normaliza_historico(historico)
+    mensagens.append({"role": "user", "content": pergunta})
     resposta = await services.gerar_chat(
         "auditoria",
-        messages=[
-            {"role": "system", "content": _prompt_especificacao()},
-            {"role": "user", "content": pergunta},
-        ],
+        messages=mensagens,
         response_format={"type": "json_object"},
         max_tokens=400,
     )
@@ -192,33 +218,33 @@ async def _especificar(pergunta: str) -> dict:
     return normalizar_spec(bruto)
 
 
-async def _resumir(pergunta: str, spec: dict, resultado: dict) -> str:
+async def _resumir(pergunta: str, spec: dict, resultado: dict, historico=None) -> str:
     entrada = json.dumps(
         {"pergunta": pergunta, "consulta": spec, "resultado": resultado},
         ensure_ascii=False,
         default=str,
     )[:12000]
+    mensagens = [{"role": "system", "content": _PROMPT_RESPOSTA}]
+    mensagens += _normaliza_historico(historico)
+    mensagens.append({"role": "user", "content": entrada})
     resposta = await services.gerar_chat(
         "auditoria",
-        messages=[
-            {"role": "system", "content": _PROMPT_RESPOSTA},
-            {"role": "user", "content": entrada},
-        ],
+        messages=mensagens,
         max_tokens=600,
     )
     return _conteudo(resposta)
 
 
-async def responder(pergunta: str, usuario) -> dict:
+async def responder(pergunta: str, usuario, historico=None) -> dict:
     """Responde uma pergunta sobre a auditoria. Nunca levanta exceção."""
     pergunta = (pergunta or "").strip()
     if not pergunta:
         return {"ok": False, "erro": "Escreva uma pergunta sobre o histórico."}
     try:
-        spec = await _especificar(pergunta)
+        spec = await _especificar(pergunta, historico)
         # A consulta é ORM (síncrono): roda num thread à parte.
         resultado = await sync_to_async(executar_consulta)(spec, usuario)
-        texto = await _resumir(pergunta, spec, resultado)
+        texto = await _resumir(pergunta, spec, resultado, historico)
     except Exception:
         logger.exception("auditor_ia: falha ao responder a pergunta")
         return {"ok": False, "erro": "Não foi possível consultar a auditoria agora."}
