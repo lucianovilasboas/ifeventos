@@ -43,7 +43,14 @@ class EventoForm(forms.ModelForm):
 
     class Meta:
         model = Evento
-        fields = ['title', 'description', 'data_inicio', 'data_fim', 'local', 'categoria', 'imagem']
+        fields = [
+            'title', 'description', 'data_inicio', 'data_fim', 'local', 'categoria',
+            'imagem', 'margem_presenca_antes_min', 'margem_presenca_depois_min',
+        ]
+        labels = {
+            'margem_presenca_antes_min': 'Tolerância antes (min)',
+            'margem_presenca_depois_min': 'Tolerância depois (min)',
+        }
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control','style': 'max-height: 100px; overflow-y: auto;'}),
@@ -51,8 +58,9 @@ class EventoForm(forms.ModelForm):
             'data_fim': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'local': forms.TextInput(attrs={'class': 'form-control'}),
             'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'margem_presenca_antes_min': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'margem_presenca_depois_min': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
         }
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Sugestões do datalist: lista-semente + categorias já criadas.

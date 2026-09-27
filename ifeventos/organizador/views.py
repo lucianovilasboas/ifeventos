@@ -51,7 +51,10 @@ from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse
 from eventos.crachas import (
     atividade_aceita_presenca_agora,
+    gerar_pdf_cartazes_evento,
     gerar_pdf_crachas_evento,
+    janela_de_presenca,
+    margens_de_presenca,
     modelo_de_cracha,
     pessoas_do_evento,
     pode_exibir_qr_atividade,
@@ -380,6 +383,27 @@ def atividades_evento(request, evento_id):
     # Rascunhos primeiro, num bloco separado: é o que precisa de gerenciamento.
     rascunhos = [a for a in atividades if not a.publicada]
     publicadas = [a for a in atividades if a.publicada]
+
+    # Manual do cartaz ("Como funciona?"): números REAIS deste evento, montados a
+    # partir da MESMA regra da presença (`janela_de_presenca`/`margens_de_presenca`),
+    # para o organizador saber quando os cartazes impressos passam a valer e
+    # param de valer.
+    antes_min, depois_min = margens_de_presenca(evento)
+    aberturas, fechamentos = [], []
+    for atividade in publicadas:
+        abre_em, fecha_em = janela_de_presenca(atividade)
+        if abre_em:
+            aberturas.append(abre_em)
+        if fecha_em:
+            fechamentos.append(fecha_em)
+    cartaz_info = {
+        "total": len(publicadas),
+        "folhas": len(publicadas),  # 1 cartaz por folha A4
+        "margem_antes_min": antes_min,
+        "margem_depois_min": depois_min,
+        "primeira_abertura": min(aberturas) if aberturas else None,
+        "ultimo_fechamento": max(fechamentos) if fechamentos else None,
+    }
     # A grade trabalha em ordem cronológica e precisa do tipo/palestrantes.
     para_grade = (
         evento.atividades.select_related("tipo")
@@ -404,6 +428,7 @@ def atividades_evento(request, evento_id):
             {"valor": "grade", "rotulo": "Grade", "icone": "fa-solid fa-table-cells"},
         ],
         'modelos_cracha': Evento.MODELO_CRACHA_CHOICES,
+        'cartaz_info': cartaz_info,
     }) 
 
 
@@ -1324,6 +1349,36 @@ class CrachasEventoView(LoginRequiredMixin, View):
         # recebe exatamente esse e o evento não sai com dois desenhos.
         modelo = modelo_de_cracha(evento.modelo_cracha)
         nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento, modelo)
+        resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
+        resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'
+        return resposta
+
+
+class CartazesAtividadesView(LoginRequiredMixin, View):
+    """PDF com os cartazes de QR das atividades publicadas do evento.
+
+    Dois cartazes por folha A4 (210 x 148,5 mm cada), no desenho do crachá do
+    evento, com o QR permanente da atividade — para imprimir e fixar na porta.
+    """
+
+    def get(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+
+        # Sem atividade publicada, sairia um PDF sem página: melhor avisar.
+        if not evento.atividades.filter(publicada=True).exists():
+            messages.warning(
+                request,
+                "Ainda não há atividades publicadas neste evento. Publique a "
+                "programação para gerar os cartazes de QR.",
+            )
+            return redirect("organizador:atividades_evento", evento.id)
+
+        # O desenho acompanha o modelo de crachá escolhido para o evento.
+        modelo = modelo_de_cracha(evento.modelo_cracha)
+        nome_arquivo, conteudo = gerar_pdf_cartazes_evento(evento, modelo)
         resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'
         return resposta

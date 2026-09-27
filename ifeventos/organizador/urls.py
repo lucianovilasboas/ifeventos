@@ -59,7 +59,7 @@ from .views import AssinantesView, AssinanteRemoverView
 from .views import CertificadoTemplateAdicionarView, CertificadoTemplateRemoverView
 from .views import FundoCertificadoAdicionarView, FundoCertificadoRemoverView
 from .views import auditoria_agente, auditoria_responder
-from .views import CheckinAtividadeView, CrachasEventoView, QrAtividadeView
+from .views import CheckinAtividadeView, CartazesAtividadesView, CrachasEventoView, QrAtividadeView
 
 
 app_name = 'organizador'
@@ -185,6 +185,9 @@ urlpatterns = [
 
     # -- Crachás --
     path("crachas/evento/<int:evento_id>/", CrachasEventoView.as_view(), name="crachas_evento"),
+
+    # -- Cartazes de QR das atividades (imprimir e fixar na porta) --
+    path("atividades/<int:evento_id>/cartazes.pdf", CartazesAtividadesView.as_view(), name="cartazes_atividades"),
 
     # -- Presença: QR da atividade (exibir na tela) e check-in pela câmera --
     path("atividade/<int:atividade_id>/qrcode/", QrAtividadeView.as_view(), name="qrcode_atividade"),

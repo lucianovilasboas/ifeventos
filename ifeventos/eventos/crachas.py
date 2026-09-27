@@ -39,6 +39,12 @@ SAL_TOKEN = "cracha-ifmg-v1"
 # código de atividade, e vice-versa — são permissões diferentes.
 SAL_PRESENCA = "presenca-atividade-v1"
 
+# Sal do QR IMPRESSO (o cartaz fixado na porta da atividade). É separado do QR
+# da tela de propósito: o da tela expira em minutos, o do cartaz não expira
+# (foi impresso) e vale só dentro da janela da atividade. Assim um token de
+# cartaz nunca é aceito onde se espera um token rotativo, e vice-versa.
+SAL_CARTAZ = "presenca-cartaz-v1"
+
 # Alfabeto sem I, L, O e U: os quatro caracteres que as pessoas confundem ao
 # ditar um código em voz alta na portaria (I/1, O/0, U/V).
 ALFABETO_CODIGO = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -857,6 +863,259 @@ def gerar_pdf_crachas_evento(evento, modelo=MODELO_PADRAO):
     return f"crachas-{apelido}{sufixo}.pdf", ContentFile(buffer.read())
 
 
+# --------------------------------------------------------------------------
+# Cartazes de presença: 1 por folha A4 (210 x 297 mm, retrato), com o QR grande
+# para fixar na porta da atividade.
+#
+# Seguem o MESMO desenho do crachá escolhido para o evento (etiqueta/clássico),
+# mas o lugar do nome é o da ATIVIDADE e o QR é o código IMPRESSO (permanente)
+# daquela atividade — o da tela, rotativo, não pode ser fixado no papel.
+# --------------------------------------------------------------------------
+
+LARGURA_CARTAZ_MM = 210
+ALTURA_CARTAZ_MM = 297
+CARTAZES_POR_FOLHA = 1
+
+
+def _quando_atividade(atividade):
+    """Data/hora da atividade em texto curto: `10/10/2026 · 19:30–22:00`."""
+    inicio = atividade.data_hora_inicio
+    if not inicio:
+        return ""
+    if timezone.is_aware(inicio):
+        inicio = timezone.localtime(inicio)
+    texto = inicio.strftime("%d/%m/%Y · %H:%M")
+    fim = atividade.data_hora_fim
+    if fim:
+        if timezone.is_aware(fim):
+            fim = timezone.localtime(fim)
+        texto += fim.strftime("–%H:%M") if fim.date() == inicio.date() else fim.strftime("–%d/%m %H:%M")
+    return texto
+
+
+def _painel_qr_cartaz(c, atividade, x, y, largura, altura, cor):
+    """Painel branco com o QR grande do cartaz e a instrução de confirmação."""
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+
+    c.setFillColor(cor["branco"])
+    c.setStrokeColor(cor["borda"])
+    c.setLineWidth(0.8)
+    c.roundRect(x, y, largura, altura, 6 * mm, fill=True, stroke=True)
+
+    side_pad = 10 * mm
+    rodape = 26 * mm  # espaço da instrução, abaixo do QR
+    lado = max(40 * mm, min(largura - 2 * side_pad, altura - rodape - 2 * side_pad))
+    centro_x = x + largura / 2.0
+    qr_y = y + rodape + max(0.0, (altura - rodape - lado) / 2.0)
+
+    # `caixa=12`: o QR é desenhado grande no papel, então sai em alta resolução.
+    qr = imagem_qr(
+        url_presenca_atividade(gerar_token_atividade_cartaz(atividade.id)),
+        caixa=12, borda=2,
+    )
+    c.drawImage(ImageReader(qr), centro_x - lado / 2.0, qr_y,
+                width=lado, height=lado, mask="auto")
+
+    c.setFillColor(cor["texto"])
+    c.setFont("Helvetica-Bold", 13)
+    c.drawCentredString(centro_x, y + 14 * mm,
+                        "Aponte a câmera e confirme sua presença")
+    c.setFillColor(cor["cinza"])
+    c.setFont("Helvetica", 9)
+    c.drawCentredString(centro_x, y + 7 * mm, "É preciso estar logado na sua conta")
+
+
+def _cartaz_etiqueta(c, atividade, evento, x, y, largura, altura, logo_caminho):
+    """Cartaz etiqueta (retrato): foto do evento ao fundo e painel branco do QR."""
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+
+    cor = _paleta()
+    margem = 14 * mm
+    centro_x = x + largura / 2.0
+
+    # Fundo: foto do evento (com véu) ou o gradiente institucional.
+    c.saveState()
+    recorte = c.beginPath()
+    recorte.rect(x, y, largura, altura)
+    c.clipPath(recorte, stroke=0, fill=0)
+    fundo = imagem_para_faixa(evento, largura, altura)
+    if fundo is not None:
+        c.drawImage(ImageReader(fundo), x, y, width=largura, height=altura,
+                    preserveAspectRatio=False, mask="auto")
+        c.setFillColor(cor["veu"])
+        c.setFillAlpha(0.55)
+        c.rect(x, y, largura, altura, fill=True, stroke=False)
+        c.setFillAlpha(1)
+    else:
+        c.linearGradient(x, y, x, y + altura, [cor["azul"], cor["verde"]])
+    c.restoreState()
+
+    # Círculo com a logo do IFMG, no alto e centralizado.
+    raio = 17 * mm
+    centro_y = y + altura - margem - raio
+    c.setFillColor(cor["branco"])
+    c.circle(centro_x, centro_y, raio, fill=True, stroke=False)
+    _desenhar_logo(c, logo_caminho, centro_x - raio * 0.76, centro_y - raio * 0.76,
+                   raio * 1.52, raio * 1.52)
+
+    _desenhar_linhas(c, ["IFMG · Campus Ponte Nova"], "Helvetica-Bold", 11.5,
+                     x, centro_y - raio - 8 * mm, 5,
+                     largura=largura, alinhamento="center", cor=cor["branco"])
+
+    cursor = _cartaz_texto_central(
+        c, atividade, evento, x, largura, centro_y - raio - 18 * mm, cor["branco"]
+    )
+
+    # Painel branco do QR: do rodapé até logo abaixo do texto.
+    painel_y = y + margem
+    painel_h = max(90 * mm, cursor - 6 * mm - painel_y)
+    _painel_qr_cartaz(c, atividade, x + 12 * mm, painel_y,
+                      largura - 24 * mm, painel_h, cor)
+
+
+def _cartaz_classico(c, atividade, evento, x, y, largura, altura, logo_caminho):
+    """Cartaz clássico (retrato): tarja verde, faixa com a foto e painel do QR."""
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+
+    cor = _paleta()
+    margem = 14 * mm
+
+    c.setFillColor(cor["branco"])
+    c.rect(x, y, largura, altura, fill=True, stroke=False)
+
+    # Tarja verde com a logo e a instituição.
+    altura_barra = 26 * mm
+    c.setFillColor(cor["verde"])
+    c.rect(x, y + altura - altura_barra, largura, altura_barra, fill=True, stroke=False)
+
+    caixa_logo = 18 * mm
+    caixa_x = x + 12 * mm
+    caixa_y = y + altura - altura_barra + (altura_barra - caixa_logo) / 2.0
+    c.setFillColor(cor["branco"])
+    c.roundRect(caixa_x, caixa_y, caixa_logo, caixa_logo, 3 * mm, fill=True, stroke=False)
+    if not _desenhar_logo(c, logo_caminho, caixa_x + 2 * mm, caixa_y + 2 * mm,
+                          caixa_logo - 4 * mm, caixa_logo - 4 * mm):
+        c.setFillColor(cor["verde_ink"])
+        c.setFont("Helvetica-Bold", 10)
+        c.drawCentredString(caixa_x + caixa_logo / 2.0, caixa_y + 7 * mm, "IFMG")
+
+    c.setFillColor(cor["branco"])
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(caixa_x + caixa_logo + 6 * mm,
+                 y + altura - altura_barra + 9.5 * mm, "IFMG · Campus Ponte Nova")
+
+    # Faixa com a foto do evento (ou o gradiente de reserva).
+    altura_faixa = 45 * mm
+    y_faixa = y + altura - altura_barra - altura_faixa
+    imagem_faixa = imagem_para_faixa(evento, largura, altura_faixa)
+    if imagem_faixa is not None:
+        c.drawImage(ImageReader(imagem_faixa), x, y_faixa, width=largura, height=altura_faixa,
+                    preserveAspectRatio=False, mask="auto")
+    else:
+        c.saveState()
+        caminho = c.beginPath()
+        caminho.rect(x, y_faixa, largura, altura_faixa)
+        c.clipPath(caminho, stroke=0, fill=0)
+        c.linearGradient(x, y_faixa, x, y_faixa + altura_faixa,
+                         [cor["verde_escuro"], cor["verde"]])
+        c.restoreState()
+
+    cursor = _cartaz_texto_central(
+        c, atividade, evento, x, largura, y_faixa - 12 * mm, cor["texto"]
+    )
+
+    painel_y = y + margem
+    painel_h = max(80 * mm, cursor - 6 * mm - painel_y)
+    _painel_qr_cartaz(c, atividade, x + 12 * mm, painel_y,
+                      largura - 24 * mm, painel_h, cor)
+
+
+def _cartaz_texto_central(c, atividade, evento, x, largura, cursor, cor_texto):
+    """Título da atividade + evento + data/hora + local, centralizados.
+
+    `cursor` é o y do topo; desce conforme escreve e devolve o y onde parou, para
+    o painel do QR ocupar o que sobrou da folha. A cor do texto muda com o modelo
+    (branco sobre a foto; escuro sobre o branco).
+    """
+    from reportlab.lib.units import mm
+
+    linhas = _quebrar_texto(atividade.titulo, "Helvetica-Bold", 26, largura - 20 * mm, 3)
+    _desenhar_linhas(c, linhas, "Helvetica-Bold", 26, x, cursor, 10.5 * mm,
+                     largura=largura, alinhamento="center", cor=cor_texto)
+    cursor -= 10.5 * mm * (len(linhas) - 1) + 8 * mm
+
+    linhas_evento = _quebrar_texto(evento.title, "Helvetica-Bold", 15, largura - 20 * mm, 2)
+    _desenhar_linhas(c, linhas_evento, "Helvetica-Bold", 15, x, cursor, 6.4 * mm,
+                     largura=largura, alinhamento="center", cor=cor_texto)
+    cursor -= 6.4 * mm * (len(linhas_evento) - 1) + 6 * mm
+
+    quando = _quando_atividade(atividade)
+    if quando:
+        _desenhar_linhas(c, [quando], "Helvetica", 12, x, cursor, 5,
+                         largura=largura, alinhamento="center", cor=cor_texto)
+        cursor -= 6.5 * mm
+
+    local = (atividade.local or evento.local or "").strip()
+    if local:
+        _desenhar_linhas(c, _quebrar_texto(local, "Helvetica", 12, largura - 20 * mm, 1),
+                         "Helvetica", 12, x, cursor, 5,
+                         largura=largura, alinhamento="center", cor=cor_texto)
+        cursor -= 6.5 * mm
+
+    return cursor
+
+
+def gerar_pdf_cartazes_evento(evento, modelo=None):
+    """PDF com o cartaz de QR de cada atividade publicada do evento.
+
+    Um por folha A4 (210 x 297 mm, retrato), no desenho do crachá do evento
+    (etiqueta/clássico), com o QR permanente da atividade. Devolve
+    (nome_do_arquivo, ContentFile).
+    """
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as canvas_pdf
+
+    modelo = modelo_de_cracha(modelo or evento.modelo_cracha)
+    atividades = list(
+        evento.atividades.filter(publicada=True).order_by("data_hora_inicio", "id")
+    )
+
+    buffer = io.BytesIO()
+    largura_folha = A4_LARGURA_MM * mm
+    altura_folha = A4_ALTURA_MM * mm
+    largura_cartao = LARGURA_CARTAZ_MM * mm
+    altura_cartao = ALTURA_CARTAZ_MM * mm
+
+    c = canvas_pdf.Canvas(buffer, pagesize=(largura_folha, altura_folha))
+    logo_caminho = arquivo_logo_cracha()
+
+    for indice, atividade in enumerate(atividades):
+        if indice > 0:
+            c.showPage()
+        _cartaz_atividade(c, atividade, evento, 0, 0,
+                          largura_cartao, altura_cartao, logo_caminho, modelo)
+
+    c.save()
+    buffer.seek(0)
+    apelido = "evento"
+    if evento.title:
+        apelido = "".join(caractere if caractere.isalnum() else "-"
+                          for caractere in evento.title.lower())[:40].strip("-")
+    sufixo = "" if modelo == MODELO_PADRAO else f"-{modelo}"
+    return f"cartazes-{apelido}{sufixo}.pdf", ContentFile(buffer.read())
+
+
+def _cartaz_atividade(c, atividade, evento, x, y, largura, altura, logo_caminho, modelo):
+    """Despacha o cartaz para o desenho do modelo escolhido no evento."""
+    if modelo == "classico":
+        _cartaz_classico(c, atividade, evento, x, y, largura, altura, logo_caminho)
+    else:
+        _cartaz_etiqueta(c, atividade, evento, x, y, largura, altura, logo_caminho)
+
+
 # ---------------------------------------------------------------------------
 # QR em bytes, verificação, check-in e permissão
 #
@@ -1136,11 +1395,28 @@ def registrar_presenca(atividade, pessoa, registrada_por=None, origem="qr"):
 # ---------------------------------------------------------------------------
 
 
+def margens_de_presenca(evento):
+    """Tolerância da janela de presença do evento: (minutos antes, minutos depois).
+
+    O organizador pode ajustar por evento (`Evento.margem_presenca_antes_min` /
+    `margem_presenca_depois_min`); o que ficar em branco usa o padrão do sistema.
+    Fonte única para a janela E para o manual do cartaz (os dois nunca divergem).
+    """
+    antes = getattr(evento, "margem_presenca_antes_min", None)
+    depois = getattr(evento, "margem_presenca_depois_min", None)
+    if antes is None:
+        antes = getattr(settings, "PRESENCA_MARGEM_ANTES_MINUTOS", 20)
+    if depois is None:
+        depois = getattr(settings, "PRESENCA_MARGEM_DEPOIS_MINUTOS", 20)
+    return antes, depois
+
+
 def janela_de_presenca(atividade, agora=None):
     """Devolve (abre_em, fecha_em) da janela de confirmação desta atividade."""
     agora = agora or timezone.now()
-    margem_antes = timedelta(minutes=getattr(settings, "PRESENCA_MARGEM_ANTES_MINUTOS", 30))
-    margem_depois = timedelta(hours=getattr(settings, "PRESENCA_MARGEM_DEPOIS_HORAS", 2))
+    antes_min, depois_min = margens_de_presenca(getattr(atividade, "evento", None))
+    margem_antes = timedelta(minutes=antes_min)
+    margem_depois = timedelta(minutes=depois_min)
     return (
         (atividade.data_hora_inicio - margem_antes) if atividade.data_hora_inicio else None,
         (atividade.data_hora_fim + margem_depois) if atividade.data_hora_fim else None,
@@ -1204,16 +1480,49 @@ def ler_token_atividade(token, validade=None):
         raise CrachaInvalido("Código de atividade inválido.") from erro
 
 
+def gerar_token_atividade_cartaz(atividade_id):
+    """Código do QR IMPRESSO no cartaz (não expira).
+
+    O cartaz é impresso com antecedência e fixado na porta da atividade, então o
+    código não pode expirar como o da tela. A validade é dada pela janela da
+    atividade (ver `registrar_presenca`): fora dela, mesmo o QR do cartaz é
+    recusado — é o que impede que uma foto do cartaz valha para sempre.
+    """
+    return signing.dumps(
+        {"a": int(atividade_id), "t": "atividade-cartaz"},
+        salt=SAL_CARTAZ, compress=True,
+    )
+
+
+def ler_token_atividade_cartaz(token):
+    """Lê o código impresso do cartaz (sem validade embutida)."""
+    try:
+        return signing.loads(token, salt=SAL_CARTAZ)
+    except signing.BadSignature as erro:
+        raise CrachaInvalido("Código do cartaz inválido.") from erro
+
+
 def confirmar_por_token_atividade(token, pessoa):
     """FLUXO B — a própria pessoa confirmou, escaneando o QR da atividade.
 
-    Devolve (atividade, presenca, criada, erro). A pessoa vem da sessão: é por
-    isso que o fluxo exige login — sem saber quem é, não há presença a registrar.
+    Aceita os DOIS códigos: o rotativo da tela (expira em minutos) e o impresso
+    no cartaz (não expira). Devolve (atividade, presenca, criada, erro). A pessoa
+    vem da sessão: é por isso que o fluxo exige login — sem saber quem é, não há
+    presença a registrar.
     """
+    dados = None
+    erro_rotativo = None
     try:
         dados = ler_token_atividade(token)
     except CrachaInvalido as erro:
-        return None, None, False, str(erro)
+        erro_rotativo = str(erro)
+    if dados is None:
+        try:
+            dados = ler_token_atividade_cartaz(token)
+        except CrachaInvalido:
+            # Nem rotativo nem cartaz: vale a mensagem do caminho "normal"
+            # (expirado x inválido), que é o que a tela costuma exibir.
+            return None, None, False, erro_rotativo
 
     atividade = (
         Atividade.objects.select_related("evento").filter(id=dados.get("a")).first()

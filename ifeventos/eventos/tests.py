@@ -30,10 +30,18 @@ from django.urls import reverse
 from .models import Atividade, Certificado, Evento, Inscricao, Presenca, PresencaCancelada, TipoAtividade
 from .crachas import (
     MODELO_PADRAO,
+    CrachaInvalido,
     arquivo_logo_cracha,
+    confirmar_por_token_atividade,
     crachas_do_usuario,
+    gerar_pdf_cartazes_evento,
     gerar_pdf_crachas_evento,
     gerar_token,
+    gerar_token_atividade,
+    gerar_token_atividade_cartaz,
+    janela_de_presenca,
+    ler_token_atividade,
+    ler_token_atividade_cartaz,
     modelo_de_cracha,
     montar_cracha,
     papel_no_evento,
@@ -872,6 +880,176 @@ class CrachasParaImpressaoTests(_BasePresencaTests):
         self.assertNotIn("btn-icon", linha_do_botao)
         self.assertIn("btn-app", linha_do_botao)
         self.assertIn("Imprimir meus crachás", pagina)
+
+
+class CartazesAtividadesTests(_BasePresencaTests):
+    """Cartazes de QR das atividades: 1 por A4, QR permanente, só publicadas.
+
+    O que estes testes travam:
+
+      * o PDF sai em A4 (retrato) com UM cartaz por folha;
+      * só entram atividades publicadas (rascunho não vira cartaz);
+      * o QR do cartaz confirma presença e NÃO expira como o da tela;
+      * fora da janela da atividade, mesmo o QR do cartaz é recusado;
+      * os salts do cartaz e do QR rotativo são diferentes (um não vale no outro);
+      * quem não organiza o evento não baixa os cartazes dos outros;
+      * evento sem atividade publicada avisa em vez de devolver PDF vazio.
+    """
+
+    PAGINAS_A4 = b"/MediaBox [ 0 0 595.2756 841.8898 ]"
+
+    def _mais_atividades(self, quantidade, publicada=True):
+        for indice in range(quantidade):
+            Atividade.objects.create(
+                evento=self.evento, titulo=f"Atividade {indice}", descricao="d",
+                tipo=self.tipo,
+                data_hora_inicio=datetime(2026, 9, 10, 10, indice, tzinfo=timezone.utc),
+                data_hora_fim=datetime(2026, 9, 10, 11, indice, tzinfo=timezone.utc),
+                n_vagas=10, publicada=publicada,
+            )
+
+    def _paginas(self, dados):
+        return dados.count(b"/Type /Page") - dados.count(b"/Type /Pages")
+
+    def test_pdf_uma_folha_por_atividade(self):
+        # 1 atividade -> 1 folha; com 3 -> 3 folhas (1 por folha).
+        _, uma = gerar_pdf_cartazes_evento(self.evento, "etiqueta")
+        self.assertEqual(self._paginas(uma.read()), 1)
+
+        self._mais_atividades(2)
+        _, tres = gerar_pdf_cartazes_evento(self.evento, "etiqueta")
+        dados = tres.read()
+        self.assertTrue(dados.startswith(b"%PDF"))
+        self.assertIn(self.PAGINAS_A4, dados)
+        self.assertEqual(self._paginas(dados), 3)
+
+    def test_so_atividades_publicadas_entram(self):
+        # 2 publicadas (2 folhas) + 1 rascunho que NÃO pode virar a 3ª folha.
+        self._mais_atividades(1)
+        self._mais_atividades(1, publicada=False)
+
+        _, conteudo = gerar_pdf_cartazes_evento(self.evento, "etiqueta")
+
+        self.assertEqual(self._paginas(conteudo.read()), 2)
+
+    def test_token_do_cartaz_confirma_dentro_da_janela(self):
+        agora = datetime.now(tz=timezone.utc)
+        self.atividade.data_hora_inicio = agora - timedelta(minutes=10)
+        self.atividade.data_hora_fim = agora + timedelta(hours=1)
+        self.atividade.save()
+
+        token = gerar_token_atividade_cartaz(self.atividade.id)
+        atividade, presenca, criada, erro = confirmar_por_token_atividade(
+            token, self.participante
+        )
+
+        self.assertEqual(erro, "")
+        self.assertEqual(atividade, self.atividade)
+        self.assertIsNotNone(presenca)
+        self.assertTrue(criada)
+
+    def test_token_do_cartaz_recusa_fora_da_janela(self):
+        # A atividade do cenário é de 10/09/2026: a janela já fechou.
+        token = gerar_token_atividade_cartaz(self.atividade.id)
+
+        _atividade, presenca, _criada, erro = confirmar_por_token_atividade(
+            token, self.participante
+        )
+
+        self.assertIsNone(presenca)
+        self.assertIn("prazo", erro.lower())
+        self.assertFalse(Presenca.objects.filter(atividade=self.atividade).exists())
+
+    def test_cartaz_e_rotativo_nao_se_misturam(self):
+        cartaz = gerar_token_atividade_cartaz(self.atividade.id)
+        rotativo = gerar_token_atividade(self.atividade.id)
+
+        with self.assertRaises(CrachaInvalido):
+            ler_token_atividade(cartaz)
+        with self.assertRaises(CrachaInvalido):
+            ler_token_atividade_cartaz(rotativo)
+
+    def test_token_invalido_nao_confirma(self):
+        _atividade, presenca, _criada, erro = confirmar_por_token_atividade(
+            "isto-nao-e-um-token", self.participante
+        )
+
+        self.assertIsNone(presenca)
+        self.assertTrue(erro)
+
+    def test_organizador_baixa_os_cartazes(self):
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:cartazes_atividades", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "application/pdf")
+        self.assertTrue(resposta.content.startswith(b"%PDF"))
+
+    def test_terceiro_nao_baixa_os_cartazes(self):
+        intruso = U.objects.create_user(
+            email="intruso_cartaz@example.com", password=SENHA, cpf="12345678909",
+        )
+        self.client.force_login(intruso)
+
+        resposta = self.client.get(
+            reverse("organizador:cartazes_atividades", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_sem_atividades_publicadas_avisa(self):
+        Atividade.objects.filter(evento=self.evento).update(publicada=False)
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:cartazes_atividades", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 302)
+        avisos = [str(m) for m in get_messages(resposta.wsgi_request)]
+        self.assertTrue(
+            any("Ainda não há atividades publicadas" in aviso for aviso in avisos),
+            avisos,
+        )
+
+    def test_pagina_traz_o_manual_do_cartaz(self):
+        """O botão "Imprimir cartazes" abre o manual; o padrão do sistema é 20/20."""
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Imprimir cartazes")
+        self.assertContains(resposta, "modalManualCartaz")
+        # Padrão do sistema (dado real do evento) aparece no manual.
+        self.assertContains(resposta, "20 min antes")
+        self.assertContains(resposta, "20 min depois")
+        # Link para ajustar a tolerância no próprio evento.
+        self.assertContains(resposta, "Ajustar os horários de tolerância")
+        self.assertContains(resposta, "folha(s) A4")
+
+    def test_manual_usa_a_tolerancia_do_evento(self):
+        """A tolerância ajustada no evento sobrepõe o padrão e aparece no manual."""
+        self.evento.margem_presenca_antes_min = 5
+        self.evento.margem_presenca_depois_min = 10
+        self.evento.save()
+
+        # A janela usa os valores do evento.
+        abre_em, fecha_em = janela_de_presenca(self.atividade)
+        self.assertEqual(abre_em, self.atividade.data_hora_inicio - timedelta(minutes=5))
+        self.assertEqual(fecha_em, self.atividade.data_hora_fim + timedelta(minutes=10))
+
+        self.client.force_login(self.organizador)
+        resposta = self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        )
+        self.assertContains(resposta, "5 min antes")
+        self.assertContains(resposta, "10 min depois")
 
 
 class LogoDoCrachaTests(TestCase):

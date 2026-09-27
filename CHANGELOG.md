@@ -5,6 +5,30 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.9.0] — 2026-09-27
+
+### Adicionado
+
+- **Cartazes de presença (PDF)**: o organizador gera, na lista de atividades, um
+  PDF com **1 cartaz por folha A4** (21 × 29,7 cm, retrato) — um por atividade
+  publicada, com a logo do IFMG e a imagem do evento, o título da atividade,
+  evento/data/local e um **QR grande** para confirmar presença. É para imprimir e
+  **fixar na porta da atividade**. O desenho segue o **modelo de crachá escolhido
+  no evento** (etiqueta/clássico).
+- O QR do cartaz é **permanente** (o da tela expira em minutos e não serve no
+  papel): ele é assinado com um sal próprio e **vale só dentro da janela da
+  atividade**, que já é a regra da presença. O identificador da atividade/QR
+  rotativo e o do cartaz não se misturam.
+- **Tolerância da presença por evento**: o organizador define, no próprio evento
+  (`margem_presenca_antes_min` / `margem_presenca_depois_min`), quanto tempo
+  antes do início e depois do término a confirmação por QR é aceita; em branco =
+  padrão do sistema, agora **20 min antes / 20 min depois** (era 30 min / 2 h).
+- O botão **“Imprimir cartazes”** (renomeado de “Cartazes (PDF)”) abre um manual
+  rápido (modal) antes de gerar o PDF: para que serve, o passo a passo e,
+  principalmente, **quando o cartaz vale** — com os números reais do evento
+  (quantas atividades, quantas folhas A4 e a faixa de horário aceita) e um atalho
+  para ajustar os horários de tolerância.
+
 ## [2.8.0] — 2026-09-27
 
 ### Adicionado
