@@ -10,6 +10,7 @@ import uuid
 from django.utils import timezone
 from .managers import ParticipanteManager
 from .validators import apenas_digitos
+from .tempo import local_legivel
 
 
 def sem_acento(texto):
@@ -980,7 +981,7 @@ class PresencaCancelada(models.Model):
         verbose_name_plural = "Presenças canceladas"
 
     def __str__(self):
-        quando = self.cancelada_em.strftime("%d/%m/%Y %H:%M") if self.cancelada_em else "—"
+        quando = local_legivel(self.cancelada_em) if self.cancelada_em else "—"
         return f"{self.pessoa_nome or '—'} em {self.atividade_titulo or '—'} (desfeita em {quando})"
 
 
@@ -1405,6 +1406,6 @@ class RegistroAuditoria(models.Model):
         ]
 
     def __str__(self):
-        quando = self.criado_em.strftime("%d/%m %H:%M") if self.criado_em else "—"
+        quando = local_legivel(self.criado_em, "%d/%m %H:%M") if self.criado_em else "—"
         autor = self.usuario_nome or "sistema"
         return f"[{quando}] {autor} · {self.get_acao_display()} {self.entidade}".strip()

@@ -29,6 +29,7 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from .models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca
+from .tempo import local_legivel
 
 # Trocar qualquer um dos dois sais invalida TODOS os crachás já emitidos e os
 # códigos curtos correspondentes. É a válvula de emergência em caso de
@@ -1471,12 +1472,12 @@ def atividade_aceita_presenca_agora(atividade, agora=None):
     abre_em, fecha_em = janela_de_presenca(atividade, agora)
     if abre_em and agora < abre_em:
         return False, (
-            f"A confirmação desta atividade abre {abre_em.strftime('%d/%m às %H:%M')}."
+            f"A confirmação desta atividade abre {local_legivel(abre_em, '%d/%m às %H:%M')}."
         )
     if fecha_em and agora > fecha_em:
         return False, (
-            f"O prazo para confirmar presença nesta atividade terminou em "
-            f"{fecha_em.strftime('%d/%m às %H:%M')}."
+            "O prazo para confirmar presença nesta atividade terminou em "
+            f"{local_legivel(fecha_em, '%d/%m às %H:%M')}."
         )
     return True, ""
 

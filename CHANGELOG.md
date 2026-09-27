@@ -5,6 +5,20 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.12.1] — 2026-09-27
+
+### Corrigido
+
+- **Horas exibidas em UTC (3h adiantadas)**: alguns textos formatavam o
+  `datetime` (aware, em UTC) sem converter para o fuso local. Corrigidos:
+  - a mensagem da **janela de presença do QR** (“A confirmação desta atividade
+    abre …”), que aparecia no lugar errado no cartaz/`/p/<token>/` e nas telas de
+    QR/check-in;
+  - a mensagem de **conflito de horário** ao se inscrever;
+  - os `__str__` de **Registro de auditoria** e **Presença cancelada**.
+- Novo `eventos/tempo.local_legivel()` — fonte única para formatar data/hora no
+  fuso local, evitando repetir o erro.
+
 ## [2.12.0] — 2026-09-27
 
 ### Adicionado
