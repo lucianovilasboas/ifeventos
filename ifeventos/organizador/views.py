@@ -1312,7 +1312,43 @@ def auditoria_responder(request):
     except Exception:
         return JsonResponse({"erro": "Corpo da requisição inválido."}, status=400)
     resultado = async_to_sync(auditor_ia.responder)(
-        dados.get("pergunta"), request.user
+        dados.get("pergunta"), request.user, dados.get("historico")
+    )
+    return JsonResponse(resultado, status=200 if resultado.get("ok") else 400)
+
+
+@csrf_exempt
+@login_required(login_url="/accounts/login/")
+def auditoria_diagnostico(request):
+    """Diagnóstico da auditoria: causa provável + solução dos problemas da janela.
+
+    Restrito ao superusuário. Corpo JSON opcional: `{"dias": 7}` ou
+    `{"desde": "...", "ate": "..."}`. Delega ao motor em `eventos/auditor_diagnostico`.
+    """
+    from asgiref.sync import async_to_sync
+
+    from eventos import auditor_diagnostico, auditoria
+
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    if not request.user.is_superuser:
+        return JsonResponse({"erro": "Área restrita ao superusuário."}, status=403)
+    try:
+        dados = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        dados = {}
+    if not isinstance(dados, dict):
+        dados = {}
+    try:
+        dias = int(dados.get("dias") or 7)
+    except (TypeError, ValueError):
+        dias = 7
+    dias = max(1, min(dias, 90))
+
+    desde = auditoria.limite_data(dados.get("desde")) if dados.get("desde") else None
+    ate = auditoria.limite_data(dados.get("ate"), fim=True) if dados.get("ate") else None
+    resultado = async_to_sync(auditor_diagnostico.diagnostico)(
+        request.user, desde=desde, ate=ate, dias_padrao=dias
     )
     return JsonResponse(resultado, status=200 if resultado.get("ok") else 400)
 

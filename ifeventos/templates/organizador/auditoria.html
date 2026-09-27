@@ -13,11 +13,58 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/app/assistente.css' %}?v={{ ASSET_VERSION }}">
+<style>
+    /* A barra e o relatório têm altura própria e rolam dentro de si: sem isso o
+       relatório longo (flex:1 do chat com min-height:0) encolhia o chat até 0.
+       O teto de 40% deixa a barra, o campo de pergunta e o status sempre visíveis. */
+    .diag-barra { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center;
+                  justify-content: space-between; flex: 0 0 auto; }
+    .diag-resultado { flex: 0 0 auto; max-height: 34%; overflow-y: auto;
+                      margin-top: 1rem; }
+    .diag-topo { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .35rem; }
+    .diag-resumo { margin: .25rem 0 .75rem; }
+    .diag-lista { display: grid; gap: .75rem; }
+    .diag-card { border: 1px solid var(--app-border, #e5e5e5); border-radius: .6rem;
+                 padding: .75rem .9rem; background: #fff; }
+    .diag-card-topo { display: flex; justify-content: space-between; align-items: flex-start;
+                      gap: .5rem; margin-bottom: .35rem; }
+    .diag-card-topo h6 { margin: 0; }
+    .diag-linha { margin: 0 0 .3rem; font-size: .875rem; }
+    .diag-link { font-size: .8rem; text-decoration: none; }
+    .diag-grupos { margin-top: 1rem; }
+    .diag-grupos table { font-size: .85rem; }
+</style>
 {% endblock extra_css %}
 
 {% block content %}
 <div class="assistente-wrap">
     <div class="app-panel assistente-painel">
+        <div class="diag-barra">
+            <div>
+                <strong><i class="fa-solid fa-stethoscope"></i> Diagnóstico</strong>
+                <span class="text-muted small d-block">
+                    Analisa a trilha e aponta causa provável e solução dos problemas.
+                </span>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <select id="diagPeriodo" class="form-select form-select-sm" style="width:auto">
+                    <option value="1">Últimas 24 h</option>
+                    <option value="7" selected>Últimos 7 dias</option>
+                    <option value="30">Últimos 30 dias</option>
+                    <option value="90">Últimos 90 dias</option>
+                </select>
+                <button type="button" class="btn btn-app btn-sm" id="diagBotao">
+                    <i class="fa-solid fa-magnifying-glass-chart"></i> Analisar agora
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="diagToggle" hidden>
+                    Recolher
+                </button>
+            </div>
+        </div>
+        <div id="diagnostico" class="diag-resultado" hidden></div>
+
+        <hr class="my-3">
+
         <div id="auditoriaChat" class="assistente-chat" aria-live="polite"></div>
         <form id="auditoriaForm" class="assistente-prompt" autocomplete="off">
             {% csrf_token %}
@@ -43,6 +90,8 @@
     const form = document.getElementById("auditoriaForm");
     const input = document.getElementById("auditoriaInput");
     const status = document.getElementById("auditoriaStatus");
+    // Histórico do chat (pergunta/resposta) para dar contexto à próxima pergunta.
+    const historico = [];
 
     function fim() { chat.scrollTop = chat.scrollHeight; }
 
@@ -82,16 +131,19 @@
             const resposta = await fetch("{% url 'organizador:auditoria_responder' %}", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-                body: JSON.stringify({ pergunta: texto })
+                body: JSON.stringify({ pergunta: texto, historico: historico.slice(-6) })
             });
             const dados = await resposta.json();
             espera.remove();
             if (dados.ok) {
                 bolha("bot", dados.resposta);
+                historico.push({ papel: "user", texto: texto });
+                historico.push({ papel: "assistant", texto: dados.resposta });
                 const filtros = dados.consulta && dados.consulta.filtros;
                 status.textContent = "Registros considerados: " + (dados.total != null ? dados.total : "—") +
                     (filtros && Object.keys(filtros).length ? " · filtros: " + JSON.stringify(filtros) : "");
             } else {
+                historico.push({ papel: "user", texto: texto });
                 bolha("bot", dados.erro || "Não consegui responder agora.");
                 status.textContent = "";
             }
@@ -106,6 +158,96 @@
     });
 
     bolha("bot", "Olá! Pergunte sobre o que aconteceu no sistema: certificados emitidos, presenças canceladas, eventos editados, login dos usuários…");
+
+    // --- Diagnóstico automático ------------------------------------------
+    const diagBotao = document.getElementById("diagBotao");
+    const diagPeriodo = document.getElementById("diagPeriodo");
+    const diagResultado = document.getElementById("diagnostico");
+    const diagToggle = document.getElementById("diagToggle");
+    const ADMIN_LISTA = "{% url 'admin:eventos_registroauditoria_changelist' %}";
+    const SEV = {
+        critico: ["#fee2e2", "#b91c1c", "Crítico"],
+        alto: ["#ffedd5", "#c2410c", "Alto"],
+        medio: ["#fef9c3", "#a16207", "Médio"],
+        baixo: ["#e0f2fe", "#0369a1", "Baixo"],
+        ok: ["#dcfce7", "#15803d", "OK"],
+    };
+
+    function sevBadge(s) {
+        const par = SEV[s] || SEV.baixo;
+        return '<span class="badge-app" style="background:' + par[0] + ";color:" + par[1] + '">' + par[2] + "</span>";
+    }
+    function linkErros(termo) {
+        return ADMIN_LISTA + "?acao__exact=erro&q=" + encodeURIComponent(termo || "");
+    }
+    function renderDiagnostico(d) {
+        if (!d || !d.ok) {
+            diagResultado.innerHTML = '<p class="text-muted mb-0">Não consegui gerar o diagnóstico agora.</p>';
+            diagResultado.hidden = false;
+            diagToggle.hidden = false;
+            diagToggle.textContent = "Recolher";
+            return;
+        }
+        const per = d.periodo ? (d.periodo.desde.slice(0, 10) + " a " + d.periodo.ate.slice(0, 10)) : "";
+        let html = '<div class="diag-topo">' + sevBadge(d.severidade_geral) +
+            '<span class="text-muted small">' + esc(per) + " · " + d.erros_total +
+            " erro(s) · " + d.total_registros + " registro(s)</span></div>" +
+            '<p class="diag-resumo">' + esc(d.resumo || "") + "</p>";
+
+        if (d.itens && d.itens.length) {
+            html += '<div class="diag-lista">' + d.itens.map(function (it) {
+                return '<article class="diag-card">' +
+                    '<div class="diag-card-topo"><h6>' + esc(it.titulo) + "</h6>" + sevBadge(it.severidade) + "</div>" +
+                    (it.evidencia ? '<p class="diag-linha"><b>Evidência:</b> ' + esc(it.evidencia) + "</p>" : "") +
+                    (it.causa_provavel ? '<p class="diag-linha"><b>Causa provável:</b> ' + esc(it.causa_provavel) + "</p>" : "") +
+                    (it.solucao ? '<p class="diag-linha"><b>Sugestão:</b> ' + esc(it.solucao) + "</p>" : "") +
+                    (it.onde ? '<p class="diag-linha"><b>Onde olhar:</b> ' + esc(it.onde) + "</p>" : "") +
+                    '<a class="diag-link" href="' + linkErros(it.evidencia || it.titulo) + '" target="_blank" rel="noopener">' +
+                    '<i class="fa-solid fa-arrow-up-right-from-square"></i> Ver registros</a></article>';
+            }).join("") + "</div>";
+        } else {
+            html += '<p class="text-success mb-0"><i class="fa-solid fa-circle-check"></i> Nenhum problema relevante no período.</p>';
+        }
+
+        if (d.grupos && d.grupos.length) {
+            html += '<div class="diag-grupos"><h6><i class="fa-solid fa-layer-group"></i> Erros mais frequentes</h6>' +
+                '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr>' +
+                '<th>Logger</th><th>Assinatura</th><th class="text-end">Ocorr.</th><th></th></tr></thead><tbody>' +
+                d.grupos.map(function (g) {
+                    return "<tr><td><code>" + esc(g.logger || "—") + "</code></td><td>" + esc(g.assinatura) +
+                        '</td><td class="text-end">' + g.ocorrencias + '</td><td><a class="diag-link" href="' +
+                        linkErros(g.assinatura) + '" target="_blank" rel="noopener">ver</a></td></tr>';
+                }).join("") + "</tbody></table></div></div>";
+        }
+        diagResultado.innerHTML = html;
+        diagResultado.hidden = false;
+        diagToggle.hidden = false;
+        diagToggle.textContent = "Recolher";
+    }
+    async function analisar() {
+        diagBotao.disabled = true;
+        diagResultado.hidden = false;
+        diagResultado.innerHTML = '<p class="text-muted mb-0">Analisando a trilha…</p>';
+        try {
+            const resp = await fetch("{% url 'organizador:auditoria_diagnostico' %}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+                body: JSON.stringify({ dias: Number(diagPeriodo.value) || 7 })
+            });
+            renderDiagnostico(await resp.json());
+        } catch (e) {
+            diagResultado.innerHTML = '<p class="text-danger mb-0">Falha ao analisar a trilha.</p>';
+        } finally {
+            diagBotao.disabled = false;
+        }
+    }
+    diagBotao.addEventListener("click", analisar);
+    diagToggle.addEventListener("click", function () {
+        // Recolher libera todo o espaço para o chat; reabrir mostra o mesmo relatório.
+        const mostrar = diagResultado.hidden;
+        diagResultado.hidden = !mostrar;
+        diagToggle.textContent = mostrar ? "Recolher" : "Mostrar";
+    });
 })();
 </script>
 {% endblock scripts %}

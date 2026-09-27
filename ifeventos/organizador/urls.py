@@ -58,7 +58,7 @@ from .views import CertificadoAtividadeView, CertificadoAtividadeUsarPadraoView
 from .views import AssinantesView, AssinanteRemoverView
 from .views import CertificadoTemplateAdicionarView, CertificadoTemplateRemoverView
 from .views import FundoCertificadoAdicionarView, FundoCertificadoRemoverView
-from .views import auditoria_agente, auditoria_responder
+from .views import auditoria_agente, auditoria_responder, auditoria_diagnostico
 from .views import CheckinAtividadeView, CartazesAtividadesView, CrachasEventoView, QrAtividadeView
 
 
@@ -182,6 +182,7 @@ urlpatterns = [
     # Auditoria — agente "AuditorIA" (perguntas sobre o histórico de ações)
     path("auditoria/", auditoria_agente, name="auditoria"),
     path("auditoria/responder/", auditoria_responder, name="auditoria_responder"),
+    path("auditoria/diagnostico/", auditoria_diagnostico, name="auditoria_diagnostico"),
 
     # -- Crachás --
     path("crachas/evento/<int:evento_id>/", CrachasEventoView.as_view(), name="crachas_evento"),

@@ -5,6 +5,26 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.10.0] — 2026-09-27
+
+### Adicionado
+
+- **AuditorIA com diagnóstico** (página `/organizador/auditoria/`): além do chat,
+  um botão **“Analisar agora”** (janela padrão de 7 dias) gera um relatório que
+  **aponta causa provável e solução** dos problemas da trilha, em **cards por
+  severidade** + tabela dos erros mais frequentes (com link para o admin).
+  - **Sinais determinísticos** (`eventos/auditor_diagnostico.py`): erros
+    agrupados por logger + **assinatura normalizada** (mostra recorrência),
+    tendência/picos por dia, 4xx/5xx e marcos operacionais. Números do ORM.
+  - **Playbooks** (`eventos/auditoria_playbooks.py`): causa/solução curadas para
+    assinaturas conhecidas (engineio/websocket-client, `SynchronousOnlyOperation`,
+    unicidade de inscrição/presença, e-mail, OpenAI, socket) + mapa loggers→módulo.
+  - **Contexto de IA** `auditoria_diagnostico` (modelo configurável no admin); a
+    IA só interpreta — com fallback **determinístico** se ela falhar.
+  - O **chat** da auditoria passa a incluir causa provável e sugestão quando o
+    resultado tem erros, e ganha **memória** (últimas ~6 mensagens) para encadear
+    perguntas. Restrito ao superusuário; PII mascarada nos sinais.
+
 ## [2.9.1] — 2026-09-27
 
 ### Corrigido
