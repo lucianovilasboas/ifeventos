@@ -3,6 +3,8 @@ from datetime import date, time
 from django.utils import timezone
 
 from django import forms
+from django.db.models.functions import Lower
+
 from .models import Evento, Participante, TipoAtividade
 from .models import sem_acento, categorias_conhecidas
 from .models import Atividade, ChamadaProposicoes, Espaco, Vaga
@@ -14,6 +16,7 @@ from .models import (
 )
 from .propostas import dias_do_evento, parse_blocos, validar_vaga
 from django.core.exceptions import ValidationError
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
 
@@ -129,6 +132,33 @@ class EventoForm(forms.ModelForm):
 
 
 
+class PalestrantesChecklist(forms.CheckboxSelectMultiple):
+    """Checklist de palestrantes com foto + nome (caixa rolável).
+
+    Substitui o `<select multiple>`: mostra a cara de cada palestrante e o nome,
+    o que ajuda a escolher quem é quem. Mantém o mesmo `name` do campo
+    (`palestrantes`), então a validação do Django e o `save_m2m` não mudam.
+
+    Renderiza por `render_to_string` (loader do projeto) em vez de
+    `template_name`: o renderer padrão de formulários não procura na pasta
+    `templates/` do projeto, e usar `TemplatesSetting` exigiria expor também os
+    templates do `django.forms` — este caminho fica local e sem efeito global.
+    """
+
+    def render(self, name, value, attrs=None, renderer=None):
+        contexto = self.get_context(name, value, attrs)
+        return mark_safe(
+            render_to_string("includes/widget_palestrantes.html", contexto)
+        )
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        pessoa = getattr(value, "instance", None)
+        if pessoa is not None:
+            option["attrs"]["foto"] = pessoa.get_foto_url()
+        return option
+
+
 class AtividadeForm(forms.ModelForm):
     """Formulário de criação/edição de atividade.
 
@@ -155,15 +185,16 @@ class AtividadeForm(forms.ModelForm):
         required=True
     )
 
-    # Select múltiplo com altura fixa: mostra vários nomes de uma vez e rola
-    # dentro da caixa, em vez de esticar o formulário quando há muitos
-    # palestrantes cadastrados. Opcional de propósito: exposições, feiras e
-    # outras atividades podem não ter palestrante formal (a API, o copiloto e a
-    # importação já permitem atividade sem palestrante).
+    # Checklist com foto + nome (em ordem alfabética), rolando dentro da caixa.
+    # Opcional de propósito: exposições, feiras e outras atividades podem não ter
+    # palestrante formal (a API, o copiloto e a importação já permitem atividade
+    # sem palestrante).
     palestrantes = forms.ModelMultipleChoiceField(
-        queryset=Participante.objects.filter(is_palestrante=True),
+        queryset=Participante.objects.filter(is_palestrante=True).order_by(
+            Lower("first_name"), Lower("last_name"), Lower("email"),
+        ),
         label='Palestrantes',
-        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': 6}),
+        widget=PalestrantesChecklist(),
         required=False
     )
 

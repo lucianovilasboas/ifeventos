@@ -1139,6 +1139,36 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 .ativ-lista select { width: 100%; }
 .ativ-lista .errorlist { list-style: none; padding: 0; margin: 6px 0 0; color: var(--danger); font-size: var(--text-sm); }
 
+/* Checklist de palestrantes com foto + nome (substitui o <select multiple>).
+   A caixa rola sozinha e cada linha é um alvo de clique confortável. */
+.pal-lista {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--app-card, #fff);
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pal-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-radius: 8px; cursor: pointer; margin: 0;
+}
+.pal-item:hover { background: var(--surface-soft, rgba(0, 0, 0, 0.04)); }
+.pal-item:has(input:checked) { background: var(--accent-soft, #e8f5ea); }
+.pal-item input[type="checkbox"] {
+  width: 1.15rem; height: 1.15rem; margin: 0; flex: 0 0 auto;
+  accent-color: var(--accent-ink, #2f9e41);
+}
+.pal-foto {
+  width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
+  flex: 0 0 auto; background: #eee;
+}
+.pal-nome { font-size: var(--text-sm); color: var(--fg); }
+.pal-vazio { margin: 0; padding: 8px; color: var(--muted); font-size: var(--text-sm); }
+
 .ativ-switch { display: flex; align-items: center; gap: 10px; min-height: 38px; }
 .ativ-switch .form-check-input { margin: 0; width: 2.6em; height: 1.4em; flex: 0 0 auto; }
 .ativ-switch .form-check-input:checked { background-color: var(--accent-ink); border-color: var(--accent-ink); }

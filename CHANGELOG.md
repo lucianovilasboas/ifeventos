@@ -5,6 +5,17 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.11.0] — 2026-09-27
+
+### Alterado
+
+- **Seleção de palestrantes com foto e em ordem alfabética**: o formulário de
+  atividade (organizador) troca o `<select multiple>` por um **checklist com
+  avatar + nome** (caixa rolável, lista em ordem alfabética). O campo mantém o
+  mesmo `name` (`palestrantes`), então a validação continua igual.
+- **Proposta do participante**: o seletor de palestrantes (busca + chips) passa a
+  mostrar a **foto** ao lado do nome; o endpoint de busca devolve `foto`.
+
 ## [2.10.0] — 2026-09-27
 
 ### Adicionado

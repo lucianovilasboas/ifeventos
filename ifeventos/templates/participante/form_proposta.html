@@ -264,8 +264,9 @@
 
             <div id="extrasPalestrante" class="mt-2 d-flex flex-wrap gap-2">
                 {% for pessoa in palestrantes_extras %}
-                <span class="badge-app" data-extra="{{ pessoa.pk }}">
-                    {{ pessoa.get_full_name }}
+                <span class="badge-app d-inline-flex align-items-center gap-1" data-extra="{{ pessoa.pk }}">
+                    <img class="pal-foto" src="{{ pessoa.get_foto_url }}" alt="" width="20" height="20">
+                    <span>{{ pessoa.get_full_name }}</span>
                     <button type="button" class="btn-close btn-close-sm ms-1"
                             aria-label="Remover {{ pessoa.get_full_name }}"></button>
                     <input type="hidden" name="palestrantes_extra" value="{{ pessoa.pk }}">
@@ -492,8 +493,15 @@
         if (extras.querySelector('[data-extra="' + pessoa.id + '"]')) return;
 
         var chip = document.createElement('span');
-        chip.className = 'badge-app';
+        chip.className = 'badge-app d-inline-flex align-items-center gap-1';
         chip.dataset.extra = pessoa.id;
+
+        var foto = document.createElement('img');
+        foto.className = 'pal-foto';
+        foto.width = 20;
+        foto.height = 20;
+        foto.alt = '';
+        foto.src = pessoa.foto || '/media/usuarios/default.jpeg';
 
         var nome = document.createElement('span');
         nome.textContent = pessoa.nome;           // textContent: nome vem do banco
@@ -508,7 +516,7 @@
         oculto.name = 'palestrantes_extra';
         oculto.value = pessoa.id;
 
-        chip.append(nome, remover, oculto);
+        chip.append(foto, nome, remover, oculto);
         extras.appendChild(chip);
     }
 
@@ -524,10 +532,18 @@
         itens.forEach(function (pessoa) {
             var botao = document.createElement('button');
             botao.type = 'button';
-            botao.className = 'badge-app btn btn-sm btn-outline-primary';
-            botao.textContent = pessoa.palestrante
+            botao.className = 'badge-app btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1';
+            var foto = document.createElement('img');
+            foto.className = 'pal-foto';
+            foto.width = 20;
+            foto.height = 20;
+            foto.alt = '';
+            foto.src = pessoa.foto || '/media/usuarios/default.jpeg';
+            var nome = document.createElement('span');
+            nome.textContent = pessoa.palestrante
                 ? pessoa.nome
                 : pessoa.nome + ' (novo palestrante)';
+            botao.append(foto, nome);
             botao.title = pessoa.email;
             botao.addEventListener('click', function () {
                 adicionarExtra(pessoa);

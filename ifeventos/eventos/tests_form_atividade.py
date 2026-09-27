@@ -52,6 +52,33 @@ class AtividadeFormTests(TestCase):
     def test_palestrantes_e_opcional(self):
         self.assertFalse(AtividadeForm().fields["palestrantes"].required)
 
+    def test_palestrantes_em_ordem_alfabetica(self):
+        U.objects.create_user(
+            email="zeca@example.com", password=SENHA, cpf="11144477735",
+            first_name="Zeca", last_name="Alves", is_palestrante=True,
+        )
+        U.objects.create_user(
+            email="ana@example.com", password=SENHA, cpf="39053344705",
+            first_name="Ana", last_name="Souza", is_palestrante=True,
+        )
+
+        nomes = [str(p) for p in AtividadeForm().fields["palestrantes"].queryset]
+
+        self.assertEqual(nomes, sorted(nomes, key=lambda n: n.lower()))
+
+    def test_widget_mostra_foto_e_nome(self):
+        pessoa = U.objects.create_user(
+            email="foto@example.com", password=SENHA, cpf="11144477735",
+            first_name="Ana", last_name="Souza", is_palestrante=True,
+        )
+
+        html = str(AtividadeForm()["palestrantes"])
+
+        self.assertIn("pal-foto", html)
+        self.assertIn("Ana Souza", html)
+        self.assertIn(pessoa.get_foto_url(), html)
+        self.assertIn('name="palestrantes"', html)  # validação do Django segue igual
+
     def test_atividade_sem_palestrante_e_valida(self):
         from eventos.models import TipoAtividade
 
