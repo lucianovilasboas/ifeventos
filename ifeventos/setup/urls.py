@@ -65,6 +65,9 @@ urlpatterns = [
     # -- Equipe de apoio --
     path("apoio/", include("apoio.urls", namespace="apoio")),
 
+    # -- Blog do evento (histórias e fotos) --
+    path("blog/", include("blog.urls", namespace="blog")),
+
 
     # -- Organizador --
     path("organizador/", include("organizador.urls", namespace="organizador")),

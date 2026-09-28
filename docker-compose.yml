@@ -38,6 +38,9 @@ services:
       # Mesmo caminho do desenvolvimento local, para copiar as imagens
       # entre as duas máquinas sem ajustes.
       - ./ifeventos/media:/ifeventos/media
+      # Imagens do blog do evento (privadas; servidas só pela view do blog).
+      # Sem o volume, elas se perderiam a cada rebuild do contêiner.
+      - ./ifeventos/blog_privado:/ifeventos/blog_privado
     depends_on:
       db:
         condition: service_healthy
