@@ -38,6 +38,10 @@ ifeventos/staticfiles/
 # (179 arquivos, ~56 MB)
 ifeventos/media/
 
+# Imagens do blog do evento: ficam FORA do media/ (privadas por padrão; só são
+# liberadas pela view blog.arquivo_privado conforme a visibilidade do post).
+ifeventos/blog_privado/
+
 # ---------- Planilhas locais (podem conter dados pessoais) ----------
 *.xls
 *.xlsx

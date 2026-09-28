@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ post.titulo }} | {{ evento.title }}{% endblock %}
+
+{% block hero %}{% endblock hero %}
+
+{% block content %}
+<div class="app-page">
+    <div class="ecard w-100" style="min-width:0">
+        {% if post.capa %}
+        <div class="img" style="max-height:360px;overflow:hidden">
+            <img src="{{ post.capa.url }}" alt="Capa: {{ post.titulo }}" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        {% endif %}
+        <div class="body p-4">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                <div>
+                    <span class="tag mb-2 d-inline-flex" style="position:static;background:#e0e7ff;color:var(--app-indigo);margin-bottom:8px!important">
+                        <i class="fa-solid fa-book-open me-1"></i> Blog · {{ evento.title }}
+                    </span>
+                    <h1 style="font-size:24px;font-weight:800;letter-spacing:-.4px;margin:6px 0 6px">{{ post.titulo }}</h1>
+                    <p class="mb-0" style="color:var(--app-muted);font-size:13px">
+                        <i class="fa-solid fa-user-pen"></i> {{ post.autor_nome|default:"Participante" }}
+                        · {{ post.quando_publicado }}
+                        {% if post.fixado %} · <span class="badge bg-warning text-dark"><i class="fa-solid fa-thumbtack"></i> Destaque</span>{% endif %}
+                    </p>
+                </div>
+                <a href="{% url 'blog:indice' evento.id %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa fa-arrow-left"></i> Blog
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if not post.publicado %}
+    <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="fa-solid fa-eye-slash"></i>
+        <div>Este post está <b>{{ post.get_situacao_display|lower }}</b> e ainda não aparece para o público.</div>
+    </div>
+    {% endif %}
+
+    <article class="ecard w-100" style="min-width:0">
+        <div class="body p-4" style="font-size:15px;color:var(--app-ink)">
+            {{ post.corpo|linebreaks }}
+        </div>
+    </article>
+
+    {% if post.fotos.all %}
+    <div class="app-sec"><h2><i class="fa-solid fa-images"></i> Fotos</h2></div>
+    <div class="row g-3">
+        {% for foto in post.fotos.all %}
+        <div class="col-6 col-md-4 col-lg-3">
+            <figure class="mb-0">
+                <img src="{{ foto.imagem.url }}" alt="{{ foto.legenda|default:'Foto do evento' }}"
+                     loading="lazy" decoding="async"
+                     style="width:100%;height:180px;object-fit:cover;border-radius:12px">
+                {% if foto.legenda %}<figcaption style="font-size:12px;color:var(--app-muted);margin-top:4px">{{ foto.legenda }}</figcaption>{% endif %}
+            </figure>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if pode_editar or eh_moderador %}
+    <div class="d-flex gap-2 flex-wrap mt-4">
+        {% if pode_editar %}
+        <a href="{% url 'blog:editar' post.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="fa-solid fa-pen"></i> Editar
+        </a>
+        <form method="post" action="{% url 'blog:excluir' post.id %}"
+              onsubmit="return confirm('Excluir este post e as fotos? Não dá para desfazer.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="fa-solid fa-trash"></i> Excluir
+            </button>
+        </form>
+        {% endif %}
+
+        {% if eh_moderador %}
+        <form method="post" action="{% url 'blog:moderar' post.id %}" class="d-inline">{% csrf_token %}
+            {% if post.publicado %}
+            <button name="acao" value="ocultar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-eye-slash"></i> Ocultar</button>
+            <button name="acao" value="despublicar" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate-left"></i> Voltar a rascunho</button>
+            {% else %}
+            <button name="acao" value="aprovar" class="btn btn-sm btn-success"><i class="fa-solid fa-check"></i> Aprovar e publicar</button>
+            {% endif %}
+            {% if post.fixado %}
+            <button name="acao" value="desafixar" class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-thumbtack"></i> Desafixar</button>
+            {% else %}
+            <button name="acao" value="fixar" class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-thumbtack"></i> Fixar no topo</button>
+            {% endif %}
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock content %}

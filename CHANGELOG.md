@@ -5,6 +5,24 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.13.0] — 2026-09-28
+
+### Adicionado
+
+- **Blog do evento** (novo app `blog`): cada evento ganha um espaço de
+  histórias e fotos. Leitura pública; organizadores (dono/co-organizador/staff)
+  publicam direto e moderam; participantes com inscrição **ou** presença no
+  evento enviam posts que entram como **pendentes** até a aprovação. Editar um
+  post já publicado exige nova curadoria (volta para pendente).
+- **Imagens do blog privadas por padrão**: ficam fora do `MEDIA_ROOT`
+  (`BLOG_PRIVATE_ROOT`, padrão `./ifeventos/blog_privado`, com volume próprio no
+  `docker-compose.yml`) e só são liberadas pela view `blog.arquivo_privado`,
+  conforme a visibilidade do post. Upload validado pelo Pillow (8 MB por
+  arquivo, até 12 fotos por post).
+- Link **“Blog do evento”** na página da programação (sempre visível, mesmo sem
+  publicações) e moderação também pelo Django Admin (jazzmin). O app `blog` cria
+  apenas tabelas novas — nenhum modelo existente foi alterado.
+
 ## [2.12.2] — 2026-09-27
 
 ### Corrigido

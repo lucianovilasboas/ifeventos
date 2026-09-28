@@ -94,6 +94,18 @@ rsync -avz ifeventos/media/ ovm-1:/opt/docker/ifeventos/ifeventos/media/
 Ela está montada como volume no contêiner, então os arquivos aparecem
 imediatamente, sem rebuild.
 
+### Blog do evento (imagens privadas)
+
+As imagens do blog não ficam em `media/`: como `/media/` é público, elas são
+gravadas em `ifeventos/blog_privado/` (fora do `MEDIA_ROOT`) e liberadas pela
+view `blog.arquivo_privado`, que confere a visibilidade do post. O caminho é
+configurável por `BLOG_PRIVATE_ROOT` e também está montado como volume no
+`docker-compose.yml`. Para levar as imagens junto com a mídia:
+
+```bash
+rsync -avz ifeventos/blog_privado/ ovm-1:/opt/docker/ifeventos/ifeventos/blog_privado/
+```
+
 ## Metadados do participante (configurável por escola)
 
 Dados extras do aluno/servidor (matrícula, curso, turma, ano/período, função…)

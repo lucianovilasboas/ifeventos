@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Blog | {{ evento.title }}{% endblock %}
+
+{% block hero %}{% endblock hero %}
+
+{% block content %}
+<div class="app-page">
+    <!-- Cabeçalho -->
+    <div class="ecard w-100" style="min-width:0">
+        <div class="body p-4">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                <div>
+                    <span class="tag mb-2 d-inline-flex" style="position:static;background:#e0e7ff;color:var(--app-indigo);margin-bottom:8px!important">
+                        <i class="fa-solid fa-book-open me-1"></i> Blog do evento
+                    </span>
+                    <h1 style="font-size:22px;font-weight:800;letter-spacing:-.4px;margin:6px 0 4px">{{ evento.title }}</h1>
+                    <p class="mb-0" style="color:var(--app-muted);font-size:13px">
+                        <i class="fa-solid fa-calendar-days"></i>
+                        {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}
+                    </p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    {% if pode_publicar %}
+                    <a href="{% url 'blog:criar' evento.id %}" class="btn btn-sm btn-app">
+                        <i class="fa-solid fa-pen-to-square"></i> Escrever uma história
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'eventos:programacao' evento.id %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fa fa-arrow-left"></i> Programação
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if meus %}
+    <div class="app-sec"><h2><i class="fa-solid fa-clock-rotate-left"></i> Seus posts aguardando</h2></div>
+    <div class="table-wrap">
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr><th>Título</th><th>Situação</th><th>Criado</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in meus %}
+                        <tr>
+                            <td>{{ p.titulo }}</td>
+                            <td><span class="badge bg-secondary">{{ p.get_situacao_display }}</span></td>
+                            <td><small class="text-muted">{{ p.criado_em|date:"d/m/Y H:i" }}</small></td>
+                            <td class="text-end">
+                                <a href="{% url 'blog:post' p.id %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                                <a href="{% url 'blog:editar' p.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="app-sec">
+        <h2><i class="fa-solid fa-newspaper"></i> Histórias do evento</h2>
+        <span style="color:var(--app-muted);font-size:12px">{{ pagina.paginator.count }} publicação(ões)</span>
+    </div>
+
+    {% if pagina.object_list %}
+    <div class="row g-3">
+        {% for p in pagina %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <a href="{% url 'blog:post' p.id %}" class="text-decoration-none text-reset">
+                <div class="ecard h-100">
+                    {% if p.capa %}
+                    <div class="img" style="height:170px;overflow:hidden">
+                        <img src="{{ p.capa.url }}" alt="Capa: {{ p.titulo }}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover">
+                    </div>
+                    {% endif %}
+                    <div class="body p-3">
+                        {% if p.fixado %}<span class="badge bg-warning text-dark mb-2"><i class="fa-solid fa-thumbtack"></i> Destaque</span>{% endif %}
+                        <h3 style="font-size:16px;font-weight:800;margin:0 0 6px">{{ p.titulo }}</h3>
+                        {% if p.resumo %}<p style="font-size:13px;color:var(--app-muted);margin-bottom:8px">{{ p.resumo }}</p>{% endif %}
+                        <p class="mb-0" style="font-size:12px;color:var(--app-muted)">
+                            <i class="fa-solid fa-user-pen"></i> {{ p.autor_nome|default:"Participante" }}
+                            · {{ p.quando_publicado }}
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if pagina.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if pagina.has_previous %}
+            <li class="page-item"><a class="page-link" href="?pagina={{ pagina.previous_page_number }}">Anterior</a></li>
+            {% endif %}
+            <li class="page-item disabled"><span class="page-link">{{ pagina.number }} de {{ pagina.paginator.num_pages }}</span></li>
+            {% if pagina.has_next %}
+            <li class="page-item"><a class="page-link" href="?pagina={{ pagina.next_page_number }}">Próxima</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-info">
+        <i class="fa-solid fa-circle-info"></i>
+        Este evento ainda não tem histórias publicadas.
+        {% if pode_publicar %}<a href="{% url 'blog:criar' evento.id %}">Seja o primeiro a escrever</a>.{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock content %}

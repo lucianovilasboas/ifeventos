@@ -108,6 +108,7 @@ LOCAL_APPS = [
     "relatorios",
     "api",
     "apoio",
+    "blog",
 ]
  
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -531,6 +532,12 @@ AUTH_USER_MODEL = 'eventos.Participante'  # new
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media' 
+
+# Imagens do blog do evento: ficam FORA do MEDIA_ROOT (privadas por padrão). Só
+# são liberadas pela view blog.arquivo_privado, conforme a visibilidade do post.
+# Em produção, monte um volume neste caminho para não perder as imagens no
+# rebuild do contêiner (ver docker-compose.yml).
+BLOG_PRIVATE_ROOT = config("BLOG_PRIVATE_ROOT", default="") or str(BASE_DIR / "blog_privado")
 
 
 

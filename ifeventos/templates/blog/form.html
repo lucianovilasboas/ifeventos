@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{% if post %}Editar post{% else %}Nova história{% endif %} | {{ evento.title }}{% endblock %}
+
+{% block hero %}{% endblock hero %}
+
+{% block content %}
+<div class="app-page">
+    <div class="ecard w-100" style="min-width:0">
+        <div class="body p-4">
+            <h1 style="font-size:20px;font-weight:800;letter-spacing:-.4px;margin:0 0 4px">
+                {% if post %}Editar história{% else %}Escrever uma história{% endif %}
+            </h1>
+            <p class="mb-0" style="color:var(--app-muted);font-size:13px">
+                <i class="fa-solid fa-book-open"></i> Blog · {{ evento.title }}
+            </p>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="ecard w-100 p-4" style="min-width:0">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="mb-3">
+            <label class="form-label" for="{{ form.titulo.id_for_label }}">Título</label>
+            {{ form.titulo }}
+            {% if form.titulo.errors %}<div class="text-danger small">{{ form.titulo.errors }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="{{ form.resumo.id_for_label }}">Resumo <span class="text-muted">(opcional)</span></label>
+            {{ form.resumo }}
+            {% if form.resumo.errors %}<div class="text-danger small">{{ form.resumo.errors }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="{{ form.corpo.id_for_label }}">História</label>
+            {{ form.corpo }}
+            {% if form.corpo.errors %}<div class="text-danger small">{{ form.corpo.errors }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="{{ form.capa.id_for_label }}">Imagem de capa <span class="text-muted">(opcional)</span></label>
+            {{ form.capa }}
+            {% if form.capa.errors %}<div class="text-danger small">{{ form.capa.errors }}</div>{% endif %}
+        </div>
+
+        {% if fotos %}
+        <div class="mb-3">
+            <label class="form-label">Fotos atuais</label>
+            <div class="row g-2">
+                {% for foto in fotos %}
+                <div class="col-6 col-md-3">
+                    <div class="border rounded p-2 text-center">
+                        <img src="{{ foto.imagem.url }}" alt="{{ foto.legenda|default:'Foto' }}" style="width:100%;height:110px;object-fit:cover;border-radius:8px">
+                        <label class="d-block small mt-1">
+                            <input type="checkbox" name="remover_foto" value="{{ foto.id }}"> Remover
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+            <label class="form-label" for="id_fotos">Adicionar fotos <span class="text-muted">(até 12 por post, 8 MB cada)</span></label>
+            <input type="file" name="fotos" id="id_fotos" multiple accept="image/*" class="form-control">
+        </div>
+
+        <div class="alert alert-light border small">
+            <i class="fa-solid fa-circle-info"></i>
+            Ao publicar fotos de outras pessoas, confirme que você tem autorização para compartilhá-las.
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap">
+            {% if eh_moderador %}
+            <button type="submit" name="acao" value="publicar" class="btn btn-app">
+                <i class="fa-solid fa-check"></i> Publicar
+            </button>
+            <button type="submit" name="acao" value="rascunho" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-floppy-disk"></i> Salvar rascunho
+            </button>
+            {% else %}
+            <button type="submit" name="acao" value="enviar" class="btn btn-app">
+                <i class="fa-solid fa-paper-plane"></i> Enviar para aprovação
+            </button>
+            {% endif %}
+            <a href="{% if post %}{% url 'blog:post' post.id %}{% else %}{% url 'blog:indice' evento.id %}{% endif %}"
+               class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock content %}
