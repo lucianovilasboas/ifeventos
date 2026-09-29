@@ -9,8 +9,6 @@ Regras de acesso (espelham o resto do sistema, sem inventar permissão nova):
 - edição de um post já publicado por participante volta para PENDENTE.
 """
 
-import mimetypes
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -19,12 +17,13 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from PIL import Image, UnidentifiedImageError
 
 from eventos import auditoria
 from eventos.crachas import pode_gerenciar_evento
 from eventos.models import Evento, Inscricao, Presenca, RegistroAuditoria
 
-from .forms import MAX_FOTOS_POR_POST, PostForm, validar_imagem
+from .forms import FORMATOS_MIME, MAX_FOTOS_POR_POST, PostForm, validar_imagem
 from .models import FotoPost, PostEvento, storage_blog
 
 LOGIN_URL = "/accounts/login/"
@@ -79,6 +78,16 @@ def indice(request, evento_id):
             .order_by("-criado_em")
         )
 
+    # Fila de moderação: quem gerencia o evento precisa ENCONTRAR os posts
+    # pendentes de outras pessoas (não só os próprios).
+    moderacao = PostEvento.objects.none()
+    if pode_gerenciar_evento(request.user, evento):
+        moderacao = (
+            evento.posts_blog.filter(situacao=PostEvento.SIT_PENDENTE)
+            .select_related("autor")
+            .order_by("criado_em")
+        )
+
     return render(
         request,
         "blog/indice.html",
@@ -86,6 +95,7 @@ def indice(request, evento_id):
             "evento": evento,
             "pagina": pagina,
             "meus": meus,
+            "moderacao": moderacao,
             "pode_publicar": pode_publicar_no_evento(request.user, evento),
         },
     )
@@ -313,9 +323,25 @@ def arquivo_privado(request, path):
     except (FileNotFoundError, OSError, ValueError):
         raise Http404
 
-    tipo, _ = mimetypes.guess_type(path)
+    # O Content-Type NÃO vem da extensão gravada (que pode não refletir o
+    # conteúdo): é deduzido do formato real pelo Pillow. Qualquer coisa que não
+    # seja imagem é servida como binário, e `nosniff` impede o navegador de
+    # reinterpretar o corpo (defesa contra imagem poliglota virar HTML).
+    tipo = None
+    try:
+        with Image.open(arquivo) as imagem:
+            tipo = FORMATOS_MIME.get((imagem.format or "").upper())
+    except (UnidentifiedImageError, OSError, ValueError):
+        tipo = None
+    finally:
+        try:
+            arquivo.seek(0)
+        except (AttributeError, ValueError):
+            pass
+
     resposta = FileResponse(arquivo, content_type=tipo or "application/octet-stream")
-    resposta["Cache-Control"] = (
-        "public, max-age=3600" if post.publicado else "private, no-store"
-    )
+    resposta["X-Content-Type-Options"] = "nosniff"
+    # A publicação pode ser revogada (ocultar/despublicar): não guardar em cache
+    # compartilhado, senão uma cópia continua servida depois da moderação.
+    resposta["Cache-Control"] = "private, no-store"
     return resposta

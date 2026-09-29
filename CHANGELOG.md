@@ -5,6 +5,23 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.13.1] — 2026-09-28
+
+### Corrigido
+
+- **Moderação do blog**: organizadores e co-organizadores agora veem no índice
+  do evento a fila de posts pendentes de todos os autores.
+- **Imagens do blog**: extensão gravada é normalizada a partir do formato real;
+  serving deriva o MIME pelo conteúdo e envia `nosniff`/`no-store`. Uploads
+  limitam tamanho a 8 MB e dimensões a 40 MP (PNG/JPG/WEBP); capa antiga é
+  removida ao substituir ou limpar.
+- **Auditoria**: ações do Django Admin para aprovar/ocultar posts registram
+  usuário, evento e ação na trilha.
+- **Storage privado**: impede configurar `BLOG_PRIVATE_ROOT` dentro de
+  `MEDIA_ROOT`, que é servido publicamente.
+- **Testes**: 11 regressões cobrem fila de moderação, MIME de imagens, cache,
+  limpeza de capas, limites de pixel, auditoria e configuração do storage.
+
 ## [2.13.0] — 2026-09-28
 
 ### Adicionado
