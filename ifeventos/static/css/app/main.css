@@ -163,6 +163,38 @@ body:has(.reset-password-container) .hero-ico { display: none; }
   .barra-acoes-evento .btn { font-size: 0.8rem; padding: 0.3rem 0.5rem; }
 }
 
+/* Grupos rotulados de ações do evento: cada grupo é uma coluna (rótulo +
+   botões) e o conjunto quebra em linhas no mobile, em vez de virar um bloco
+   único e desordenado de botões. */
+.acoes-evento { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: flex-start; }
+.acoes-evento-grupo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.acoes-evento-rotulo {
+  font-family: var(--font-display); font-weight: 800; font-size: var(--text-xs);
+  text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+}
+.acoes-evento-botoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Separação sutil entre grupos no desktop (linha vertical). */
+@media (min-width: 992px) {
+  .acoes-evento-grupo + .acoes-evento-grupo {
+    border-left: 1px solid var(--border);
+    padding-left: 22px;
+  }
+}
+
+/* Coluna "#" da tabela de atividades: o número divide a célula com o botão de
+   editar, lado a lado e sem quebrar. */
+.col-numero { white-space: nowrap; }
+.col-numero .js-numero {
+  display: inline-block; min-width: 1.3em; margin-right: 6px;
+  font-variant-numeric: tabular-nums; vertical-align: middle;
+}
+.col-numero .btn { vertical-align: middle; }
+
+/* Ações da LINHA (tabela de atividades): grupos com espaçamento próprio,
+   quebrando em várias linhas quando a coluna apertar. */
+.acoes-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.acoes-linha-grupo { display: inline-flex; align-items: center; gap: 6px; }
+
 /* Variante verde: agora é a mesma cor com peso semântico secundário */
 .btn-app-green {
   background: var(--bg) !important;

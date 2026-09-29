@@ -64,6 +64,7 @@ from eventos.crachas import (
 from eventos.models import Inscricao
 
 from eventos.imagens import imagem_cortada
+from eventos.listas_presenca import pdf_lista_presenca, pdf_listas_presenca_evento
 
 
 # -- Dashboard do Organizador --
@@ -1418,6 +1419,43 @@ class CartazesAtividadesView(LoginRequiredMixin, View):
         resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'
         return resposta
+
+
+@login_required(login_url='/accounts/login/')
+def lista_presenca_pdf(request, atividade_id):
+    """PDF (folha de assinatura) da lista de presença de UMA atividade.
+
+    É a folha para imprimir e levar à porta: nome + assinatura em branco, sem
+    e-mail nem status (diferente do export tabular do relatório).
+    """
+    atividade = get_object_or_404(Atividade, id=atividade_id)
+    _evento_gerenciavel(request, atividade.evento_id)
+
+    conteudo = pdf_lista_presenca(atividade)
+    resposta = HttpResponse(conteudo, content_type="application/pdf")
+    resposta["Content-Disposition"] = f'inline; filename="lista_presenca_{atividade.id}.pdf"'
+    return resposta
+
+
+@login_required(login_url='/accounts/login/')
+def listas_presenca_evento_pdf(request, evento_id):
+    """PDF com as listas de presença das atividades PUBLICADAS — uma por página."""
+    evento = _evento_gerenciavel(request, evento_id)
+
+    if not evento.atividades.filter(publicada=True).exists():
+        messages.warning(
+            request,
+            "Ainda não há atividades publicadas neste evento. Publique a "
+            "programação para gerar as listas de presença.",
+        )
+        return redirect("organizador:atividades_evento", evento.id)
+
+    conteudo = pdf_listas_presenca_evento(evento)
+    resposta = HttpResponse(conteudo, content_type="application/pdf")
+    resposta["Content-Disposition"] = (
+        f'inline; filename="listas_presenca_evento_{evento.id}.pdf"'
+    )
+    return resposta
 
 
 class QrAtividadeView(LoginRequiredMixin, View):

@@ -60,6 +60,7 @@ from .views import CertificadoTemplateAdicionarView, CertificadoTemplateRemoverV
 from .views import FundoCertificadoAdicionarView, FundoCertificadoRemoverView
 from .views import auditoria_agente, auditoria_responder, auditoria_diagnostico
 from .views import CheckinAtividadeView, CartazesAtividadesView, CrachasEventoView, QrAtividadeView
+from .views import lista_presenca_pdf, listas_presenca_evento_pdf
 
 
 app_name = 'organizador'
@@ -153,6 +154,10 @@ urlpatterns = [
                               permanent=True, query_string=True),
          name="relatorio_aluno_detalhe_redirect"),
     path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
+
+    # -- Listas de presença impressas (folha de assinatura em PDF) --
+    path("lista-presenca/atividade/<int:atividade_id>/pdf", lista_presenca_pdf, name="lista_presenca_pdf"),
+    path("lista-presenca/evento/<int:evento_id>/pdf", listas_presenca_evento_pdf, name="listas_presenca_evento_pdf"),
 
 
     # -- Certificados --

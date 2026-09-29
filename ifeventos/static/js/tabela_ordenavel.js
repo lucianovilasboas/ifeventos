@@ -12,6 +12,10 @@
  *     </tr></thead>
  *     ...
  *
+ * A célula do índice pode conter mais que o número (ex.: um botão). Marque o
+ * elemento que recebe o número com `data-numero` e o restante da célula é
+ * preservado; sem essa marca, a célula inteira é substituída pelo número.
+ *
  * Regras:
  *   - `data-sort="text"` compara texto (ignora maiúsculas/acentuação de caixa);
  *   - `data-sort="number"` aceita "1.234", "1.234,5" e "1234";
@@ -59,8 +63,20 @@
     if (!corpo) return;
     Array.prototype.forEach.call(corpo.rows, function (linha, i) {
       var celula = linha.children[indice];
-      if (celula) celula.textContent = String(i + 1);
+      if (!celula) return;
+      // Atualiza só o número quando a célula marca o alvo (`[data-numero]`):
+      // assim um botão (ex.: editar) que divide a coluna não é apagado.
+      var alvo = celula.querySelector("[data-numero]");
+      if (alvo) {
+        alvo.textContent = String(i + 1);
+      } else {
+        celula.textContent = String(i + 1);
+      }
     });
+  }
+
+  function renumerarTodas() {
+    Array.prototype.forEach.call(document.querySelectorAll(SELETOR), renumerar);
   }
 
   function aplicar(tabela, indice, tipo, direcao) {
@@ -183,6 +199,7 @@
   window.TabelaOrdenavel = {
     reaplicar: reaplicar,
     reaplicarTodas: reaplicarTodas,
+    renumerarTodas: renumerarTodas,
     iniciar: iniciar
   };
 })();
