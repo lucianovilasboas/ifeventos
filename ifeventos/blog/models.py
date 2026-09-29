@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import FileSystemStorage
 from django.db import models
 from django.utils import timezone
@@ -47,7 +48,13 @@ class BlogStorage(FileSystemStorage):
 
     @property
     def location(self):
-        return os.path.abspath(self.base_location)
+        location = Path(self.base_location).resolve()
+        media_root = Path(settings.MEDIA_ROOT).resolve()
+        if location == media_root or media_root in location.parents:
+            raise SuspiciousFileOperation(
+                "BLOG_PRIVATE_ROOT precisa ficar fora de MEDIA_ROOT."
+            )
+        return os.path.abspath(location)
 
     @property
     def base_url(self):
@@ -87,7 +94,13 @@ def redimensionar_imagem(campo, maximo):
                 imagem = imagem.convert("RGB")
             imagem.thumbnail(maximo)
             imagem.save(caminho, optimize=True, quality=85)
-    except (UnidentifiedImageError, OSError, ValueError):
+    except (
+        UnidentifiedImageError,
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        OSError,
+        ValueError,
+    ):
         return
 
 
@@ -169,7 +182,19 @@ class PostEvento(models.Model):
         # `_committed` só é False quando um upload novo foi atribuído: assim a
         # imagem não é recomprimida a cada edição do texto.
         nova_capa = bool(self.capa) and not getattr(self.capa, "_committed", True)
+        # Guarda o nome da capa atual para apagar o arquivo anterior se ele for
+        # substituído ou removido (evita arquivos órfãos no storage).
+        capa_anterior = None
+        if self.pk:
+            capa_anterior = (
+                PostEvento.objects.filter(pk=self.pk)
+                .values_list("capa", flat=True)
+                .first()
+            )
         super().save(*args, **kwargs)
+        atual = self.capa.name if self.capa else None
+        if capa_anterior and capa_anterior != atual:
+            storage_blog().delete(capa_anterior)
         if nova_capa:
             redimensionar_imagem(self.capa, MAX_LADO_CAPA)
 
