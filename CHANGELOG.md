@@ -5,6 +5,32 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.14.0] — 2026-09-28
+
+### Adicionado
+
+- **Listas de presença em PDF (folha de assinatura)**: botão em cada atividade
+  na tela de atividades e um no cartão do evento (dashboard). O PDF traz o
+  cabeçalho (evento, atividade, horário, local, tipo) e uma tabela **Nome +
+  Assinatura** em branco, **sem e-mail**. Duas rotas novas, com a permissão de
+  gestão do evento:
+  - `/organizador/lista-presenca/atividade/<id>/pdf` — uma atividade;
+  - `/organizador/lista-presenca/evento/<id>/pdf` — todas as atividades
+    **publicadas**, uma por página.
+- Testes cobrindo autorização, conteúdo do PDF (nome presente, e-mail ausente),
+  uma página por atividade e a presença dos botões nas duas telas.
+
+### Alterado
+
+- **Barra de ações da tela de atividades** (`/organizador/atividades_evento/<id>/`)
+  reorganizada em grupos rotulados — Atividades · Presença e impressão ·
+  Relatórios e certificados —, com o botão de listas de presença em destaque.
+- **Tabela de atividades**: o botão **Editar** passou para a coluna `#` (ao lado
+  do número) e as demais ações ficaram agrupadas — gestão (publicar/excluir) e
+  presença (lista, PDF, QR e check-in) —, com o certificado à parte. A
+  renumeração preserva o botão (o número é atualizado sem refazer a célula),
+  inclusive ao ordenar e ao criar atividade em tempo real.
+
 ## [2.13.1] — 2026-09-28
 
 ### Corrigido

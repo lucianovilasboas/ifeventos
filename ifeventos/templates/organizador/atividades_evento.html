@@ -22,70 +22,92 @@
 
 {% block content %}
 <div class="app-list mb-3">
-    <div class="d-flex flex-wrap flex-lg-nowrap gap-2 align-items-center barra-acoes-evento">
-        <a href="{% url 'organizador:criar_editar_atividade_criar' evento.id %}" class="btn btn-app">
-            <i class="fa-solid fa-plus"></i> Criar Nova Atividade
-        </a>
-        <a href="{% url 'organizador:importar_programacao' evento.id %}" class="btn btn-outline-primary">
-            <i class="fa-solid fa-file-import"></i> Importar programação
-        </a>
-
-        <div class="btn-group">
-            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
-                    aria-expanded="false">
-                <i class="fa-solid fa-list-check"></i> Relatórios e operação
-            </button>
-            <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="{% url 'organizador:briefing_operacional' evento.id %}">
-                    <i class="fa-solid fa-tower-broadcast"></i> Operação
-                </a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_participantes' evento.id %}">
-                    <i class="fa-solid fa-users"></i> Relatório por participante
-                </a></li>
-                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_turmas' evento.id %}">
-                    <i class="fa-solid fa-layer-group"></i> Relatório por turma
-                </a></li>
-                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_oficinas' evento.id %}">
-                    <i class="fa-solid fa-tags"></i> Relatório por tipo
-                </a></li>
-            </ul>
+    <div class="acoes-evento barra-acoes-evento">
+        <div class="acoes-evento-grupo">
+            <span class="acoes-evento-rotulo"><i class="fa-solid fa-calendar-plus"></i> Atividades</span>
+            <div class="acoes-evento-botoes">
+                <a href="{% url 'organizador:criar_editar_atividade_criar' evento.id %}" class="btn btn-app">
+                    <i class="fa-solid fa-plus"></i> Criar Nova Atividade
+                </a>
+                <a href="{% url 'organizador:importar_programacao' evento.id %}" class="btn btn-outline-primary">
+                    <i class="fa-solid fa-file-import"></i> Importar programação
+                </a>
+            </div>
         </div>
 
-        <div class="btn-group">
-            <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown"
-                    aria-expanded="false">
-                <i class="fa-solid fa-id-card"></i> Imprimir crachás
-            </button>
-            <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="{% url 'organizador:crachas_evento' evento.id %}"
-                       target="_blank" rel="noopener">
-                    <i class="fa-solid fa-file-pdf"></i> Imprimir (PDF)
-                </a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Modelo dos crachás</h6></li>
-                {% for chave, rotulo in modelos_cracha %}
-                <li><button type="submit"
-                            class="dropdown-item {% if chave == evento.modelo_cracha %}modelo-ativo{% endif %}"
-                            form="formModeloCracha" name="modelo" value="{{ chave }}">
-                    {% if chave == evento.modelo_cracha %}<i class="fa-solid fa-circle-check me-1"></i>{% endif %}
-                    {{ rotulo }}
-                </button></li>
-                {% endfor %}
-            </ul>
+        <div class="acoes-evento-grupo">
+            <span class="acoes-evento-rotulo"><i class="fa-solid fa-print"></i> Presença e impressão</span>
+            <div class="acoes-evento-botoes">
+                <a href="{% url 'organizador:listas_presenca_evento_pdf' evento.id %}" target="_blank" rel="noopener"
+                   class="btn btn-success"
+                   title="PDF com a lista de presença (folha de assinatura) das atividades publicadas">
+                    <i class="fa-solid fa-file-pdf"></i> Listas de presença (PDF)
+                </a>
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <i class="fa-solid fa-id-card"></i> Imprimir crachás
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'organizador:crachas_evento' evento.id %}"
+                               target="_blank" rel="noopener">
+                            <i class="fa-solid fa-file-pdf"></i> Imprimir (PDF)
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">Modelo dos crachás</h6></li>
+                        {% for chave, rotulo in modelos_cracha %}
+                        <li><button type="submit"
+                                    class="dropdown-item {% if chave == evento.modelo_cracha %}modelo-ativo{% endif %}"
+                                    form="formModeloCracha" name="modelo" value="{{ chave }}">
+                            {% if chave == evento.modelo_cracha %}<i class="fa-solid fa-circle-check me-1"></i>{% endif %}
+                            {{ rotulo }}
+                        </button></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <form id="formModeloCracha" method="post"
+                      action="{% url 'organizador:modelo_cracha_evento' evento.id %}" class="d-none">
+                    {% csrf_token %}
+                </form>
+
+                <button type="button" class="btn btn-outline-success"
+                        data-bs-toggle="modal" data-bs-target="#modalManualCartaz"
+                        title="Imprimir os cartazes de presença (1 por folha A4) — abre o manual e a impressão">
+                    <i class="fa-solid fa-qrcode"></i> Imprimir cartazes
+                </button>
+            </div>
         </div>
-        <form id="formModeloCracha" method="post"
-              action="{% url 'organizador:modelo_cracha_evento' evento.id %}" class="d-none">
-            {% csrf_token %}
-        </form>
-        <button type="button" class="btn btn-outline-success"
-                data-bs-toggle="modal" data-bs-target="#modalManualCartaz"
-                title="Imprimir os cartazes de presença (1 por folha A4) — abre o manual e a impressão">
-            <i class="fa-solid fa-qrcode"></i> Imprimir cartazes
-        </button>
-        <a href="{% url 'organizador:certificado_config' evento.id 'evento' %}" class="btn btn-outline-primary">
-            <i class="fa-solid fa-award"></i> Configurar certificados
-        </a>
+
+        <div class="acoes-evento-grupo">
+            <span class="acoes-evento-rotulo"><i class="fa-solid fa-chart-simple"></i> Relatórios e certificados</span>
+            <div class="acoes-evento-botoes">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <i class="fa-solid fa-list-check"></i> Relatórios e operação
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'organizador:briefing_operacional' evento.id %}">
+                            <i class="fa-solid fa-tower-broadcast"></i> Operação
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'organizador:relatorio_participantes' evento.id %}">
+                            <i class="fa-solid fa-users"></i> Relatório por participante
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'organizador:relatorio_turmas' evento.id %}">
+                            <i class="fa-solid fa-layer-group"></i> Relatório por turma
+                        </a></li>
+                        <li><a class="dropdown-item" href="{% url 'organizador:relatorio_oficinas' evento.id %}">
+                            <i class="fa-solid fa-tags"></i> Relatório por tipo
+                        </a></li>
+                    </ul>
+                </div>
+                <a href="{% url 'organizador:certificado_config' evento.id 'evento' %}" class="btn btn-outline-primary">
+                    <i class="fa-solid fa-award"></i> Configurar certificados
+                </a>
+            </div>
+        </div>
     </div>
     <p class="text-muted small mb-0 mt-2">
         <i class="fa-solid fa-print"></i>
@@ -303,7 +325,11 @@
     // Reaplica a ordenação ativa da tabela. Inofensivo quando ninguém ordenou:
     // a própria tabela só reage se houver uma coluna ativa.
     function reordenarTabela() {
-        if (window.TabelaOrdenavel) window.TabelaOrdenavel.reaplicarTodas();
+        if (!window.TabelaOrdenavel) return;
+        window.TabelaOrdenavel.reaplicarTodas();
+        // Reaplica sempre a numeração da coluna "#" (a ordenação acima só
+        // renumera quando há uma coluna ativa).
+        window.TabelaOrdenavel.renumerarTodas();
     }
 
     // Reaplica a busca ativa depois de a lista mudar (item criado/excluído),
@@ -376,7 +402,10 @@
             newRow.setAttribute("data-atividade-id", id);
             const dataIso = escAttr(data.data_hora_inicio || "");
             newRow.innerHTML = `
-                <td></td>
+                <td class="col-numero">
+                    <span class="js-numero" data-numero></span>
+                    <a href="${atividadeUrlEdit(id)}" title="Editar atividade" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen"></i></a>
+                </td>
                 <td class="atividade-titulo" data-valor="${tAttr}"><span class="atividade-nome">${t}</span>${badgeSemInscricao}</td>
                 <td data-valor="${dataIso}">${q ? `<small class="atividade-quando">${q}</small>` : ""}</td>
                 <td>${ty}</td>
@@ -384,13 +413,18 @@
                 <td class="js-vagas" data-id="${id}">${vagas}</td>
                 <td class="js-inscritos" data-id="${id}">${inscritos}</td>
                 <td>
-                    <a href="${atividadeUrlEdit(id)}" title="Editar Atividade" class="btn btn-warning btn-sm"><i class="fa-solid fa-pen"></i></a>
-                    <a href="/organizador/excluir_atividade/${id}/" title="Excluir Atividade" class="btn btn-danger btn-sm" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');"><i class="fa-solid fa-trash-can"></i></a>
-                    <span><i class="fa-solid fa-circle"></i></span>
-                    <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" title="Lista de Presença" class="btn btn-success btn-sm"><i class="fa-solid fa-list-check"></i></a>
-                    <a href="/eventos/gerar-qr-code-atividade/${id}/" title="QR Code de Confirmação de Presença" class="btn btn-dark btn-sm" target="_blank"><i class="fa-solid fa-qrcode"></i></a>
-                    <span><i class="fa-solid fa-circle"></i></span>
-                    ${certificado && encerrada ? `<button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
+                    <div class="acoes-linha">
+                        <div class="acoes-linha-grupo">
+                            <a href="/organizador/excluir_atividade/${id}/" title="Excluir atividade" class="btn btn-outline-danger btn-sm" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');"><i class="fa-solid fa-trash-can"></i></a>
+                        </div>
+                        <div class="acoes-linha-grupo">
+                            <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" title="Lista de presença" class="btn btn-success btn-sm"><i class="fa-solid fa-list-check"></i></a>
+                            <a href="/organizador/lista-presenca/atividade/${id}/pdf" title="Lista de presença para impressão (PDF)" class="btn btn-outline-success btn-sm" target="_blank" rel="noopener"><i class="fa-solid fa-file-pdf"></i></a>
+                            <a href="/eventos/gerar-qr-code-atividade/${id}/" title="QR de presença" class="btn btn-outline-success btn-sm" target="_blank"><i class="fa-solid fa-qrcode"></i></a>
+                            <a href="/organizador/atividade/${id}/checkin/" title="Check-in lendo os crachás pela câmera" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-camera"></i></a>
+                        </div>
+                        ${certificado && encerrada ? `<div class="acoes-linha-grupo"><button class="btn btn-info btn-sm" title="Emitir certificados" data-atividade="${id}">🎓</button></div>` : ""}
+                    </div>
                 </td>`;
             tableBody.appendChild(newRow);
             reordenarTabela();   // a nova linha entra na posição certa
@@ -420,6 +454,7 @@
                         <a href="${atividadeUrlEdit(id)}" class="btn btn-sm btn-warning btn-icon" title="Editar Atividade"><i class="fa-solid fa-pen"></i></a>
                         <a href="/organizador/excluir_atividade/${id}/" class="btn btn-sm btn-danger btn-icon" title="Excluir Atividade" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');"><i class="fa-solid fa-trash-can"></i></a>
                         <a href="/organizador/relatorio_lista_presenca/atividade/${id}/" class="btn btn-sm btn-success btn-icon" title="Lista de Presença"><i class="fa-solid fa-list-check"></i></a>
+                        <a href="/organizador/lista-presenca/atividade/${id}/pdf" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success btn-icon" title="Lista de presença para impressão (PDF)"><i class="fa-solid fa-file-pdf"></i></a>
                         <a href="/eventos/gerar-qr-code-atividade/${id}/" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de Confirmação de Presença"><i class="fa-solid fa-qrcode"></i></a>
                         ${certificado && encerrada ? `<button class="btn btn-sm btn-info btn-icon" title="Emitir Certificados" data-atividade="${id}">🎓</button>` : ""}
                     </div>

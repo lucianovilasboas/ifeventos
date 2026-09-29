@@ -57,6 +57,9 @@
                 <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" class="btn btn-sm btn-success btn-icon" title="Lista de Presença">
                     <i class="fa-solid fa-list-check"></i>
                 </a>
+                <a href="{% url 'organizador:lista_presenca_pdf' atividade.id %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success btn-icon" title="Lista de presença para impressão (PDF)">
+                    <i class="fa-solid fa-file-pdf"></i>
+                </a>
                 <a href="{% url 'organizador:qrcode_atividade' atividade.id %}" class="btn btn-sm btn-outline-success btn-icon" title="QR de presença (mostrar para a turma)">
                     <i class="fa-solid fa-qrcode"></i>
                 </a>
@@ -95,7 +98,12 @@
                 <tbody>
                     {% for atividade in atividades %}
                     <tr class="atividade-item" data-busca-item data-atividade-id="{{ atividade.id }}">
-                        <td>{{ forloop.counter }}</td>
+                        <td class="col-numero">
+                            <span class="js-numero" data-numero>{{ forloop.counter }}</span>
+                            <a href="{% url 'organizador:criar_editar_atividade_editar' evento.id atividade.id %}" title="Editar atividade" class="btn btn-warning btn-sm">
+                                <i class="fa-solid fa-pen"></i>
+                            </a>
+                        </td>
                         {% comment %} data-valor: a coluna ordena pelo título, não pelo
                            texto da data que aparece embaixo. {% endcomment %}
                         <td class="atividade-titulo" data-valor="{{ atividade.titulo }}">
@@ -117,35 +125,41 @@
                         <td class="js-vagas" data-id="{{ atividade.id }}">{{ atividade.n_vagas }}</td>
                         <td class="js-inscritos" data-id="{{ atividade.id }}">{{ atividade.n_inscricoes }}</td>
                         <td>
-                            <a href="{% url 'organizador:criar_editar_atividade_editar' evento.id atividade.id %}" title="Editar Atividade" class="btn btn-warning btn-sm">
-                                <i class="fa-solid fa-pen"></i>
-                            </a>
-                            <form method="post" action="{% url 'organizador:publicar_atividade' atividade.id %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-secondary btn-sm"
-                                        title="{% if atividade.publicada %}Voltar para rascunho{% else %}Publicar na programação{% endif %}">
-                                    <i class="fa-solid {% if atividade.publicada %}fa-eye-slash{% else %}fa-eye{% endif %}"></i>
-                                </button>
-                            </form>
-                            <a href="{% url 'organizador:excluir_atividade' atividade.id %}" title="Excluir Atividade" class="btn btn-danger btn-sm" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </a>
-                            <span><i class="fa-solid fa-circle"></i></span>
-                            <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" title="Lista de Presença" class="btn btn-success btn-sm">
-                                <i class="fa-solid fa-list-check"></i>
-                            </a>
-                            <a href="{% url 'organizador:qrcode_atividade' atividade.id %}" title="QR de presença (mostrar para a turma)" class="btn btn-outline-success btn-sm">
-                                <i class="fa-solid fa-qrcode"></i>
-                            </a>
-                            <a href="{% url 'organizador:checkin_atividade' atividade.id %}" title="Check-in lendo os crachás pela câmera" class="btn btn-outline-success btn-sm">
-                                <i class="fa-solid fa-camera"></i>
-                            </a>
-                            <span><i class="fa-solid fa-circle"></i></span>
-                            {% if atividade.emite_certificado and atividade.encerrada %}
-                            <button class="btn btn-info btn-sm" title="Emitir Certificados" data-atividade="{{ atividade.id }}">
-                                🎓
-                            </button>
-                            {% endif %}
+                            <div class="acoes-linha">
+                                <div class="acoes-linha-grupo">
+                                    <form method="post" action="{% url 'organizador:publicar_atividade' atividade.id %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-secondary btn-sm"
+                                                title="{% if atividade.publicada %}Voltar para rascunho{% else %}Publicar na programação{% endif %}">
+                                            <i class="fa-solid {% if atividade.publicada %}fa-eye-slash{% else %}fa-eye{% endif %}"></i>
+                                        </button>
+                                    </form>
+                                    <a href="{% url 'organizador:excluir_atividade' atividade.id %}" title="Excluir atividade" class="btn btn-outline-danger btn-sm" onclick="return confirm('Tem certeza que deseja excluir esta atividade?');">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </a>
+                                </div>
+                                <div class="acoes-linha-grupo">
+                                    <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" title="Lista de presença" class="btn btn-success btn-sm">
+                                        <i class="fa-solid fa-list-check"></i>
+                                    </a>
+                                    <a href="{% url 'organizador:lista_presenca_pdf' atividade.id %}" target="_blank" rel="noopener" title="Lista de presença para impressão (PDF)" class="btn btn-outline-success btn-sm">
+                                        <i class="fa-solid fa-file-pdf"></i>
+                                    </a>
+                                    <a href="{% url 'organizador:qrcode_atividade' atividade.id %}" title="QR de presença (mostrar para a turma)" class="btn btn-outline-success btn-sm">
+                                        <i class="fa-solid fa-qrcode"></i>
+                                    </a>
+                                    <a href="{% url 'organizador:checkin_atividade' atividade.id %}" title="Check-in lendo os crachás pela câmera" class="btn btn-outline-success btn-sm">
+                                        <i class="fa-solid fa-camera"></i>
+                                    </a>
+                                </div>
+                                {% if atividade.emite_certificado and atividade.encerrada %}
+                                <div class="acoes-linha-grupo">
+                                    <button class="btn btn-info btn-sm" title="Emitir certificados" data-atividade="{{ atividade.id }}">
+                                        🎓
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}

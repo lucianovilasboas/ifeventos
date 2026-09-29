@@ -31,6 +31,9 @@
                     <span class="badge rounded-pill bg-danger" style="position:absolute;top:-5px;right:-5px;font-size:9px">{{ evento.atividades.count }}</span>
                     {% endif %}
                 </a>
+                <a href="{% url 'organizador:listas_presenca_evento_pdf' evento.id %}" target="_blank" rel="noopener" class="btn btn-sm btn-success btn-icon" title="Listas de presença de todas as atividades publicadas (PDF)">
+                    <i class="fa-solid fa-file-pdf"></i>
+                </a>
                 <a href="{% url 'organizador:relatorio_inscricoes' evento.id %}" class="btn btn-sm btn-secondary btn-icon" title="Relatório de Inscrições">
                     <i class="fa-solid fa-list-ul"></i>
                     {% if evento.get_n_inscricoes > 0 %}
