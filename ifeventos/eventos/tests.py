@@ -797,6 +797,40 @@ class CrachasParaImpressaoTests(_BasePresencaTests):
         self.assertEqual(resposta["Content-Type"], "application/pdf")
         self.assertTrue(resposta.content.startswith(b"%PDF"))
 
+    def test_tela_imprime_so_o_papel_pedido(self):
+        self._like_palestrante()
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:crachas_evento", args=[self.evento.id]) + "?papel=palestrante"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "application/pdf")
+        self.assertIn("palestrante", resposta["Content-Disposition"])
+
+    def test_tela_recusa_papel_invalido_avisando(self):
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:crachas_evento", args=[self.evento.id]) + "?papel=inventado"
+        )
+
+        self.assertEqual(resposta.status_code, 302)
+        avisos = [str(m) for m in get_messages(resposta.wsgi_request)]
+        self.assertTrue(any("Filtro de crachás inválido" in a for a in avisos), avisos)
+
+    def test_tela_avisa_quando_o_filtro_nao_tem_ninguem(self):
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:crachas_evento", args=[self.evento.id]) + "?papel=palestrante"
+        )
+
+        self.assertEqual(resposta.status_code, 302)
+        avisos = [str(m) for m in get_messages(resposta.wsgi_request)]
+        self.assertTrue(any("papel de palestrante" in a for a in avisos), avisos)
+
     def test_terceiro_nao_baixa_os_crachas(self):
         intruso = U.objects.create_user(
             email="intruso@example.com", password=SENHA, cpf="12345678909",

@@ -543,7 +543,11 @@ class AcoesDaPaginaDeAtividadesTests(TestCase):
             reverse("organizador:atividades_evento", args=[self.evento.id])
         ).content.decode()
         self.assertIn("Imprimir crachás", html)
-        self.assertIn("Imprimir (PDF)", html)
+        self.assertIn("Imprimir todos (PDF)", html)
+        # Filtro transitório por papel: links GET, sem mexer no modelo do evento.
+        self.assertIn("?papel=palestrante", html)
+        self.assertIn("?papel=participante", html)
+        self.assertIn("?papel=organizador", html)
         self.assertIn('form="formModeloCracha"', html)
         self.assertIn('name="modelo"', html)
 
