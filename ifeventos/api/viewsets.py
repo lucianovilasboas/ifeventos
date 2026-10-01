@@ -4,7 +4,7 @@ from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -16,10 +16,15 @@ from eventos.crachas import (
     atividade_aceita_presenca_agora,
     confirmar_por_token_atividade,
     crachas_do_usuario,
+    gerar_pdf_crachas_evento,
     gerar_token_atividade,
     janela_de_presenca,
+    MODELO_PADRAO,
+    MODELOS_CRACHA,
     montar_cracha,
+    PAPEIS_FILTRO,
     pessoa_por_token_ou_codigo,
+    pessoas_do_evento,
     png_qr,
     pode_exibir_qr_atividade,
     pode_checkin_apoio,
@@ -690,7 +695,25 @@ class CrachasEventoPDFView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={(200, "application/pdf"): OpenApiResponse(description="PDF dos crachás")})
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="papel",
+                description="Filtra pelo papel principal no evento. Padrão: todos.",
+                required=False,
+                type=str,
+                enum=list(PAPEIS_FILTRO),
+            ),
+            OpenApiParameter(
+                name="modelo",
+                description="Modelo do crachá. Padrão: etiqueta.",
+                required=False,
+                type=str,
+                enum=list(MODELOS_CRACHA),
+            ),
+        ],
+        responses={(200, "application/pdf"): OpenApiResponse(description="PDF dos crachás")},
+    )
     def get(self, request, evento_id):
         evento = get_object_or_404(Evento, id=evento_id)
         if not pode_gerenciar_evento(request.user, evento):
@@ -699,9 +722,28 @@ class CrachasEventoPDFView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        from eventos.crachas import gerar_pdf_crachas_evento
+        papel = (request.query_params.get("papel") or "").strip().lower() or None
+        if papel is not None and papel not in PAPEIS_FILTRO:
+            return Response(
+                {"detail": "papel inválido: use participante, palestrante, organizador ou todos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento)
+        modelo = (request.query_params.get("modelo") or "").strip() or None
+        if modelo is not None and modelo not in MODELOS_CRACHA:
+            return Response(
+                {"detail": "modelo inválido: use etiqueta ou classico."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Sem ninguém no recorte filtrado, sairia um PDF sem página: melhor avisar.
+        if papel and papel != "todos" and not pessoas_do_evento(evento, papel):
+            return Response(
+                {"detail": f"Nenhum crachá para o papel '{papel}' neste evento."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento, modelo or MODELO_PADRAO, papel)
         resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'
         return resposta

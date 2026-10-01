@@ -119,6 +119,14 @@ disso, `POST /auth/token/` responde **429** até a janela virar. O login do site
 | POST | `eventos/{id}/vagas/gerar/` | organizador dono |
 | GET | `eventos/{id}/crachas.pdf` | organizador (`pode_gerenciar_evento`) |
 
+`crachas.pdf` aceita dois parâmetros opcionais (sem eles, o comportamento é o
+de antes: todos os crachás, no modelo padrão):
+
+- `papel=participante|palestrante|organizador|todos` — recorta pelo **papel
+  principal** da pessoa no evento (cada uma cai em um balde só). Valor inválido
+  devolve `400`; recorte vazio devolve `404`.
+- `modelo=etiqueta|classico` — escolhe o layout. Valor inválido devolve `400`.
+
 ### Tipos de atividade e palestrantes
 
 | Método | Rota | Quem |

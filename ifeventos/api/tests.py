@@ -633,6 +633,11 @@ class CrachaApiTests(_BaseApiTests):
             data_hora_fim=timezone.now() + timedelta(hours=1), n_vagas=10,
         )
         Inscricao.objects.create(participante=self.participante, atividade=self.atividade)
+        self.palestrante = U.objects.create_user(
+            email="api_palestrante@example.com", password=SENHA, cpf="39053344705",
+            first_name="Ana", last_name="Souza",
+        )
+        self.atividade.palestrantes.add(self.palestrante)
 
     def test_lista_o_cracha_com_token_e_url(self):
         self._autenticar(self.participante)
@@ -683,6 +688,71 @@ class CrachaApiTests(_BaseApiTests):
         resposta = self.client.get(f"/api/v1/eventos/{self.evento.id}/crachas.pdf")
 
         self.assertEqual(resposta.status_code, 403)
+
+    def test_pdf_filtra_pelo_papel_pedido(self):
+        self._autenticar(self.organizador)
+
+        for papel in ("organizador", "palestrante", "participante"):
+            resposta = self.client.get(
+                f"/api/v1/eventos/{self.evento.id}/crachas.pdf?papel={papel}"
+            )
+            self.assertEqual(resposta.status_code, 200, papel)
+            self.assertEqual(resposta["Content-Type"], "application/pdf", papel)
+            self.assertTrue(resposta.content.startswith(b"%PDF"), papel)
+            self.assertIn(papel, resposta["Content-Disposition"], papel)
+
+    def test_pdf_com_todos_e_sem_parametro_sao_o_mesmo(self):
+        self._autenticar(self.organizador)
+
+        sem_param = self.client.get(f"/api/v1/eventos/{self.evento.id}/crachas.pdf")
+        com_todos = self.client.get(
+            f"/api/v1/eventos/{self.evento.id}/crachas.pdf?papel=todos"
+        )
+
+        self.assertEqual(sem_param.status_code, 200)
+        self.assertEqual(com_todos.status_code, 200)
+        self.assertNotIn("todos", com_todos["Content-Disposition"])
+
+    def test_pdf_recusa_papel_invalido(self):
+        self._autenticar(self.organizador)
+
+        resposta = self.client.get(
+            f"/api/v1/eventos/{self.evento.id}/crachas.pdf?papel=inventado"
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("papel inválido", resposta.json()["detail"])
+
+    def test_pdf_recusa_modelo_invalido(self):
+        self._autenticar(self.organizador)
+
+        resposta = self.client.get(
+            f"/api/v1/eventos/{self.evento.id}/crachas.pdf?modelo=inventado"
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("modelo inválido", resposta.json()["detail"])
+
+    def test_pdf_aceita_modelo_valido(self):
+        self._autenticar(self.organizador)
+
+        resposta = self.client.get(
+            f"/api/v1/eventos/{self.evento.id}/crachas.pdf?modelo=classico"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("classico", resposta["Content-Disposition"])
+
+    def test_pdf_de_papel_sem_ninguem_da_404(self):
+        self.atividade.palestrantes.clear()
+        self._autenticar(self.organizador)
+
+        resposta = self.client.get(
+            f"/api/v1/eventos/{self.evento.id}/crachas.pdf?papel=palestrante"
+        )
+
+        self.assertEqual(resposta.status_code, 404)
+        self.assertIn("palestrante", resposta.json()["detail"])
 
 
 class QrAtividadeApiTests(_BaseApiTests):

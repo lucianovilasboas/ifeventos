@@ -72,6 +72,12 @@ class CrachaInvalido(Exception):
 # primeiro em destaque.
 PAPEIS_ORDEM = ("organizador", "palestrante", "participante")
 
+# Valores aceitos no filtro `?papel=` do PDF em lote. O papel filtrado é o
+# PRINCIPAL (PAPEIS_ORDEM): cada pessoa cai em um balde só, então quem organiza
+# e também palestra sai como organizador. "todos" (ou o parâmetro ausente)
+# mantém o comportamento original: o evento inteiro.
+PAPEIS_FILTRO = ("todos",) + PAPEIS_ORDEM
+
 
 def papeis_no_evento(usuario, evento):
     """TODOS os papéis do usuário NAQUELE evento, do mais alto para o mais baixo.
@@ -136,12 +142,16 @@ def tem_cracha(usuario):
     return _eventos_com_papel(usuario).exists()
 
 
-def pessoas_do_evento(evento):
+def pessoas_do_evento(evento, papel=None):
     """Quem tem crachá no evento: [(participante, papel)], com o papel resolvido.
 
     Inclui organizador, palestrantes das atividades e inscritos. A ordem é
     alfabética pelo nome, que é a ordem prática de uma mesa de credenciamento.
+
+    Com `papel` (organizador/palestrante/participante), devolve só quem tem
+    ESSE papel principal no evento; `None` ou "todos" devolve todos.
     """
+    alvo = papel if papel in PAPEIS_ORDEM else None
     ids = set()
     if evento.organizador_id:
         ids.add(evento.organizador_id)
@@ -158,9 +168,10 @@ def pessoas_do_evento(evento):
 
     resultado = []
     for pessoa in sorted(pessoas, key=lambda p: (p.first_name or "", p.last_name or "", p.id)):
-        papel = papel_no_evento(pessoa, evento)
-        if papel:
-            resultado.append((pessoa, papel))
+        papel_pessoa = papel_no_evento(pessoa, evento)
+        if not papel_pessoa or (alvo and papel_pessoa != alvo):
+            continue
+        resultado.append((pessoa, papel_pessoa))
     return resultado
 
 
@@ -815,16 +826,18 @@ def _cracha_classico(c, pessoa, papeis_rotulos, evento, x, y, largura, altura, l
                         "Aponte a câmera para confirmar sua presença ou informe este código")
 
 
-def gerar_pdf_crachas_evento(evento, modelo=MODELO_PADRAO):
-    """PDF com os crachás de todas as pessoas com papel no evento.
+def gerar_pdf_crachas_evento(evento, modelo=MODELO_PADRAO, papel=None):
+    """PDF com os crachás das pessoas com papel no evento.
 
     Quatro por folha A4 (2 x 2 de 105 x 148,5 mm), no modelo escolhido, com as
-    linhas de corte para a guilhotina. Devolve (nome_do_arquivo, ContentFile).
+    linhas de corte para a guilhotina. `papel` filtra pelo papel principal
+    (organizador/palestrante/participante); sem ele, entram todos. Devolve
+    (nome_do_arquivo, ContentFile).
     """
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas as canvas_pdf
 
-    pessoas = pessoas_do_evento(evento)
+    pessoas = pessoas_do_evento(evento, papel)
     modelo = modelo_de_cracha(modelo)
     desenhar = _cracha_etiqueta if modelo == "etiqueta" else _cracha_classico
 
@@ -861,6 +874,8 @@ def gerar_pdf_crachas_evento(evento, modelo=MODELO_PADRAO):
         apelido = "".join(caractere if caractere.isalnum() else "-"
                           for caractere in evento.title.lower())[:40].strip("-")
     sufixo = "" if modelo == MODELO_PADRAO else f"-{modelo}"
+    if papel in PAPEIS_ORDEM:
+        sufixo += f"-{papel}"
     return f"crachas-{apelido}{sufixo}.pdf", ContentFile(buffer.read())
 
 
