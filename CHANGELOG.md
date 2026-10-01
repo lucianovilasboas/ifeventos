@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.16.0] — 2026-10-01
+
+### Adicionado
+
+- **Filtro por papel e escolha de modelo no PDF de crachás**: o endpoint
+  `GET /api/v1/eventos/{id}/crachas.pdf` passa a aceitar dois parâmetros
+  opcionais, aplicados **antes** da geração. `?papel=participante|palestrante|
+  organizador|todos` recorta pelo papel **principal** da pessoa no evento (cada
+  uma cai em um balde só); valor inválido devolve `400` e recorte vazio devolve
+  `404`. `?modelo=etiqueta|classico` escolhe o layout; valor inválido devolve
+  `400`. Sem parâmetros, o comportamento é o de antes (todos, modelo padrão).
+  O nome do arquivo identifica o recorte (`crachas-<evento>-palestrante.pdf`).
+- **"Só um papel" na tela de atividades**: o menu **"Imprimir crachás"** ganhou
+  as opções **Só palestrantes**, **Só participantes** e **Só organizadores**,
+  como links diretos para o PDF. É um filtro **transitório** — não altera o
+  modelo do evento nem o cadastro — e usa a mesma regra da API. Filtro inválido
+  avisa e volta para a tela; recorte sem ninguém avisa com o papel pedido, em
+  vez de gerar PDF sem página.
+
 ## [2.15.0] — 2026-09-30
 
 ### Adicionado
