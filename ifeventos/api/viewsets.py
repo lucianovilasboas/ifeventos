@@ -367,8 +367,8 @@ class PalestranteViewSet(viewsets.ModelViewSet):
             is_participante=True,
             is_palestrante=True,
         )
-        # Palestrante não faz login: sem senha utilizável.
-        novo.set_unusable_password()
+        # Senha padrão do sistema: o organizador repassa e a pessoa troca depois.
+        novo.set_password(getattr(settings, "SENHA_PADRAO", "@snct2026"))
         novo.save(update_fields=["password"])
         if metadados_novos is not None:
             metadados_config.salvar(novo, metadados_novos)

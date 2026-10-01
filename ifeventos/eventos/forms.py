@@ -1,6 +1,7 @@
 from datetime import date, time
 
 from django.utils import timezone
+from django.conf import settings
 
 from django import forms
 from django.db.models.functions import Lower
@@ -16,6 +17,7 @@ from .models import (
 )
 from .propostas import dias_do_evento, parse_blocos, validar_vaga
 from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
@@ -44,11 +46,28 @@ class EventoForm(forms.ModelForm):
         }),
     )
 
+    # Senha padrão das contas criadas pelo organizador/co-organizador neste
+    # evento. Fica em texto puro de propósito (é para repassar), mas a gente
+    # cobra o mesmo mínimo das senhas de login.
+    senha_padrao = forms.CharField(
+        label="Senha padrão",
+        required=False,
+        max_length=128,
+        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "off"}),
+        help_text=(
+            "Senha com que as contas criadas por você (equipe de apoio, "
+            "co-organizadores e palestrantes) vão entrar. Use ao menos 8 "
+            "caracteres, misturando letras, números e um símbolo — ou clique em "
+            "Gerar."
+        ),
+    )
+
     class Meta:
         model = Evento
         fields = [
             'title', 'description', 'data_inicio', 'data_fim', 'local', 'categoria',
             'imagem', 'margem_presenca_antes_min', 'margem_presenca_depois_min',
+            'senha_padrao',
         ]
         labels = {
             'margem_presenca_antes_min': 'Tolerância antes (min)',
@@ -87,6 +106,23 @@ class EventoForm(forms.ModelForm):
             if sem_acento(texto) in (sem_acento(valor), sem_acento(rotulo)):
                 return valor
         return texto[:60]
+
+    def clean_senha_padrao(self):
+        """Aplica o mesmo mínimo de uma senha de login (mín. 8, não comum/numérica).
+
+        Em branco mantém a senha do evento (edição) ou cai no padrão do sistema —
+        assim a criação/edição continua funcionando mesmo sem o campo, que é
+        opcional.
+        """
+        senha = (self.cleaned_data.get("senha_padrao") or "").strip()
+        if not senha:
+            atual = getattr(self.instance, "senha_padrao", "")
+            return atual or getattr(settings, "SENHA_PADRAO", "@snct2026")
+        try:
+            validate_password(senha)
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+        return senha
 
 
 # class EventoForm(forms.ModelForm):

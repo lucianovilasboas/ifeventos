@@ -50,6 +50,22 @@
                             </div>
                             <small class="text-muted d-block mt-2" id="sugestaoCategoria"></small>
                         </div>
+                        <div class="col-12" data-senha-padrao>
+                            <label class="form-label" for="id_senha_padrao">{{ form_evt.senha_padrao.label }}</label>
+                            <div class="input-group">
+                                {{ form_evt.senha_padrao }}
+                                <button type="button" class="btn btn-outline-secondary" data-senha-gerar
+                                        title="Gerar uma senha forte">
+                                    <i class="fa-solid fa-dice"></i> Gerar
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" data-senha-mostrar
+                                        title="Mostrar/ocultar a senha" aria-pressed="false">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                            {% if form_evt.senha_padrao.help_text %}<small class="text-muted d-block mt-1">{{ form_evt.senha_padrao.help_text }}</small>{% endif %}
+                            {% for error in form_evt.senha_padrao.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                        </div>
                         <div class="col-12">
                             <label class="form-label">{{ form_evt.imagem.label }} (capa)</label>
                             {% include 'includes/campo_imagem.html' with nome="imagem" preview_url="/static/img/evento-sem-capa.png" variante="capa" aspect="3/1" largura=1024 altura=342 alt="Pré-visualização da capa do evento" dica="Clique para escolher a capa; o corte é panorâmico (3:1), no formato em que ela aparece nos cards." %}

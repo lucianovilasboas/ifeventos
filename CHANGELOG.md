@@ -5,6 +5,49 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.15.0] — 2026-09-30
+
+### Adicionado
+
+- **Senha padrão das contas criadas pelo organizador**: campo **"Senha padrão"**
+  no evento (na criação, pelo modal, e na edição), com botão **Gerar** (senha
+  forte) e mostrar/ocultar. Vale para equipe de apoio, co-organizadores e
+  palestrantes criados pelo organizador/co-organizador: a pessoa entra com essa
+  senha e troca depois. Padrão do sistema: `@snct2026` (configurável por
+  `SENHA_PADRAO` no ambiente; cada evento pode sobrescrever). Antes, equipe e
+  co-organizador recebiam uma senha aleatória e os palestrantes nasciam sem
+  senha utilizável.
+- `settings.SENHA_PADRAO` e `Evento.senha_padrao` (migration `0053`). A senha
+  fica **em texto puro de propósito** (é um valor compartilhado, reexibido para
+  o organizador repassar) e **não** entra na auditoria nem na API.
+
+### Corrigido
+
+- **Nome completo salvo no primeiro campo**: ao salvar uma conta cujo
+  `first_name` traz o nome completo e o `last_name` está vazio, o nome é
+  dividido (1ª palavra → nome; resto → sobrenome), mesma regra de
+  `roster.dividir_nome`. Era o que acontecia no modal de palestrante e no
+  cadastro, em que o nome inteiro ia para `first_name` e o sobrenome ficava em
+  branco. O rótulo do modal passou a ser **"Primeiro nome"**.
+
+## [2.14.1] — 2026-09-29
+
+### Corrigido
+
+- **Cadastro de palestrante na atividade (modal)**: o botão “Salvar” voltou a
+  fechar o modal e a dar retorno. O handler ainda tratava `#id_palestrantes`
+  como `<select multiple>`, mas desde a 2.11.0 o campo é um checklist
+  (`.pal-lista`); o `select.add(...)` lançava `TypeError` e abortava antes de
+  fechar o modal e de mostrar a mensagem. Agora o palestrante novo entra
+  **marcado no checklist** (com foto) e o retorno é **explícito**: sucesso em
+  confirmação persistente e erro de validação em alerta **dentro do modal**
+  (por campo), sem engolir falhas de rede.
+- **CPF obrigatório no modal de palestrante**: o formulário já exigia o CPF
+  (`blank=False`), mas o campo não estava marcado como obrigatório — agora está,
+  alinhado à validação do `PalestranteForm`.
+- `#msgcontainer` passou a ficar acima do modal/backdrop (z-index 1060), para o
+  aviso não ficar escondido atrás dele.
+
 ## [2.14.0] — 2026-09-28
 
 ### Adicionado

@@ -269,7 +269,7 @@
         console.log("Este form é para {% if atividade %}editar atividade{% else %}criar atividade{% endif %}.");
 
 
-        function message_(text, typeMessage = "success") {
+        function message_(text, typeMessage = "success", autohide = true) {
                 setTimeout(function () {
                     let alertBox = document.getElementById('msgcontainer');
                     // console.log("alertBox>", alertBox);
@@ -282,17 +282,25 @@
 
                         let tempAlert = document.getElementById('tempAlert');
 
-                        // Espera 3 segundos para iniciar o fade-out
-                        setTimeout(() => {
-                            if (tempAlert) {
-                                tempAlert.classList.remove("show");
-                                tempAlert.classList.add("fade");
-                                // Remove do DOM após a transição (supondo fade de 500ms)
-                                setTimeout(() => tempAlert.remove(), 500);
-                            }
-                        }, 2000);
+                        if (autohide) {
+                            // Espera 2 segundos para iniciar o fade-out
+                            setTimeout(() => {
+                                if (tempAlert) {
+                                    tempAlert.classList.remove("show");
+                                    tempAlert.classList.add("fade");
+                                    // Remove do DOM após a transição (supondo fade de 500ms)
+                                    setTimeout(() => tempAlert.remove(), 500);
+                                }
+                            }, 2000);
+                        }
                     }
                 }, 500);
+            }
+
+        function escaparHtml(valor) {
+                return String(valor).replace(/[&<>"']/g, function (c) {
+                    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+                });
             }
 
 
@@ -356,11 +364,35 @@
 
 
         // Adicionar Palestrante
+        var ROTULOS_PALESTRANTE = {
+            first_name: "Nome", last_name: "Sobrenome", email: "Email",
+            cpf: "CPF", telefone: "Telefone", endereco: "Endereço",
+            foto: "Foto", cropped_image: "Foto"
+        };
+
+        function feedbackPalestrante(tipo, html) {
+            var caixa = document.getElementById("palestranteFeedback");
+            if (!caixa) return;
+            caixa.className = "alert alert-" + tipo;
+            caixa.innerHTML = html;
+            caixa.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
+        function limparFeedbackPalestrante() {
+            var caixa = document.getElementById("palestranteFeedback");
+            if (!caixa) return;
+            caixa.className = "alert d-none";
+            caixa.innerHTML = "";
+        }
+
         document.getElementById("formPalestrante").addEventListener("submit", function (event) {
             event.preventDefault();
 
             var form = this;
             var formData = new FormData(form);
+            var botao = form.querySelector('button[type="submit"]');
+            if (botao) botao.disabled = true;
+            limparFeedbackPalestrante();
 
             fetch(form.action, {
                 method: "POST",
@@ -371,27 +403,64 @@
             })
             .then(response => response.json())
             .then(data => {
-                console.log(data);
+                if (botao) botao.disabled = false;
                 if (data.success) {
-                    // Insere o palestrante recém-criado já selecionado na lista.
-                    let select = document.getElementById("id_palestrantes");
-                    if(select){
-                        let option = new Option(data.nome, data.id, true, true);
-                        select.add(option);
+                    // Insere o palestrante recém-criado já marcado no checklist
+                    // (#id_palestrantes é a lista .pal-lista de checkboxes).
+                    let lista = document.getElementById("id_palestrantes");
+                    if (lista && lista.classList.contains("pal-lista")) {
+                        let label = document.createElement("label");
+                        label.className = "pal-item";
+                        label.setAttribute("for", "id_palestrantes_" + data.id);
+
+                        let check = document.createElement("input");
+                        check.type = "checkbox";
+                        check.name = "palestrantes";
+                        check.value = data.id;
+                        check.id = "id_palestrantes_" + data.id;
+                        check.checked = true;
+
+                        let foto = document.createElement("img");
+                        foto.className = "pal-foto";
+                        foto.src = data.foto || "/media/usuarios/default.jpeg";
+                        foto.alt = "";
+                        foto.width = 28;
+                        foto.height = 28;
+
+                        let nome = document.createElement("span");
+                        nome.className = "pal-nome";
+                        nome.textContent = data.nome;
+
+                        label.append(check, foto, nome);
+                        let vazio = lista.querySelector(".pal-vazio");
+                        if (vazio) vazio.remove();
+                        lista.appendChild(label);
                     }
-                    var modal = bootstrap.Modal.getInstance(document.getElementById("modalPalestrante"));
+                    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById("modalPalestrante"));
                     modal.hide();
-                    this.reset();
-                    message_("Novo palestrante adicionado com sucesso.")
+                    form.reset();
+                    limparFeedbackPalestrante();
+                    // Confirmação explícita e persistente (não some sozinha).
+                    message_("Palestrante <b>" + escaparHtml(data.nome) + "</b> cadastrado com sucesso." +
+                        (data.senha ? " Senha de acesso: <code>" + escaparHtml(data.senha) + "</code>." : ""),
+                        "success", false);
                 } else {
-                    msg = ""
+                    let itens = "";
                     for (let key in data.errors) {
-                        msg += `${key}: ${data.errors[key]}\n`;
+                        let rotulo = ROTULOS_PALESTRANTE[key] || key;
+                        let mensagens = Array.isArray(data.errors[key]) ? data.errors[key] : [data.errors[key]];
+                        itens += "<li><b>" + escaparHtml(rotulo) + ":</b> " + escaparHtml(mensagens.join(" ")) + "</li>";
                     }
-                    // alert("Erro ao adicionar palestrante. \n" + msg);
-                    message_("Erro ao adicionar palestrante. \n" + msg, "danger");
-                    //bootbox.alert("Erro ao adicionar palestrante. \n" + msg);
+                    feedbackPalestrante("danger",
+                        "<b>Não foi possível cadastrar o palestrante.</b>" +
+                        (itens ? "<ul class=\"mb-0 mt-1\">" + itens + "</ul>" : ""));
                 }
+            })
+            .catch(() => {
+                if (botao) botao.disabled = false;
+                feedbackPalestrante("danger",
+                    "<b>Não foi possível cadastrar o palestrante.</b> " +
+                    "Verifique a conexão e tente novamente.");
             });
         });
 

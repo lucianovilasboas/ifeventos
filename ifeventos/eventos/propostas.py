@@ -777,7 +777,7 @@ def cadastrar_sugerido(sugestao, *, nome=None, email=None, telefone=None):
             telefone=(telefone or sugestao.telefone or "").strip(),
             is_palestrante=True,
         )
-        participante.set_unusable_password()
+        participante.set_password(atividade.evento.senha_padrao)
         participante.save()
         # Pré-carga: se o e-mail estiver na planilha, completa os metadados que
         # faltam (a sugestão do proponente continua tendo prioridade).
