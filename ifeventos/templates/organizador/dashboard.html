@@ -26,6 +26,7 @@
 
 {% block scripts %}
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<script src="{% static 'js/senha_padrao_campo.js' %}?v={{ ASSET_VERSION }}" defer></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         function message_(text, alertType = "success") {

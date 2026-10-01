@@ -575,6 +575,17 @@ PRESENCA_QR_VALIDADE_SEGUNDOS = config("PRESENCA_QR_VALIDADE_SEGUNDOS", default=
 PRESENCA_QR_INTERVALO_RENOVACAO = config("PRESENCA_QR_INTERVALO_RENOVACAO", default=120, cast=int)
 
 
+# ---------------------------------------------------------------------------
+# Senha padrão das contas criadas pelo organizador/co-organizador
+# ---------------------------------------------------------------------------
+# Quando o organizador cria uma conta (equipe de apoio, co-organizador,
+# palestrante sugerido/API), a pessoa entra com esta senha e troca depois. O
+# evento pode sobrescrever pelo campo `Evento.senha_padrao` (editável na criação
+# e na edição do evento). É um valor COMPARTILHADO e reexibível — por isso fica
+# em texto puro, e não como hash de usuário.
+SENHA_PADRAO = config("SENHA_PADRAO", default="@snct2026")
+
+
 # =====================================================================
 # LOGS
 # ---------------------------------------------------------------------

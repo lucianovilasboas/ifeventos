@@ -64,7 +64,7 @@
 
     <!-- Flash messages -->
     {% if messages %}
-    <div id="msgcontainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;">
+    <div id="msgcontainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1060;">
         {% for message in messages %}
             <div class="alert {{message.tags}} alert-dismissible fade show shadow" role="alert">
                 {{ message }}
@@ -80,7 +80,7 @@
         });
     </script>
     {% else %}
-    <div id="msgcontainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;"></div>
+    <div id="msgcontainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1060;"></div>
     {% endif %}
 
     {% block scripts %}{% endblock %}

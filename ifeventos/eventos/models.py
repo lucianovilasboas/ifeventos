@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.conf import settings
 from django.utils.text import slugify
 import os
 import unicodedata
@@ -90,12 +91,37 @@ class Participante(AbstractUser):
 
     objects = ParticipanteManager()
 
+    def _normalizar_nome(self):
+        """Divide um nome completo que veio sozinho no `first_name`.
+
+        No cadastro e no modal de palestrante o rótulo é "Nome"; é comum a pessoa
+        digitar o nome completo e deixar o sobrenome vazio — daí o `last_name`
+        ficava em branco e o admin mostrava o nome inteiro no primeiro campo.
+        Quando o `last_name` está vazio e o `first_name` tem espaços, dividimos na
+        PRIMEIRA palavra (mesma regra de `roster.dividir_nome`):
+        "Maria da Silva" -> "Maria" + "da Silva". Devolve os campos alterados.
+        """
+        primeiro = (self.first_name or "").strip()
+        sobrenome = (self.last_name or "").strip()
+        if sobrenome or " " not in primeiro:
+            return set()
+        partes = primeiro.split(" ", 1)
+        self.first_name = partes[0]
+        self.last_name = partes[1].strip()
+        return {"first_name", "last_name"}
+
     def save(self, *args, **kwargs):
         # Normaliza o CPF em TODAS as portas de entrada (cadastro web, API,
         # admin, login social): guarda só os dígitos. Sem isso o mesmo CPF
         # entrava formatado num caminho e cru no outro.
         if self.cpf:
             self.cpf = apenas_digitos(self.cpf)
+
+        # Nome completo digitado no campo "Nome" vira nome + sobrenome. Quando o
+        # chamador passa `update_fields`, garante que a divisão seja gravada.
+        campos_nome = self._normalizar_nome()
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = set(kwargs["update_fields"]) | campos_nome
 
         if not self.username:  # Se o username não for preenchido, cria um baseado no email
             base_username = slugify(self.email.split('@')[0])  # Usa a parte antes do @
@@ -293,6 +319,19 @@ class Evento(models.Model):
     # ----------------------------------------------------------------------
     margem_presenca_antes_min = models.PositiveSmallIntegerField(null=True, blank=True)
     margem_presenca_depois_min = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    # ----------------------------------------------------------------------
+    # Senha padrão das contas que o organizador/co-organizador cria neste
+    # evento (equipe de apoio, co-organizador, palestrante). A pessoa entra com
+    # ela e troca depois. Fica em texto puro de propósito: é um valor
+    # compartilhado, reexibido na tela de edição para o organizador repassar.
+    # O padrão do sistema vem de settings.SENHA_PADRAO ("@snct2026").
+    # ----------------------------------------------------------------------
+    senha_padrao = models.CharField(
+        max_length=128,
+        default=getattr(settings, "SENHA_PADRAO", "@snct2026"),
+        verbose_name="Senha padrão",
+    )
 
     # ----------------------------------------------------------------------
     # Modelo dos crachás DESTE evento (decisão do organizador).

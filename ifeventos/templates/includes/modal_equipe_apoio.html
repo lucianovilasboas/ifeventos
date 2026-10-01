@@ -101,7 +101,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (d.reusada) {
                 mensagem(`✅ ${d.nome} já tinha conta e foi adicionada à equipe.`, "success");
             } else {
-                mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha temporária: <code>${d.senha_temporaria}</code> — repasse para a pessoa e avise que ela deve trocar.`, "success");
+                mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha padrão do evento: <code>${d.senha_temporaria}</code> — repasse para a pessoa e avise que ela deve trocar.`, "success");
             }
             document.getElementById("equipeEmail").value = "";
             const itens = dados[atual.id] || (dados[atual.id] = []);

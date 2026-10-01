@@ -9,13 +9,15 @@
             <div class="modal-body">
                 <form id="formPalestrante" method="POST" enctype="multipart/form-data" action="{% url 'organizador:adicionar_palestrante' %}">
                     {% csrf_token %}
+                    {% if evento %}<input type="hidden" name="evento_id" value="{{ evento.id }}">{% endif %}
+                    <div id="palestranteFeedback" class="alert d-none" role="alert" aria-live="assertive"></div>
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label">Foto</label>
                             {% include 'includes/campo_imagem.html' with nome="foto" preview_url="/media/usuarios/default.jpeg" variante="avatar" aspect="1" largura=300 altura=300 alt="Pré-visualização da foto do palestrante" dica="Clique na foto para escolher a imagem." %}
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label" for="id_first_name">Nome</label>
+                            <label class="form-label" for="id_first_name">Primeiro nome</label>
                             <input type="text" class="form-control" id="id_first_name" name="first_name" required>
                         </div>
                         <div class="col-md-6">
@@ -28,7 +30,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label" for="id_cpf">CPF</label>
-                            <input type="text" class="form-control" id="id_cpf" name="cpf">
+                            <input type="text" class="form-control" id="id_cpf" name="cpf" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label" for="id_telefone">Telefone</label>

@@ -262,6 +262,131 @@ class AdicionarEspacoTests(TestCase):
         self.assertFalse(resposta.json()["success"])
 
 
+class AdicionarPalestranteJsonTests(TestCase):
+    """JSON do modal de palestrante: success traz id/nome/foto; inválido, errors."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_pal_json@example.com", password=SENHA, cpf="39053344705",
+            is_organizador=True,
+        )
+        self.url = reverse("organizador:adicionar_palestrante")
+
+    def test_sucesso_traz_id_nome_e_foto(self):
+        self.client.force_login(self.org)
+        resposta = self.client.post(self.url, {
+            "first_name": "Ana", "last_name": "Souza",
+            "email": "pal_json@example.com", "cpf": "11144477735",
+        })
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertTrue(dados["success"])
+        self.assertEqual(dados["nome"], "Ana Souza")
+        self.assertIn("id", dados)
+        self.assertTrue(dados["foto"])
+
+    def test_invalido_traz_errors(self):
+        self.client.force_login(self.org)
+        resposta = self.client.post(self.url, {"first_name": "Sem email"})
+        dados = resposta.json()
+        self.assertFalse(dados["success"])
+        self.assertIn("email", dados["errors"])
+
+    def test_usa_senha_padrao_do_evento(self):
+        evento = Evento.objects.create(
+            title="Evento", description="d", local="l",
+            data_inicio="2026-10-10", data_fim="2026-10-12", organizador=self.org,
+            senha_padrao="@snct2026",
+        )
+        self.client.force_login(self.org)
+        resposta = self.client.post(self.url, {
+            "first_name": "Ana", "last_name": "Souza",
+            "email": "pal_senha@example.com", "cpf": "11144477735",
+            "evento_id": evento.id,
+        })
+        dados = resposta.json()
+        self.assertTrue(dados["success"], dados)
+        self.assertEqual(dados["senha"], "@snct2026")
+        # A senha padrão realmente loga a pessoa.
+        self.assertTrue(self.client.login(
+            email="pal_senha@example.com", password="@snct2026"
+        ))
+
+    def test_senha_padrao_do_sistema_sem_evento(self):
+        from django.conf import settings
+
+        self.client.force_login(self.org)
+        resposta = self.client.post(self.url, {
+            "first_name": "Bia", "last_name": "Lima",
+            "email": "pal_sem_evento@example.com", "cpf": "39053344705",
+        })
+        self.assertEqual(resposta.json()["senha"], settings.SENHA_PADRAO)
+
+
+class NormalizarNomeTests(TestCase):
+    """Nome completo digitado no campo "Nome" vira nome + sobrenome."""
+
+    def test_nome_completo_no_first_name_e_dividido(self):
+        pessoa = U.objects.create_user(
+            email="nome@example.com", password=SENHA, cpf="11144477735",
+            first_name="Maria da Silva", last_name="",
+        )
+        pessoa.refresh_from_db()
+        self.assertEqual(pessoa.first_name, "Maria")
+        self.assertEqual(pessoa.last_name, "da Silva")
+
+    def test_nao_mexe_quando_o_sobrenome_foi_informado(self):
+        pessoa = U.objects.create_user(
+            email="nome2@example.com", password=SENHA, cpf="39053344705",
+            first_name="Maria", last_name="Silva",
+        )
+        pessoa.refresh_from_db()
+        self.assertEqual((pessoa.first_name, pessoa.last_name), ("Maria", "Silva"))
+
+    def test_normaliza_mesmo_com_update_fields(self):
+        pessoa = U.objects.create_user(
+            email="nome3@example.com", password=SENHA, cpf="11144477735",
+        )
+        pessoa.first_name = "João Pedro"
+        pessoa.last_name = ""
+        pessoa.save(update_fields=["first_name", "last_name"])
+        pessoa.refresh_from_db()
+        self.assertEqual((pessoa.first_name, pessoa.last_name), ("João", "Pedro"))
+
+
+class EventoFormSenhaPadraoTests(TestCase):
+    """A senha padrão do evento passa pelo mesmo mínimo de uma senha de login."""
+
+    def _dados(self, **extra):
+        base = {
+            "title": "Evento", "description": "d", "local": "l",
+            "data_inicio": "2026-10-10", "data_fim": "2026-10-12",
+            "categoria": "Tecnologia", "senha_padrao": "@snct2026",
+        }
+        base.update(extra)
+        return base
+
+    def test_senha_padrao_valida(self):
+        from eventos.forms import EventoForm
+
+        form = EventoForm(data=self._dados())
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_senha_curta_e_rejeitada(self):
+        from eventos.forms import EventoForm
+
+        form = EventoForm(data=self._dados(senha_padrao="abc1"))
+        self.assertFalse(form.is_valid())
+        self.assertIn("senha_padrao", form.errors)
+
+    def test_senha_so_numerica_e_rejeitada(self):
+        from eventos.forms import EventoForm
+
+        form = EventoForm(data=self._dados(senha_padrao="12345678"))
+        self.assertFalse(form.is_valid())
+        self.assertIn("senha_padrao", form.errors)
+
+
 class FormAtividadeViewTests(TestCase):
     def setUp(self):
         self.org = U.objects.create_user(

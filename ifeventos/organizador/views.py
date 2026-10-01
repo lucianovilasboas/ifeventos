@@ -5,7 +5,7 @@ from eventos.models import Atividade, Inscricao, Participante
 from eventos import agenda
 from django.contrib import messages
 from django.utils.timezone import localtime
-from django.utils.crypto import get_random_string
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -453,7 +453,7 @@ def equipe_apoio_adicionar(request, evento_id):
     except Participante.DoesNotExist:
         from allauth.account.models import EmailAddress
 
-        senha_temporaria = get_random_string(8)
+        senha_temporaria = evento.senha_padrao
         pessoa = Participante.objects.create_user(
             email=email,
             password=senha_temporaria,
@@ -515,7 +515,7 @@ def coorganizador_adicionar(request, evento_id):
     except Participante.DoesNotExist:
         from allauth.account.models import EmailAddress
 
-        senha_temporaria = get_random_string(8)
+        senha_temporaria = evento.senha_padrao
         pessoa = Participante.objects.create_user(
             email=email,
             password=senha_temporaria,
@@ -693,10 +693,20 @@ def adicionar_palestrante(request):
             elif 'foto' in request.FILES:
                 palestrante.foto = request.FILES['foto']  # Atribuímos a imagem manualmente
 
-            palestrante.is_palestrante = True  # Garantimos que é palestrante    
+            palestrante.is_palestrante = True  # Garantimos que é palestrante
+
+            # Senha padrão do evento (ou a do sistema): a pessoa entra com ela e
+            # troca depois. O modal manda o `evento_id` do formulário de atividade.
+            senha = getattr(settings, "SENHA_PADRAO", "@snct2026")
+            evento_id = request.POST.get("evento_id") or ""
+            if evento_id.isdigit():
+                evento = Evento.objects.filter(pk=int(evento_id)).first()
+                if evento is not None:
+                    senha = evento.senha_padrao
+            palestrante.set_password(senha)
 
             palestrante.save()  # Agora salvamos no banco
-            return JsonResponse({"success": True, "id": palestrante.id, "nome": palestrante.first_name + " " + palestrante.last_name})
+            return JsonResponse({"success": True, "id": palestrante.id, "nome": palestrante.first_name + " " + palestrante.last_name, "foto": palestrante.get_foto_url(), "senha": senha})
         return JsonResponse({"success": False, "errors": form.errors})
     return JsonResponse({"success": False, "message": "Método inválido"})
 

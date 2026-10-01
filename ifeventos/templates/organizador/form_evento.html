@@ -1,4 +1,5 @@
 {% extends 'dashboard_base.html' %}
+{% load static %}
 {% block title %}Editar Evento{% endblock %}
 
 {% block action %}
@@ -93,6 +94,26 @@
                         <b>antes</b> do início e <b>depois</b> do término a confirmação é aceita.
                         Deixe em branco para usar o padrão do sistema (20 min antes / 20 min depois).
                       </small>
+                    </div>
+                </div>
+
+                <!-- Senha padrão das contas criadas por você (equipe, co-organizadores, palestrantes) -->
+                <div class="row mb-3" data-senha-padrao>
+                    <div class="col-md-6 col-lg-5">
+                      {{ form.senha_padrao.label_tag }}
+                      <div class="input-group">
+                        {{ form.senha_padrao }}
+                        <button type="button" class="btn btn-outline-secondary" data-senha-gerar
+                                title="Gerar uma senha forte">
+                          <i class="fa-solid fa-dice"></i> Gerar
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-senha-mostrar
+                                title="Mostrar/ocultar a senha" aria-pressed="false">
+                          <i class="fa-solid fa-eye"></i>
+                        </button>
+                      </div>
+                      {% if form.senha_padrao.help_text %}<small class="text-muted d-block mt-1">{{ form.senha_padrao.help_text }}</small>{% endif %}
+                      {% for error in form.senha_padrao.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                     </div>
                 </div>
 
@@ -247,6 +268,7 @@
 
 {% block scripts %}
 {{ programacao_titulos|json_script:"programacao-eventos" }}
+<script src="{% static 'js/senha_padrao_campo.js' %}?v={{ ASSET_VERSION }}" defer></script>
 <script>
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -589,7 +611,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (d.reusada) {
                     mensagem(`✅ ${d.nome} agora é co-organizador deste evento.`, "success");
                 } else {
-                    mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha temporária: <code>${d.senha_temporaria}</code> — repasse para a pessoa.`, "success");
+                    mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha padrão do evento: <code>${d.senha_temporaria}</code> — repasse para a pessoa.`, "success");
                 }
                 document.getElementById("coorganizadorEmail").value = "";
                 const vazio = document.getElementById("coorganizadorVazio");

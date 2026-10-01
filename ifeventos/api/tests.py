@@ -85,7 +85,10 @@ class PalestranteApiTests(_BaseApiTests):
         palestrante = Participante.objects.get(email="ana@example.com")
         self.assertTrue(palestrante.is_palestrante)
         self.assertTrue(palestrante.is_participante)
-        self.assertFalse(palestrante.has_usable_password())
+        # A conta nasce com a senha padrão do sistema (o organizador repassa).
+        from django.conf import settings
+        self.assertTrue(palestrante.has_usable_password())
+        self.assertTrue(palestrante.check_password(settings.SENHA_PADRAO))
         self.assertEqual(palestrante.cpf, "12345678909")  # normalizado
         self.assertEqual(resposta.data["nome_completo"], "Ana Souza")
 
