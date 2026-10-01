@@ -52,7 +52,24 @@
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="{% url 'organizador:crachas_evento' evento.id %}"
                                target="_blank" rel="noopener">
-                            <i class="fa-solid fa-file-pdf"></i> Imprimir (PDF)
+                            <i class="fa-solid fa-file-pdf"></i> Imprimir todos (PDF)
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">Só um papel</h6></li>
+                        <li><a class="dropdown-item"
+                               href="{% url 'organizador:crachas_evento' evento.id %}?papel=palestrante"
+                               target="_blank" rel="noopener">
+                            <i class="fa-solid fa-user-tie"></i> Só palestrantes
+                        </a></li>
+                        <li><a class="dropdown-item"
+                               href="{% url 'organizador:crachas_evento' evento.id %}?papel=participante"
+                               target="_blank" rel="noopener">
+                            <i class="fa-solid fa-user"></i> Só participantes
+                        </a></li>
+                        <li><a class="dropdown-item"
+                               href="{% url 'organizador:crachas_evento' evento.id %}?papel=organizador"
+                               target="_blank" rel="noopener">
+                            <i class="fa-solid fa-user-shield"></i> Só organizadores
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><h6 class="dropdown-header">Modelo dos crachás</h6></li>
@@ -113,7 +130,8 @@
         <i class="fa-solid fa-print"></i>
         Os crachás saem <b>4 por folha A4</b> (10,5 &times; 14,85 cm cada), com linhas de corte.
         Entram todos que têm papel no evento hoje: inscritos, palestrantes e organizador.
-        Para trocar o modelo, escolha uma opção no menu "Imprimir crachás".
+        Para imprimir só um papel (ex.: só palestrantes) ou trocar o modelo, use o menu
+        "Imprimir crachás".
     </p>
     <p class="text-muted small mb-0 mt-1">
         <i class="fa-solid fa-qrcode"></i>

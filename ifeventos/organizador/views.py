@@ -56,6 +56,7 @@ from eventos.crachas import (
     janela_de_presenca,
     margens_de_presenca,
     modelo_de_cracha,
+    PAPEIS_FILTRO,
     pessoas_do_evento,
     pode_exibir_qr_atividade,
     pode_checkin_apoio,
@@ -1368,12 +1369,15 @@ def auditoria_diagnostico(request):
 
 
 class CrachasEventoView(LoginRequiredMixin, View):
-    """PDF com os crachás de todas as pessoas com papel no evento.
+    """PDF com os crachás das pessoas com papel no evento.
 
     Quatro crachás por folha A4 (105 x 148,5 mm cada), no modelo que o
     organizador escolhe na hora de gerar: "etiqueta" (fundo colorido com a foto
     do evento) ou "classico" (tarja verde e faixa do evento). Serve para
     imprimir em lote e entregar no credenciamento, sem montar crachá por crachá.
+
+    `?papel=` é um filtro TRANSITÓRIO do download (organizador/palestrante/
+    participante/todos): não altera o evento e usa a MESMA lista da API.
     """
 
     def get(self, request, evento_id):
@@ -1383,19 +1387,29 @@ class CrachasEventoView(LoginRequiredMixin, View):
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
 
-        # Sem ninguém com papel, sairia um PDF sem página: melhor avisar.
-        if not pessoas_do_evento(evento):
-            messages.warning(
-                request,
-                "Ainda não há ninguém com crachá neste evento. Quem se inscrever, "
-                "palestrar ou organizar aparece aqui.",
-            )
+        papel = (request.GET.get("papel") or "").strip().lower() or None
+        if papel is not None and papel not in PAPEIS_FILTRO:
+            messages.error(request, "Filtro de crachás inválido.")
+            return redirect("organizador:atividades_evento", evento.id)
+
+        # Sem ninguém no recorte, sairia um PDF sem página: melhor avisar.
+        if not pessoas_do_evento(evento, papel):
+            if papel and papel != "todos":
+                messages.warning(
+                    request, f"Ainda não há ninguém com papel de {papel} neste evento."
+                )
+            else:
+                messages.warning(
+                    request,
+                    "Ainda não há ninguém com crachá neste evento. Quem se inscrever, "
+                    "palestrar ou organizar aparece aqui.",
+                )
             return redirect("organizador:atividades_evento", evento.id)
 
         # O modelo é decisão do organizador, guardada no evento: o participante
         # recebe exatamente esse e o evento não sai com dois desenhos.
         modelo = modelo_de_cracha(evento.modelo_cracha)
-        nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento, modelo)
+        nome_arquivo, conteudo = gerar_pdf_crachas_evento(evento, modelo, papel)
         resposta = HttpResponse(conteudo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="{nome_arquivo}"'
         return resposta
