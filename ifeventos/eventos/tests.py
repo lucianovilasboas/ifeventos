@@ -48,6 +48,7 @@ from .crachas import (
     montar_cracha,
     papel_no_evento,
     papeis_no_evento,
+    pessoas_do_evento,
     url_da_logo,
 )
 from .inscricoes import InscricaoBloqueada, cancelar_inscricao
@@ -756,6 +757,34 @@ class CrachasParaImpressaoTests(_BasePresencaTests):
         padrao, _ = gerar_pdf_crachas_evento(self.evento, MODELO_PADRAO)
         invalido, _ = gerar_pdf_crachas_evento(self.evento, "inventado")
         self.assertEqual(padrao, invalido)
+
+    def test_filtro_por_papel_usa_o_principal_e_e_disjunto(self):
+        """`?papel=` recorta pelo papel PRINCIPAL: cada pessoa cai em um balde só.
+
+        Quem organiza E palestra sai como organizador (precedência), então NÃO
+        aparece no recorte de palestrante — é o que evita misturar crachás.
+        """
+        palestrante = self._like_palestrante()
+        self.atividade.palestrantes.add(self.organizador)  # organiza e palestra
+
+        def ids(papel=None):
+            return sorted(p.id for p, _ in pessoas_do_evento(self.evento, papel))
+
+        self.assertEqual(ids("organizador"), [self.organizador.id])
+        self.assertEqual(ids("palestrante"), [palestrante.id])
+        self.assertEqual(ids("participante"), [self.participante.id])
+        todos = sorted([self.organizador.id, self.participante.id, palestrante.id])
+        self.assertEqual(ids(), todos)
+        self.assertEqual(ids("todos"), todos)
+
+    def test_pdf_filtrado_muda_o_nome_do_arquivo(self):
+        self._like_palestrante()
+
+        nome, _ = gerar_pdf_crachas_evento(self.evento, MODELO_PADRAO, "palestrante")
+
+        self.assertIn("palestrante", nome)
+        padrao, _ = gerar_pdf_crachas_evento(self.evento)
+        self.assertNotEqual(nome, padrao)
 
     def test_organizador_baixa_o_pdf(self):
         self.client.force_login(self.organizador)
