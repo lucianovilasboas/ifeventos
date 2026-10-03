@@ -5,6 +5,24 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.16.1] — 2026-10-03
+
+### Corrigido
+
+- **Crachás de equipe de apoio e co-organizadores**: o crachá é derivado de
+  evento + pessoa + papel (`eventos/crachas.py`), e a regra só reconhecia o
+  dono (`Evento.organizador`), os palestrantes e os inscritos. Por isso os
+  **co-organizadores** (`Evento.organizadores`) e a **equipe de apoio**
+  (`Evento.equipe`) não apareciam no PDF **"Imprimir crachás"** nem em
+  **"Meus crachás"**. Agora o co-organizador sai com o papel **Organizador** e a
+  equipe com o papel **Equipe de apoio** (novo, com filtro `?papel=equipe` na
+  API e a opção **Só equipe de apoio** no menu de impressão). A ordem dos papéis
+  passou a ser `organizador > palestrante > equipe > participante`; quem tem
+  mais de um papel continua com **um** crachá mostrando todos, e o **principal**
+  (usado no filtro) segue essa ordem.
+- `Presenca.PAPEL_CHOICES` ganhou `equipe` (migration `0054`), para a presença
+  registrada pela equipe de apoio não gravar um valor fora das escolhas.
+
 ## [2.16.0] — 2026-10-01
 
 ### Adicionado
