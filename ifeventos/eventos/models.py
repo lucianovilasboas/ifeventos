@@ -859,6 +859,7 @@ class Presenca(models.Model):
     PAPEL_CHOICES = [
         ("organizador", "Organizador"),
         ("palestrante", "Palestrante"),
+        ("equipe", "Equipe de apoio"),
         ("participante", "Participante"),
     ]
 

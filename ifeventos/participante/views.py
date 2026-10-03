@@ -290,9 +290,10 @@ class MeusCertificadosView(LoginRequiredMixin, ListView):
 class MeusCrachasView(LoginRequiredMixin, TemplateView):
     """Crachás do usuário: um por evento em que ele tem papel.
 
-    Atende aos três papéis de uma vez — organizador, palestrante e participante
-    são a mesma pessoa logada; o que muda, de um crachá para o outro, é o papel
-    que ela tem em cada evento (e é isso que o crachá estampa).
+    Atende aos papéis de uma vez — organizador (dono ou co-organizador),
+    palestrante, equipe de apoio e participante são a mesma pessoa logada; o que
+    muda, de um crachá para o outro, é o papel que ela tem em cada evento (e é
+    isso que o crachá estampa).
     """
 
     template_name = "participante/meus_crachas.html"

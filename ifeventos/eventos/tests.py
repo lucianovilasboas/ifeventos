@@ -1302,6 +1302,144 @@ class PapeisNoCrachaTests(_BasePresencaTests):
         self.assertEqual(dados.count(b"/Type /Page") - dados.count(b"/Type /Pages"), 1)
 
 
+class CrachasDeEquipeECoorganizadorTests(_BasePresencaTests):
+    """Co-organizador e equipe de apoio também têm crachá no evento.
+
+    Antes, `papeis_no_evento` só olhava o dono, os palestrantes e as inscrições:
+    quem entrava por `Evento.organizadores` (co-organizador) ou `Evento.equipe`
+    (apoio) não aparecia no PDF em lote nem em "Meus crachás". O co-organizador
+    sai como ORGANIZADOR; a equipe, como EQUIPE DE APOIO.
+    """
+
+    def _nova_pessoa(self, email, **extra):
+        return U.objects.create_user(
+            email=email, password=SENHA, cpf="12345678909", **extra
+        )
+
+    def test_coorganizador_recebe_cracha_de_organizador(self):
+        pessoa = self._nova_pessoa("coorg@example.com")
+        self.evento.organizadores.add(pessoa)
+
+        self.assertEqual(papeis_no_evento(pessoa, self.evento), ["organizador"])
+        cracha = montar_cracha(pessoa, self.evento)
+        self.assertIsNotNone(cracha)
+        self.assertEqual(cracha["papeis_rotulos"], ["Organizador"])
+
+    def test_equipe_recebe_cracha_de_apoio(self):
+        pessoa = self._nova_pessoa("apoio@example.com")
+        self.evento.equipe.add(pessoa)
+
+        self.assertEqual(papeis_no_evento(pessoa, self.evento), ["equipe"])
+        cracha = montar_cracha(pessoa, self.evento)
+        self.assertIsNotNone(cracha)
+        self.assertEqual(cracha["papeis_rotulos"], ["Equipe de apoio"])
+
+    def test_dono_que_tambem_e_equipe_mostra_os_dois(self):
+        self.evento.equipe.add(self.organizador)
+
+        self.assertEqual(
+            papeis_no_evento(self.organizador, self.evento),
+            ["organizador", "equipe"],
+        )
+
+    def test_equipe_inscrita_mostra_os_dois(self):
+        pessoa = self._nova_pessoa("apoio.inscrito@example.com")
+        self.evento.equipe.add(pessoa)
+        Inscricao.objects.create(participante=pessoa, atividade=self.atividade)
+
+        self.assertEqual(
+            papeis_no_evento(pessoa, self.evento), ["equipe", "participante"]
+        )
+
+    def test_aparecem_no_pdf_em_lote(self):
+        coorg = self._nova_pessoa("coorg.pdf@example.com")
+        apoio = self._nova_pessoa("apoio.pdf@example.com")
+        self.evento.organizadores.add(coorg)
+        self.evento.equipe.add(apoio)
+
+        ids = {p.id for p, _ in pessoas_do_evento(self.evento)}
+        self.assertIn(coorg.id, ids)
+        self.assertIn(apoio.id, ids)
+
+        _, conteudo = gerar_pdf_crachas_evento(self.evento)
+        self.assertTrue(conteudo.read().startswith(b"%PDF"))
+
+    def test_filtro_por_papel_equipe_isola_o_apoio(self):
+        apoio = self._nova_pessoa("apoio.filtro@example.com")
+        self.evento.equipe.add(apoio)
+
+        ids = [p.id for p, _ in pessoas_do_evento(self.evento, "equipe")]
+
+        # O papel principal é disjunto: só o apoio cai no balde "equipe".
+        self.assertEqual(ids, [apoio.id])
+        self.assertNotIn(self.participante.id, ids)
+        self.assertNotIn(self.organizador.id, ids)
+
+    def test_equipe_aparece_em_meus_crachas(self):
+        apoio = self._nova_pessoa("apoio.tela@example.com")
+        self.evento.equipe.add(apoio)
+        self.client.force_login(apoio)
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+
+        self.assertIn(">Equipe de apoio<", html)
+
+    def test_coorganizador_aparece_em_meus_crachas(self):
+        coorg = self._nova_pessoa("coorg.tela@example.com")
+        self.evento.organizadores.add(coorg)
+        self.client.force_login(coorg)
+
+        html = self.client.get(reverse("participante:meus_crachas")).content.decode()
+
+        self.assertIn(">Organizador<", html)
+
+    def test_tela_imprime_so_a_equipe(self):
+        apoio = self._nova_pessoa("apoio.imprime@example.com")
+        self.evento.equipe.add(apoio)
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("organizador:crachas_evento", args=[self.evento.id]) + "?papel=equipe"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("equipe", resposta["Content-Disposition"])
+
+    def test_api_aceita_o_filtro_equipe(self):
+        apoio = self._nova_pessoa("apoio.api@example.com")
+        self.evento.equipe.add(apoio)
+        self.client.force_login(self.organizador)
+
+        resposta = self.client.get(
+            reverse("crachas-evento-pdf", args=[self.evento.id]) + "?papel=equipe"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta["Content-Type"], "application/pdf")
+
+    def test_a_verificacao_publica_mostra_a_equipe(self):
+        apoio = self._nova_pessoa("apoio.qr@example.com")
+        self.evento.equipe.add(apoio)
+        token = gerar_token(apoio.id, self.evento.id, tipo="cracha")
+
+        html = self.client.get(reverse("verificar_cracha", args=[token])).content.decode()
+
+        self.assertIn("Equipe de apoio", html)
+
+    def test_presenca_da_equipe_grava_papel_valido(self):
+        from .crachas import registrar_presenca
+
+        apoio = self._nova_pessoa("apoio.presenca@example.com")
+        self.evento.equipe.add(apoio)
+
+        presenca, criada, motivo = registrar_presenca(
+            self.atividade, apoio, registrada_por=self.organizador, origem="manual"
+        )
+
+        self.assertTrue(criada, motivo)
+        self.assertEqual(presenca.papel, "equipe")
+
+
 class _Caneta:
     """O que o desenho devolve em beginPath()/saveState(): engole as chamadas.
 

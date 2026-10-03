@@ -54,6 +54,7 @@ TAMANHO_CODIGO = 6
 ROTULOS_PAPEL = {
     "organizador": "Organizador",
     "palestrante": "Palestrante",
+    "equipe": "Equipe de apoio",
     "participante": "Participante",
 }
 
@@ -67,10 +68,10 @@ class CrachaInvalido(Exception):
 # --------------------------------------------------------------------------
 
 # Ordem em que os papéis aparecem: do mais alto para o mais baixo. A MESMA
-# pessoa pode organizar, palestrar e estar inscrita no MESMO evento — e o crachá
-# é um só por evento, então ele mostra todos os papéis que ela tem ali, com o
-# primeiro em destaque.
-PAPEIS_ORDEM = ("organizador", "palestrante", "participante")
+# pessoa pode organizar, palestrar, ser da equipe e estar inscrita no MESMO
+# evento — e o crachá é um só por evento, então ele mostra todos os papéis que
+# ela tem ali, com o primeiro em destaque.
+PAPEIS_ORDEM = ("organizador", "palestrante", "equipe", "participante")
 
 # Valores aceitos no filtro `?papel=` do PDF em lote. O papel filtrado é o
 # PRINCIPAL (PAPEIS_ORDEM): cada pessoa cai em um balde só, então quem organiza
@@ -86,8 +87,10 @@ def papeis_no_evento(usuario, evento):
     são globais, mas o papel do crachá é do evento: quem organiza o evento A
     costuma ser apenas participante no evento B. Por isso derivamos do contexto:
 
-        organizador  -> é o organizador cadastrado no evento;
+        organizador  -> é o organizador cadastrado no evento OU um co-organizador
+                        (`Evento.organizadores`);
         palestrante  -> está entre os palestrantes de alguma atividade do evento;
+        equipe       -> está na equipe de apoio do evento (`Evento.equipe`);
         participante -> tem inscrição em alguma atividade do evento.
 
     Devolve lista vazia quando a pessoa não tem papel nenhum (e aí não recebe
@@ -98,12 +101,25 @@ def papeis_no_evento(usuario, evento):
         return []
 
     papeis = []
-    if evento.organizador_id == usuario.id:
-        papeis.append("organizador")
-    if evento.atividades.filter(palestrantes=usuario).exists():
-        papeis.append("palestrante")
-    if Inscricao.objects.filter(participante=usuario, atividade__evento=evento).exists():
-        papeis.append("participante")
+    for papel in PAPEIS_ORDEM:
+        if papel == "organizador":
+            eh_organizador = (
+                evento.organizador_id == usuario.id
+                or evento.organizadores.filter(id=usuario.id).exists()
+            )
+            if eh_organizador:
+                papeis.append(papel)
+        elif papel == "palestrante":
+            if evento.atividades.filter(palestrantes=usuario).exists():
+                papeis.append(papel)
+        elif papel == "equipe":
+            if evento.equipe.filter(id=usuario.id).exists():
+                papeis.append(papel)
+        elif papel == "participante":
+            if Inscricao.objects.filter(
+                participante=usuario, atividade__evento=evento
+            ).exists():
+                papeis.append(papel)
     return papeis
 
 
@@ -123,6 +139,10 @@ def _eventos_com_papel(usuario):
         # `atividades` é o related_name de Atividade.evento — o padrão
         # (`atividade_set`) não vale aqui.
         Evento.objects.filter(organizador=usuario)
+        # Co-organizadores e equipe de apoio não passam pela FK `organizador`:
+        # são M2M, e sem eles aqui essas pessoas não veriam "Meus crachás".
+        | Evento.objects.filter(organizadores=usuario)
+        | Evento.objects.filter(equipe=usuario)
         | Evento.objects.filter(atividades__palestrantes=usuario)
         | Evento.objects.filter(atividades__inscritos__participante=usuario)
     ).distinct()
@@ -145,16 +165,20 @@ def tem_cracha(usuario):
 def pessoas_do_evento(evento, papel=None):
     """Quem tem crachá no evento: [(participante, papel)], com o papel resolvido.
 
-    Inclui organizador, palestrantes das atividades e inscritos. A ordem é
-    alfabética pelo nome, que é a ordem prática de uma mesa de credenciamento.
+    Inclui organizador (dono ou co-organizador), palestrantes das atividades,
+    equipe de apoio e inscritos. A ordem é alfabética pelo nome, que é a ordem
+    prática de uma mesa de credenciamento.
 
-    Com `papel` (organizador/palestrante/participante), devolve só quem tem
-    ESSE papel principal no evento; `None` ou "todos" devolve todos.
+    Com `papel` (organizador/palestrante/equipe/participante), devolve só quem
+    tem ESSE papel principal no evento; `None` ou "todos" devolve todos.
     """
     alvo = papel if papel in PAPEIS_ORDEM else None
     ids = set()
     if evento.organizador_id:
         ids.add(evento.organizador_id)
+    # Co-organizadores e equipe de apoio também têm crachá no evento (M2M).
+    ids.update(evento.organizadores.values_list("id", flat=True))
+    ids.update(evento.equipe.values_list("id", flat=True))
     ids.update(
         evento.atividades.values_list("palestrantes__id", flat=True)
     )
@@ -831,7 +855,7 @@ def gerar_pdf_crachas_evento(evento, modelo=MODELO_PADRAO, papel=None):
 
     Quatro por folha A4 (2 x 2 de 105 x 148,5 mm), no modelo escolhido, com as
     linhas de corte para a guilhotina. `papel` filtra pelo papel principal
-    (organizador/palestrante/participante); sem ele, entram todos. Devolve
+    (organizador/palestrante/equipe/participante); sem ele, entram todos. Devolve
     (nome_do_arquivo, ContentFile).
     """
     from reportlab.lib.units import mm
