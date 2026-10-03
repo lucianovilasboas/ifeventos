@@ -725,7 +725,7 @@ class CrachasEventoPDFView(APIView):
         papel = (request.query_params.get("papel") or "").strip().lower() or None
         if papel is not None and papel not in PAPEIS_FILTRO:
             return Response(
-                {"detail": "papel inválido: use participante, palestrante, organizador ou todos."},
+                {"detail": "papel inválido: use participante, palestrante, equipe, organizador ou todos."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

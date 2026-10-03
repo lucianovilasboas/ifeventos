@@ -560,7 +560,7 @@ class CrachaSerializer(serializers.Serializer):
     evento = serializers.CharField()
     periodo = serializers.CharField()
     local = serializers.CharField(allow_null=True)
-    papel = serializers.CharField(help_text="organizador | palestrante | participante")
+    papel = serializers.CharField(help_text="organizador | palestrante | equipe | participante")
     papel_rotulo = serializers.CharField()
     nome = serializers.CharField()
     codigo = serializers.CharField(help_text="Código curto, para quando a câmera não estiver disponível.")

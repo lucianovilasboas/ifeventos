@@ -1377,7 +1377,7 @@ class CrachasEventoView(LoginRequiredMixin, View):
     imprimir em lote e entregar no credenciamento, sem montar crachá por crachá.
 
     `?papel=` é um filtro TRANSITÓRIO do download (organizador/palestrante/
-    participante/todos): não altera o evento e usa a MESMA lista da API.
+    equipe/participante/todos): não altera o evento e usa a MESMA lista da API.
     """
 
     def get(self, request, evento_id):
