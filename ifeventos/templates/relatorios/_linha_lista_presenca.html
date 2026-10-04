@@ -1,0 +1,16 @@
+{% load metadados_extras %}
+{% comment %}Uma linha da lista de presença (desktop). Espera `inscrito`.{% endcomment %}
+<tr>
+    <td>{{ inscrito.ordem }}</td>
+    <td>{{ inscrito.participante|nome_vinculo }}</td>
+    <td>{{ inscrito.participante.email }}</td>
+    {% for col in colunas_metadados %}<td>{{ inscrito.participante.metadados.dados|meta:col.chave }}</td>{% endfor %}
+    <td>{% if inscrito.confirmada %}✅ Sim{% else %}❌ Não{% endif %}</td>
+    <td class="js-cert-status" data-id="{{ inscrito.id }}">{% if inscrito.certificado_emitido %}✅ Sim{% else %}❌ Não{% endif %}</td>
+    <td>
+        <a href="{% url 'eventos:gerar_qr_code' inscrito.id %}" target="_blank" class="btn btn-sm btn-dark no-print">
+            <i class="fa fa-qrcode"></i> QR Code
+        </a>
+    </td>
+    <td>__________________________</td>
+</tr>

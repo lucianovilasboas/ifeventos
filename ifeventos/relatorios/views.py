@@ -9,7 +9,7 @@ from django.views.generic import ListView, TemplateView, View
 from django.shortcuts import render
 from django.shortcuts import get_object_or_404
 from asgiref.sync import sync_to_async
-from eventos.metadados import campos as campos_metadados, colunas_selecionadas
+from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
 from eventos.models import Inscricao, Atividade
 
 
@@ -319,23 +319,98 @@ class RelatorioInscricoesView(_PermissaoEventoMixin, _ColunasMetadadosMixin, Log
 
 
 class ListaPresencaView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
+    """Lista de presença de uma atividade (tela + export CSV/XLSX/PDF).
+
+    Filtros independentes (`q`, vínculo, curso, turma, ano, presença) e um
+    agrupamento fixo de dois níveis (vínculo → curso/turma/ano) ligado por
+    `?agrupar=1`. Sem agrupar, a ordem é alfabética.
+    """
+
     model = Inscricao
     template_name = "relatorios/lista_presenca.html"
     context_object_name = "inscricoes"
+
+    CAMPOS_FILTRO = ("vinculo", "curso", "turma", "ano")
 
     def evento_do_relatorio(self):
         atividade = Atividade.objects.filter(id=self.kwargs.get("atividade_id")).first()
         return atividade.evento if atividade else None
 
+    def _atividade(self):
+        return get_object_or_404(Atividade, id=self.kwargs.get("atividade_id"))
+
+    def _agrupar(self):
+        """Liga o agrupamento em dois níveis (vínculo → curso/turma/ano)."""
+        return self.request.GET.get("agrupar") in ("1", "true", "sim", "v")
+
+    def _filtros(self):
+        return {
+            "q": (self.request.GET.get("q") or "").strip(),
+            "vinculo": self.request.GET.get("vinculo") or "",
+            "curso": self.request.GET.get("curso") or "",
+            "turma": self.request.GET.get("turma") or "",
+            "ano": self.request.GET.get("ano") or "",
+            "presenca": self.request.GET.get("presenca") or "",
+        }
+
     def get_queryset(self):
-        """
-        Retorna todas as inscrições confirmadas para a atividade especificada.
-        """
-        atividade_id = self.kwargs.get("atividade_id")
+        """Inscrições da atividade, já filtradas, ordenadas e (se for o caso) agrupadas."""
+        from eventos import metadados
+
         queryset = Inscricao.objects.select_related(
             "participante", "participante__metadados", "atividade"
-        ).filter(atividade_id=atividade_id)
-        return queryset
+        ).filter(atividade_id=self.kwargs.get("atividade_id"))
+
+        filtros = self._filtros()
+        if filtros["q"]:
+            termo = filtros["q"]
+            queryset = queryset.filter(
+                Q(participante__first_name__icontains=termo)
+                | Q(participante__last_name__icontains=termo)
+                | Q(participante__email__icontains=termo)
+            )
+        if filtros["presenca"] == "com":
+            queryset = queryset.filter(confirmada=True)
+        elif filtros["presenca"] == "sem":
+            queryset = queryset.filter(confirmada=False)
+
+        inscricoes = list(queryset.order_by(
+            "participante__first_name",
+            "participante__last_name",
+            "participante__email",
+            "id",
+        ))
+
+        # Filtros de metadados rodam em Python (os valores vivem num JSON).
+        if any(filtros[c] for c in self.CAMPOS_FILTRO):
+            inscricoes = [
+                inscricao for inscricao in inscricoes
+                if all(
+                    not filtros[c]
+                    or str(self._dados_metadados(inscricao.participante).get(c) or "") == filtros[c]
+                    for c in self.CAMPOS_FILTRO
+                )
+            ]
+
+        # Rótulos de grupo em cada inscrição (usados pelo template e pelo export).
+        for inscricao in inscricoes:
+            dados = self._dados_metadados(inscricao.participante)
+            inscricao.grupo1 = metadados.grupo_vinculo(dados)
+            inscricao.grupo2 = metadados.grupo_turma(dados)
+            inscricao.grupo_label = " · ".join(
+                parte for parte in (inscricao.grupo1, inscricao.grupo2) if parte
+            )
+
+        if self._agrupar():
+            inscricoes.sort(key=lambda i: (
+                i.grupo1.lower(), i.grupo2.lower(),
+                (i.participante.first_name or "").lower(),
+                (i.participante.last_name or "").lower(),
+            ))
+
+        for ordem, inscricao in enumerate(inscricoes, start=1):
+            inscricao.ordem = ordem
+        return inscricoes
 
     def get(self, request, *args, **kwargs):
         formato = request.GET.get("export")
@@ -346,37 +421,71 @@ class ListaPresencaView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequ
     def _exportar(self, formato):
         from eventos.exportacao import exportar
 
-        atividade = get_object_or_404(Atividade, id=self.kwargs.get("atividade_id"))
+        atividade = self._atividade()
+        agrupar = self._agrupar()
         colunas = self._selecionadas()
         cabecalhos = (
-            ["#", "Participante", "Email"]
+            (["Grupo"] if agrupar else [])
+            + ["#", "Participante", "Email"]
             + [c["rotulo"] for c in colunas]
             + ["Presença Confirmada", "Certificado Emitido"]
         )
         linhas = []
         for indice, inscricao in enumerate(self.get_queryset(), start=1):
             dados = self._dados_metadados(inscricao.participante)
-            nome = f"{inscricao.participante.first_name} {inscricao.participante.last_name}".strip()
-            linhas.append(
-                [indice, nome, inscricao.participante.email]
-                + [dados.get(c["chave"], "") for c in colunas]
-                + ["Sim" if inscricao.confirmada else "Não",
-                   "Sim" if inscricao.certificado_emitido else "Não"]
-            )
+            nome = nome_com_vinculo(inscricao.participante, dados)
+            linha = ([inscricao.grupo_label] if agrupar else [])
+            linha += [indice, nome, inscricao.participante.email]
+            linha += [dados.get(c["chave"], "") for c in colunas]
+            linha += ["Sim" if inscricao.confirmada else "Não",
+                      "Sim" if inscricao.certificado_emitido else "Não"]
+            linhas.append(linha)
         return exportar(
             formato, f"lista_presenca_{atividade.id}",
             cabecalhos, linhas, titulo=f"Lista de Presença — {atividade.titulo}",
         )
 
+    def _filtros_metadados(self):
+        """Campos/opções da barra de filtros (respeitando dependência ex.: curso→ano)."""
+        from eventos.metadados import campos
+
+        filtros = self._filtros()
+        resultado = []
+        for campo in campos():
+            chave = campo["chave"]
+            if chave not in self.CAMPOS_FILTRO:
+                continue
+            if campo.get("depende_de"):
+                pai = filtros.get(campo["depende_de"])
+                if pai and pai in campo["opcoes_por"]:
+                    opcoes = list(campo["opcoes_por"][pai])
+                else:
+                    opcoes = []
+                    for lista in campo["opcoes_por"].values():
+                        for valor in lista:
+                            if valor not in opcoes:
+                                opcoes.append(valor)
+            else:
+                opcoes = list(campo["opcoes"])
+            resultado.append({
+                "chave": chave,
+                "rotulo": campo["rotulo"],
+                "opcoes": opcoes,
+                "valor": filtros.get(chave, ""),
+            })
+        return resultado
+
     def get_context_data(self, **kwargs):
-        """
-        Adiciona detalhes da atividade ao contexto do template.
-        """
+        """Detalhes da atividade, filtros, agrupamento e colunas do relatório."""
         context = super().get_context_data(**kwargs)
-        atividade_id = self.kwargs.get("atividade_id")
-        context["atividade"] = get_object_or_404(Atividade, id=atividade_id)
-        context["total_inscricoes"] = self.get_queryset().count()
-        context["total_confirmadas"] = self.get_queryset().filter(confirmada=True).count()
+        context["atividade"] = self._atividade()
+        inscricoes = self.get_queryset()
+        context["inscricoes"] = inscricoes
+        context["total_inscricoes"] = len(inscricoes)
+        context["total_confirmadas"] = sum(1 for i in inscricoes if i.confirmada)
+        context["agrupar"] = self._agrupar()
+        context["filtros"] = self._filtros()
+        context["filtros_metadados"] = self._filtros_metadados()
         context.update(self.metadados_colunas())
         return context
 

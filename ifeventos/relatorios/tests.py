@@ -351,3 +351,83 @@ class ExportacaoRelatoriosTests(TestCase):
         texto = resposta.content.decode("utf-8-sig")
         self.assertIn("Matrícula", texto)
         self.assertIn("2026001", texto)
+
+
+class VinculoNaListaPresencaTests(TestCase):
+    """Vínculo no nome + filtros e agrupamento de 2 níveis na lista de presença."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_vinc@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.evento = Evento.objects.create(
+            title="Evento Vínculo", description="d", local="l",
+            data_inicio=date(2026, 10, 1), data_fim=date(2026, 10, 2),
+            categoria="formacao", organizador=self.org,
+        )
+        self.atividade = Atividade.objects.create(
+            evento=self.evento, titulo="Abertura", descricao="d",
+            data_hora_inicio=datetime(2026, 10, 1, 10, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 1, 11, 0, tzinfo=tz.utc),
+            n_vagas=10,
+        )
+        self.ana = self._pessoa("Ana", "Aluna", "ana@vinc.test", {
+            "vinculo": "Aluno", "matricula": "1", "curso": "Informática",
+            "turma": "Turma 1", "ano": "Primeiro ano",
+        })
+        self.zeca = self._pessoa("Zeca", "Servidor", "zeca@vinc.test", {
+            "vinculo": "Servidor", "funcao": "Professor",
+        })
+        self.client.force_login(self.org)
+
+    def _pessoa(self, first, last, email, dados):
+        usuario = U.objects.create_user(
+            email=email, password=SENHA, first_name=first, last_name=last,
+        )
+        ParticipanteMetadados.objects.create(participante=usuario, dados=dados)
+        Inscricao.objects.create(
+            participante=usuario, atividade=self.atividade, confirmada=True
+        )
+        return usuario
+
+    def _lista_presenca(self, **params):
+        return self.client.get(
+            reverse(
+                "organizador:relatorio_lista_presenca",
+                kwargs={"atividade_id": self.atividade.id},
+            ),
+            params,
+        )
+
+    def test_nome_mostra_vinculo(self):
+        html = self._lista_presenca().content.decode()
+        self.assertIn("Ana Aluna (Aluno/Informática-Turma 1-Primeiro ano)", html)
+        self.assertIn("Zeca Servidor (Servidor)", html)
+
+    def test_ordenacao_default_por_nome(self):
+        html = self._lista_presenca().content.decode()
+        self.assertLess(html.index("Ana Aluna"), html.index("Zeca Servidor"))
+
+    def test_agrupar_cria_dois_niveis(self):
+        html = self._lista_presenca(agrupar="1").content.decode()
+        self.assertIn("Aluno (1)", html)
+        self.assertIn("Servidor (1)", html)
+        self.assertIn("Informática · Turma 1 · Primeiro ano", html)
+
+    def test_filtro_por_vinculo(self):
+        html = self._lista_presenca(vinculo="Servidor").content.decode()
+        self.assertIn("Zeca Servidor", html)
+        self.assertNotIn("Ana Aluna", html)
+
+    def test_filtro_por_turma(self):
+        html = self._lista_presenca(turma="Turma 1").content.decode()
+        self.assertIn("Ana Aluna", html)
+        self.assertNotIn("Zeca Servidor", html)
+
+    def test_export_csv_tem_vinculo_e_grupo(self):
+        resposta = self._lista_presenca(export="csv", agrupar="1")
+        texto = resposta.content.decode("utf-8-sig")
+        self.assertIn("Grupo", texto)
+        self.assertIn("Ana Aluna (Aluno/Informática-Turma 1-Primeiro ano)", texto)
+        self.assertIn("Aluno · Informática · Turma 1 · Primeiro ano", texto)

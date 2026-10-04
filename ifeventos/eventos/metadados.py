@@ -213,6 +213,39 @@ def dados_de(participante):
     return dict(obj.dados) if obj else {}
 
 
+def nome_com_vinculo(participante, dados=None):
+    """Nome do participante com o vínculo entre parênteses.
+
+    Para quem tem os campos de aluno (`curso`/`turma`/`ano`), o sufixo vira
+    `vinculo/curso-turma-ano` (ex.: `Ana Silva (Aluno/Informática-Turma 1-Primeiro
+    ano)`); os demais mostram só o vínculo (ex.: `João (Servidor)`). Sem vínculo,
+    devolve apenas o nome.
+    """
+    nome = (participante.get_full_name() or "").strip()
+    if not nome:
+        nome = (getattr(participante, "email", "") or "").strip()
+    if dados is None:
+        dados = dados_de(participante)
+    vinculo = str(dados.get("vinculo") or "").strip()
+    if not vinculo:
+        return nome
+    extras = [str(dados.get(chave) or "").strip() for chave in ("curso", "turma", "ano")]
+    extras = [valor for valor in extras if valor]
+    sufixo = f"{vinculo}/" + "-".join(extras) if extras else vinculo
+    return f"{nome} ({sufixo})"
+
+
+def grupo_vinculo(dados):
+    """Nível 1 do agrupamento: o vínculo (ou "(sem vínculo)")."""
+    return str(dados.get("vinculo") or "").strip() or "(sem vínculo)"
+
+
+def grupo_turma(dados):
+    """Nível 2 do agrupamento: `Curso · Turma · Ano` (vazio se não houver nada)."""
+    partes = [str(dados.get(chave) or "").strip() for chave in ("curso", "turma", "ano")]
+    return " · ".join(p for p in partes if p)
+
+
 def salvar(participante, dados):
     """Grava (cria/atualiza) os metadados do participante."""
     from .models import ParticipanteMetadados
