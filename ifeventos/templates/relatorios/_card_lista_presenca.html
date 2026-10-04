@@ -1,0 +1,29 @@
+{% load metadados_extras %}
+{% comment %}Um card da lista de presença (mobile). Espera `inscrito`.{% endcomment %}
+<div class="app-item">
+    <div class="dot" style="background:{% if inscrito.confirmada %}linear-gradient(135deg,var(--app-green),var(--app-green-d)){% else %}linear-gradient(135deg,#f59e0b,#d97706){% endif %}">
+        <i class="fa-solid fa-user-check"></i>
+    </div>
+    <div class="info">
+        <h5>{{ inscrito.participante|nome_vinculo }}</h5>
+        <p class="mb-0"><i class="fa-solid fa-envelope"></i> {{ inscrito.participante.email }}</p>
+        {% for col in colunas_metadados %}
+        {% with valor=inscrito.participante.metadados.dados|meta:col.chave %}
+        {% if valor %}<p class="mb-0" style="font-size:12px;color:var(--app-muted)">{{ col.rotulo }}: {{ valor }}</p>{% endif %}
+        {% endwith %}
+        {% endfor %}
+        <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
+            <span class="badge-app" style="background:{% if inscrito.confirmada %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
+                {% if inscrito.confirmada %}<i class="fa-solid fa-circle-check"></i> Presença confirmada{% else %}<i class="fa-solid fa-clock"></i> Não confirmada{% endif %}
+            </span>
+            <span class="js-cert-status badge-app" data-id="{{ inscrito.id }}" style="background:{% if inscrito.certificado_emitido %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
+                {% if inscrito.certificado_emitido %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
+            </span>
+        </div>
+        <div class="card-actions">
+            <a href="{% url 'eventos:gerar_qr_code' inscrito.id %}" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de confirmação">
+                <i class="fa fa-qrcode"></i>
+            </a>
+        </div>
+    </div>
+</div>

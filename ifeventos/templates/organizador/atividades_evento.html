@@ -38,11 +38,27 @@
         <div class="acoes-evento-grupo">
             <span class="acoes-evento-rotulo"><i class="fa-solid fa-print"></i> Presença e impressão</span>
             <div class="acoes-evento-botoes">
-                <a href="{% url 'organizador:listas_presenca_evento_pdf' evento.id %}" target="_blank" rel="noopener"
-                   class="btn btn-success"
-                   title="PDF com a lista de presença (folha de assinatura) das atividades publicadas">
-                    <i class="fa-solid fa-file-pdf"></i> Listas de presença (PDF)
-                </a>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            title="PDF com a lista de presença (folha de assinatura) das atividades publicadas">
+                        <i class="fa-solid fa-file-pdf"></i> Listas de presença (PDF)
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" target="_blank" rel="noopener"
+                               href="{% url 'organizador:listas_presenca_evento_pdf' evento.id %}?modo=simples">
+                            <i class="fa-solid fa-list"></i> Simples (só nomes)
+                        </a></li>
+                        <li><a class="dropdown-item" target="_blank" rel="noopener"
+                               href="{% url 'organizador:listas_presenca_evento_pdf' evento.id %}?modo=agrupada">
+                            <i class="fa-solid fa-layer-group"></i> Agrupada (vínculo → turma)
+                        </a></li>
+                        <li><a class="dropdown-item" target="_blank" rel="noopener"
+                               href="{% url 'organizador:listas_presenca_evento_pdf' evento.id %}?modo=vinculo">
+                            <i class="fa-solid fa-user-tag"></i> Nome com vínculo
+                        </a></li>
+                    </ul>
+                </div>
 
                 <div class="btn-group">
                     <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown"

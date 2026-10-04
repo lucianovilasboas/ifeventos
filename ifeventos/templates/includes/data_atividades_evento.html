@@ -57,9 +57,26 @@
                 <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" class="btn btn-sm btn-success btn-icon" title="Lista de Presença">
                     <i class="fa-solid fa-list-check"></i>
                 </a>
-                <a href="{% url 'organizador:lista_presenca_pdf' atividade.id %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success btn-icon" title="Lista de presença para impressão (PDF)">
-                    <i class="fa-solid fa-file-pdf"></i>
-                </a>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-success btn-icon dropdown-toggle"
+                            data-bs-toggle="dropdown" aria-expanded="false" title="Lista de presença para impressão (PDF)">
+                        <i class="fa-solid fa-file-pdf"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" target="_blank" rel="noopener"
+                               href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=simples">
+                            <i class="fa-solid fa-list"></i> Simples (só nomes)
+                        </a></li>
+                        <li><a class="dropdown-item" target="_blank" rel="noopener"
+                               href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=agrupada">
+                            <i class="fa-solid fa-layer-group"></i> Agrupada (vínculo → turma)
+                        </a></li>
+                        <li><a class="dropdown-item" target="_blank" rel="noopener"
+                               href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=vinculo">
+                            <i class="fa-solid fa-user-tag"></i> Nome com vínculo
+                        </a></li>
+                    </ul>
+                </div>
                 <a href="{% url 'organizador:qrcode_atividade' atividade.id %}" class="btn btn-sm btn-outline-success btn-icon" title="QR de presença (mostrar para a turma)">
                     <i class="fa-solid fa-qrcode"></i>
                 </a>
@@ -142,9 +159,26 @@
                                     <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" title="Lista de presença" class="btn btn-success btn-sm">
                                         <i class="fa-solid fa-list-check"></i>
                                     </a>
-                                    <a href="{% url 'organizador:lista_presenca_pdf' atividade.id %}" target="_blank" rel="noopener" title="Lista de presença para impressão (PDF)" class="btn btn-outline-success btn-sm">
-                                        <i class="fa-solid fa-file-pdf"></i>
-                                    </a>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-outline-success btn-sm dropdown-toggle"
+                                                data-bs-toggle="dropdown" aria-expanded="false" title="Lista de presença para impressão (PDF)">
+                                            <i class="fa-solid fa-file-pdf"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" target="_blank" rel="noopener"
+                                                   href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=simples">
+                                                <i class="fa-solid fa-list"></i> Simples (só nomes)
+                                            </a></li>
+                                            <li><a class="dropdown-item" target="_blank" rel="noopener"
+                                                   href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=agrupada">
+                                                <i class="fa-solid fa-layer-group"></i> Agrupada (vínculo → turma)
+                                            </a></li>
+                                            <li><a class="dropdown-item" target="_blank" rel="noopener"
+                                                   href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=vinculo">
+                                                <i class="fa-solid fa-user-tag"></i> Nome com vínculo
+                                            </a></li>
+                                        </ul>
+                                    </div>
                                     <a href="{% url 'organizador:qrcode_atividade' atividade.id %}" title="QR de presença (mostrar para a turma)" class="btn btn-outline-success btn-sm">
                                         <i class="fa-solid fa-qrcode"></i>
                                     </a>

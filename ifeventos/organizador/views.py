@@ -65,7 +65,13 @@ from eventos.crachas import (
 from eventos.models import Inscricao
 
 from eventos.imagens import imagem_cortada
-from eventos.listas_presenca import pdf_lista_presenca, pdf_listas_presenca_evento
+from eventos.listas_presenca import (
+    MODOS,
+    MODO_AGRUPADA,
+    MODO_PADRAO,
+    pdf_lista_presenca,
+    pdf_listas_presenca_evento,
+)
 
 
 # -- Dashboard do Organizador --
@@ -1445,17 +1451,33 @@ class CartazesAtividadesView(LoginRequiredMixin, View):
         return resposta
 
 
+def _modo_lista_presenca(request):
+    """Modo da folha de assinatura a partir da URL (`?modo=`).
+
+    Aceita `simples`, `vinculo` ou `agrupada`; `?agrupar=1` (link antigo) cai em
+    `agrupada`; qualquer outro valor usa o padrão.
+    """
+    modo = (request.GET.get("modo") or "").strip()
+    if modo in MODOS:
+        return modo
+    if request.GET.get("agrupar") in ("1", "true", "sim", "v"):
+        return MODO_AGRUPADA
+    return MODO_PADRAO
+
+
 @login_required(login_url='/accounts/login/')
 def lista_presenca_pdf(request, atividade_id):
     """PDF (folha de assinatura) da lista de presença de UMA atividade.
 
     É a folha para imprimir e levar à porta: nome + assinatura em branco, sem
-    e-mail nem status (diferente do export tabular do relatório).
+    e-mail nem status (diferente do export tabular do relatório). `?modo=`
+    escolhe entre `simples`, `vinculo` (nome com vínculo) e `agrupada`
+    (vínculo → curso/turma/ano).
     """
     atividade = get_object_or_404(Atividade, id=atividade_id)
     _evento_gerenciavel(request, atividade.evento_id)
 
-    conteudo = pdf_lista_presenca(atividade)
+    conteudo = pdf_lista_presenca(atividade, modo=_modo_lista_presenca(request))
     resposta = HttpResponse(conteudo, content_type="application/pdf")
     resposta["Content-Disposition"] = f'inline; filename="lista_presenca_{atividade.id}.pdf"'
     return resposta
@@ -1474,7 +1496,7 @@ def listas_presenca_evento_pdf(request, evento_id):
         )
         return redirect("organizador:atividades_evento", evento.id)
 
-    conteudo = pdf_listas_presenca_evento(evento)
+    conteudo = pdf_listas_presenca_evento(evento, modo=_modo_lista_presenca(request))
     resposta = HttpResponse(conteudo, content_type="application/pdf")
     resposta["Content-Disposition"] = (
         f'inline; filename="listas_presenca_evento_{evento.id}.pdf"'

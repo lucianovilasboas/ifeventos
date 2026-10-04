@@ -15,3 +15,16 @@ def meta(dados, chave):
     if isinstance(dados, dict):
         return dados.get(chave, "")
     return ""
+
+
+@register.filter
+def nome_vinculo(participante):
+    """Nome do participante com o vínculo (ver `metadados.nome_com_vinculo`).
+
+    Uso: `{{ inscrito.participante|nome_vinculo }}`.
+    """
+    from eventos.metadados import nome_com_vinculo
+
+    if participante is None:
+        return ""
+    return nome_com_vinculo(participante)

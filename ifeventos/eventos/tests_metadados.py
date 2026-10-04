@@ -176,3 +176,45 @@ class LimparMetadadoCommandTests(TestCase):
             self.linha.dados_usuario,
             {"nome": "Limpa Teste", "cpf": "", "metadados": {"funcao": "Professor"}},
         )
+
+
+class NomeComVinculoTests(TestCase):
+    """Nome exibido na lista de presença: vínculo/curso-turma-ano."""
+
+    @staticmethod
+    def _user(first="Ana", last="Silva"):
+        return U(first_name=first, last_name=last)
+
+    def test_aluno_inclui_curso_turma_ano(self):
+        nome = metadados.nome_com_vinculo(self._user(), {
+            "vinculo": "Aluno", "matricula": "2026001", "curso": "Informática",
+            "turma": "Turma 1", "ano": "Primeiro ano",
+        })
+        self.assertEqual(nome, "Ana Silva (Aluno/Informática-Turma 1-Primeiro ano)")
+
+    def test_servidor_mostra_so_vinculo(self):
+        nome = metadados.nome_com_vinculo(
+            self._user("João", "Souza"), {"vinculo": "Servidor", "funcao": "Professor"}
+        )
+        self.assertEqual(nome, "João Souza (Servidor)")
+
+    def test_sem_vinculo_mostra_so_nome(self):
+        self.assertEqual(metadados.nome_com_vinculo(self._user("Maria", "Lima"), {}),
+                         "Maria Lima")
+
+    def test_aluno_com_campos_parciais_omite_vazios(self):
+        self.assertEqual(
+            metadados.nome_com_vinculo(self._user(), {"vinculo": "Aluno", "curso": "TPG"}),
+            "Ana Silva (Aluno/TPG)",
+        )
+
+    def test_grupos_vinculo_e_turma(self):
+        self.assertEqual(metadados.grupo_vinculo({}), "(sem vínculo)")
+        self.assertEqual(metadados.grupo_vinculo({"vinculo": "Aluno"}), "Aluno")
+        self.assertEqual(
+            metadados.grupo_turma(
+                {"curso": "Informática", "turma": "Turma 1", "ano": "Primeiro ano"}
+            ),
+            "Informática · Turma 1 · Primeiro ano",
+        )
+        self.assertEqual(metadados.grupo_turma({"vinculo": "Servidor"}), "")

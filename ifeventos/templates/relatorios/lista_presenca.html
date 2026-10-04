@@ -26,6 +26,14 @@
         <span class="text-muted small align-self-center">A emissão fica disponível após o encerramento da atividade.</span>
         {% endif %}
         <button class="btn btn-outline-secondary no-print" onclick="window.print()">🖨️ Imprimir Lista</button>
+        <a href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=vinculo" target="_blank" rel="noopener"
+           class="btn btn-outline-success no-print" title="Folha de assinatura em PDF, em ordem alfabética, com o vínculo no nome">
+            📄 PDF (por nome)
+        </a>
+        <a href="{% url 'organizador:lista_presenca_pdf' atividade.id %}?modo=agrupada" target="_blank" rel="noopener"
+           class="btn btn-outline-success no-print" title="Folha de assinatura em PDF, agrupada por vínculo e turma">
+            📄 PDF (agrupado)
+        </a>
     </div>
     <div id="mensagem" class="mt-3"></div>
 
@@ -38,6 +46,32 @@
     </div>
     {% endif %}
 
+    <form method="get" class="mb-3 no-print">
+        {% for col in colunas_metadados %}<input type="hidden" name="campos" value="{{ col.chave }}">{% endfor %}
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="search" name="q" value="{{ filtros.q }}" autocomplete="off"
+                   class="form-control form-control-sm" style="max-width:220px"
+                   placeholder="Nome ou e-mail" aria-label="Buscar por nome ou e-mail">
+            {% for f in filtros_metadados %}
+            <select name="{{ f.chave }}" class="form-select form-select-sm" style="width:auto" aria-label="{{ f.rotulo }}">
+                <option value="">{{ f.rotulo }}: todos</option>
+                {% for op in f.opcoes %}<option value="{{ op }}" {% if op == f.valor %}selected{% endif %}>{{ op }}</option>{% endfor %}
+            </select>
+            {% endfor %}
+            <select name="presenca" class="form-select form-select-sm" style="width:auto" aria-label="Presença">
+                <option value="">Presença: todas</option>
+                <option value="com" {% if filtros.presenca == "com" %}selected{% endif %}>Confirmadas</option>
+                <option value="sem" {% if filtros.presenca == "sem" %}selected{% endif %}>Não confirmadas</option>
+            </select>
+            <label class="form-check form-check-inline mb-0 ms-1">
+                <input class="form-check-input" type="checkbox" name="agrupar" value="1" {% if agrupar %}checked{% endif %}>
+                <span class="form-check-label small">Agrupar por vínculo e turma</span>
+            </label>
+            <button class="btn btn-sm btn-app">Filtrar</button>
+            <a href="{% url 'organizador:relatorio_lista_presenca' atividade.id %}" class="btn btn-sm btn-outline-secondary">Limpar</a>
+        </div>
+    </form>
+
     {% if export_urls %}
     <div class="d-flex flex-wrap gap-2 align-items-center mb-3 no-print">
         <span class="text-muted small">Exportar:</span>
@@ -49,42 +83,27 @@
 
     <!-- Cards (mobile) -->
     <div class="cards-mobile d-md-none app-list mt-3">
-        {% for inscrito in inscricoes %}
-        <div class="app-item">
-            <div class="dot" style="background:{% if inscrito.confirmada %}linear-gradient(135deg,var(--app-green),var(--app-green-d)){% else %}linear-gradient(135deg,#f59e0b,#d97706){% endif %}">
-                <i class="fa-solid fa-user-check"></i>
-            </div>
-            <div class="info">
-                <h5>{{ inscrito.participante.first_name }} {{ inscrito.participante.last_name }}</h5>
-                <p class="mb-0"><i class="fa-solid fa-envelope"></i> {{ inscrito.participante.email }}</p>
-                {% for col in colunas_metadados %}
-                {% with valor=inscrito.participante.metadados.dados|meta:col.chave %}
-                {% if valor %}<p class="mb-0" style="font-size:12px;color:var(--app-muted)">{{ col.rotulo }}: {{ valor }}</p>{% endif %}
-                {% endwith %}
-                {% endfor %}
-                <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
-                    <span class="badge-app" style="background:{% if inscrito.confirmada %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
-                        {% if inscrito.confirmada %}<i class="fa-solid fa-circle-check"></i> Presença confirmada{% else %}<i class="fa-solid fa-clock"></i> Não confirmada{% endif %}
-                    </span>
-                    <span class="js-cert-status badge-app" data-id="{{ inscrito.id }}" style="background:{% if inscrito.certificado_emitido %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
-                        {% if inscrito.certificado_emitido %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
-                    </span>
-                </div>
-                <div class="card-actions">
-                    <a href="{% url 'eventos:gerar_qr_code' inscrito.id %}" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de confirmação">
-                        <i class="fa fa-qrcode"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-        {% empty %}
+        {% if agrupar %}
+            {% regroup inscricoes by grupo1 as grupos1 %}
+            {% for g1 in grupos1 %}
+            <h6 class="mt-3 mb-1">▾ {{ g1.grouper }} ({{ g1.list|length }})</h6>
+            {% regroup g1.list by grupo2 as grupos2 %}
+            {% for g2 in grupos2 %}
+                {% if g2.grouper %}<p class="text-muted small mb-1 ms-2">{{ g2.grouper }}</p>{% endif %}
+                {% for inscrito in g2.list %}{% include 'relatorios/_card_lista_presenca.html' %}{% endfor %}
+            {% endfor %}
+            {% endfor %}
+        {% else %}
+            {% for inscrito in inscricoes %}{% include 'relatorios/_card_lista_presenca.html' %}{% endfor %}
+        {% endif %}
+        {% if not inscricoes %}
         <div class="app-item">
             <div class="info text-center" style="flex:1">
                 <h5 style="color:var(--app-muted)">Nenhum inscrito nesta atividade.</h5>
                 <p class="mb-0">As inscrições confirmadas aparecerão aqui.</p>
             </div>
         </div>
-        {% endfor %}
+        {% endif %}
     </div>
 
     <!-- Tabela (desktop e impressão) -->
@@ -105,26 +124,30 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for inscrito in inscricoes %}
-                        <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td>{{ inscrito.participante.first_name }} {{ inscrito.participante.last_name }}</td>
-                            <td>{{ inscrito.participante.email }}</td>
-                            {% for col in colunas_metadados %}<td>{{ inscrito.participante.metadados.dados|meta:col.chave }}</td>{% endfor %}
-                            <td>{% if inscrito.confirmada %}✅ Sim{% else %}❌ Não{% endif %}</td>
-                            <td class="js-cert-status" data-id="{{ inscrito.id }}">{% if inscrito.certificado_emitido %}✅ Sim{% else %}❌ Não{% endif %}</td>
-                            <td>
-                                <a href="{% url 'eventos:gerar_qr_code' inscrito.id %}" target="_blank" class="btn btn-sm btn-dark no-print">
-                                    <i class="fa fa-qrcode"></i> QR Code
-                                </a>
-                            </td>
-                            <td>__________________________</td>
-                        </tr>
-                        {% empty %}
+                        {% if agrupar %}
+                            {% regroup inscricoes by grupo1 as grupos1 %}
+                            {% for g1 in grupos1 %}
+                            <tr class="table-secondary">
+                                <td colspan="{{ colunas_metadados|length|add:7 }}"><strong>{{ g1.grouper }} ({{ g1.list|length }})</strong></td>
+                            </tr>
+                            {% regroup g1.list by grupo2 as grupos2 %}
+                            {% for g2 in grupos2 %}
+                                {% if g2.grouper %}
+                                <tr class="table-light">
+                                    <td colspan="{{ colunas_metadados|length|add:7 }}"><em class="ms-3">{{ g2.grouper }} ({{ g2.list|length }})</em></td>
+                                </tr>
+                                {% endif %}
+                                {% for inscrito in g2.list %}{% include 'relatorios/_linha_lista_presenca.html' %}{% endfor %}
+                            {% endfor %}
+                            {% endfor %}
+                        {% else %}
+                            {% for inscrito in inscricoes %}{% include 'relatorios/_linha_lista_presenca.html' %}{% endfor %}
+                        {% endif %}
+                        {% if not inscricoes %}
                         <tr>
                             <td colspan="{{ colunas_metadados|length|add:7 }}" class="text-center text-muted">Nenhum participante confirmado.</td>
                         </tr>
-                        {% endfor %}
+                        {% endif %}
                     </tbody>
                 </table>
             </div>

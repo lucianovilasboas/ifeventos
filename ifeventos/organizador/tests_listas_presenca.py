@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from pypdf import PdfReader
 
-from eventos.models import Atividade, Evento, Inscricao
+from eventos.models import Atividade, Evento, Inscricao, ParticipanteMetadados
 
 U = get_user_model()
 SENHA = "SenhaLista123!"
@@ -85,6 +85,67 @@ class ListasPresencaPDFTests(TestCase):
         resp = self.client.get(self._url_atividade(self.pub1))
         texto, _ = _ler_pdf(resp.content)
         self.assertNotIn("ana@lp.test", texto)
+
+    def test_pdf_da_atividade_mostra_vinculo_no_nome(self):
+        ParticipanteMetadados.objects.create(
+            participante=self.ana,
+            dados={"vinculo": "Aluno", "matricula": "1", "curso": "Informática",
+                   "turma": "Turma 1", "ano": "Primeiro ano"},
+        )
+        self.client.force_login(self.org)
+        texto, _ = _ler_pdf(self.client.get(self._url_atividade(self.pub1)).content)
+        self.assertIn("Ana Silva (Aluno/Informática-Turma 1-Primeiro ano)", texto)
+
+    def test_pdf_agrupado_tem_cabecalhos_de_vinculo_e_turma(self):
+        ParticipanteMetadados.objects.create(
+            participante=self.ana,
+            dados={"vinculo": "Aluno", "matricula": "1", "curso": "Informática",
+                   "turma": "Turma 1", "ano": "Primeiro ano"},
+        )
+        self.client.force_login(self.org)
+        resp = self.client.get(self._url_atividade(self.pub1) + "?agrupar=1")
+        texto, _ = _ler_pdf(resp.content)
+        self.assertIn("Aluno", texto)
+        self.assertIn("Informática", texto)
+        self.assertIn("Turma 1", texto)
+
+    def _com_metadados(self):
+        ParticipanteMetadados.objects.create(
+            participante=self.ana,
+            dados={"vinculo": "Aluno", "matricula": "1", "curso": "Informática",
+                   "turma": "Turma 1", "ano": "Primeiro ano"},
+        )
+
+    def test_pdf_modo_simples_mostra_so_o_nome(self):
+        self._com_metadados()
+        self.client.force_login(self.org)
+        resp = self.client.get(self._url_atividade(self.pub1) + "?modo=simples")
+        texto, _ = _ler_pdf(resp.content)
+        self.assertIn("Ana Silva", texto)
+        self.assertNotIn("Aluno", texto)
+
+    def test_pdf_modo_agrupada_linha_sem_vinculo(self):
+        self._com_metadados()
+        self.client.force_login(self.org)
+        resp = self.client.get(self._url_atividade(self.pub1) + "?modo=agrupada")
+        texto, _ = _ler_pdf(resp.content)
+        self.assertIn("Aluno", texto)          # cabeçalho do grupo
+        self.assertIn("Informática", texto)    # cabeçalho do 2º nível
+        self.assertNotIn("Ana Silva (Aluno", texto)  # linha sai com o nome simples
+
+    def test_botoes_da_lista_oferecem_os_tres_modos(self):
+        self.client.force_login(self.org)
+        resp = self.client.get(
+            reverse("organizador:atividades_evento", args=[self.evento.id])
+        )
+        self.assertContains(resp, "?modo=simples")
+        self.assertContains(resp, "?modo=agrupada")
+        self.assertContains(resp, "?modo=vinculo")
+
+    def test_cartao_do_dashboard_oferece_os_modos(self):
+        self.client.force_login(self.org)
+        resp = self.client.get(reverse("organizador:dashboard"))
+        self.assertContains(resp, "?modo=agrupada")
 
     def test_sem_permissao_recebe_403(self):
         self.client.force_login(self.outro_org)
