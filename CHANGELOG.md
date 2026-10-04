@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.17.0] — 2026-10-04
+
+### Adicionado
+
+- **Vínculo do participante nas listas de presença**: o nome passa a sair com o
+  vínculo — alunos como `Nome (Aluno/Curso-Turma-Ano)` e os demais como
+  `Nome (Vínculo)` — tanto na tela quanto no PDF de assinatura e nas
+  exportações (CSV/Excel/PDF) da lista de presença.
+- **Agrupamento e filtros na tela da lista de presença**: filtros independentes
+  de vínculo, curso, turma, ano, presença e busca por nome/e-mail; e um
+  agrupamento fixo de dois níveis (vínculo → curso · turma · ano) ligado por
+  `?agrupar=1`, com cabeçalhos de grupo e ordenação por grupo e nome.
+- **Três modos de impressão da folha de assinatura (PDF)**: `simples` (só
+  nomes), `agrupada` (vínculo → curso/turma/ano, nome simples nas linhas) e
+  `vinculo` (nome com o vínculo). Os botões "Listas de presença (PDF)" do
+  evento, o PDF por atividade (na lista de atividades) e o ícone do cartão do
+  dashboard viraram menus com as três opções (`?modo=`); `?agrupar=1` continua
+  valendo como apelido de `agrupada`.
+
 ## [2.16.1] — 2026-10-03
 
 ### Corrigido
