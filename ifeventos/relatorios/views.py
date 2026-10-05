@@ -168,7 +168,8 @@ def listas_presenca_preparar(request, evento_id):
     atividade_id = request.GET.get("atividade") or None
     situacao = request.GET.get("situacao") or "confirmadas"
     registros = registros_lista(evento, atividade_id, dia_filtro, situacao)
-    grupos = agrupar_por_turma(registros)
+    por_atividade = request.GET.get("tipo") == "confirmacao"
+    grupos = agrupar_por_turma(registros, por_atividade=por_atividade)
     if request.GET.get("export") == "pdf":
         conteudo = pdf_lista_preparada(evento, grupos, request.GET.get("tipo") == "confirmacao")
         resposta = HttpResponse(conteudo, content_type="application/pdf")
@@ -180,6 +181,7 @@ def listas_presenca_preparar(request, evento_id):
         "dias": dias_evento(evento),
         "registros": registros,
         "grupos": grupos,
+        "por_atividade": por_atividade,
         "dia_atual": dia,
         "atividade_atual": str(atividade_id or ""),
         "situacao_atual": situacao,

@@ -60,8 +60,8 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
     return registros
 
 
-def agrupar_por_turma(registros):
-    """Agrupa vínculo → curso → turma/ano para a folha de assinatura."""
+def agrupar_por_turma(registros, por_atividade=False):
+    """Agrupa vínculo → curso → turma/ano, opcionalmente separando atividades."""
     arvore = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for registro in registros:
         arvore[registro["vinculo"]][registro["curso"]][
@@ -73,10 +73,23 @@ def agrupar_por_turma(registros):
         for curso in sorted(arvore[vinculo], key=str.casefold):
             turmas = []
             for turma_ano in sorted(arvore[vinculo][curso], key=str.casefold):
-                pessoas = sorted(arvore[vinculo][curso][turma_ano], key=lambda r: (r["nome"].casefold(), r["inscricao"].id))
-                for ordem, pessoa in enumerate(pessoas, 1):
-                    pessoa["ordem"] = ordem
-                turmas.append({"titulo": turma_ano, "registros": pessoas})
+                registros_turma = arvore[vinculo][curso][turma_ano]
+                if por_atividade:
+                    por_nome = defaultdict(list)
+                    for registro in registros_turma:
+                        por_nome[registro["atividade"].titulo].append(registro)
+                    atividades = []
+                    for atividade in sorted(por_nome, key=str.casefold):
+                        pessoas = sorted(por_nome[atividade], key=lambda r: (r["nome"].casefold(), r["inscricao"].id))
+                        for ordem, pessoa in enumerate(pessoas, 1):
+                            pessoa["ordem"] = ordem
+                        atividades.append({"titulo": atividade, "registros": pessoas})
+                    turmas.append({"titulo": turma_ano, "atividades": atividades})
+                else:
+                    pessoas = sorted(registros_turma, key=lambda r: (r["nome"].casefold(), r["inscricao"].id))
+                    for ordem, pessoa in enumerate(pessoas, 1):
+                        pessoa["ordem"] = ordem
+                    turmas.append({"titulo": turma_ano, "registros": pessoas})
             cursos.append({"titulo": curso, "turmas": turmas})
         grupos.append({"titulo": vinculo, "cursos": cursos})
     return grupos
@@ -113,15 +126,19 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
             story.append(Paragraph(curso["titulo"], styles["Heading3"]))
             for turma in curso["turmas"]:
                 story.append(Paragraph(turma["titulo"], styles["Heading4"]))
-                cab = ["#", "Participante", "Atividade", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
-                linhas = [cab]
-                for r in turma["registros"]:
-                    if confirmacao:
-                        linhas.append([r["ordem"], r["nome"], r["atividade"].titulo, f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "Sem confirmação"])
-                    else:
-                        linhas.append([r["ordem"], r["nome"], "________________________________"])
-                tabela = Table(linhas, repeatRows=1)
-                tabela.setStyle(TableStyle([
+                blocos = turma.get("atividades", [{"titulo": None, "registros": turma.get("registros", [])}])
+                for bloco in blocos:
+                    if bloco["titulo"]:
+                        story.append(Paragraph(f"Atividade: {bloco['titulo']}", styles["Heading4"]))
+                    cab = ["#", "Participante", "Atividade", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
+                    linhas = [cab]
+                    for r in bloco["registros"]:
+                        if confirmacao:
+                            linhas.append([r["ordem"], r["nome"], r["atividade"].titulo, f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
+                        else:
+                            linhas.append([r["ordem"], r["nome"], "________________________________"])
+                    tabela = Table(linhas, repeatRows=1)
+                    tabela.setStyle(TableStyle([
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#cccccc")),
