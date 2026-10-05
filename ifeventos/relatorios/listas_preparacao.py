@@ -95,6 +95,22 @@ def agrupar_por_turma(registros, por_atividade=False):
     return grupos
 
 
+def agrupamento_pdf(registros):
+    """Prepara atividade → curso/turma/ano para o PDF, sem alterar a tela HTML."""
+    arvore = defaultdict(lambda: defaultdict(list))
+    for registro in registros:
+        titulo = f"{registro['curso']} - {registro['turma']} — {registro['ano']}"
+        arvore[registro["atividade"].titulo][titulo].append(registro)
+    resultado = []
+    for atividade in sorted(arvore, key=str.casefold):
+        grupos = []
+        for titulo in sorted(arvore[atividade], key=str.casefold):
+            pessoas = sorted(arvore[atividade][titulo], key=lambda r: (r["nome"].casefold(), r["inscricao"].id))
+            for ordem, pessoa in enumerate(pessoas, 1):
+                pessoa["ordem"] = ordem
+            grupos.append({"titulo": titulo, "registros": pessoas})
+        resultado.append({"titulo": atividade, "grupos": grupos})
+    return resultado
 def dias_evento(evento):
     """Dias distintos das atividades do evento para o filtro da tela."""
     valores = evento.atividades.order_by("data_hora_inicio").values_list("data_hora_inicio", flat=True)
@@ -118,36 +134,35 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=10*mm, rightMargin=10*mm,
                             topMargin=10*mm, bottomMargin=10*mm)
     styles = getSampleStyleSheet()
-    titulo = "confirmação de presença" if confirmacao else "presença"
-    story = [Paragraph(f"Lista de {titulo} — {evento.title}", styles["Title"]), Spacer(1, 8)]
-    for indice_grupo, grupo in enumerate(grupos):
-        if indice_grupo:
-            story.append(PageBreak())
-        story.append(Paragraph(grupo["titulo"], styles["Heading2"]))
-        for curso in grupo["cursos"]:
-            story.append(Paragraph(curso["titulo"], styles["Heading3"]))
-            for turma in curso["turmas"]:
-                story.append(Paragraph(turma["titulo"], styles["Heading4"]))
-                blocos = turma.get("atividades", [{"titulo": None, "registros": turma.get("registros", [])}])
-                for bloco in blocos:
-                    if bloco["titulo"]:
-                        story.append(Paragraph(f"Atividade: {bloco['titulo']}", styles["Heading4"]))
-                    cab = ["#", "Participante", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
-                    linhas = [cab]
-                    for r in bloco["registros"]:
-                        if confirmacao:
-                            linhas.append([r["ordem"], r["nome"], f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
-                        else:
-                            linhas.append([r["ordem"], r["nome"], "________________________________"])
-                    larguras_mm = [10, 75, 45, 60] if confirmacao else [10, 90, 90]
-                    tabela = Table(linhas, colWidths=[largura * mm for largura in larguras_mm], repeatRows=1)
-                    tabela.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#cccccc")),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f7f5")]),
-                ]))
-                story.extend([tabela, Spacer(1, 8)])
+    story = []
+    informacoes_evento = (
+        f"<b>{evento.title}</b> · "
+        f"{evento.data_inicio.strftime('%d/%m/%Y')} a {evento.data_fim.strftime('%d/%m/%Y')}"
+    )
+    if evento.local:
+        informacoes_evento += f" · {evento.local}"
+    for atividade in grupos:
+        for grupo in atividade["grupos"]:
+            story.append(PageBreak() if story else Spacer(1, 0))
+            story.append(Paragraph(informacoes_evento, styles["Normal"]))
+            story.append(Paragraph(f"Atividade: {atividade['titulo']}", styles["Heading2"]))
+            story.append(Paragraph(grupo["titulo"], styles["Heading3"]))
+            cab = ["#", "Participante", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
+            linhas = [cab]
+            for r in grupo["registros"]:
+                if confirmacao:
+                    linhas.append([r["ordem"], r["nome"], f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
+                else:
+                    linhas.append([r["ordem"], r["nome"], "________________________________"])
+            larguras_mm = [10, 75, 45, 60] if confirmacao else [10, 90, 90]
+            tabela = Table(linhas, colWidths=[largura * mm for largura in larguras_mm], repeatRows=1)
+            tabela.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#cccccc")),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f7f5")]),
+            ]))
+            story.extend([tabela, Spacer(1, 8)])
     doc.build(story)
     return buffer.getvalue()

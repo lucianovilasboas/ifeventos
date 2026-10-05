@@ -12,7 +12,7 @@ from django.http import HttpResponse
 from django.views.decorators.http import require_GET
 from datetime import date
 
-from .listas_preparacao import dias_evento, registros_lista, agrupar_por_turma, pdf_lista_preparada
+from .listas_preparacao import agrupamento_pdf, dias_evento, pdf_lista_preparada, registros_lista, agrupar_por_turma
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
 from eventos.models import Inscricao, Atividade
@@ -171,7 +171,7 @@ def listas_presenca_preparar(request, evento_id):
     por_atividade = request.GET.get("tipo") == "confirmacao"
     grupos = agrupar_por_turma(registros, por_atividade=por_atividade)
     if request.GET.get("export") == "pdf":
-        conteudo = pdf_lista_preparada(evento, grupos, request.GET.get("tipo") == "confirmacao")
+        conteudo = pdf_lista_preparada(evento, agrupamento_pdf(registros), request.GET.get("tipo") == "confirmacao")
         resposta = HttpResponse(conteudo, content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="listas_presenca_{evento.id}.pdf"'
         return resposta
