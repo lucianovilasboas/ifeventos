@@ -5,6 +5,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.18.3] — 2026-10-05
+
+### Corrigido
+
+- **PDF das listas de presença**: cada folha repete o cabeçalho geral do evento, o nome da atividade e o grupo curso/turma/ano antes da tabela.
+
 ## [2.18.2] — 2026-10-05
 
 ### Corrigido
