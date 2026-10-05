@@ -86,5 +86,6 @@ class ListaPresencaPreparacaoTests(TestCase):
         texto = "\n".join(p.extract_text() or "" for p in leitor.pages)
         self.assertIn("Ana Silva", texto)
         self.assertIn("Atividade: Oficina A", texto)
+        self.assertIn("Informática - Turma 1 — Primeiro ano", texto)
         self.assertNotIn("Atividade\nOficina A\nDia/hora", texto)
         self.assertIn("Dia/hora", texto)
