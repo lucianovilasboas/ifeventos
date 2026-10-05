@@ -5,6 +5,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.18.1] — 2026-10-05
+
+### Corrigido
+
+- **Lista de confirmação de presença**: o nome da atividade passou para o cabeçalho de cada bloco, a coluna foi removida e ausências passaram a aparecer como `x Ausente` em vermelho.
+
 ## [2.18.0] — 2026-10-05
 
 ### Adicionado
