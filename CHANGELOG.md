@@ -5,6 +5,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.18.2] — 2026-10-05
+
+### Corrigido
+
+- **PDF das listas de presença**: cada grupo inicia em uma nova página e as tabelas ocupam toda a largura útil da folha, respeitando as margens laterais.
+
 ## [2.18.1] — 2026-10-05
 
 ### Corrigido
