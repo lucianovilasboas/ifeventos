@@ -134,13 +134,18 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=10*mm, rightMargin=10*mm,
                             topMargin=10*mm, bottomMargin=10*mm)
     styles = getSampleStyleSheet()
-    titulo = "confirmação de presença" if confirmacao else "presença"
-    story = [Paragraph(f"Lista de {titulo} — {evento.title}", styles["Title"]), Spacer(1, 8)]
-    for indice_atividade, atividade in enumerate(grupos):
-        story.append(PageBreak() if indice_atividade else Spacer(1, 0))
-        story.append(Paragraph(f"Atividade: {atividade['titulo']}", styles["Heading2"]))
-        for indice_grupo, grupo in enumerate(atividade["grupos"]):
-            story.append(PageBreak())
+    story = []
+    informacoes_evento = (
+        f"<b>{evento.title}</b> · "
+        f"{evento.data_inicio.strftime('%d/%m/%Y')} a {evento.data_fim.strftime('%d/%m/%Y')}"
+    )
+    if evento.local:
+        informacoes_evento += f" · {evento.local}"
+    for atividade in grupos:
+        for grupo in atividade["grupos"]:
+            story.append(PageBreak() if story else Spacer(1, 0))
+            story.append(Paragraph(informacoes_evento, styles["Normal"]))
+            story.append(Paragraph(f"Atividade: {atividade['titulo']}", styles["Heading2"]))
             story.append(Paragraph(grupo["titulo"], styles["Heading3"]))
             cab = ["#", "Participante", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
             linhas = [cab]
