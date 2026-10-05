@@ -79,3 +79,6 @@ class ListaPresencaPreparacaoTests(TestCase):
         from pypdf import PdfReader
         texto = "\n".join(p.extract_text() or "" for p in PdfReader(BytesIO(resposta.content)).pages)
         self.assertIn("Ana Silva", texto)
+        self.assertIn("Atividade: Oficina A", texto)
+        self.assertNotIn("Atividade\nOficina A\nDia/hora", texto)
+        self.assertIn("Dia/hora", texto)

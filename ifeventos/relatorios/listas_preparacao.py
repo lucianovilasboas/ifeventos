@@ -130,11 +130,11 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
                 for bloco in blocos:
                     if bloco["titulo"]:
                         story.append(Paragraph(f"Atividade: {bloco['titulo']}", styles["Heading4"]))
-                    cab = ["#", "Participante", "Atividade", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
+                    cab = ["#", "Participante", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
                     linhas = [cab]
                     for r in bloco["registros"]:
                         if confirmacao:
-                            linhas.append([r["ordem"], r["nome"], r["atividade"].titulo, f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
+                            linhas.append([r["ordem"], r["nome"], f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
                         else:
                             linhas.append([r["ordem"], r["nome"], "________________________________"])
                     tabela = Table(linhas, repeatRows=1)
