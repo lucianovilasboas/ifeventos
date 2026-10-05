@@ -52,6 +52,9 @@
                         </a></li>
                     </ul>
                 </div>
+                <a href="{% url 'organizador:listas_presenca_preparar' evento.id %}" class="btn btn-sm btn-outline-success btn-icon" title="Preparar listas de presença">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                </a>
                 <a href="{% url 'organizador:relatorio_inscricoes' evento.id %}" class="btn btn-sm btn-secondary btn-icon" title="Relatório de Inscrições">
                     <i class="fa-solid fa-list-ul"></i>
                     {% if evento.get_n_inscricoes > 0 %}

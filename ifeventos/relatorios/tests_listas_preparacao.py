@@ -26,7 +26,7 @@ class ListaPresencaPreparacaoTests(TestCase):
             data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 11),
             categoria="formacao", organizador=self.org,
         )
-        tipo = TipoAtividade.objects.create(nome="Oficina")
+        tipo, _ = TipoAtividade.objects.get_or_create(nome="Oficina")
         self.atividade = Atividade.objects.create(
             evento=self.evento, titulo="Oficina A", descricao="d", tipo=tipo,
             data_hora_inicio=datetime(2026, 10, 10, 10, tzinfo=tz.utc),
@@ -62,6 +62,12 @@ class ListaPresencaPreparacaoTests(TestCase):
         resposta = self.client.get(self.url, {"situacao": "sem_confirmacao"})
         self.assertContains(resposta, "Bruno Lima")
         self.assertNotContains(resposta, "Ana Silva")
+
+    def test_dashboard_exibe_link_para_preparar_listas(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(reverse("organizador:dashboard"))
+        self.assertContains(resposta, reverse("organizador:listas_presenca_preparar", args=[self.evento.id]))
+        self.assertContains(resposta, "Preparar listas")
 
     def test_pdf_da_nova_tela(self):
         self.client.force_login(self.org)
