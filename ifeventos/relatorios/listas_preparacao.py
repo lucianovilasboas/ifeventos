@@ -112,7 +112,7 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=10*mm, rightMargin=10*mm,
@@ -120,7 +120,9 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
     styles = getSampleStyleSheet()
     titulo = "confirmação de presença" if confirmacao else "presença"
     story = [Paragraph(f"Lista de {titulo} — {evento.title}", styles["Title"]), Spacer(1, 8)]
-    for grupo in grupos:
+    for indice_grupo, grupo in enumerate(grupos):
+        if indice_grupo:
+            story.append(PageBreak())
         story.append(Paragraph(grupo["titulo"], styles["Heading2"]))
         for curso in grupo["cursos"]:
             story.append(Paragraph(curso["titulo"], styles["Heading3"]))
@@ -130,14 +132,15 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
                 for bloco in blocos:
                     if bloco["titulo"]:
                         story.append(Paragraph(f"Atividade: {bloco['titulo']}", styles["Heading4"]))
-                    cab = ["#", "Participante", "Atividade", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
+                    cab = ["#", "Participante", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]
                     linhas = [cab]
                     for r in bloco["registros"]:
                         if confirmacao:
-                            linhas.append([r["ordem"], r["nome"], r["atividade"].titulo, f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
+                            linhas.append([r["ordem"], r["nome"], f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
                         else:
                             linhas.append([r["ordem"], r["nome"], "________________________________"])
-                    tabela = Table(linhas, repeatRows=1)
+                    larguras_mm = [10, 75, 45, 60] if confirmacao else [10, 90, 90]
+                    tabela = Table(linhas, colWidths=[largura * mm for largura in larguras_mm], repeatRows=1)
                     tabela.setStyle(TableStyle([
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
