@@ -5,6 +5,14 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.18.0] — 2026-10-05
+
+### Adicionado
+
+- **Tela organizada de preparação de listas de presença** no dashboard do organizador, com filtro por atividade, dia e situação, agrupamento por vínculo/curso/turma/ano, folha de assinatura, lista administrativa de confirmação e geração de PDF.
+- Novo atalho **Preparar listas de presença** em cada cartão de evento do dashboard.
+- A nova funcionalidade é somente de consulta e não altera modelos, check-in, certificados ou as rotas antigas.
+
 ## [2.17.0] — 2026-10-04
 
 ### Adicionado

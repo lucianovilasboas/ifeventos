@@ -8,6 +8,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, TemplateView, View
 from django.shortcuts import render
 from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
+from django.views.decorators.http import require_GET
+from datetime import date
+
+from .listas_preparacao import dias_evento, registros_lista, agrupar_por_turma, pdf_lista_preparada
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
 from eventos.models import Inscricao, Atividade
@@ -138,6 +143,50 @@ class _ColunasMetadadosMixin:
             "campos_selecionados_str": ",".join(chaves),
             "export_urls": self._urls_exportacao(),
         }
+
+
+
+
+@require_GET
+def listas_presenca_preparar(request, evento_id):
+    """Tela somente leitura para preparar folhas de assinatura e confirmações."""
+    from eventos.models import Evento
+    from eventos.crachas import pode_gerenciar_evento
+
+    evento = get_object_or_404(Evento, id=evento_id)
+    if not request.user.is_authenticated:
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.get_full_path())
+    if not pode_gerenciar_evento(request.user, evento):
+        raise PermissionDenied("Você não gerencia este evento.")
+
+    dia = (request.GET.get("dia") or "").strip()
+    try:
+        dia_filtro = date.fromisoformat(dia) if dia else None
+    except ValueError:
+        dia_filtro = None
+    atividade_id = request.GET.get("atividade") or None
+    situacao = request.GET.get("situacao") or "confirmadas"
+    registros = registros_lista(evento, atividade_id, dia_filtro, situacao)
+    grupos = agrupar_por_turma(registros)
+    if request.GET.get("export") == "pdf":
+        conteudo = pdf_lista_preparada(evento, grupos, request.GET.get("tipo") == "confirmacao")
+        resposta = HttpResponse(conteudo, content_type="application/pdf")
+        resposta["Content-Disposition"] = f'inline; filename="listas_presenca_{evento.id}.pdf"'
+        return resposta
+    return render(request, "relatorios/listas_presenca_preparar.html", {
+        "evento": evento,
+        "atividades": evento.atividades.filter(publicada=True).order_by("data_hora_inicio", "id"),
+        "dias": dias_evento(evento),
+        "registros": registros,
+        "grupos": grupos,
+        "dia_atual": dia,
+        "atividade_atual": str(atividade_id or ""),
+        "situacao_atual": situacao,
+        "total_registros": len(registros),
+        "total_cursos": len({r["curso"] for r in registros}),
+        "total_turmas": len({(r["curso"], r["turma"], r["ano"]) for r in registros}),
+    })
 
 
 class RelatorioInscricoesView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequiredMixin, ListView):
