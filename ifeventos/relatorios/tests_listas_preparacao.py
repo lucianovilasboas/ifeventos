@@ -3,6 +3,8 @@ from datetime import date, datetime, timezone as tz
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from io import BytesIO
+from pypdf import PdfReader
 
 from eventos.models import Atividade, Evento, Inscricao, ParticipanteMetadados, TipoAtividade
 
@@ -20,6 +22,10 @@ class ListaPresencaPreparacaoTests(TestCase):
         ParticipanteMetadados.objects.create(
             participante=self.aluno,
             dados={"vinculo": "Aluno", "curso": "Informática", "turma": "Turma 1", "ano": "Primeiro ano"},
+        )
+        ParticipanteMetadados.objects.create(
+            participante=self.outro,
+            dados={"vinculo": "Servidor", "curso": "Administração", "turma": "Turma 2", "ano": "Segundo ano"},
         )
         self.evento = Evento.objects.create(
             title="Evento Preparação", description="d", local="Auditório",
@@ -71,13 +77,13 @@ class ListaPresencaPreparacaoTests(TestCase):
 
     def test_pdf_da_nova_tela(self):
         self.client.force_login(self.org)
-        resposta = self.client.get(self.url, {"tipo": "confirmacao", "export": "pdf"})
+        resposta = self.client.get(self.url, {"tipo": "confirmacao", "export": "pdf", "situacao": "todos"})
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(resposta["Content-Type"], "application/pdf")
         self.assertTrue(resposta.content.startswith(b"%PDF"))
-        from io import BytesIO
-        from pypdf import PdfReader
-        texto = "\n".join(p.extract_text() or "" for p in PdfReader(BytesIO(resposta.content)).pages)
+        leitor = PdfReader(BytesIO(resposta.content))
+        self.assertGreaterEqual(len(leitor.pages), 2)
+        texto = "\n".join(p.extract_text() or "" for p in leitor.pages)
         self.assertIn("Ana Silva", texto)
         self.assertIn("Atividade: Oficina A", texto)
         self.assertNotIn("Atividade\nOficina A\nDia/hora", texto)
