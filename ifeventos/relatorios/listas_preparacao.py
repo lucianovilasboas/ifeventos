@@ -139,7 +139,8 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
                             linhas.append([r["ordem"], r["nome"], f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
                         else:
                             linhas.append([r["ordem"], r["nome"], "________________________________"])
-                    tabela = Table(linhas, repeatRows=1)
+                    larguras_mm = [10, 75, 45, 60] if confirmacao else [10, 90, 90]
+                    tabela = Table(linhas, colWidths=[largura * mm for largura in larguras_mm], repeatRows=1)
                     tabela.setStyle(TableStyle([
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
