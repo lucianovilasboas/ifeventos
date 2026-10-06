@@ -8,11 +8,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, TemplateView, View
 from django.shortcuts import render
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from datetime import date
 
-from .listas_preparacao import agrupamento_pdf, dias_evento, pdf_lista_preparada, registros_lista, agrupar_por_turma
+from .listas_preparacao import agrupamento_pdf, dias_evento, pdf_lista_preparada, registros_lista, agrupar_por_turma, opcoes_filtros_cascata
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
 from eventos.models import Inscricao, Atividade
@@ -148,6 +148,20 @@ class _ColunasMetadadosMixin:
 
 
 @require_GET
+def listas_presenca_opcoes(request, evento_id):
+    from eventos.models import Evento
+    from eventos.crachas import pode_gerenciar_evento
+    evento = get_object_or_404(Evento, id=evento_id)
+    if not request.user.is_authenticated:
+        return JsonResponse({"detail": "autenticação necessária"}, status=401)
+    if not pode_gerenciar_evento(request.user, evento):
+        raise PermissionDenied("Você não gerencia este evento.")
+    atividade_id = request.GET.get("atividade") or None
+    registros = registros_lista(evento, atividade_id=atividade_id, situacao="todos")
+    selecionados = {chave: (request.GET.get(chave) or "").strip() for chave in ("vinculo", "curso", "turma", "ano")}
+    return JsonResponse(opcoes_filtros_cascata(registros, selecionados))
+
+
 def listas_presenca_preparar(request, evento_id):
     """Tela somente leitura para preparar folhas de assinatura e confirmações."""
     from eventos.models import Evento
@@ -169,8 +183,9 @@ def listas_presenca_preparar(request, evento_id):
     situacao = request.GET.get("situacao") or "confirmadas"
     organizacao = request.GET.get("organizacao") or "agrupada"
     filtros = {chave: (request.GET.get(chave) or "").strip() for chave in ("vinculo", "curso", "turma", "ano")}
-    registros = registros_lista(evento, atividade_id, dia_filtro, situacao)
-    registros = [r for r in registros if all(not filtros[k] or r[k] == filtros[k] for k in filtros)]
+    registros_base = registros_lista(evento, atividade_id, dia_filtro, situacao)
+    filtros_opcoes = opcoes_filtros_cascata(registros_base, filtros)
+    registros = [r for r in registros_base if all(not filtros[k] or r[k] == filtros[k] for k in filtros)]
     organizacao = organizacao if organizacao in ("agrupada", "sem_agrupamento") else "agrupada"
     por_atividade = request.GET.get("tipo") == "confirmacao"
     grupos = agrupar_por_turma(registros, por_atividade=por_atividade)
@@ -194,7 +209,7 @@ def listas_presenca_preparar(request, evento_id):
         "atividade_atual": str(atividade_id or ""),
         "organizacao": organizacao,
         "filtros": filtros,
-        "filtros_opcoes": {"vinculos": sorted({r["vinculo"] for r in registros}), "cursos": sorted({r["curso"] for r in registros}), "turmas": sorted({r["turma"] for r in registros}), "anos": sorted({r["ano"] for r in registros})},
+        "filtros_opcoes": filtros_opcoes,
         "export_query": request.GET.urlencode(),
         "situacao_atual": situacao,
         "total_registros": len(registros),

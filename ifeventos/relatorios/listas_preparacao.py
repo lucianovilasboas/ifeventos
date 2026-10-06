@@ -121,6 +121,31 @@ def agrupamento_pdf(registros):
             grupos.append({"titulo": titulo, "registros": pessoas})
         resultado.append({"titulo": atividade, "grupos": grupos})
     return resultado
+def opcoes_filtros_cascata(registros, selecionados=None):
+    """Monta opções dos filtros a partir dos JSONs e das regras de metadados."""
+    selecionados = selecionados or {}
+    configuracao = {campo["chave"]: campo for campo in metadados.campos()}
+    chaves = ("vinculo", "curso", "turma", "ano")
+    resultado = {}
+    for chave in chaves:
+        campo = configuracao.get(chave)
+        candidatos = registros
+        for pai in chaves[:chaves.index(chave)]:
+            valor = selecionados.get(pai, "")
+            if valor:
+                candidatos = [registro for registro in candidatos if registro[pai] == valor]
+        valores = {registro[chave] for registro in candidatos}
+        if campo:
+            permitidos = metadados.opcoes_do_campo(
+                campo, selecionados.get(campo["depende_de"]) if campo["depende_de"] else None
+            )
+            valores = valores.intersection(permitidos) if permitidos else set()
+            resultado[chave + "s"] = [valor for valor in permitidos if valor in valores]
+        else:
+            resultado[chave + "s"] = sorted(valores, key=str.casefold)
+    return resultado
+
+
 def dias_evento(evento):
     """Dias distintos das atividades do evento para o filtro da tela."""
     valores = evento.atividades.order_by("data_hora_inicio").values_list("data_hora_inicio", flat=True)
