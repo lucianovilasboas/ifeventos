@@ -48,6 +48,7 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
             "participante": inscricao.participante,
             "atividade": inscricao.atividade,
             "nome": inscricao.participante.get_full_name().strip(),
+            "nome_contexto": nome_com_contexto({"nome": inscricao.participante.get_full_name().strip(), "vinculo": _valor(dados, "vinculo"), "curso": _valor(dados, "curso"), "turma": _valor(dados, "turma"), "ano": _valor(dados, "ano")}),
             "vinculo": _valor(dados, "vinculo"),
             "curso": _valor(dados, "curso"),
             "turma": _valor(dados, "turma"),
@@ -69,7 +70,7 @@ def abreviacao(valor):
 def nome_com_contexto(registro):
     nome = registro["nome"]
     if registro["vinculo"] == "Aluno":
-        return f"{nome} ({abreviacao(registro['ano'])} {abreviacao(registro['curso'])}/{registro['turma']})"
+        return f"{nome} ({abreviacao(registro['curso'])}/{abreviacao(registro['ano'])}/{registro['turma']})"
     return f"{nome} ({registro['vinculo']})"
 def agrupar_por_turma(registros, por_atividade=False):
     """Agrupa vínculo → curso → turma/ano, opcionalmente separando atividades."""

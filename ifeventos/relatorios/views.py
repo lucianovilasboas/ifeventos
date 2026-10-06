@@ -12,7 +12,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from datetime import date
 
-from .listas_preparacao import agrupamento_pdf, dias_evento, pdf_lista_continua, pdf_lista_preparada, registros_lista, agrupar_por_turma, opcoes_filtros_cascata
+from .listas_preparacao import agrupamento_pdf, dias_evento, nome_com_contexto, pdf_lista_continua, pdf_lista_preparada, registros_lista, agrupar_por_turma, opcoes_filtros_cascata
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
 from eventos.models import Inscricao, Atividade
