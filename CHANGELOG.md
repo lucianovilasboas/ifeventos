@@ -5,6 +5,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.18.5] — 2026-10-05
+
+### Adicionado
+
+- **Tela de preparação de listas**: botão para limpar todos os filtros e retornar à configuração padrão.
+
 ## [2.18.4] — 2026-10-05
 
 ### Alterado
