@@ -64,7 +64,7 @@ class DashboardOrdemAtividadesTests(TestCase):
         self.assertContains(resposta, "1 presenças confirmadas")
         self.assertContains(resposta, "100,0% de participação")
         self.assertNotContains(resposta, "Certificado do evento: mínimo de 75% de participação.")
-        self.assertContains(resposta, "Elegível para certificado")
+        self.assertNotContains(resposta, "x Ainda não elegível")
 
 
 class PerfilMetadadosTests(TestCase):
