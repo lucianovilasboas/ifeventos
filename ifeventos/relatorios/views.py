@@ -12,7 +12,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from datetime import date
 
-from .listas_preparacao import agrupamento_pdf, dias_evento, pdf_lista_preparada, registros_lista, agrupar_por_turma, opcoes_filtros_cascata
+from .listas_preparacao import agrupamento_pdf, dias_evento, pdf_lista_continua, pdf_lista_preparada, registros_lista, agrupar_por_turma, opcoes_filtros_cascata
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
 from eventos.models import Inscricao, Atividade
@@ -186,11 +186,14 @@ def listas_presenca_preparar(request, evento_id):
     registros_base = registros_lista(evento, atividade_id, dia_filtro, situacao)
     filtros_opcoes = opcoes_filtros_cascata(registros_base, filtros)
     registros = [r for r in registros_base if all(not filtros[k] or r[k] == filtros[k] for k in filtros)]
-    organizacao = organizacao if organizacao in ("agrupada", "sem_agrupamento") else "agrupada"
+    organizacao = organizacao if organizacao in ("agrupada", "sem_agrupamento_atividade") else "agrupada"
     por_atividade = request.GET.get("tipo") == "confirmacao"
     grupos = agrupar_por_turma(registros, por_atividade=por_atividade)
     if request.GET.get("export") == "pdf":
-        conteudo = pdf_lista_preparada(evento, agrupamento_pdf(registros), request.GET.get("tipo") == "confirmacao")
+        if organizacao == "sem_agrupamento_atividade" and atividade_id:
+            conteudo = pdf_lista_continua(evento, registros, request.GET.get("tipo") == "confirmacao")
+        else:
+            conteudo = pdf_lista_preparada(evento, agrupamento_pdf(registros), request.GET.get("tipo") == "confirmacao")
         resposta = HttpResponse(conteudo, content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="listas_presenca_{evento.id}.pdf"'
         return resposta

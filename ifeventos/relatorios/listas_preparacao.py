@@ -57,6 +57,7 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
             "dia": inicio.strftime("%d/%m/%Y"),
             "horario": inicio.strftime("%H:%M"),
         })
+        registros[-1]["nome_contexto"] = nome_com_contexto(registros[-1])
     return registros
 
 
@@ -154,6 +155,32 @@ def dias_evento(evento):
         local = localtime(valor)
         vistos.setdefault(local.date(), local.strftime("%d/%m/%Y"))
     return [(data.isoformat(), rotulo) for data, rotulo in vistos.items()]
+
+
+def pdf_lista_continua(evento, registros, confirmacao=False):
+    """Gera uma única tabela contínua para uma atividade, sem PageBreak por grupo."""
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=10 * mm, rightMargin=10 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
+    styles = getSampleStyleSheet()
+    linhas = [["#", "Participante", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]]
+    for ordem, registro in enumerate(sorted(registros, key=lambda r: (r["nome"].casefold(), r["inscricao"].id)), 1):
+        nome = registro.get("nome_contexto") or nome_com_contexto(registro)
+        if confirmacao:
+            linhas.append([ordem, nome, f'{registro["dia"]} {registro["horario"]}', "Confirmada" if registro["confirmada"] else "x Ausente"])
+        else:
+            linhas.append([ordem, nome, "________________________________"])
+    story = [Paragraph(f"<b>{evento.title}</b>", styles["Normal"]), Spacer(1, 5)]
+    tabela = Table(linhas, colWidths=[10 * mm, (75 if confirmacao else 90) * mm, (45 if confirmacao else 90) * mm, 60 * mm] if confirmacao else [10 * mm, 90 * mm, 90 * mm], repeatRows=1)
+    tabela.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#cccccc")), ("FONTSIZE", (0, 0), (-1, -1), 8)]))
+    story.append(tabela)
+    doc.build(story)
+    return buffer.getvalue()
 
 
 def pdf_lista_preparada(evento, grupos, confirmacao=False):
