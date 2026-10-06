@@ -175,7 +175,7 @@ def pdf_lista_continua(evento, registros, confirmacao=False):
         if confirmacao:
             linhas.append([ordem, nome, f'{registro["dia"]} {registro["horario"]}', "Confirmada" if registro["confirmada"] else "x Ausente"])
         else:
-            linhas.append([ordem, nome, "________________________________"])
+            linhas.append([ordem, nome, ""])
     atividade_titulo = registros[0]["atividade"].titulo if registros else "Atividade não selecionada"
     atividade_info = registros[0]["atividade"] if registros else None
     cabecalho = f"<b>{evento.title}</b>"
@@ -222,7 +222,7 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
                 if confirmacao:
                     linhas.append([r["ordem"], r["nome"], f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
                 else:
-                    linhas.append([r["ordem"], r["nome"], "________________________________"])
+                    linhas.append([r["ordem"], r["nome_contexto"], ""])
             larguras_mm = [10, 75, 45, 60] if confirmacao else [10, 90, 90]
             tabela = Table(linhas, colWidths=[largura * mm for largura in larguras_mm], repeatRows=1)
             tabela.setStyle(TableStyle([
