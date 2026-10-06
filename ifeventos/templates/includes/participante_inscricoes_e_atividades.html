@@ -28,6 +28,24 @@
 {% endif %}
 
 <div class="row g-3 px-0 mx-0">
+    {% if resumos_participacao %}
+    <div class="col-12">
+        <div class="d-flex flex-wrap gap-3 mb-3">
+        {% for resumo in resumos_participacao %}
+            <div class="app-panel flex-grow-1" style="min-width:220px">
+                <h6 class="mb-2">{{ resumo.evento.title }}</h6>
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="badge-app">{{ resumo.inscritas }} atividades inscritas</span>
+                    <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">{{ resumo.confirmadas }} presenças confirmadas</span>
+                    <span class="badge-app">{{ resumo.percentual }}% de participação</span>
+                </div>
+                <p class="small text-muted mb-1 mt-2">Certificado do evento: mínimo de {{ resumo.limiar }}% de participação.</p>
+                {% if resumo.elegivel %}<span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">✓ Elegível para certificado</span>{% else %}<span class="badge-app" style="background:#fee2e2;color:#b91c1c">x Ainda não elegível</span>{% endif %}
+            </div>
+        {% endfor %}
+        </div>
+    </div>
+    {% endif %}
     <!-- Minhas Inscrições -->
     <div class="col-md-6" data-vista-grupo="minhas-inscricoes">
         <div class="d-flex align-items-center justify-content-between px-1 mb-2">
@@ -65,6 +83,7 @@
                                 <span class="badge-app" style="background:#e0e7ff;color:var(--app-indigo)">
                                     <i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span>
                                 </span>
+                                {% if inscricao.confirmada %}<span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">✓ Presença confirmada</span>{% else %}<span class="badge-app" style="background:#fee2e2;color:#b91c1c">x Presença não confirmada</span>{% endif %}
                                 {% if inscricao.atividade.emite_certificado %}
                                 <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-certificate"></i> Certificado</span>
                                 {% endif %}
@@ -101,6 +120,7 @@
                     <p class="card-meta"><i class="fa-solid fa-location-dot"></i> {{ inscricao.atividade.local }}</p>
                     {% endif %}
                     <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span> inscritos</p>
+                    {% if inscricao.confirmada %}<span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">✓ Presença confirmada</span>{% else %}<span class="badge-app" style="background:#fee2e2;color:#b91c1c">x Presença não confirmada</span>{% endif %}
                     <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger w-100">
                         <i class="fa-solid fa-xmark"></i> Cancelar
                     </a>

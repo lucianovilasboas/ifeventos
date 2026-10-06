@@ -54,6 +54,19 @@ class DashboardOrdemAtividadesTests(TestCase):
         self.assertEqual(titulos, ["Primeiro", "Segundo", "Terceiro"])
 
 
+    def test_dashboard_exibe_status_e_kpis_de_presenca(self):
+        inscricao = Inscricao.objects.create(
+            participante=self.participante, atividade=self.evento.atividades.first(), confirmada=True
+        )
+        resposta = self.client.get(reverse("participante:dashboard"))
+        self.assertContains(resposta, "Presença confirmada")
+        self.assertContains(resposta, "1 atividades inscritas")
+        self.assertContains(resposta, "1 presenças confirmadas")
+        self.assertContains(resposta, "100,0% de participação")
+        self.assertContains(resposta, "Certificado do evento: mínimo de 75% de participação.")
+        self.assertContains(resposta, "Elegível para certificado")
+
+
 class PerfilMetadadosTests(TestCase):
     """O perfil do participante grava os metadados configurados por escola."""
 

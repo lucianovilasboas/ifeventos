@@ -71,6 +71,30 @@ def dashboard(request):
     # Rótulo do dia em cada inscrição: o template usa `{% regroup %}` para
     # agrupar a lista por dia (a ordem cronológica garante dias consecutivos).
     inscricoes = inscricoes.order_by("atividade__data_hora_inicio", "id")
+    inscricoes = list(inscricoes)
+    resumos_participacao = []
+    por_evento = {}
+    for inscricao in inscricoes:
+        inscricao.status_presenca = "confirmada" if inscricao.confirmada else "nao_confirmada"
+        inscricao.status_presenca_label = (
+            "Presença confirmada" if inscricao.confirmada else "Presença não confirmada"
+        )
+        evento = inscricao.atividade.evento
+        resumo = por_evento.setdefault(evento.id, {
+            "evento": evento, "inscritas": 0, "confirmadas": 0,
+            "limiar": evento.percentual_certificado,
+        })
+        resumo["inscritas"] += 1
+        resumo["confirmadas"] += int(inscricao.confirmada)
+
+    for resumo in por_evento.values():
+        resumo["percentual"] = round(
+            100 * resumo["confirmadas"] / resumo["inscritas"], 1
+        ) if resumo["inscritas"] else 0
+        resumo["elegivel"] = resumo["percentual"] >= resumo["limiar"]
+    resumos_participacao = sorted(
+        por_evento.values(), key=lambda item: item["evento"].title.casefold()
+    )
     for inscricao in inscricoes:
         inscricao.dia = localtime(inscricao.atividade.data_hora_inicio).strftime("%d/%m/%Y")
         inscricao.atividade.inscricao = inscricao
@@ -123,6 +147,7 @@ def dashboard(request):
     contexto = {
         'inscricoes': inscricoes,
         'atividades': atividades,
+        'resumos_participacao': resumos_participacao,
         'grade_minha_agenda': agenda.montar_grade(minhas),
         'acontecendo': acontecendo,
         'a_seguir': a_seguir,
