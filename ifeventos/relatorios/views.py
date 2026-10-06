@@ -167,7 +167,11 @@ def listas_presenca_preparar(request, evento_id):
         dia_filtro = None
     atividade_id = request.GET.get("atividade") or None
     situacao = request.GET.get("situacao") or "confirmadas"
+    organizacao = request.GET.get("organizacao") or "agrupada"
+    filtros = {chave: (request.GET.get(chave) or "").strip() for chave in ("vinculo", "curso", "turma", "ano")}
     registros = registros_lista(evento, atividade_id, dia_filtro, situacao)
+    registros = [r for r in registros if all(not filtros[k] or r[k] == filtros[k] for k in filtros)]
+    organizacao = organizacao if organizacao in ("agrupada", "sem_agrupamento") else "agrupada"
     por_atividade = request.GET.get("tipo") == "confirmacao"
     grupos = agrupar_por_turma(registros, por_atividade=por_atividade)
     if request.GET.get("export") == "pdf":
@@ -184,6 +188,9 @@ def listas_presenca_preparar(request, evento_id):
         "por_atividade": por_atividade,
         "dia_atual": dia,
         "atividade_atual": str(atividade_id or ""),
+        "organizacao": organizacao,
+        "filtros": filtros,
+        "filtros_opcoes": {"vinculos": sorted({r["vinculo"] for r in registros}), "cursos": sorted({r["curso"] for r in registros}), "turmas": sorted({r["turma"] for r in registros}), "anos": sorted({r["ano"] for r in registros})},
         "situacao_atual": situacao,
         "total_registros": len(registros),
         "total_cursos": len({r["curso"] for r in registros}),

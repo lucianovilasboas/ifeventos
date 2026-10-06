@@ -60,6 +60,16 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
     return registros
 
 
+def abreviacao(valor):
+    mapa = {"Primeiro ano": "1°", "Segundo ano": "2°", "Terceiro ano": "3°", "Administração": "Adm", "Informática": "Inf"}
+    return mapa.get(valor, valor)
+
+
+def nome_com_contexto(registro):
+    nome = registro["nome"]
+    if registro["vinculo"] == "Aluno":
+        return f"{nome} ({abreviacao(registro['ano'])} {abreviacao(registro['curso'])}/{registro['turma']})"
+    return f"{nome} ({registro['vinculo']})"
 def agrupar_por_turma(registros, por_atividade=False):
     """Agrupa vínculo → curso → turma/ano, opcionalmente separando atividades."""
     arvore = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
