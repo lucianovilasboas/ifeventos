@@ -48,6 +48,7 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
             "participante": inscricao.participante,
             "atividade": inscricao.atividade,
             "nome": inscricao.participante.get_full_name().strip(),
+            "nome_contexto": nome_com_contexto({"nome": inscricao.participante.get_full_name().strip(), "vinculo": _valor(dados, "vinculo"), "curso": _valor(dados, "curso"), "turma": _valor(dados, "turma"), "ano": _valor(dados, "ano")}),
             "vinculo": _valor(dados, "vinculo"),
             "curso": _valor(dados, "curso"),
             "turma": _valor(dados, "turma"),
@@ -57,6 +58,7 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
             "dia": inicio.strftime("%d/%m/%Y"),
             "horario": inicio.strftime("%H:%M"),
         })
+        registros[-1]["nome_contexto"] = nome_com_contexto(registros[-1])
     return registros
 
 
@@ -68,7 +70,7 @@ def abreviacao(valor):
 def nome_com_contexto(registro):
     nome = registro["nome"]
     if registro["vinculo"] == "Aluno":
-        return f"{nome} ({abreviacao(registro['ano'])} {abreviacao(registro['curso'])}/{registro['turma']})"
+        return f"{nome} ({abreviacao(registro['curso'])}/{abreviacao(registro['ano'])}/{registro['turma']})"
     return f"{nome} ({registro['vinculo']})"
 def agrupar_por_turma(registros, por_atividade=False):
     """Agrupa vínculo → curso → turma/ano, opcionalmente separando atividades."""
@@ -121,6 +123,31 @@ def agrupamento_pdf(registros):
             grupos.append({"titulo": titulo, "registros": pessoas})
         resultado.append({"titulo": atividade, "grupos": grupos})
     return resultado
+def opcoes_filtros_cascata(registros, selecionados=None):
+    """Monta opções dos filtros a partir dos JSONs e das regras de metadados."""
+    selecionados = selecionados or {}
+    configuracao = {campo["chave"]: campo for campo in metadados.campos()}
+    chaves = ("vinculo", "curso", "turma", "ano")
+    resultado = {}
+    for chave in chaves:
+        campo = configuracao.get(chave)
+        candidatos = registros
+        for pai in chaves[:chaves.index(chave)]:
+            valor = selecionados.get(pai, "")
+            if valor:
+                candidatos = [registro for registro in candidatos if registro[pai] == valor]
+        valores = {registro[chave] for registro in candidatos}
+        if campo:
+            permitidos = metadados.opcoes_do_campo(
+                campo, selecionados.get(campo["depende_de"]) if campo["depende_de"] else None
+            )
+            valores = valores.intersection(permitidos) if permitidos else set()
+            resultado[chave + "s"] = [valor for valor in permitidos if valor in valores]
+        else:
+            resultado[chave + "s"] = sorted(valores, key=str.casefold)
+    return resultado
+
+
 def dias_evento(evento):
     """Dias distintos das atividades do evento para o filtro da tela."""
     valores = evento.atividades.order_by("data_hora_inicio").values_list("data_hora_inicio", flat=True)
@@ -129,6 +156,38 @@ def dias_evento(evento):
         local = localtime(valor)
         vistos.setdefault(local.date(), local.strftime("%d/%m/%Y"))
     return [(data.isoformat(), rotulo) for data, rotulo in vistos.items()]
+
+
+def pdf_lista_continua(evento, registros, confirmacao=False):
+    """Gera uma única tabela contínua para uma atividade, sem PageBreak por grupo."""
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=10 * mm, rightMargin=10 * mm, topMargin=10 * mm, bottomMargin=10 * mm)
+    styles = getSampleStyleSheet()
+    linhas = [["#", "Participante", "Dia/hora", "Situação"] if confirmacao else ["#", "Participante", "Assinatura"]]
+    for ordem, registro in enumerate(sorted(registros, key=lambda r: (r["nome"].casefold(), r["inscricao"].id)), 1):
+        nome = registro.get("nome_contexto") or nome_com_contexto(registro)
+        if confirmacao:
+            linhas.append([ordem, nome, f'{registro["dia"]} {registro["horario"]}', "Confirmada" if registro["confirmada"] else "x Ausente"])
+        else:
+            linhas.append([ordem, nome, ""])
+    atividade_titulo = registros[0]["atividade"].titulo if registros else "Atividade não selecionada"
+    atividade_info = registros[0]["atividade"] if registros else None
+    cabecalho = f"<b>{evento.title}</b>"
+    if atividade_info:
+        inicio = localtime(atividade_info.data_hora_inicio)
+        cabecalho += f"<br/><b>Atividade: {atividade_titulo}</b><br/>{inicio.strftime('%d/%m/%Y')} · {inicio.strftime('%H:%M')}"
+    story = [Paragraph(cabecalho, styles["Normal"]), Spacer(1, 8)]
+    tabela = Table(linhas, colWidths=[10 * mm, (75 if confirmacao else 90) * mm, (45 if confirmacao else 90) * mm, 60 * mm] if confirmacao else [10 * mm, 90 * mm, 90 * mm], repeatRows=1)
+    tabela.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#cccccc")), ("FONTSIZE", (0, 0), (-1, -1), 8)]))
+    story.append(tabela)
+    doc.build(story)
+    return buffer.getvalue()
 
 
 def pdf_lista_preparada(evento, grupos, confirmacao=False):
@@ -163,7 +222,7 @@ def pdf_lista_preparada(evento, grupos, confirmacao=False):
                 if confirmacao:
                     linhas.append([r["ordem"], r["nome"], f'{r["dia"]} {r["horario"]}', "Confirmada" if r["confirmada"] else "x Ausente"])
                 else:
-                    linhas.append([r["ordem"], r["nome"], "________________________________"])
+                    linhas.append([r["ordem"], r["nome_contexto"], ""])
             larguras_mm = [10, 75, 45, 60] if confirmacao else [10, 90, 90]
             tabela = Table(linhas, colWidths=[largura * mm for largura in larguras_mm], repeatRows=1)
             tabela.setStyle(TableStyle([

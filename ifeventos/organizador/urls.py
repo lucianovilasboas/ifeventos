@@ -28,6 +28,7 @@ from relatorios.views import (
     RelatorioTurmasView,
     RelatorioOficinasView,
     listas_presenca_preparar,
+    listas_presenca_opcoes,
 )
 from organizador.views import publicar_atividade
 from organizador.views import (
@@ -154,6 +155,7 @@ urlpatterns = [
          RedirectView.as_view(pattern_name="organizador:relatorio_participante_detalhe",
                               permanent=True, query_string=True),
          name="relatorio_aluno_detalhe_redirect"),
+    path("listas-presenca/<int:evento_id>/opcoes/", listas_presenca_opcoes, name="listas_presenca_opcoes"),
     path("listas-presenca/<int:evento_id>/preparar/", listas_presenca_preparar, name="listas_presenca_preparar"),
     path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
 

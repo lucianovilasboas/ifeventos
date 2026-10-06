@@ -5,6 +5,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.18.7] — 2026-10-06
+
+### Alterado
+
+- **Listas de presença**: adicionada lista contínua por atividade, com filtros preservados, cascatas AJAX, contexto do participante e coluna de assinatura em branco no PDF.
+
 ## [2.18.6] — 2026-10-06
 
 ### Alterado
