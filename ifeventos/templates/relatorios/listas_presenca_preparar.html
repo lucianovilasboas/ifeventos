@@ -41,8 +41,7 @@ document.addEventListener('DOMContentLoaded', function(){
   });
  }
  function atualizarPdf(){const p=new URLSearchParams(new FormData(form)); p.set('export','pdf'); const link=document.querySelector('[data-pdf-link]'); if(link)link.href=window.location.pathname+'?'+p;}
- form.elements.vinculo.addEventListener('change', atualizarDependentes); form.elements.curso.addEventListener('change', atualizarDependentes); form.elements.atividade.addEventListener('change', atualizarPdf); form.elements.organizacao.addEventListener('change', atualizarPdf); form.elements.tipo.forEach(function(el){el.addEventListener('change', atualizarPdf)});
- atualizarDependentes();
+ form.elements.vinculo.addEventListener('change', function(){atualizarDependentes(); atualizarPdf()}); form.elements.curso.addEventListener('change', function(){atualizarDependentes(); atualizarPdf()}); Array.from(form.elements).forEach(function(el){el.addEventListener('change', atualizarPdf)}); atualizarPdf();
   form.addEventListener('submit', function(e){e.preventDefault(); atualizarPdf(); alvo.setAttribute('aria-busy','true'); const p=new URLSearchParams(new FormData(form)); fetch(window.location.pathname+'?'+p,{headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status); return r.text()}).then(html=>{alvo.innerHTML=html; history.replaceState(null,'','?'+p)}).catch(()=>{alvo.innerHTML='<p class="text-danger text-center py-4">Não foi possível atualizar a prévia.</p>'}).finally(()=>alvo.removeAttribute('aria-busy')); });
 });
 </script>{% endblock %}

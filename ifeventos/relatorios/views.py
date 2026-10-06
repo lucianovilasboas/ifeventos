@@ -186,7 +186,7 @@ def listas_presenca_preparar(request, evento_id):
     registros_base = registros_lista(evento, atividade_id, dia_filtro, situacao)
     filtros_opcoes = opcoes_filtros_cascata(registros_base, filtros)
     registros = [r for r in registros_base if all(not filtros[k] or r[k] == filtros[k] for k in filtros)]
-    organizacao = organizacao if organizacao in ("agrupada", "sem_agrupamento_atividade") else "agrupada"
+    organizacao = organizacao if organizacao in ("agrupada", "sem_agrupamento", "sem_agrupamento_atividade") else "agrupada"
     por_atividade = request.GET.get("tipo") == "confirmacao"
     grupos = agrupar_por_turma(registros, por_atividade=por_atividade)
     if request.GET.get("export") == "pdf":
