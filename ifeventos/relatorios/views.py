@@ -200,6 +200,7 @@ def listas_presenca_preparar(request, evento_id):
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return render(request, "relatorios/_resultado_listas_presenca.html", {
             "registros": registros, "grupos": grupos, "organizacao": organizacao,
+            "atividade_atual": str(atividade_id or ""), "atividades": evento.atividades.filter(publicada=True).order_by("data_hora_inicio", "id"),
         })
     return render(request, "relatorios/listas_presenca_preparar.html", {
         "evento": evento,

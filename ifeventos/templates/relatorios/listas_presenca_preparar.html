@@ -36,14 +36,14 @@ document.addEventListener('DOMContentLoaded', function(){
   ['curso','turma','ano'].forEach(k=>{form.elements[k].disabled=!aluno; if(!aluno) form.elements[k].value='';});
   if(!aluno)return;
   const regras={vinculo:vinculo,curso:curso};
-  fetch(window.location.pathname+'opcoes/?'+new URLSearchParams(regras),{headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(op=>{
+  fetch(window.location.pathname.replace(/preparar\/?$/, 'opcoes/')+'?'+new URLSearchParams(regras),{headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(op=>{
    ['curso','turma','ano'].forEach(k=>{const el=form.elements[k], atual=el.value; while(el.options.length>1)el.remove(1); (op[k+'s']||[]).forEach(v=>el.add(new Option(v,v))); if([...el.options].some(o=>o.value===atual))el.value=atual;});
   });
  }
  function atualizarPdf(){const p=new URLSearchParams(new FormData(form)); p.set('export','pdf'); const link=document.querySelector('[data-pdf-link]'); if(link)link.href=window.location.pathname+'?'+p;}
  form.elements.vinculo.addEventListener('change', atualizarDependentes); form.elements.curso.addEventListener('change', atualizarDependentes); form.elements.atividade.addEventListener('change', atualizarPdf); form.elements.organizacao.addEventListener('change', atualizarPdf); form.elements.tipo.forEach(function(el){el.addEventListener('change', atualizarPdf)});
  atualizarDependentes();
- form.addEventListener('submit', function(e){e.preventDefault(); alvo.setAttribute('aria-busy','true'); const p=new URLSearchParams(new FormData(form)); fetch(window.location.pathname+'?'+p,{headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.text()).then(html=>{alvo.innerHTML=html; history.replaceState(null,'','?'+p)}).finally(()=>alvo.removeAttribute('aria-busy')); });
+  form.addEventListener('submit', function(e){e.preventDefault(); atualizarPdf(); alvo.setAttribute('aria-busy','true'); const p=new URLSearchParams(new FormData(form)); fetch(window.location.pathname+'?'+p,{headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status); return r.text()}).then(html=>{alvo.innerHTML=html; history.replaceState(null,'','?'+p)}).catch(()=>{alvo.innerHTML='<p class="text-danger text-center py-4">Não foi possível atualizar a prévia.</p>'}).finally(()=>alvo.removeAttribute('aria-busy')); });
 });
 </script>{% endblock %}
 {% endblock %}
