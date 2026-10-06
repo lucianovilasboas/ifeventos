@@ -191,6 +191,7 @@ def listas_presenca_preparar(request, evento_id):
         "organizacao": organizacao,
         "filtros": filtros,
         "filtros_opcoes": {"vinculos": sorted({r["vinculo"] for r in registros}), "cursos": sorted({r["curso"] for r in registros}), "turmas": sorted({r["turma"] for r in registros}), "anos": sorted({r["ano"] for r in registros})},
+        "export_query": request.GET.urlencode(),
         "situacao_atual": situacao,
         "total_registros": len(registros),
         "total_cursos": len({r["curso"] for r in registros}),
