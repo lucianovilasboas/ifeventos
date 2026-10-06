@@ -176,7 +176,13 @@ def pdf_lista_continua(evento, registros, confirmacao=False):
             linhas.append([ordem, nome, f'{registro["dia"]} {registro["horario"]}', "Confirmada" if registro["confirmada"] else "x Ausente"])
         else:
             linhas.append([ordem, nome, "________________________________"])
-    story = [Paragraph(f"<b>{evento.title}</b>", styles["Normal"]), Spacer(1, 5)]
+    atividade_titulo = registros[0]["atividade"].titulo if registros else "Atividade não selecionada"
+    atividade_info = registros[0]["atividade"] if registros else None
+    cabecalho = f"<b>{evento.title}</b>"
+    if atividade_info:
+        inicio = localtime(atividade_info.data_hora_inicio)
+        cabecalho += f"<br/><b>Atividade: {atividade_titulo}</b><br/>{inicio.strftime('%d/%m/%Y')} · {inicio.strftime('%H:%M')}"
+    story = [Paragraph(cabecalho, styles["Normal"]), Spacer(1, 8)]
     tabela = Table(linhas, colWidths=[10 * mm, (75 if confirmacao else 90) * mm, (45 if confirmacao else 90) * mm, 60 * mm] if confirmacao else [10 * mm, 90 * mm, 90 * mm], repeatRows=1)
     tabela.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#238b45")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), .35, colors.HexColor("#cccccc")), ("FONTSIZE", (0, 0), (-1, -1), 8)]))
     story.append(tabela)
