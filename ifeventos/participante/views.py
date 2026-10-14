@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
+from django.db.models import Exists, OuterRef
 from eventos.models import Atividade, Evento, Inscricao, Participante
 from eventos.tempo import local_legivel
 from eventos import agenda, propostas
@@ -32,6 +33,14 @@ def dashboard(request):
 
     inscricoes = Inscricao.objects.filter(participante=participante).select_related(
         "atividade", "atividade__evento", "atividade__tipo"
+    ).annotate(
+        # "Emitido" deriva da tabela `Certificado` (fonte de verdade).
+        tem_certificado=Exists(
+            Certificado.objects.filter(
+                participante=OuterRef("participante"),
+                atividade=OuterRef("atividade"),
+            )
+        )
     )
     # Atividades não inscritas (e publicadas), da que acontece antes para a que
     # acontece depois.

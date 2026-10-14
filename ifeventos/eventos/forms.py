@@ -837,8 +837,9 @@ CORPO_PADRAO = (
     "no evento {{evento}}, com carga horária de {{carga_horaria}}."
 )
 CORPO_PADRAO_EVENTO = (
-    "Certificamos que {{nome}} participou do evento {{evento}}, com participação "
-    "de {{percentual_participacao}} (mínimo de {{percentual_minimo}})."
+    "Certificamos que {{nome}} participou do evento {{evento}}, realizado em "
+    "{{local}}, com participação de {{percentual_participacao}} "
+    "(mínimo de {{percentual_minimo}})."
 )
 
 

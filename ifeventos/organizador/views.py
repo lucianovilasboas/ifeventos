@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
+import logging
 import os
 from .forms import ParticipanteUpdateForm
 from .decorators import organizador_required
@@ -72,6 +73,8 @@ from eventos.listas_presenca import (
     pdf_lista_presenca,
     pdf_listas_presenca_evento,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # -- Dashboard do Organizador --
@@ -752,6 +755,33 @@ def adicionar_espaco_ajax(request):
 # -- Certificados --
 
 
+def _emitir_lote(participantes, *, atividade=None, evento=None):
+    """Emite certificados de um lote SEM abortar no primeiro erro.
+
+    Devolve `(gerados, ja_emitidos, falhas)`: ids de participante criados
+    agora, ids que já tinham certificado e as mensagens de falha (uma por
+    participante). Uma falha individual não impede os demais.
+    """
+    gerados, ja_emitidos, falhas = [], [], []
+    for pessoa in participantes:
+        try:
+            _certificado, criado = certificados.emitir(
+                pessoa, atividade=atividade, evento=evento
+            )
+        except certificados.CertificadoLayoutError as erro:
+            falhas.append(f"{pessoa.get_full_name() or pessoa.email}: {erro}")
+            continue
+        except Exception as erro:  # nunca derrubar o lote por um participante
+            logger.exception("certificados: falha ao emitir para %r", pessoa)
+            falhas.append(f"{pessoa.get_full_name() or pessoa.email}: {erro}")
+            continue
+        if criado:
+            gerados.append(pessoa.id)
+        else:
+            ja_emitidos.append(pessoa.id)
+    return gerados, ja_emitidos, falhas
+
+
 class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
     """
     View para que o organizador emita um certificado para uma inscrição confirmada.
@@ -772,9 +802,6 @@ class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
             return JsonResponse({"message": str(erro), "certificado": False}, status=503)
         if not criado:
             return JsonResponse({"message": "Certificado já emitido para esta inscrição!", "certificado": False})
-
-        inscricao.certificado_emitido = True
-        inscricao.save(update_fields=["certificado_emitido"])
 
         auditoria.registrar(
             acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
@@ -797,33 +824,24 @@ class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
         atividade = get_object_or_404(Atividade, id=atividade_id)
         if not pode_gerenciar_evento(request.user, atividade.evento):
             raise PermissionDenied("Você não organiza o evento desta atividade.")
-        inscritos = certificados.participantes_da_atividade(atividade)
 
-        certificados_gerados = []
-        falhas = []
-        for pessoa in inscritos:
-            try:
-                _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
-            except certificados.CertificadoLayoutError as erro:
-                falhas = [str(erro)]
-                break
-            if criado:
-                certificados_gerados.append(pessoa.id)
+        gerados, ja_emitidos, falhas = _emitir_lote(
+            certificados.participantes_da_atividade(atividade), atividade=atividade
+        )
 
-        if certificados_gerados:
-            Inscricao.objects.filter(
-                atividade=atividade, participante_id__in=certificados_gerados
-            ).update(certificado_emitido=True)
-
-        resposta = {"message": "Certificados gerados com sucesso!", "certificados": certificados_gerados}
+        resposta = {
+            "message": "Certificados gerados com sucesso!",
+            "certificados": gerados,
+            "ja_emitidos": ja_emitidos,
+        }
         if falhas:
             resposta["falhas"] = falhas
 
         auditoria.registrar(
             acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
             objeto=atividade,
-            resumo=f"Emitiu {len(certificados_gerados)} certificado(s) da atividade",
-            detalhes={"tipo": "atividade", "gerados": len(certificados_gerados), "falhas": falhas},
+            resumo=f"Emitiu {len(gerados)} certificado(s) da atividade",
+            detalhes={"tipo": "atividade", "gerados": len(gerados), "falhas": falhas},
         )
         return JsonResponse(resposta)
 
@@ -865,18 +883,15 @@ class EmitirCertificadosEventoView(LoginRequiredMixin, View):
             raise PermissionDenied("Você não organiza este evento.")
 
         config = certificados.config_do_evento(evento)
-        gerados = []
-        falhas = []
-        for pessoa in certificados.participantes_do_evento(evento, config):
-            try:
-                _certificado, criado = certificados.emitir(pessoa, evento=evento)
-            except certificados.CertificadoLayoutError as erro:
-                falhas = [str(erro)]
-                break
-            if criado:
-                gerados.append(pessoa.id)
+        gerados, ja_emitidos, falhas = _emitir_lote(
+            certificados.participantes_do_evento(evento, config), evento=evento
+        )
 
-        resposta = {"message": "Certificados emitidos para o evento!", "certificados": gerados}
+        resposta = {
+            "message": "Certificados emitidos para o evento!",
+            "certificados": gerados,
+            "ja_emitidos": ja_emitidos,
+        }
         if falhas:
             resposta["falhas"] = falhas
 
@@ -898,29 +913,19 @@ class EmitirCertificadosTodasAtividadesView(LoginRequiredMixin, View):
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
 
-        gerados = set()
-        falhas = []
+        gerados, ja_emitidos, falhas = [], [], []
         for atividade in evento.atividades.filter(emite_certificado=True):
-            ids_atividade = []
-            for pessoa in certificados.participantes_da_atividade(atividade):
-                try:
-                    _certificado, criado = certificados.emitir(pessoa, atividade=atividade)
-                except certificados.CertificadoLayoutError as erro:
-                    falhas = [str(erro)]
-                    break
-                if criado:
-                    gerados.add(pessoa.id)
-                    ids_atividade.append(pessoa.id)
-            if falhas:
-                break
-            if ids_atividade:
-                Inscricao.objects.filter(
-                    atividade=atividade, participante_id__in=ids_atividade
-                ).update(certificado_emitido=True)
+            g, j, f = _emitir_lote(
+                certificados.participantes_da_atividade(atividade), atividade=atividade
+            )
+            gerados += g
+            ja_emitidos += j
+            falhas += f
 
         resposta = {
             "message": "Certificados gerados com sucesso!",
-            "certificados": sorted(gerados),
+            "certificados": sorted(set(gerados)),
+            "ja_emitidos": sorted(set(ja_emitidos)),
         }
         if falhas:
             resposta["falhas"] = falhas

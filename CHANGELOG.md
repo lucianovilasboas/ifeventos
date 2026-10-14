@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.18.8] — 2026-10-14
+
+### Corrigido
+
+- **Emissão de certificados em lote**: uma falha em um participante não aborta mais o restante do lote (antes um erro parava todos os seguintes); cada falha é relatada individualmente e a resposta inclui os já emitidos.
+- **Certificado do evento**: o corpo padrão passou a incluir `{{local}}` (o local do evento aparecia em branco).
+- **Status "certificado emitido"**: passa a ser derivado da tabela `Certificado` (fonte de verdade) em vez da flag `Inscricao.certificado_emitido` — corrige a lista de presença, as inscrições, o painel do participante e os filtros que mostravam "Sem certificado" para quem já tinha. O `data-id` da lista de presença foi alinhado ao participante, corrigindo a atualização em tela após a emissão.
+- **Relatório de participantes**: a contagem de certificados passa a considerar também o certificado do evento.
+
+### Adicionado
+
+- Comando `reconciliar_certificados` para sincronizar `Inscricao.certificado_emitido` com a tabela `Certificado` (dry-run por padrão; `--confirmar` para gravar).
+
 ## [2.18.7] — 2026-10-06
 
 ### Alterado

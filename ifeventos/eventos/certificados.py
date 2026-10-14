@@ -572,13 +572,20 @@ def _render_padrao(contexto, atividade, evento):
     """Fallback sem configuração: usa a config "virtual" só com o padrão."""
     from .models import ConfiguracaoCertificado
 
+    if atividade is not None:
+        corpo = (
+            "Certificamos que {{nome}} participou da atividade {{atividade}}.\n"
+            "Carga horária: {{carga_horaria}}."
+        )
+    else:
+        corpo = (
+            "Certificamos que {{nome}} participou do evento {{evento}}, "
+            "realizado em {{local}}, com participação de "
+            "{{percentual_participacao}}."
+        )
     virtual = ConfiguracaoCertificado(
         titulo="CERTIFICADO DE PARTICIPAÇÃO",
-        corpo=(
-            "Certificamos que {{nome}} participou "
-            + ("da atividade {{atividade}}" if atividade is not None else "do evento {{evento}}")
-            + ".\nCarga horária: {{carga_horaria}}."
-        ),
+        corpo=corpo,
     )
     return render_pdf(contexto, virtual)
 
@@ -658,6 +665,7 @@ def emitir(participante, *, atividade=None, evento=None):
             participante=participante, evento=evento, atividade__isnull=True
         ).first()
     if existente is not None:
+        _marcar_inscricao_emitida(participante, atividade)
         return existente, False
 
     arquivo = gerar_certificado(
@@ -672,5 +680,20 @@ def emitir(participante, *, atividade=None, evento=None):
         config=config,
         pdf=arquivo,
     )
+    _marcar_inscricao_emitida(participante, atividade)
     _enviar_email(certificado, config, evento)
     return certificado, True
+
+
+def _marcar_inscricao_emitida(participante, atividade):
+    """Mantém `Inscricao.certificado_emitido` em sincronia (é apenas um cache).
+
+    A fonte de verdade é a tabela `Certificado`; a flag existe para telas e
+    filtros antigos. É atualizada em TODO caminho de emissão — inclusive quando
+    o certificado já existia — para não recriar divergência.
+    """
+    if atividade is None:
+        return
+    Inscricao.objects.filter(
+        participante=participante, atividade=atividade
+    ).update(certificado_emitido=True)

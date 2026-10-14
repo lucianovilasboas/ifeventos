@@ -310,16 +310,10 @@ class InscricaoAdmin(admin.ModelAdmin):
     trocar_status_de_confirmada.short_description = "Marcar/descmarcar como Conformada"
 
 
-    # Função para marcar/desmarcar inscrições como certificado emitido
-    def trocar_status_de_certificado_emitido(modeladmin, request, queryset):
-        # queryset.update(is_organizador=True)
-        for obj in queryset:
-            obj.certificado_emitido = not obj.certificado_emitido
-            obj.save()        
-    trocar_status_de_certificado_emitido.short_description = "Marcar/descmarcar Certificado Emitido"
-
-
-    actions = [trocar_status_de_confirmada, trocar_status_de_certificado_emitido]  # Adicionando ações personalizadas
+    # "Certificado emitido" é cache da tabela `Certificado` (fonte de verdade);
+    # não há mais ação em lote para invertê-la — ela criava divergência entre o
+    # que a tela mostra (derivado de `Certificado`) e a flag.
+    actions = [trocar_status_de_confirmada]  # Adicionando ações personalizadas
 
 
 
