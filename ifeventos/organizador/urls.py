@@ -13,6 +13,7 @@ from .views import importar_programacao
 from .views import copiloto_evento_plano, aplicar_plano_evento, remover_plano_evento
 from .views import equipe_apoio_adicionar, equipe_apoio_remover
 from .views import coorganizador_adicionar, coorganizador_remover
+from .views import comissao_adicionar, comissao_remover
 from .views import briefing_operacional, briefing_leitura, gerar_divulgacao
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
@@ -54,6 +55,7 @@ from eventos.services import ia_mensagem_view, gerar_conteudo_ajax, sugerir_cate
 from .views import EmitirCertificadosAtividadeView
 from .views import EmitirCertificadosEventoView
 from .views import EmitirCertificadosTodasAtividadesView
+from .views import EmitirCertificadosFuncaoView
 from .views import EmitirCertificadoInscricaoView
 from .views import CertificadoConfigView, CertificadoPreviewView
 from .views import CertificadoAtividadeView, CertificadoAtividadeUsarPadraoView
@@ -171,6 +173,7 @@ urlpatterns = [
 
     path("emitir-certificados/evento/<int:evento_id>/", EmitirCertificadosEventoView.as_view(), name="emitir_certificados_evento"),
     path("emitir-certificados/evento/<int:evento_id>/atividades/", EmitirCertificadosTodasAtividadesView.as_view(), name="emitir_certificados_todas_atividades"),
+    path("emitir-certificados/funcao/<int:evento_id>/<str:funcao>/", EmitirCertificadosFuncaoView.as_view(), name="emitir_certificados_funcao"),
 
     # Configuração do certificado (texto/layout/assinaturas) e catálogo
     path("certificado/<int:evento_id>/config/<str:escopo>/", CertificadoConfigView.as_view(), name="certificado_config"),
@@ -211,6 +214,10 @@ urlpatterns = [
     # -- Co-organizadores do evento (só o dono gerencia) --
     path("evento/<int:evento_id>/coorganizador/adicionar/", coorganizador_adicionar, name="coorganizador_adicionar"),
     path("evento/<int:evento_id>/coorganizador/remover/", coorganizador_remover, name="coorganizador_remover"),
+
+    # -- Comissão organizadora do evento (certificado de função) --
+    path("evento/<int:evento_id>/comissao/adicionar/", comissao_adicionar, name="comissao_adicionar"),
+    path("evento/<int:evento_id>/comissao/remover/", comissao_remover, name="comissao_remover"),
 
     # -- Rotas para a IA --
     path('ia_mensagem/', ia_mensagem_view, name='ia_mensagem'),

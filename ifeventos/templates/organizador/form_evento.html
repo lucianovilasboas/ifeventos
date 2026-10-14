@@ -245,6 +245,49 @@
                     </div>
                 </div>
 
+                <!-- Comissão organizadora -->
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="app-panel p-3">
+                            <h6 class="mb-1"><i class="fa-solid fa-people-group"></i> Comissão organizadora</h6>
+                            <p class="text-muted small mb-2">
+                                Pessoas que ajudam a organizar o evento. <b>Não</b> têm poderes de
+                                gestão — a lista serve para o <b>certificado de função</b>
+                                “Comissão organizadora”. Adicione por e-mail: conta existente é
+                                reaproveitada; e-mail novo cria uma conta.
+                            </p>
+                            {% if pode_gerenciar_comissao %}
+                            <div class="input-group mb-3">
+                                <input type="email" id="comissaoEmail" class="form-control"
+                                       placeholder="E-mail da pessoa da comissão" aria-label="E-mail da comissão">
+                                <button type="button" class="btn btn-app" id="comissaoAdicionar">
+                                    <i class="fa-solid fa-user-plus"></i> Adicionar
+                                </button>
+                            </div>
+                            {% endif %}
+                            <div id="comissaoAviso"></div>
+                            <ul class="list-group" id="comissaoLista">
+                                {% for pessoa in comissao %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center" data-comissao-item="{{ pessoa.id }}">
+                                    <span><i class="fa-solid fa-user"></i> {{ pessoa.get_full_name|default:pessoa.email }}</span>
+                                    {% if pode_gerenciar_comissao %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            data-comissao-remover="{{ pessoa.id }}"
+                                            data-comissao-nome="{{ pessoa.get_full_name|default:pessoa.email }}">
+                                        <i class="fa-solid fa-user-minus"></i> Remover
+                                    </button>
+                                    {% endif %}
+                                </li>
+                                {% empty %}
+                                <li class="list-group-item text-muted" id="comissaoVazio">
+                                    Ninguém na comissão organizadora ainda.
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="text-end mt-4">
 
                     {% if evento %}
@@ -647,6 +690,78 @@ document.addEventListener("DOMContentLoaded", function () {
                     lista.innerHTML = '<li class="list-group-item text-muted" id="coorganizadorVazio">Nenhum co-organizador além do dono.</li>';
                 }
                 mensagem(`Removida. A conta de ${nome} continua existindo, só perdeu o acesso de co-organização deste evento.`, "success");
+            }
+        })
+        .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+    });
+});
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const CSRF = '{{ csrf_token }}';
+    const urlAdicionar = "{% url 'organizador:comissao_adicionar' evento.id %}";
+    const urlRemover = "{% url 'organizador:comissao_remover' evento.id %}";
+    const aviso = document.getElementById("comissaoAviso");
+    const lista = document.getElementById("comissaoLista");
+    const botaoAdd = document.getElementById("comissaoAdicionar");
+    if (!lista) return;
+
+    function mensagem(texto, tipo) {
+        if (aviso) aviso.innerHTML = `<div class="alert alert-${tipo} py-2">${texto}</div>`;
+    }
+
+    if (botaoAdd) {
+        botaoAdd.addEventListener("click", function () {
+            const email = document.getElementById("comissaoEmail").value.trim();
+            if (!email) { mensagem("Informe o e-mail da pessoa.", "warning"); return; }
+            fetch(urlAdicionar, {
+                method: "POST",
+                headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+                body: new URLSearchParams({email: email}),
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (!d.success) { mensagem(d.erro || "Não deu para adicionar.", "danger"); return; }
+                if (d.reusada) {
+                    mensagem(`✅ ${d.nome} entrou na comissão organizadora.`, "success");
+                } else {
+                    mensagem(`✅ Conta criada para <b>${d.nome}</b>. Senha padrão do evento: <code>${d.senha_temporaria}</code> — repasse para a pessoa.`, "success");
+                }
+                document.getElementById("comissaoEmail").value = "";
+                const vazio = document.getElementById("comissaoVazio");
+                if (vazio) vazio.remove();
+                const li = document.createElement("li");
+                li.className = "list-group-item d-flex justify-content-between align-items-center";
+                li.dataset.comissaoItem = d.pessoa_id;
+                li.innerHTML = `<span><i class="fa-solid fa-user"></i> ${d.nome}</span>` +
+                    `<button type="button" class="btn btn-sm btn-outline-danger" data-comissao-remover="${d.pessoa_id}" data-comissao-nome="${d.nome}"><i class="fa-solid fa-user-minus"></i> Remover</button>`;
+                lista.appendChild(li);
+            })
+            .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));
+        });
+    }
+
+    lista.addEventListener("click", function (e) {
+        const botao = e.target.closest("[data-comissao-remover]");
+        if (!botao) return;
+        const id = botao.dataset.comissaoRemover;
+        const nome = botao.dataset.comissaoNome;
+        if (!confirm(`Remover ${nome} da comissão organizadora?`)) return;
+        fetch(urlRemover, {
+            method: "POST",
+            headers: {"X-CSRFToken": CSRF, "Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({pessoa_id: id}),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                const item = lista.querySelector(`[data-comissao-item="${id}"]`);
+                if (item) item.remove();
+                if (!lista.querySelector("[data-comissao-item]")) {
+                    lista.innerHTML = '<li class="list-group-item text-muted" id="comissaoVazio">Ninguém na comissão organizadora ainda.</li>';
+                }
+                mensagem(`Removida. A conta de ${nome} continua existindo.`, "success");
             }
         })
         .catch(() => mensagem("Erro de conexão. Tente de novo.", "danger"));

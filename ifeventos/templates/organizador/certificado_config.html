@@ -8,6 +8,9 @@
         {% if escopo == 'atividade' %}
             Certificado — {{ atividade.titulo }}
             <span class="text-muted small">({{ evento.title }})</span>
+        {% elif funcao_rotulo %}
+            Certificado — {{ funcao_rotulo }}
+            <span class="text-muted small">({{ evento.title }})</span>
         {% else %}
             Certificado — {{ evento.title }}
             <span class="text-muted small">
@@ -39,7 +42,7 @@
 <div class="app-page mt-2">
 
     {% if escopo != 'atividade' %}
-    <ul class="nav nav-pills mb-3">
+    <ul class="nav nav-pills mb-3 flex-wrap gap-1">
         <li class="nav-item">
             <a class="nav-link {% if escopo == 'evento' %}active{% endif %}"
                href="{% url 'organizador:certificado_config' evento.id 'evento' %}">
@@ -52,13 +55,24 @@
                 <i class="fa-solid fa-list-check"></i> Padrão das atividades
             </a>
         </li>
+        {% for codigo, rotulo in funcoes %}
+        <li class="nav-item">
+            <a class="nav-link {% if escopo == codigo %}active{% endif %}"
+               href="{% url 'organizador:certificado_config' evento.id codigo %}">
+                <i class="fa-solid fa-user-tag"></i> {{ rotulo }}
+            </a>
+        </li>
+        {% endfor %}
     </ul>
     <p class="text-muted small">
         {% if escopo == 'evento' %}
         Usado no <b>certificado do evento</b> (quem cumpre o percentual mínimo de presença).
-        {% else %}
+        {% elif escopo == 'atividades' %}
         Usado nos <b>certificados das atividades</b> que não tiverem configuração própria
         (veja a lista abaixo para personalizar uma atividade específica).
+        {% else %}
+        Usado no <b>certificado de função</b> ({{ funcao_rotulo }}) — para quem tem esse
+        vínculo no evento. Use <code>{% verbatim %}{{funcao}}{% endverbatim %}</code> no texto para imprimir a função.
         {% endif %}
     </p>
     {% endif %}
@@ -323,6 +337,95 @@
     })();
     </script>
     {% endif %}
+    {% endif %}
+
+    {% if funcao_rotulo %}
+    <div class="app-panel p-3 mt-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <h6 class="mb-0">Emitir — {{ funcao_rotulo }}</h6>
+            <button type="button" class="btn btn-app btn-sm" id="btn-emitir-funcao">
+                <i class="fa-solid fa-certificate"></i> Emitir para todos
+            </button>
+        </div>
+        <p class="text-muted small">
+            Certificado de função para quem tem o vínculo <b>{{ funcao_rotulo }}</b> neste evento.
+            O e-mail sai conforme a opção “Enviar por e-mail” desta configuração.
+        </p>
+        <div id="msg-emitir-funcao" class="mb-2"></div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="table-dark">
+                    <tr><th>Pessoa</th><th>Certificado</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for m in membros %}
+                    <tr>
+                        <td>{{ m.pessoa.get_full_name|default:m.pessoa.email }}</td>
+                        <td class="js-funcao-status" data-id="{{ m.pessoa.id }}">
+                            {% if m.emitido %}✅ Sim{% else %}❌ Não{% endif %}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-app js-emitir-pessoa"
+                                    data-participante="{{ m.pessoa.id }}"
+                                    title="Emitir para esta pessoa">
+                                🎓 Emitir
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-center text-muted">Ninguém neste grupo ainda.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var url = "{% url 'organizador:emitir_certificados_funcao' evento.id funcao %}";
+        var msg = document.getElementById("msg-emitir-funcao");
+        function marcar(ids) {
+            (ids || []).forEach(function (id) {
+                document.querySelectorAll('.js-funcao-status[data-id="' + id + '"]').forEach(function (el) {
+                    el.innerHTML = "✅ Sim";
+                });
+            });
+        }
+        function emitir(body) {
+            msg.innerHTML = "<div class='alert alert-info'>Gerando certificados...</div>";
+            fetch(url, {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" },
+                body: JSON.stringify(body || {})
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var falhas = data.falhas || [];
+                var novos = data.certificados || [];
+                var ja = data.ja_emitidos || [];
+                marcar(novos.concat(ja));
+                if (falhas.length) {
+                    msg.innerHTML = "<div class='alert alert-danger'>⚠ " + falhas[0] + "</div>";
+                } else if (novos.length) {
+                    msg.innerHTML = "<div class='alert alert-success'>🎉 " + novos.length + " " + data.message + "</div>";
+                } else if (ja.length) {
+                    msg.innerHTML = "<div class='alert alert-info'>Certificados já estavam emitidos para " + ja.length + " pessoa(s).</div>";
+                } else {
+                    msg.innerHTML = "<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>";
+                }
+            })
+            .catch(function () { msg.innerHTML = "<div class='alert alert-danger'>Erro ao emitir.</div>"; });
+        }
+        var btn = document.getElementById("btn-emitir-funcao");
+        if (btn) btn.addEventListener("click", function () {
+            if (confirm("Emitir os certificados de {{ funcao_rotulo }} para todos?")) emitir({});
+        });
+        document.querySelectorAll(".js-emitir-pessoa").forEach(function (b) {
+            b.addEventListener("click", function () {
+                emitir({ participante_id: parseInt(b.getAttribute("data-participante"), 10) });
+            });
+        });
+    })();
+    </script>
     {% endif %}
 
     {% if escopo == 'atividade' %}

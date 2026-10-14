@@ -28,7 +28,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
-from .models import Certificado, Inscricao, Participante, Presenca
+from .models import Certificado, Inscricao, Participante, Presenca, FUNCAO_CHOICES
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,28 @@ def participantes_da_atividade(atividade):
             atividade=atividade, confirmada=True
         ).values_list("participante_id", flat=True)
     )
+    return Participante.objects.filter(id__in=ids)
+
+
+def participantes_da_funcao(evento, funcao):
+    """Quem tem direito ao certificado DE UMA FUNÇÃO.
+
+    Funções: organizador (dono + co-organizadores), palestrante (palestrantes
+    das atividades), equipe (equipe de apoio) e comissao. Não exige presença —
+    basta o vínculo com o evento. Devolve um queryset de Participante.
+    """
+    ids = set()
+    if funcao == "organizador":
+        if evento.organizador_id:
+            ids.add(evento.organizador_id)
+        ids |= set(evento.organizadores.values_list("id", flat=True))
+    elif funcao == "palestrante":
+        ids = set(evento.atividades.values_list("palestrantes__id", flat=True))
+    elif funcao == "equipe":
+        ids = set(evento.equipe.values_list("id", flat=True))
+    elif funcao == "comissao":
+        ids = set(evento.comissao.values_list("id", flat=True))
+    ids.discard(None)
     return Participante.objects.filter(id__in=ids)
 
 
@@ -213,10 +235,31 @@ def config_padrao_atividades(evento):
     ).first()
 
 
-def config_efetiva(atividade=None, evento=None):
-    """Config a usar: override da atividade → padrão de atividades → do evento."""
+def config_da_funcao(evento, funcao):
+    """Config usada no certificado DE UMA FUNÇÃO."""
     from .models import ConfiguracaoCertificado
 
+    if evento is None or not funcao:
+        return None
+    return ConfiguracaoCertificado.objects.filter(
+        evento=evento,
+        atividade__isnull=True,
+        escopo=ConfiguracaoCertificado.ESCOPO_FUNCAO,
+        funcao=funcao,
+    ).first()
+
+
+def config_efetiva(atividade=None, evento=None, funcao=None):
+    """Config a usar: override da atividade → padrão de atividades → do evento.
+
+    Quando `funcao` é informada, devolve a config daquela função no evento.
+    """
+    from .models import ConfiguracaoCertificado
+
+    if funcao:
+        if evento is None and atividade is not None:
+            evento = atividade.evento
+        return config_da_funcao(evento, funcao)
     if atividade is not None:
         config = ConfiguracaoCertificado.objects.filter(atividade=atividade).first()
         if config is not None:
@@ -231,12 +274,14 @@ def config_efetiva(atividade=None, evento=None):
 # ---------------------------------------------------------------------------
 
 
-def contexto_certificado(participante, *, atividade=None, evento=None, config=None):
+def contexto_certificado(
+    participante, *, atividade=None, evento=None, config=None, funcao=None
+):
     """Variáveis disponíveis no corpo/template do certificado."""
     if evento is None and atividade is not None:
         evento = atividade.evento
     if config is None:
-        config = config_efetiva(atividade, evento)
+        config = config_efetiva(atividade, evento, funcao)
 
     from .crachas import gerar_token, url_verificacao
 
@@ -246,6 +291,7 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
             evento_id=getattr(evento, "id", None),
             tipo="certificado",
             atividade_id=getattr(atividade, "id", None),
+            funcao=funcao,
         )
     )
     tipo_atividade = ""
@@ -255,6 +301,11 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
         elif atividade.tipo_sugerido:
             tipo_atividade = atividade.tipo_sugerido
 
+    # Rótulo da função (certificado por função).
+    funcao_txt = ""
+    if funcao:
+        funcao_txt = dict(FUNCAO_CHOICES).get(funcao, funcao)
+
     # Carga horária existe só no certificado de ATIVIDADE.
     carga_horaria = ""
     if atividade is not None:
@@ -263,7 +314,7 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
     # Percentual de participação existe só no certificado do EVENTO.
     percentual_participacao_txt = ""
     percentual_minimo_txt = ""
-    if atividade is None and evento is not None:
+    if atividade is None and evento is not None and not funcao:
         valor = percentual_participacao(participante, evento)
         if valor is not None:
             percentual_participacao_txt = f"{valor}%"
@@ -274,6 +325,13 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
         )
         percentual_minimo_txt = f"{minimo}%"
 
+    if funcao:
+        tipo_ctx = "funcao"
+    elif atividade is not None:
+        tipo_ctx = "atividade"
+    else:
+        tipo_ctx = "evento"
+
     return {
         "nome": participante.get_full_name(),
         "cpf": participante.cpf,
@@ -281,12 +339,13 @@ def contexto_certificado(participante, *, atividade=None, evento=None, config=No
         "tipo_atividade": tipo_atividade,
         "evento": evento.title if evento is not None else "",
         "local": (atividade.local if atividade is not None and atividade.local else (evento.local if evento else "")),
+        "funcao": funcao_txt,
         "carga_horaria": carga_horaria,
         "percentual_participacao": percentual_participacao_txt,
         "percentual_minimo": percentual_minimo_txt,
         "data": timezone.localtime().strftime("%d/%m/%Y"),
         "qr_url": qr_url,
-        "tipo": "atividade" if atividade is not None else "evento",
+        "tipo": tipo_ctx,
     }
 
 
@@ -547,32 +606,37 @@ def render_pdf(contexto, config) -> bytes:
     return _render_fundo(contexto, config)
 
 
-def gerar_certificado(participante, *, atividade=None, evento=None, config=None):
+def gerar_certificado(participante, *, atividade=None, evento=None, config=None, funcao=None):
     """Gera o PDF de um certificado e devolve um ContentFile pronto para salvar."""
     from django.core.files.base import ContentFile
 
     if evento is None and atividade is not None:
         evento = atividade.evento
     if config is None:
-        config = config_efetiva(atividade, evento)
+        config = config_efetiva(atividade, evento, funcao)
 
     contexto = contexto_certificado(
-        participante, atividade=atividade, evento=evento, config=config
+        participante, atividade=atividade, evento=evento, config=config, funcao=funcao
     )
     if config is not None:
         dados = render_pdf(contexto, config)
     else:
-        dados = _render_padrao(contexto, atividade, evento)
+        dados = _render_padrao(contexto, atividade, evento, funcao)
 
     nome = f"certificado_{participante.id}.pdf"
     return ContentFile(dados, nome)
 
 
-def _render_padrao(contexto, atividade, evento):
+def _render_padrao(contexto, atividade, evento, funcao=None):
     """Fallback sem configuração: usa a config "virtual" só com o padrão."""
     from .models import ConfiguracaoCertificado
 
-    if atividade is not None:
+    if funcao:
+        corpo = (
+            "Certificamos que {{nome}} atuou como {{funcao}} no evento "
+            "{{evento}}, realizado em {{local}}."
+        )
+    elif atividade is not None:
         corpo = (
             "Certificamos que {{nome}} participou da atividade {{atividade}}.\n"
             "Carga horária: {{carga_horaria}}."
@@ -620,11 +684,12 @@ def _enviar_email(certificado, config, evento):
         except Exception:
             pass
 
-    escopo = (
-        f"atividade {certificado.atividade.titulo}"
-        if certificado.atividade_id
-        else f"evento {evento.title if evento else ''}"
-    )
+    if certificado.atividade_id:
+        escopo = f"atividade {certificado.atividade.titulo}"
+    elif certificado.funcao:
+        escopo = f"{certificado.get_funcao_display()} — evento {evento.title if evento else ''}"
+    else:
+        escopo = f"evento {evento.title if evento else ''}"
     corpo = render_to_string(
         "emails/certificado.txt",
         {
@@ -642,17 +707,26 @@ def _enviar_email(certificado, config, evento):
     )
 
 
-def emitir(participante, *, atividade=None, evento=None):
-    """Gera (uma única vez) o certificado de uma atividade ou do evento.
+def emitir(participante, *, atividade=None, evento=None, funcao=None):
+    """Gera (uma única vez) o certificado de uma atividade, evento ou função.
 
     Idempotente: se já existir, devolve o existente sem gerar de novo nem
     reenviar e-mail. Devolve `(certificado, criado)`.
     """
     if evento is None and atividade is not None:
         evento = atividade.evento
-    config = config_efetiva(atividade, evento)
+    config = config_efetiva(atividade, evento, funcao)
 
-    if atividade is not None:
+    if funcao:
+        tipo = Certificado.TIPO_FUNCAO
+        evento_gravado = evento
+        existente = Certificado.objects.filter(
+            participante=participante,
+            atividade__isnull=True,
+            evento=evento,
+            funcao=funcao,
+        ).first()
+    elif atividade is not None:
         tipo = Certificado.TIPO_ATIVIDADE
         evento_gravado = None
         existente = Certificado.objects.filter(
@@ -662,20 +736,24 @@ def emitir(participante, *, atividade=None, evento=None):
         tipo = Certificado.TIPO_EVENTO
         evento_gravado = evento
         existente = Certificado.objects.filter(
-            participante=participante, evento=evento, atividade__isnull=True
+            participante=participante,
+            evento=evento,
+            atividade__isnull=True,
+            funcao="",
         ).first()
     if existente is not None:
         _marcar_inscricao_emitida(participante, atividade)
         return existente, False
 
     arquivo = gerar_certificado(
-        participante, atividade=atividade, evento=evento, config=config
+        participante, atividade=atividade, evento=evento, config=config, funcao=funcao
     )
     certificado = Certificado.objects.create(
         participante=participante,
         atividade=atividade,
         evento=evento_gravado,
         tipo=tipo,
+        funcao=funcao or "",
         carga_horaria=carga_horaria_efetiva(atividade, evento, config),
         config=config,
         pdf=arquivo,

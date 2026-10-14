@@ -15,7 +15,7 @@
             <i class="fa-solid fa-certificate"></i>
         </div>
         <div class="info">
-            <h5>{% if certificado.atividade %}Atividade: {{ certificado.atividade.titulo }}{% else %}Evento: {{ certificado.evento.title }}{% endif %}</h5>
+            <h5>{% if certificado.funcao %}{{ certificado.get_funcao_display }}: {{ certificado.evento.title }}{% elif certificado.atividade %}Atividade: {{ certificado.atividade.titulo }}{% else %}Evento: {{ certificado.evento.title }}{% endif %}</h5>
             <p><i class="fa-regular fa-calendar"></i> Emitido em {{ certificado.data_emissao|date:"d/m/Y" }}</p>
         </div>
         <a href="{{ certificado.pdf.url }}" class="btn btn-app btn-sm" title="Baixar PDF">
