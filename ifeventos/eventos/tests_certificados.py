@@ -1,6 +1,7 @@
 """Testes dos certificados: elegibilidade, render e telas de configuração."""
 
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -283,10 +284,10 @@ class EmissaoTests(TestCase):
         Presenca.objects.create(atividade=self.atividade, participante=outro)
         real = certificados.emitir
 
-        def fake(pessoa, *, atividade=None, evento=None):
+        def fake(pessoa, *, atividade=None, evento=None, funcao=None):
             if pessoa.id == self.pessoa.id:
                 raise certificados.CertificadoLayoutError("falha de propósito")
-            return real(pessoa, atividade=atividade, evento=evento)
+            return real(pessoa, atividade=atividade, evento=evento, funcao=funcao)
 
         self.client.force_login(self.dono)
         with mock.patch.object(certificados, "emitir", side_effect=fake):
@@ -367,6 +368,170 @@ class EmissaoTests(TestCase):
         inscricao2.refresh_from_db()
         self.assertTrue(inscricao.certificado_emitido)
         self.assertFalse(inscricao2.certificado_emitido)
+
+
+class FuncaoTests(TestCase):
+    """Certificados por função (organizador, palestrante, equipe, comissão)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._media = tempfile.mkdtemp(prefix="media_funcao_")
+        cls.enterClassContext(override_settings(MEDIA_ROOT=cls._media))
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls._media, ignore_errors=True)
+
+    def setUp(self):
+        from django.core import mail
+
+        mail.outbox = []
+        self.dono = U.objects.create_user(
+            email="dono5@cert.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)  # organizador=dono
+        self.atividade = _atividade(self.evento)
+
+    def test_participantes_da_funcao_organizador(self):
+        co = U.objects.create_user(email="co@cert.test", password=SENHA)
+        self.evento.organizadores.add(co)
+        ids = set(
+            certificados.participantes_da_funcao(self.evento, "organizador").values_list(
+                "id", flat=True
+            )
+        )
+        self.assertEqual(ids, {self.dono.id, co.id})
+
+    def test_participantes_da_funcao_palestrante(self):
+        pal = U.objects.create_user(email="pal@cert.test", password=SENHA)
+        self.atividade.palestrantes.add(pal)
+        self.assertIn(
+            pal, certificados.participantes_da_funcao(self.evento, "palestrante")
+        )
+
+    def test_participantes_da_funcao_equipe_e_comissao(self):
+        eq = U.objects.create_user(email="eq@cert.test", password=SENHA)
+        cm = U.objects.create_user(email="cm@cert.test", password=SENHA)
+        self.evento.equipe.add(eq)
+        self.evento.comissao.add(cm)
+        self.assertIn(eq, certificados.participantes_da_funcao(self.evento, "equipe"))
+        self.assertIn(cm, certificados.participantes_da_funcao(self.evento, "comissao"))
+
+    def test_participantes_da_funcao_invalida(self):
+        self.assertFalse(
+            certificados.participantes_da_funcao(self.evento, "inexistente").exists()
+        )
+
+    def test_emitir_funcao_idempotente_e_multiplas_funcoes(self):
+        self.atividade.palestrantes.add(self.dono)
+        certificado, criado = certificados.emitir(
+            self.dono, evento=self.evento, funcao="organizador"
+        )
+        self.assertTrue(criado)
+        self.assertEqual(certificado.tipo, "funcao")
+        self.assertEqual(certificado.funcao, "organizador")
+
+        # A mesma pessoa pode ter certificado de outra função.
+        cert2, criado2 = certificados.emitir(
+            self.dono, evento=self.evento, funcao="palestrante"
+        )
+        self.assertTrue(criado2)
+        self.assertNotEqual(certificado.pk, cert2.pk)
+
+        # Idempotente por função.
+        _cert3, criado3 = certificados.emitir(
+            self.dono, evento=self.evento, funcao="organizador"
+        )
+        self.assertFalse(criado3)
+        self.assertEqual(
+            Certificado.objects.filter(
+                participante=self.dono, evento=self.evento, funcao__isnull=False
+            ).count(),
+            2,
+        )
+
+    def test_token_de_funcao_verifica_o_certificado_certo(self):
+        from eventos import crachas
+
+        self.evento.comissao.add(self.dono)
+        cert, _ = certificados.emitir(self.dono, evento=self.evento, funcao="comissao")
+        # Emite também o certificado DO EVENTO para garantir o isolamento.
+        certificados.emitir(self.dono, evento=self.evento)
+
+        token = crachas.gerar_token(
+            self.dono.id, evento_id=self.evento.id, tipo="certificado", funcao="comissao"
+        )
+        resultado = crachas.verificar_token(token)
+        self.assertTrue(resultado["valido"])
+        self.assertEqual(resultado["certificado"].pk, cert.pk)
+        self.assertEqual(resultado["papel"], "comissao")
+
+        # Token do certificado do evento (sem função) continua achando o do evento.
+        token_evento = crachas.gerar_token(
+            self.dono.id, evento_id=self.evento.id, tipo="certificado"
+        )
+        resultado_evento = crachas.verificar_token(token_evento)
+        self.assertTrue(resultado_evento["valido"])
+        self.assertEqual(resultado_evento["certificado"].tipo, "evento")
+
+    def test_config_view_funcao_cria_config(self):
+        self.client.force_login(self.dono)
+        r = self.client.get(
+            reverse("organizador:certificado_config", args=[self.evento.id, "organizador"])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(
+            ConfiguracaoCertificado.objects.filter(
+                evento=self.evento, escopo="funcao", funcao="organizador"
+            ).exists()
+        )
+
+    def test_emitir_funcao_view_lote_e_individual(self):
+        self.evento.comissao.add(self.dono)
+        outro = U.objects.create_user(email="outroc@cert.test", password=SENHA)
+        self.evento.comissao.add(outro)
+        self.client.force_login(self.dono)
+
+        url = reverse("organizador:emitir_certificados_funcao", args=[self.evento.id, "comissao"])
+        r = self.client.post(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(
+            Certificado.objects.filter(evento=self.evento, funcao="comissao").count(), 2
+        )
+
+        # Individual (idempotente: já existia) para um membro.
+        r2 = self.client.post(
+            url, data=json.dumps({"participante_id": outro.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(r2.status_code, 200)
+        self.assertIn(outro.id, r2.json()["ja_emitidos"])
+
+    def test_emitir_funcao_view_funcao_invalida(self):
+        self.client.force_login(self.dono)
+        r = self.client.post(
+            reverse("organizador:emitir_certificados_funcao", args=[self.evento.id, "xpto"])
+        )
+        self.assertEqual(r.status_code, 404)
+
+    def test_comissao_adicionar_e_remover(self):
+        self.client.force_login(self.dono)
+        novo = U.objects.create_user(email="nova@cert.test", password=SENHA)
+        r = self.client.post(
+            reverse("organizador:comissao_adicionar", args=[self.evento.id]),
+            {"email": novo.email},
+        )
+        self.assertTrue(r.json()["success"])
+        self.assertTrue(self.evento.comissao.filter(id=novo.id).exists())
+
+        r2 = self.client.post(
+            reverse("organizador:comissao_remover", args=[self.evento.id]),
+            {"pessoa_id": novo.id},
+        )
+        self.assertTrue(r2.json()["success"])
+        self.assertFalse(self.evento.comissao.filter(id=novo.id).exists())
 
 
 def _docx_template_bytes(texto="Certificado de {{ nome }}"):

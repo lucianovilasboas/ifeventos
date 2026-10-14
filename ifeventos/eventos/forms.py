@@ -841,6 +841,10 @@ CORPO_PADRAO_EVENTO = (
     "{{local}}, com participação de {{percentual_participacao}} "
     "(mínimo de {{percentual_minimo}})."
 )
+CORPO_PADRAO_FUNCAO = (
+    "Certificamos que {{nome}} atuou como {{funcao}} no evento {{evento}}, "
+    "realizado em {{local}}."
+)
 
 
 class ConfiguracaoCertificadoForm(forms.ModelForm):
@@ -853,8 +857,9 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
         help_text=(
             "Variáveis: {{nome}}, {{tipo_atividade}}, {{atividade}}, {{evento}}, "
             "{{carga_horaria}} (atividade), {{percentual_participacao}} e "
-            "{{percentual_minimo}} (evento), {{data}}, {{local}}. No modo .docx "
-            "também valem {{qr}}, {{qr_url}}, {{assinatura1}} e {{assinatura2}}."
+            "{{percentual_minimo}} (evento), {{funcao}} (função), {{data}}, "
+            "{{local}}. No modo .docx também valem {{qr}}, {{qr_url}}, "
+            "{{assinatura1}} e {{assinatura2}}."
         ),
     )
     assinantes_escolhidos = forms.ModelMultipleChoiceField(
@@ -896,23 +901,31 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
 
     def __init__(self, *args, escopo=None, **kwargs):
         super().__init__(*args, **kwargs)
-        # Regras por escopo: evento não tem carga horária; atividade não tem percentual.
+        # Regras por escopo: evento não tem carga horária; atividade não tem
+        # percentual; função não tem nem carga horária nem percentual.
         if escopo == "evento":
             self.fields.pop("carga_horaria_padrao", None)
         elif escopo in ("atividade", "atividades"):
             self.fields.pop("percentual", None)
+        elif escopo == "funcao":
+            self.fields.pop("carga_horaria_padrao", None)
+            self.fields.pop("percentual", None)
         # O seletor de modelo .docx lista só os modelos do tipo certo
         # (evento ou atividade) — o nome do arquivo segue o mesmo escopo.
-        escopo_modelo = (
-            TemplateCertificadoDocx.ESCOPO_EVENTO
-            if escopo == "evento"
-            else TemplateCertificadoDocx.ESCOPO_ATIVIDADE
-        )
         campo_template = self.fields.get("template")
         if campo_template is not None:
-            campo_template.queryset = TemplateCertificadoDocx.objects.filter(
-                escopo=escopo_modelo
-            )
+            if escopo == "funcao":
+                # Certificado de função pode usar qualquer modelo do catálogo.
+                campo_template.queryset = TemplateCertificadoDocx.objects.all()
+            else:
+                escopo_modelo = (
+                    TemplateCertificadoDocx.ESCOPO_EVENTO
+                    if escopo == "evento"
+                    else TemplateCertificadoDocx.ESCOPO_ATIVIDADE
+                )
+                campo_template.queryset = TemplateCertificadoDocx.objects.filter(
+                    escopo=escopo_modelo
+                )
             campo_template.empty_label = "— nenhum modelo —"
             campo_template.label_from_instance = lambda o: o.nome
         # Os fundos são uma biblioteca única (não variam por escopo).

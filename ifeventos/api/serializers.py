@@ -330,6 +330,7 @@ class CertificadoSerializer(serializers.ModelSerializer):
     atividade = AtividadeSerializer(read_only=True)
     evento = EventoSerializer(read_only=True)
     pdf_url = serializers.SerializerMethodField()
+    funcao_rotulo = serializers.SerializerMethodField()
 
     class Meta:
         model = Certificado
@@ -338,6 +339,9 @@ class CertificadoSerializer(serializers.ModelSerializer):
             "participante",
             "atividade",
             "evento",
+            "tipo",
+            "funcao",
+            "funcao_rotulo",
             "codigo",
             "data_emissao",
             "pdf_url",
@@ -347,6 +351,9 @@ class CertificadoSerializer(serializers.ModelSerializer):
         if obj.pdf:
             return obj.pdf.url
         return None
+
+    def get_funcao_rotulo(self, obj) -> str:
+        return obj.get_funcao_display() if obj.funcao else ""
 
 
 # =============================================================================

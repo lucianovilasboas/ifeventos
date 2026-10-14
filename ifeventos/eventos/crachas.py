@@ -203,17 +203,20 @@ def pessoas_do_evento(evento, papel=None):
 # Token do QR e código curto
 # --------------------------------------------------------------------------
 
-def gerar_token(usuario_id, evento_id=None, tipo="cracha", atividade_id=None):
+def gerar_token(usuario_id, evento_id=None, tipo="cracha", atividade_id=None, funcao=None):
     """Token assinado que vai dentro do QR.
 
     `tipo` distingue crachá de certificado: os dois usam a mesma rota pública de
-    verificação (/c/<token>/), e o tipo decide o que a página mostra.
+    verificação (/c/<token>/), e o tipo decide o que a página mostra. `funcao`
+    identifica o certificado de função (organizador, palestrante, equipe, comissão).
     """
     dados = {"u": int(usuario_id), "t": tipo}
     if evento_id:
         dados["e"] = int(evento_id)
     if atividade_id:
         dados["a"] = int(atividade_id)
+    if funcao:
+        dados["p"] = funcao
     return signing.dumps(dados, salt=SAL_TOKEN, compress=True)
 
 
@@ -1270,13 +1273,21 @@ def verificar_token(token):
     # -- Certificado ---------------------------------------------------------
     if resultado["tipo"] == "certificado":
         # Casa com o que a linha do certificado realmente guarda: na emissão por
-        # atividade a linha tem `atividade` (e `evento` vazio); na emissão por
-        # evento é o contrário. Exigir os dois daria 404 em certificado bom.
+        # atividade a linha tem `atividade` (e `evento` vazio); na por evento é o
+        # contrário; na por função tem `evento` + `funcao`. Exigir os dois daria
+        # 404 em certificado bom.
         consulta = Certificado.objects.filter(participante=pessoa)
         if dados.get("a"):
             consulta = consulta.filter(atividade_id=dados["a"])
+        elif dados.get("p"):
+            consulta = consulta.filter(
+                evento_id=dados.get("e"), funcao=dados["p"]
+            )
         elif dados.get("e"):
-            consulta = consulta.filter(evento_id=dados["e"])
+            # Certificado do evento: sem atividade e sem função.
+            consulta = consulta.filter(
+                evento_id=dados["e"], atividade__isnull=True, funcao=""
+            )
 
         certificado = consulta.first()
         if certificado is None:
@@ -1289,15 +1300,16 @@ def verificar_token(token):
         evento = certificado.evento or (
             certificado.atividade.evento if certificado.atividade else None
         )
+        funcao_rotulo = certificado.get_funcao_display() if certificado.funcao else ""
         resultado.update({
             "valido": True,
             "status": 200,
             "certificado": certificado,
             "atividade": certificado.atividade,
             "evento": evento,
-            "papel": None,
-            "papel_rotulo": "Certificado",
-            "papeis_rotulos": ["Certificado"],
+            "papel": certificado.funcao or None,
+            "papel_rotulo": funcao_rotulo or "Certificado",
+            "papeis_rotulos": [funcao_rotulo or "Certificado"],
             "periodo": periodo_legivel(evento) if evento else "",
         })
         return resultado

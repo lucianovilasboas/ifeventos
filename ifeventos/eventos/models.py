@@ -14,6 +14,16 @@ from .validators import apenas_digitos
 from .tempo import local_legivel
 
 
+# Funções de uma pessoa num evento, usadas nos certificados por função.
+# Os códigos de organizador/palestrante/equipe coincidem com `Presenca.PAPEL_CHOICES`.
+FUNCAO_CHOICES = [
+    ("organizador", "Organizador(a)"),
+    ("palestrante", "Palestrante"),
+    ("equipe", "Equipe de apoio"),
+    ("comissao", "Comissão organizadora"),
+]
+
+
 def sem_acento(texto):
     """Minúsculas e sem acento — para comparar rótulos de categoria.
 
@@ -299,6 +309,13 @@ class Evento(models.Model):
     # flag), mas o acesso aos eventos é por este vínculo.
     organizadores = models.ManyToManyField(
         Participante, blank=True, related_name="eventos_coorganizados"
+    )
+
+    # Comissão organizadora: pessoas que ajudam a organizar o evento (sem os
+    # poderes de gestão do dono/co-organizador). Serve, sobretudo, para o
+    # certificado de função "comissão organizadora".
+    comissao = models.ManyToManyField(
+        Participante, blank=True, related_name="eventos_comissao"
     )
 
     # ----------------------------------------------------------------------
@@ -795,15 +812,22 @@ class Certificado(models.Model):
     
     pdf = models.FileField(upload_to="usuarios/certificados/", blank=True, null=True)
 
-    # Certificado de uma atividade ou do evento (>= percentual de presença).
+    # Certificado de uma atividade, do evento (>= percentual de presença) ou
+    # de uma FUNÇÃO (organizador, palestrante, equipe, comissão).
     TIPO_ATIVIDADE = "atividade"
     TIPO_EVENTO = "evento"
+    TIPO_FUNCAO = "funcao"
     TIPO_CHOICES = [
         (TIPO_ATIVIDADE, "Atividade"),
         (TIPO_EVENTO, "Evento"),
+        (TIPO_FUNCAO, "Função"),
     ]
     tipo = models.CharField(
         max_length=10, choices=TIPO_CHOICES, default=TIPO_ATIVIDADE, db_index=True
+    )
+    # Função do certificado de função (vazio nos certificados de atividade/evento).
+    funcao = models.CharField(
+        max_length=20, choices=FUNCAO_CHOICES, blank=True, default="", db_index=True
     )
     # Carga horária impressa no certificado (horas).
     carga_horaria = models.PositiveIntegerField(null=True, blank=True)
@@ -816,12 +840,15 @@ class Certificado(models.Model):
     class Meta:
         verbose_name = "Certificado"
         verbose_name_plural = "Certificados"
-        unique_together = ('participante', 'atividade', 'evento')  # Evita duplicidade
+        # Evita duplicidade; `funcao` permite um certificado por função por pessoa.
+        unique_together = ('participante', 'atividade', 'evento', 'funcao')
 
     def __str__(self):
         nome = self.participante.get_full_name() if self.participante else "?"
         if self.atividade_id:
             return f"Certificado de {nome} - Atividade {self.atividade.titulo}"
+        if self.funcao:
+            return f"Certificado de {nome} - {self.get_funcao_display()}"
         if self.evento_id:
             return f"Certificado de {nome} - Evento {self.evento.title}"
         return f"Certificado de {nome}"
@@ -1230,22 +1257,25 @@ class TemplateCertificadoDocx(models.Model):
 class ConfiguracaoCertificado(models.Model):
     """Como um certificado é desenhado e assinado.
 
-    Três registros possíveis por evento:
+    Registros possíveis por evento:
       * escopo="evento", atividade=None     -> certificado DO EVENTO;
       * escopo="atividade", atividade=None  -> PADRÃO dos certificados de atividade;
-      * escopo="atividade", atividade=A     -> OVERRIDE da atividade A.
+      * escopo="atividade", atividade=A     -> OVERRIDE da atividade A;
+      * escopo="funcao", atividade=None, funcao=F -> certificado DA FUNÇÃO F.
 
     A config efetiva de uma atividade é o override (se houver) ou o padrão de
     atividades; a do evento é a de escopo "evento". O `corpo` usa variáveis
     (`{{nome}}`, `{{tipo_atividade}}`, `{{atividade}}`, `{{evento}}`,
-    `{{carga_horaria}}`, `{{data}}`, `{{local}}`, `{{qr}}`).
+    `{{carga_horaria}}`, `{{funcao}}`, `{{data}}`, `{{local}}`, `{{qr}}`).
     """
 
     ESCOPO_EVENTO = "evento"
     ESCOPO_ATIVIDADE = "atividade"
+    ESCOPO_FUNCAO = "funcao"
     ESCOPO_CHOICES = [
         (ESCOPO_EVENTO, "Evento"),
         (ESCOPO_ATIVIDADE, "Atividade"),
+        (ESCOPO_FUNCAO, "Função"),
     ]
 
     MODO_TEXTO = "texto"
@@ -1264,6 +1294,10 @@ class ConfiguracaoCertificado(models.Model):
     )
     escopo = models.CharField(
         max_length=12, choices=ESCOPO_CHOICES, default=ESCOPO_EVENTO
+    )
+    # Função do certificado quando escopo="funcao" (vazio nos demais escopos).
+    funcao = models.CharField(
+        max_length=20, choices=FUNCAO_CHOICES, blank=True, default=""
     )
     titulo = models.CharField(max_length=150, default="CERTIFICADO")
     corpo = models.TextField(
@@ -1307,6 +1341,11 @@ class ConfiguracaoCertificado(models.Model):
                 condition=models.Q(atividade__isnull=True, escopo="atividade"),
                 name="uniq_cert_config_atividades",
             ),
+            models.UniqueConstraint(
+                fields=["evento", "funcao"],
+                condition=models.Q(atividade__isnull=True, escopo="funcao"),
+                name="uniq_cert_config_funcao",
+            ),
         ]
 
     def __str__(self):
@@ -1314,6 +1353,8 @@ class ConfiguracaoCertificado(models.Model):
             return f"Certificado (atividade {self.atividade.titulo})"
         if self.escopo == self.ESCOPO_EVENTO:
             return f"Certificado do evento {self.evento.title}"
+        if self.escopo == self.ESCOPO_FUNCAO:
+            return f"Certificado de {self.get_funcao_display()} de {self.evento.title}"
         return f"Certificado das atividades de {self.evento.title}"
 
     @property

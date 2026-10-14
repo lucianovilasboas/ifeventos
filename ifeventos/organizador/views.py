@@ -19,13 +19,16 @@ from eventos.forms import ChamadaProposicoesForm, EspacoForm, GradeVagasForm, Va
 from eventos.forms import (
     CORPO_PADRAO,
     CORPO_PADRAO_EVENTO,
+    CORPO_PADRAO_FUNCAO,
     AssinanteForm,
     ConfiguracaoCertificadoForm,
 )
 from eventos.models import (
     Assinante,
     AssinaturaCertificado,
+    Certificado,
     ConfiguracaoCertificado,
+    FUNCAO_CHOICES,
     FundoCertificado,
     TemplateCertificadoDocx,
 )
@@ -327,6 +330,13 @@ def editar_evento(request, evento_id):
             request.user.is_superuser
             or evento.organizador_id == request.user.id
         ),
+        # Comissão organizadora: lista usada no certificado de função.
+        'comissao': evento.comissao.order_by('first_name', 'email'),
+        'pode_gerenciar_comissao': (
+            request.user.is_superuser
+            or evento.organizador_id == request.user.id
+            or evento.organizadores.filter(id=request.user.id).exists()
+        ),
     })
 
 
@@ -564,6 +574,60 @@ def coorganizador_remover(request, evento_id):
     return JsonResponse({"success": True}) 
 
 
+# -- Comissão organizadora (lista para o certificado de função) --------------
+@login_required(login_url='/accounts/login/')
+@require_POST
+def comissao_adicionar(request, evento_id):
+    """Adiciona uma pessoa à comissão organizadora do evento, pelo e-mail.
+
+    Não concede poderes de gestão (é só um vínculo, usado no certificado de
+    função). Conta existente é reaproveitada; e-mail novo cria uma conta mínima
+    (senha temporária devolvida UMA vez).
+    """
+    _, evento = get_user_and_evento(request, evento_id)
+    email = (request.POST.get("email") or "").strip().lower()
+    if not email:
+        return JsonResponse({"success": False, "erro": "Informe o e-mail."}, status=400)
+
+    try:
+        pessoa = Participante.objects.get(email__iexact=email)
+        senha_temporaria = None
+        reusada = True
+    except Participante.DoesNotExist:
+        from allauth.account.models import EmailAddress
+
+        senha_temporaria = evento.senha_padrao
+        pessoa = Participante.objects.create_user(
+            email=email,
+            password=senha_temporaria,
+            is_participante=False,
+        )
+        EmailAddress.objects.create(
+            user=pessoa, email=pessoa.email, verified=True, primary=True
+        )
+        reusada = False
+
+    evento.comissao.add(pessoa)
+    return JsonResponse({
+        "success": True,
+        "pessoa_id": pessoa.id,
+        "nome": pessoa.get_full_name() or pessoa.email,
+        "reusada": reusada,
+        "senha_temporaria": senha_temporaria,
+    })
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def comissao_remover(request, evento_id):
+    """Tira a pessoa da comissão organizadora (não apaga a conta)."""
+    _, evento = get_user_and_evento(request, evento_id)
+    pessoa_id = request.POST.get("pessoa_id") or ""
+    if pessoa_id.isdigit():
+        evento.comissao.remove(int(pessoa_id))
+    return JsonResponse({"success": True}) 
+
+
 # -- cria Atividade usando o modal --
 @login_required(login_url='/accounts/login/')
 def criar_atividade(request):
@@ -755,7 +819,7 @@ def adicionar_espaco_ajax(request):
 # -- Certificados --
 
 
-def _emitir_lote(participantes, *, atividade=None, evento=None):
+def _emitir_lote(participantes, *, atividade=None, evento=None, funcao=None):
     """Emite certificados de um lote SEM abortar no primeiro erro.
 
     Devolve `(gerados, ja_emitidos, falhas)`: ids de participante criados
@@ -766,7 +830,7 @@ def _emitir_lote(participantes, *, atividade=None, evento=None):
     for pessoa in participantes:
         try:
             _certificado, criado = certificados.emitir(
-                pessoa, atividade=atividade, evento=evento
+                pessoa, atividade=atividade, evento=evento, funcao=funcao
             )
         except certificados.CertificadoLayoutError as erro:
             falhas.append(f"{pessoa.get_full_name() or pessoa.email}: {erro}")
@@ -940,6 +1004,52 @@ class EmitirCertificadosTodasAtividadesView(LoginRequiredMixin, View):
         return JsonResponse(resposta)
 
 
+class EmitirCertificadosFuncaoView(LoginRequiredMixin, View):
+    """Emite os certificados de UMA função (organizador, palestrante, equipe, comissão).
+
+    Em lote (todos do grupo) ou individual, quando o corpo traz `participante_id`.
+    """
+
+    def post(self, request, evento_id, funcao):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+        if funcao not in dict(FUNCAO_CHOICES):
+            raise Http404("Função de certificado inválida.")
+
+        elegiveis = certificados.participantes_da_funcao(evento, funcao)
+
+        participante_id = None
+        if request.body:
+            try:
+                participante_id = json.loads(request.body).get("participante_id")
+            except (ValueError, AttributeError):
+                participante_id = None
+        if participante_id:
+            elegiveis = elegiveis.filter(id=participante_id)
+
+        gerados, ja_emitidos, falhas = _emitir_lote(
+            elegiveis, evento=evento, funcao=funcao
+        )
+
+        resposta = {
+            "message": "Certificados emitidos para a função!",
+            "certificados": gerados,
+            "ja_emitidos": ja_emitidos,
+        }
+        if falhas:
+            resposta["falhas"] = falhas
+
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
+            objeto=evento,
+            evento=evento,
+            resumo=f"Emitiu {len(gerados)} certificado(s) de função ({funcao})",
+            detalhes={"tipo": "funcao", "funcao": funcao, "gerados": len(gerados), "falhas": falhas},
+        )
+        return JsonResponse(resposta)
+
+
 # -- Configuração de certificados e catálogo de assinantes --
 
 
@@ -970,9 +1080,14 @@ class CertificadoConfigView(LoginRequiredMixin, View):
     """
 
     template_name = "organizador/certificado_config.html"
+    # slug da URL -> (escopo, funcao)
     ESCOPOS = {
-        "evento": ConfiguracaoCertificado.ESCOPO_EVENTO,
-        "atividades": ConfiguracaoCertificado.ESCOPO_ATIVIDADE,
+        "evento": (ConfiguracaoCertificado.ESCOPO_EVENTO, None),
+        "atividades": (ConfiguracaoCertificado.ESCOPO_ATIVIDADE, None),
+        **{
+            codigo: (ConfiguracaoCertificado.ESCOPO_FUNCAO, codigo)
+            for codigo, _ in FUNCAO_CHOICES
+        },
     }
 
     def _get_evento(self, request, evento_id):
@@ -982,16 +1097,22 @@ class CertificadoConfigView(LoginRequiredMixin, View):
         return evento
 
     def _get_config(self, evento, escopo):
-        escopo_db = self.ESCOPOS.get(escopo)
-        if escopo_db is None:
+        alvo = self.ESCOPOS.get(escopo)
+        if alvo is None:
             raise Http404("Escopo de certificado inválido.")
+        escopo_db, funcao = alvo
         config = ConfiguracaoCertificado.objects.filter(
-            evento=evento, atividade__isnull=True, escopo=escopo_db
+            evento=evento, atividade__isnull=True, escopo=escopo_db, funcao=funcao or ""
         ).first()
         if config is None:
-            corpo = CORPO_PADRAO_EVENTO if escopo_db == ConfiguracaoCertificado.ESCOPO_EVENTO else CORPO_PADRAO
+            if escopo_db == ConfiguracaoCertificado.ESCOPO_EVENTO:
+                corpo = CORPO_PADRAO_EVENTO
+            elif escopo_db == ConfiguracaoCertificado.ESCOPO_FUNCAO:
+                corpo = CORPO_PADRAO_FUNCAO
+            else:
+                corpo = CORPO_PADRAO
             config = ConfiguracaoCertificado.objects.create(
-                evento=evento, escopo=escopo_db, corpo=corpo
+                evento=evento, escopo=escopo_db, funcao=funcao or "", corpo=corpo
             )
         return config
 
@@ -1003,7 +1124,24 @@ class CertificadoConfigView(LoginRequiredMixin, View):
             "form": form,
             "assinantes": Assinante.objects.filter(ativo=True),
             "selecionados": {str(i) for i in (form["assinantes_escolhidos"].value() or [])},
+            "funcoes": FUNCAO_CHOICES,
         }
+        alvo = self.ESCOPOS.get(escopo)
+        if alvo and alvo[0] == ConfiguracaoCertificado.ESCOPO_FUNCAO:
+            funcao = alvo[1]
+            emitidos = set(
+                Certificado.objects.filter(
+                    evento=evento, funcao=funcao
+                ).values_list("participante_id", flat=True)
+            )
+            contexto["funcao"] = funcao
+            contexto["funcao_rotulo"] = dict(FUNCAO_CHOICES).get(funcao, funcao)
+            contexto["membros"] = [
+                {"pessoa": pessoa, "emitido": pessoa.id in emitidos}
+                for pessoa in certificados.participantes_da_funcao(evento, funcao).order_by(
+                    "first_name", "last_name", "id"
+                )
+            ]
         if escopo == "atividades":
             contexto["atividades"] = list(
                 evento.atividades.filter(emite_certificado=True).order_by(
@@ -1057,6 +1195,7 @@ class CertificadoPreviewView(LoginRequiredMixin, View):
 
         escopo = request.GET.get("escopo", "evento")
         atividade = None
+        funcao = None
         if escopo == "atividade":
             atividade_id = request.GET.get("atividade")
             if atividade_id:
@@ -1065,12 +1204,15 @@ class CertificadoPreviewView(LoginRequiredMixin, View):
         elif escopo == "atividades":
             atividade = evento.atividades.filter(emite_certificado=True).first()
             config = certificados.config_padrao_atividades(evento)
+        elif escopo in dict(FUNCAO_CHOICES):
+            funcao = escopo
+            config = certificados.config_da_funcao(evento, funcao)
         else:
             config = certificados.config_do_evento(evento)
 
         try:
             arquivo = certificados.gerar_certificado(
-                request.user, atividade=atividade, evento=evento, config=config
+                request.user, atividade=atividade, evento=evento, config=config, funcao=funcao
             )
         except certificados.CertificadoLayoutError as erro:
             return HttpResponse(

@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.19.0] — 2026-10-14
+
+### Adicionado
+
+- **Certificados por função**: configuração própria (texto/layout/assinaturas) para **organizadores**, **palestrantes**, **equipe de apoio** e **comissão organizadora**, com uma aba por grupo na tela de certificados. Emissão em lote por grupo e individual, com lista dos membros e status de emissão.
+- **Comissão organizadora**: nova lista de pessoas por evento (em **Editar evento**), sem poderes de gestão — usada no certificado da comissão.
+- Nova variável `{{funcao}}` no corpo do certificado (ex.: “Organizador(a)”).
+- `Certificado` passou a ter `tipo="funcao"` e campo `funcao`; uma pessoa pode ter certificados de funções diferentes (ex.: organizador **e** palestrante).
+
+### Corrigido
+
+- **Certificado do evento não colide mais com o de função**: o certificado do evento passa a ser identificado sem função, tanto na emissão quanto na verificação pelo QR.
+
 ## [2.18.8] — 2026-10-14
 
 ### Corrigido

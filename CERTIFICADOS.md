@@ -1,19 +1,21 @@
 # Certificados — guia do organizador
 
-O certificado tem **duas configurações por evento**:
+O certificado tem **configurações por evento**:
 
 - **Certificado do evento** — usado no certificado de quem cumpre o percentual mínimo de presença.
 - **Padrão das atividades** — usado nos certificados das atividades que **não** tiverem
   configuração própria.
+- **Certificados de função** — um por grupo: **organizadores**, **palestrantes**,
+  **equipe de apoio** e **comissão organizadora**.
 
 Cada atividade pode ter a **sua configuração** (um *override*): na aba “Padrão das
 atividades” há a lista das atividades que emitem certificado; em **Configurar** você
 personaliza (ou usa **“Usar o padrão do evento”** para voltar).
 
-Telas: `/organizador/certificado/<evento_id>/config/evento/`,
-`/organizador/certificado/<evento_id>/config/atividades/` e
-`/organizador/certificado/atividade/<atividade_id>/`. O **catálogo de assinantes**
-fica em `/organizador/assinantes/` (organizador e staff).
+Telas: `/organizador/certificado/<evento_id>/config/<escopo>/`, onde `escopo` é
+`evento`, `atividades` ou o código da função (`organizador`, `palestrante`,
+`equipe`, `comissao`); e `/organizador/certificado/atividade/<atividade_id>/`.
+O **catálogo de assinantes** fica em `/organizador/assinantes/` (organizador e staff).
 
 ## O que se configura
 
@@ -44,6 +46,8 @@ Por **escopo** (aba):
 - **Atividade**: **carga horária padrão** (opcional). Sem ela, a carga é
   calculada pela **diferença entre o horário final e o inicial** da atividade
   (`2h`, `2h30`, `45min`).
+- **Função** (organizador/palestrante/equipe/comissão): **sem carga horária e sem
+  percentual** — o texto usa `{{funcao}}`.
 
 ## Variáveis do texto/template
 
@@ -54,7 +58,8 @@ Por **escopo** (aba):
 | `{{tipo_atividade}}` | tipo da atividade (ex.: Oficina) |
 | `{{atividade}}` | título da atividade (vazio no certificado do evento) |
 | `{{evento}}` | título do evento |
-| `{{carga_horaria}}` | carga da atividade (`2h`, `1h30`…) — **vazio no evento** |
+| `{{funcao}}` | função do certificado: Organizador(a), Palestrante, Equipe de apoio ou Comissão organizadora (vazio nos certificados de atividade/evento) |
+| `{{carga_horaria}}` | carga da atividade (`2h`, `1h30`…) — **vazio no evento e na função** |
 | `{{percentual_participacao}}` | % que a pessoa atingiu no evento (ex.: `80%`) — só no evento |
 | `{{percentual_minimo}}` | % exigido pelo evento (ex.: `75%`) — só no evento |
 | `{{data}}` | data de emissão (`dd/mm/aaaa`) |
@@ -75,10 +80,16 @@ todas funcionam, inclusive as imagens.
   precisa ter **presença** (ou inscrição confirmada).
 - **Evento**: presença mínima configurada, contando só as atividades que emitem
   certificado.
+- **Função**: bastar o **vínculo** com o evento — organizador (dono + co-organizadores),
+  palestrante (das atividades), equipe de apoio ou comissão organizadora. Não exige presença.
 
 ## Emissão
 
-- Por inscrição, por atividade (todos os elegíveis) ou por evento (todos com o
-  percentual mínimo) — nas telas atuais de certificados.
-- Idempotente: não gera de novo o que já existe.
+- Por inscrição, por atividade (todos os elegíveis), por evento (todos com o
+  percentual mínimo) ou por função (todos de um grupo, ou individualmente) — nas
+  telas de certificados.
+- A **comissão organizadora** é uma lista do evento (em **Editar evento**), sem
+  poderes de gestão.
+- Idempotente: não gera de novo o que já existe; uma pessoa pode ter certificados
+  de funções diferentes (ex.: organizador **e** palestrante).
 - Verificação pública pelo QR: `/c/<token>/`.
