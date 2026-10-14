@@ -1,7 +1,7 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from django.http import JsonResponse
 import json
 from django.views.decorators.csrf import csrf_exempt
@@ -15,7 +15,7 @@ from datetime import date
 from .listas_preparacao import agrupamento_pdf, dias_evento, nome_com_contexto, pdf_lista_continua, pdf_lista_preparada, registros_lista, agrupar_por_turma, opcoes_filtros_cascata
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
-from eventos.models import Inscricao, Atividade
+from eventos.models import Inscricao, Atividade, Certificado
 
 
 class _PermissaoEventoMixin:
@@ -49,7 +49,7 @@ ORDENACAO = {
     "local": ("atividade__local",),
     "evento": ("atividade__evento__title",),
     "confirmada": ("confirmada",),
-    "certificado": ("certificado_emitido",),
+    "certificado": ("tem_certificado",),
 }
 
 
@@ -291,6 +291,17 @@ class RelatorioInscricoesView(_PermissaoEventoMixin, _ColunasMetadadosMixin, Log
 
         queryset = self._aplicar_busca(queryset, self._busca())
 
+        # "Certificado emitido" deriva da tabela `Certificado` (fonte de
+        # verdade), não da flag `Inscricao.certificado_emitido`.
+        queryset = queryset.annotate(
+            tem_certificado=Exists(
+                Certificado.objects.filter(
+                    participante=OuterRef("participante"),
+                    atividade=OuterRef("atividade"),
+                )
+            )
+        )
+
         campos = ORDENACAO.get(self.request.GET.get("ordenar"))
         if campos:
             prefixo = "-" if self.request.GET.get("dir") == "desc" else ""
@@ -361,7 +372,7 @@ class RelatorioInscricoesView(_PermissaoEventoMixin, _ColunasMetadadosMixin, Log
             linhas.append(
                 linha
                 + ["Sim" if inscricao.confirmada else "Não",
-                   "Sim" if inscricao.certificado_emitido else "Não"]
+                   "Sim" if inscricao.tem_certificado else "Não"]
                 + [dados.get(c["chave"], "") for c in colunas]
             )
         return exportar(
@@ -463,6 +474,19 @@ class ListaPresencaView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequ
             "id",
         ))
 
+        # "Certificado emitido" deriva da tabela `Certificado` (fonte de
+        # verdade), não da flag `Inscricao.certificado_emitido`, que pode estar
+        # defasada. Uma consulta só para a atividade inteira.
+        com_certificado = set(
+            Certificado.objects.filter(
+                atividade_id=self.kwargs.get("atividade_id")
+            ).values_list("participante_id", flat=True)
+        )
+        for inscricao in inscricoes:
+            inscricao.certificado_emitido_efetivo = (
+                inscricao.participante_id in com_certificado
+            )
+
         # Filtros de metadados rodam em Python (os valores vivem num JSON).
         if any(filtros[c] for c in self.CAMPOS_FILTRO):
             inscricoes = [
@@ -520,7 +544,7 @@ class ListaPresencaView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequ
             linha += [indice, nome, inscricao.participante.email]
             linha += [dados.get(c["chave"], "") for c in colunas]
             linha += ["Sim" if inscricao.confirmada else "Não",
-                      "Sim" if inscricao.certificado_emitido else "Não"]
+                      "Sim" if getattr(inscricao, "certificado_emitido_efetivo", False) else "Não"]
             linhas.append(linha)
         return exportar(
             formato, f"lista_presenca_{atividade.id}",

@@ -16,8 +16,8 @@
             <span class="badge-app" style="background:{% if inscrito.confirmada %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
                 {% if inscrito.confirmada %}<i class="fa-solid fa-circle-check"></i> Presença confirmada{% else %}<i class="fa-solid fa-clock"></i> Não confirmada{% endif %}
             </span>
-            <span class="js-cert-status badge-app" data-id="{{ inscrito.id }}" style="background:{% if inscrito.certificado_emitido %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
-                {% if inscrito.certificado_emitido %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
+            <span class="js-cert-status badge-app" data-id="{{ inscrito.participante_id }}" style="background:{% if inscrito.certificado_emitido_efetivo %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
+                {% if inscrito.certificado_emitido_efetivo %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
             </span>
         </div>
         <div class="card-actions">

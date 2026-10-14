@@ -12,6 +12,7 @@ história. Funções puras: recebem o evento e devolvem dados — sem request.
 
 from collections import Counter, defaultdict
 
+from django.db.models import Q
 from django.utils import timezone
 
 from eventos import crachas
@@ -96,8 +97,10 @@ def resumo_por_pessoa(evento, termo="", presenca=None, certificado=None):
         presencas_por_pessoa[presenca_obj.participante_id].append(presenca_obj)
 
     certificados = defaultdict(int)
+    # Certificados de ATIVIDADE (por evento) + certificado DO evento (sem
+    # atividade) — a contagem reflete qualquer certificado emitido à pessoa.
     for pessoa_id in Certificado.objects.filter(
-        atividade__evento=evento
+        Q(atividade__evento=evento) | Q(atividade__isnull=True, evento=evento)
     ).values_list("participante_id", flat=True):
         certificados[pessoa_id] += 1
 
@@ -132,7 +135,7 @@ def resumo_por_pessoa(evento, termo="", presenca=None, certificado=None):
             "n_certificados": n_certificados,
             "carga_horaria": carga_horaria(presencas),
             "taxa_presenca": round(100 * n_presencas / n_inscricoes) if n_inscricoes else 0,
-            "taxa_certificacao": round(100 * n_certificados / n_presencas) if n_presencas else 0,
+            "taxa_certificacao": min(100, round(100 * n_certificados / n_presencas)) if n_presencas else 0,
             "presencas_canceladas": canceladas.get(pessoa.id, 0),
         })
     return linhas
@@ -207,7 +210,7 @@ def resumo_por_grupo(linhas, agrupar="curso_turma_ano"):
             round(100 * grupo["presencas"] / grupo["inscricoes"]) if grupo["inscricoes"] else 0
         )
         grupo["taxa_certificacao"] = (
-            round(100 * grupo["certificados"] / grupo["presencas"]) if grupo["presencas"] else 0
+            min(100, round(100 * grupo["certificados"] / grupo["presencas"])) if grupo["presencas"] else 0
         )
         resultado.append(grupo)
     return sorted(resultado, key=lambda g: g["grupo"].lower())

@@ -57,15 +57,15 @@
                 <span class="badge-app" style="background:{% if inscricao.confirmada %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
                     {% if inscricao.confirmada %}<i class="fa-solid fa-circle-check"></i> Presença confirmada{% else %}<i class="fa-solid fa-clock"></i> Não confirmada{% endif %}
                 </span>
-                <span class="js-cert-status badge-app" data-id="{{ inscricao.id }}" style="background:{% if inscricao.certificado_emitido %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
-                    {% if inscricao.certificado_emitido %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
+                <span class="js-cert-status badge-app" data-id="{{ inscricao.id }}" style="background:{% if inscricao.tem_certificado %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
+                    {% if inscricao.tem_certificado %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
                 </span>
             </div>
             <div class="card-actions">
                 <a href="{% url 'eventos:gerar_qr_code' inscricao.id %}" target="_blank" class="btn btn-sm btn-dark btn-icon" title="QR Code de confirmação">
                     <i class="fa fa-qrcode"></i>
                 </a>
-                {% if inscricao.confirmada and not inscricao.certificado_emitido and inscricao.atividade.encerrada %}
+                {% if inscricao.confirmada and not inscricao.tem_certificado and inscricao.atividade.encerrada %}
                 <button class="btn btn-sm btn-app btn-icon gerar-inscricao" data-inscricao="{{ inscricao.id }}" title="Emitir Certificado">
                     🎓
                 </button>
@@ -107,13 +107,13 @@
                         <td>{{ inscricao.atividade.local }}</td>
                         {% if "evento" not in ocultas %}<td>{{ inscricao.atividade.evento.title }}</td>{% endif %}
                         <td>{% if inscricao.confirmada %}✅ Sim{% else %}❌ Não{% endif %}</td>
-                        <td class="js-cert-status" data-id="{{ inscricao.id }}">{% if inscricao.certificado_emitido %}✅ Sim{% else %}❌ Não{% endif %}</td>
+                        <td class="js-cert-status" data-id="{{ inscricao.id }}">{% if inscricao.tem_certificado %}✅ Sim{% else %}❌ Não{% endif %}</td>
                         {% for col in colunas_metadados %}<td>{{ inscricao.participante.metadados.dados|meta:col.chave }}</td>{% endfor %}
                         <td>
                             <a href="{% url 'eventos:gerar_qr_code' inscricao.id %}" target="_blank" class="btn btn-sm btn-dark" title="QR Code de confirmação">
                                 <i class="fa fa-qrcode"></i>
                             </a>
-                            {% if inscricao.confirmada and not inscricao.certificado_emitido and inscricao.atividade.encerrada %}
+                            {% if inscricao.confirmada and not inscricao.tem_certificado and inscricao.atividade.encerrada %}
                             <button class="btn btn-sm btn-app gerar-inscricao" data-inscricao="{{ inscricao.id }}" title="Emitir Certificado">
                                 🎓 Emitir Certificado
                             </button>

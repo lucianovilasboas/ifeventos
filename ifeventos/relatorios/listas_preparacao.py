@@ -2,10 +2,11 @@
 
 from collections import defaultdict
 
+from django.db.models import Exists, OuterRef
 from django.utils.timezone import localtime
 
 from eventos import metadados
-from eventos.models import Inscricao
+from eventos.models import Certificado, Inscricao
 
 
 ROTULOS_VAZIOS = {
@@ -25,6 +26,15 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
     qs = Inscricao.objects.select_related(
         "participante", "participante__metadados", "atividade", "atividade__tipo"
     ).filter(atividade__evento=evento, atividade__publicada=True)
+    # "Certificado emitido" deriva da tabela `Certificado` (fonte de verdade).
+    qs = qs.annotate(
+        tem_certificado=Exists(
+            Certificado.objects.filter(
+                participante=OuterRef("participante"),
+                atividade=OuterRef("atividade"),
+            )
+        )
+    )
     if atividade_id:
         qs = qs.filter(atividade_id=atividade_id)
     if dia:
@@ -34,9 +44,9 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
     elif situacao == "sem_confirmacao":
         qs = qs.filter(confirmada=False)
     elif situacao == "certificados":
-        qs = qs.filter(confirmada=True, certificado_emitido=True)
+        qs = qs.filter(confirmada=True, tem_certificado=True)
     elif situacao == "sem_certificados":
-        qs = qs.filter(confirmada=True, certificado_emitido=False)
+        qs = qs.filter(confirmada=True, tem_certificado=False)
 
     registros = []
     for inscricao in qs.order_by("participante__first_name", "participante__last_name", "id"):
@@ -54,7 +64,7 @@ def registros_lista(evento, atividade_id=None, dia=None, situacao="confirmadas")
             "turma": _valor(dados, "turma"),
             "ano": _valor(dados, "ano"),
             "confirmada": inscricao.confirmada,
-            "certificado_emitido": inscricao.certificado_emitido,
+            "certificado_emitido": inscricao.tem_certificado,
             "dia": inicio.strftime("%d/%m/%Y"),
             "horario": inicio.strftime("%H:%M"),
         })

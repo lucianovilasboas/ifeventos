@@ -188,18 +188,21 @@
                 .then(response => response.json())
                 .then(data => {
                     const falhas = data.falhas || [];
+                    const novos = data.certificados || [];
+                    const jaEmitidos = data.ja_emitidos || [];
                     if (falhas.length) {
                         mensagem.innerHTML = `<div class='alert alert-danger'>⚠ ${falhas[0]}</div>`;
                     }
-                    if (data.certificados.length > 0) {
-                        console.table(data.certificados);
-                        mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${data.certificados.length} ${data.message}</div>`;
-
-                        for (let certificadoId of data.certificados) {
-                            setCertStatus(certificadoId, "✅ Sim");
-                        }
+                    for (let participanteId of novos.concat(jaEmitidos)) {
+                        setCertStatus(participanteId, "✅ Sim");
+                    }
+                    if (novos.length > 0) {
+                        console.table(novos);
+                        mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${novos.length} ${data.message}</div>`;
                     } else if (!falhas.length) {
-                        mensagem.innerHTML = `<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>`;
+                        mensagem.innerHTML = jaEmitidos.length
+                            ? `<div class='alert alert-info'>Certificados já estavam emitidos para ${jaEmitidos.length} inscrito(s).</div>`
+                            : `<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>`;
                     }
                 })
                 .catch(error => {

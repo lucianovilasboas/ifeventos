@@ -275,6 +275,99 @@ class EmissaoTests(TestCase):
             ).exists()
         )
 
+    def test_emissao_em_lote_continua_apos_falha(self):
+        """Uma falha individual não impede os demais certificados do lote."""
+        from unittest import mock
+
+        outro = U.objects.create_user(email="outro@cert.test", password=SENHA)
+        Presenca.objects.create(atividade=self.atividade, participante=outro)
+        real = certificados.emitir
+
+        def fake(pessoa, *, atividade=None, evento=None):
+            if pessoa.id == self.pessoa.id:
+                raise certificados.CertificadoLayoutError("falha de propósito")
+            return real(pessoa, atividade=atividade, evento=evento)
+
+        self.client.force_login(self.dono)
+        with mock.patch.object(certificados, "emitir", side_effect=fake):
+            r = self.client.post(
+                reverse(
+                    "organizador:emitir_certificados_atividade",
+                    args=[self.atividade.id],
+                )
+            )
+
+        dados = r.json()
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(outro.id, dados["certificados"])
+        self.assertTrue(dados.get("falhas"))
+        self.assertTrue(
+            Certificado.objects.filter(participante=outro, atividade=self.atividade).exists()
+        )
+        self.assertFalse(
+            Certificado.objects.filter(
+                participante=self.pessoa, atividade=self.atividade
+            ).exists()
+        )
+
+    def test_emitir_idempotente_sincroniza_a_flag(self):
+        """Reemitir um certificado existente liga a flag defasada."""
+        inscricao = Inscricao.objects.create(
+            participante=self.pessoa, atividade=self.atividade, confirmada=True
+        )
+        Certificado.objects.create(
+            participante=self.pessoa, atividade=self.atividade, tipo="atividade"
+        )
+        self.assertFalse(inscricao.certificado_emitido)
+
+        certificados.emitir(self.pessoa, atividade=self.atividade)
+
+        inscricao.refresh_from_db()
+        self.assertTrue(inscricao.certificado_emitido)
+
+    def test_lista_presenca_mostra_emitido_pela_tabela(self):
+        """A tela deriva "emitido" de `Certificado`, não da flag defasada."""
+        Inscricao.objects.create(
+            participante=self.pessoa, atividade=self.atividade,
+            confirmada=True, certificado_emitido=False,
+        )
+        Certificado.objects.create(
+            participante=self.pessoa, atividade=self.atividade, tipo="atividade"
+        )
+
+        self.client.force_login(self.dono)
+        r = self.client.get(
+            reverse("organizador:relatorio_lista_presenca", args=[self.atividade.id])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "✅ Sim")
+
+    def test_reconciliar_certificados_dois_sentidos(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        # tem Certificado, flag desligada -> deve LIGAR
+        inscricao = Inscricao.objects.create(
+            participante=self.pessoa, atividade=self.atividade, confirmada=True
+        )
+        Certificado.objects.create(
+            participante=self.pessoa, atividade=self.atividade, tipo="atividade"
+        )
+        # sem Certificado, flag ligada -> deve DESLIGAR
+        p2 = U.objects.create_user(email="p2rec@cert.test", password=SENHA)
+        a2 = _atividade(self.evento, titulo="A2")
+        inscricao2 = Inscricao.objects.create(
+            participante=p2, atividade=a2, confirmada=True, certificado_emitido=True
+        )
+
+        call_command("reconciliar_certificados", "--confirmar", stdout=StringIO())
+
+        inscricao.refresh_from_db()
+        inscricao2.refresh_from_db()
+        self.assertTrue(inscricao.certificado_emitido)
+        self.assertFalse(inscricao2.certificado_emitido)
+
 
 def _docx_template_bytes(texto="Certificado de {{ nome }}"):
     from docx import Document
@@ -468,6 +561,11 @@ class PercentualTests(TestCase):
 
 
 class FormEscopoTests(TestCase):
+    def test_corpo_padrao_evento_inclui_local(self):
+        from eventos.forms import CORPO_PADRAO_EVENTO
+
+        self.assertIn("{{local}}", CORPO_PADRAO_EVENTO)
+
     def test_campos_por_escopo(self):
         from eventos.forms import ConfiguracaoCertificadoForm
 
