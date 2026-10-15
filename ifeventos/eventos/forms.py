@@ -855,11 +855,10 @@ class ConfiguracaoCertificadoForm(forms.ModelForm):
         initial=CORPO_PADRAO,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 6}),
         help_text=(
-            "Variáveis: {{nome}}, {{tipo_atividade}}, {{atividade}}, {{evento}}, "
-            "{{carga_horaria}} (atividade), {{percentual_participacao}} e "
-            "{{percentual_minimo}} (evento), {{funcao}} (função), {{data}}, "
-            "{{local}}. No modo .docx também valem {{qr}}, {{qr_url}}, "
-            "{{assinatura1}} e {{assinatura2}}."
+            "Aceita variáveis entre {{ }} (ex.: {{nome}}, {{evento}}, "
+            "{{evento_periodo}}, {{atividade}}, {{atividade_periodo}}, "
+            "{{local}}, {{carga_horaria}}, {{funcao}}, {{data}}). Use "
+            "“Inserir variável” abaixo para ver a lista completa."
         ),
     )
     assinantes_escolhidos = forms.ModelMultipleChoiceField(

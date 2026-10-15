@@ -5,6 +5,17 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.20.0] — 2026-10-15
+
+### Adicionado
+
+- **Mais variáveis nos certificados** (modo texto e .docx): datas/horários do evento e da atividade (`evento_data_inicio`, `evento_data_fim`, `evento_periodo`, `atividade_data`, `atividade_hora_inicio`, `atividade_hora_fim`, `atividade_inicio`, `atividade_fim`, `atividade_periodo`), textos e dados (`evento_local`, `evento_categoria`, `evento_descricao`, `evento_carga_horaria`, `organizador`, `atividade_local`, `atividade_descricao`, `atividade_palestrantes`), da pessoa (`primeiro_nome`, `sobrenome`, `email`, `telefone`), da emissão (`hora_emissao`) e **metadados do participante** (`{{meta_<chave>}}`, ex.: `{{meta_curso}}`).
+- **Seletor “Inserir variável”** no editor simples: chips com as variáveis por grupo inserem a tag na posição do cursor. A lista de tags (texto e .docx) passa a ser gerada de um catálogo único (`certificados.VARIAVEIS_CERTIFICADO`), filtrando por escopo (evento/atividade/função) e por modo.
+
+### Notas
+
+- **Retrocompatível**: todas as variáveis anteriores continuam válidas; foram adicionados aliases (`evento_nome`, `atividade_nome`, `atividade_tipo`, `data_emissao`). Modelos `.docx` e configurações existentes seguem funcionando; sem migration.
+
 ## [2.19.0] — 2026-10-14
 
 ### Adicionado

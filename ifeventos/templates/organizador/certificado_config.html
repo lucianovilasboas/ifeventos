@@ -154,12 +154,12 @@
                 {{ form.template }}
                 <div class="form-text">
                     O conteúdo e as assinaturas ficam dentro do arquivo. Tags disponíveis:
-                    <code>&#123;&#123;nome&#125;&#125;</code>, <code>&#123;&#123;tipo_atividade&#125;&#125;</code>,
-                    <code>&#123;&#123;atividade&#125;&#125;</code>, <code>&#123;&#123;evento&#125;&#125;</code>,
-                    <code>&#123;&#123;carga_horaria&#125;&#125;</code>,
-                    <code>&#123;&#123;percentual_participacao&#125;&#125;</code>,
-                    <code>&#123;&#123;percentual_minimo&#125;&#125;</code>,
-                    <code>&#123;&#123;qr&#125;&#125;</code>, <code>&#123;&#123;qr_url&#125;&#125;</code>.
+                    {% for grupo in variaveis %}
+                    <div class="small mt-1">
+                        <span class="text-muted">{{ grupo.grupo }}:</span>
+                        {% for v in grupo.itens %}<code>&#123;&#123;{{ v.chave }}&#125;&#125;</code>{% if not forloop.last %} {% endif %}{% endfor %}
+                    </div>
+                    {% endfor %}
                 </div>
 
                 <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
@@ -201,6 +201,24 @@
                     <label class="form-label" for="{{ form.corpo.id_for_label }}">Texto do certificado</label>
                     {{ form.corpo }}
                     <div class="form-text">{{ form.corpo.help_text }}</div>
+                    {% if variaveis %}
+                    <details class="mt-2" data-var-picker>
+                        <summary class="small text-muted" style="cursor:pointer">
+                            <i class="fa-solid fa-code"></i> Inserir variável
+                        </summary>
+                        <div class="mt-2">
+                            {% for grupo in variaveis %}
+                            <div class="mb-1">
+                                <span class="text-muted small me-1">{{ grupo.grupo }}:</span>
+                                {% for v in grupo.itens %}{% if not v.docx_only %}
+                                <button type="button" class="badge text-bg-light border js-var"
+                                        data-var="{{ v.chave }}" title="{{ v.rotulo }}">&#123;&#123;{{ v.chave }}&#125;&#125;</button>
+                                {% endif %}{% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -662,6 +680,28 @@
             mostrar("Fundo removido. Clique em Salvar se ele estava em uso.", "success");
         })
         .catch(function () { mostrar("Erro ao remover.", "danger"); });
+    });
+})();
+</script>
+
+<script>
+// Seletor de variáveis do editor simples: insere {{chave}} na posição do cursor.
+(function () {
+    var corpo = document.getElementById("{{ form.corpo.id_for_label }}");
+    if (!corpo) return;
+    var abre = "{% templatetag openvariable %}";
+    var fecha = "{% templatetag closevariable %}";
+    document.querySelectorAll(".js-var").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var tag = abre + btn.getAttribute("data-var") + fecha;
+            var inicio = corpo.selectionStart || 0;
+            var fim = corpo.selectionEnd || 0;
+            var valor = corpo.value;
+            corpo.value = valor.slice(0, inicio) + tag + valor.slice(fim);
+            var pos = inicio + tag.length;
+            corpo.setSelectionRange(pos, pos);
+            corpo.focus();
+        });
     });
 })();
 </script>

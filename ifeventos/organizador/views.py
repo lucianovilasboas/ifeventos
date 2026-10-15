@@ -1117,6 +1117,12 @@ class CertificadoConfigView(LoginRequiredMixin, View):
         return config
 
     def _contexto(self, evento, escopo, config, form):
+        if escopo == "evento":
+            tipo_var = "evento"
+        elif escopo in ("atividades", "atividade"):
+            tipo_var = "atividade"
+        else:
+            tipo_var = "funcao"
         contexto = {
             "evento": evento,
             "escopo": escopo,
@@ -1125,6 +1131,7 @@ class CertificadoConfigView(LoginRequiredMixin, View):
             "assinantes": Assinante.objects.filter(ativo=True),
             "selecionados": {str(i) for i in (form["assinantes_escolhidos"].value() or [])},
             "funcoes": FUNCAO_CHOICES,
+            "variaveis": certificados.variaveis_certificado(tipo_var),
         }
         alvo = self.ESCOPOS.get(escopo)
         if alvo and alvo[0] == ConfiguracaoCertificado.ESCOPO_FUNCAO:
@@ -1248,6 +1255,7 @@ class CertificadoAtividadeView(LoginRequiredMixin, View):
             "form": form,
             "assinantes": Assinante.objects.filter(ativo=True),
             "selecionados": selecionados,
+            "variaveis": certificados.variaveis_certificado("atividade"),
         }
 
     def get(self, request, atividade_id):

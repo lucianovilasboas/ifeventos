@@ -21,6 +21,7 @@ from eventos.models import (
     Evento,
     FundoCertificado,
     Inscricao,
+    ParticipanteMetadados,
     Presenca,
     TemplateCertificadoDocx,
 )
@@ -532,6 +533,118 @@ class FuncaoTests(TestCase):
         )
         self.assertTrue(r2.json()["success"])
         self.assertFalse(self.evento.comissao.filter(id=novo.id).exists())
+
+
+CONFIG_META = [
+    {"chave": "curso", "rotulo": "Curso", "tipo": "texto", "ordem": 1},
+]
+
+
+class VariaveisCertificadoTests(TestCase):
+    """Variáveis disponíveis no contexto (datas, textos, metadados, aliases)."""
+
+    def setUp(self):
+        self.dono = U.objects.create_user(
+            email="donov@cert.test", password=SENHA, is_organizador=True,
+            first_name="Dona", last_name="Organizadora",
+        )
+        self.evento = _evento(
+            self.dono, title="Mostra de Ciência", description="Descrição do evento",
+            local="Auditório", categoria="ciencia", carga_horaria=20,
+        )
+        self.atividade = _atividade(
+            self.evento, titulo="Oficina de Robótica",
+            descricao="Descrição da atividade",
+            data_hora_inicio=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2026, 10, 10, 13, 0, tzinfo=tz.utc),
+        )
+        self.pal = U.objects.create_user(
+            email="palv@cert.test", password=SENHA, first_name="Paulo", last_name="Palestrante"
+        )
+        self.atividade.palestrantes.add(self.pal)
+        self.pessoa = U.objects.create_user(
+            email="pv@cert.test", password=SENHA, first_name="Ana", last_name="Silva",
+            cpf="12345678909", telefone="31999990000",
+        )
+
+    def _ctx(self, **kw):
+        return certificados.contexto_certificado(self.pessoa, evento=self.evento, **kw)
+
+    def test_datas_e_textos_do_evento(self):
+        c = self._ctx()
+        self.assertEqual(c["evento_data_inicio"], "10/10/2026")
+        self.assertEqual(c["evento_data_fim"], "12/10/2026")
+        self.assertEqual(c["evento_periodo"], "10 a 12/10/2026")
+        self.assertEqual(c["evento_local"], "Auditório")
+        self.assertEqual(c["evento_categoria"], "Ciência")
+        self.assertEqual(c["evento_descricao"], "Descrição do evento")
+        self.assertEqual(c["evento_carga_horaria"], "20h")
+        self.assertEqual(c["organizador"], "Dona Organizadora")
+
+    def test_datas_e_horarios_da_atividade(self):
+        c = self._ctx(atividade=self.atividade)
+        self.assertEqual(c["atividade_data"], "10/10/2026")
+        self.assertEqual(c["atividade_hora_inicio"], "08:00")  # 11:00 UTC → America/Sao_Paulo
+        self.assertEqual(c["atividade_hora_fim"], "10:00")
+        self.assertEqual(c["atividade_inicio"], "10/10/2026 08:00")
+        self.assertEqual(c["atividade_fim"], "10/10/2026 10:00")
+        self.assertEqual(c["atividade_periodo"], "10/10/2026 08:00 às 10:00")
+        self.assertEqual(c["atividade_local"], "Sala")
+        self.assertEqual(c["local"], "Sala")
+        self.assertEqual(c["atividade_descricao"], "Descrição da atividade")
+        self.assertEqual(c["atividade_palestrantes"], "Paulo Palestrante")
+
+    def test_dados_da_pessoa(self):
+        c = self._ctx()
+        self.assertEqual(c["nome"], "Ana Silva")
+        self.assertEqual(c["primeiro_nome"], "Ana")
+        self.assertEqual(c["sobrenome"], "Silva")
+        self.assertEqual(c["email"], "pv@cert.test")
+        self.assertEqual(c["telefone"], "31999990000")
+        self.assertEqual(c["cpf"], "12345678909")
+
+    def test_aliases_iguais_aos_canonicos(self):
+        c = self._ctx(atividade=self.atividade)
+        self.assertEqual(c["evento_nome"], c["evento"])
+        self.assertEqual(c["atividade_nome"], c["atividade"])
+        self.assertEqual(c["atividade_tipo"], c["tipo_atividade"])
+        self.assertEqual(c["data_emissao"], c["data"])
+        self.assertIn("hora_emissao", c)
+
+    @override_settings(METADADOS_PARTICIPANTE=CONFIG_META)
+    def test_metadados_no_contexto(self):
+        # Sem a linha de metadados a chave existe e vem vazia.
+        self.assertEqual(self._ctx()["meta_curso"], "")
+        ParticipanteMetadados.objects.create(
+            participante=self.pessoa, dados={"curso": "Informática"}
+        )
+        self.assertEqual(self._ctx()["meta_curso"], "Informática")
+
+    def test_catalogo_cobre_o_contexto(self):
+        """Toda variável de texto do catálogo existe no contexto (travamento)."""
+        c = self._ctx(atividade=self.atividade)
+        for grupo in certificados.variaveis_certificado("atividade"):
+            for item in grupo["itens"]:
+                if item["docx_only"] or item["chave"].startswith("meta_"):
+                    continue
+                self.assertIn(item["chave"], c, f"{item['chave']} fora do contexto")
+
+    def test_catalogo_por_escopo(self):
+        chaves_evento = {
+            i["chave"]
+            for g in certificados.variaveis_certificado("evento")
+            for i in g["itens"]
+        }
+        self.assertIn("percentual_minimo", chaves_evento)
+        self.assertNotIn("atividade", chaves_evento)
+
+        chaves_funcao = {
+            i["chave"]
+            for g in certificados.variaveis_certificado("funcao")
+            for i in g["itens"]
+        }
+        self.assertIn("funcao", chaves_funcao)
+        self.assertNotIn("percentual_minimo", chaves_funcao)
 
 
 def _docx_template_bytes(texto="Certificado de {{ nome }}"):
