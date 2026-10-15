@@ -1265,8 +1265,9 @@ class ConfiguracaoCertificado(models.Model):
 
     A config efetiva de uma atividade é o override (se houver) ou o padrão de
     atividades; a do evento é a de escopo "evento". O `corpo` usa variáveis
-    (`{{nome}}`, `{{tipo_atividade}}`, `{{atividade}}`, `{{evento}}`,
-    `{{carga_horaria}}`, `{{funcao}}`, `{{data}}`, `{{local}}`, `{{qr}}`).
+    (`{{nome}}`, `{{evento}}`, `{{evento_periodo}}`, `{{atividade}}`,
+    `{{atividade_periodo}}`, `{{local}}`, `{{carga_horaria}}`, `{{funcao}}`,
+    `{{data}}`, `{{meta_<chave>}}`…; catálogo em `certificados.VARIAVEIS_CERTIFICADO`).
     """
 
     ESCOPO_EVENTO = "evento"

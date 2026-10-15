@@ -54,25 +54,41 @@ Por **escopo** (aba):
 | variável | valor |
 | --- | --- |
 | `{{nome}}` | nome completo da pessoa |
+| `{{primeiro_nome}}` / `{{sobrenome}}` | nome e sobrenome |
 | `{{cpf}}` | CPF (só os dígitos) |
-| `{{tipo_atividade}}` | tipo da atividade (ex.: Oficina) |
-| `{{atividade}}` | título da atividade (vazio no certificado do evento) |
-| `{{evento}}` | título do evento |
+| `{{email}}` / `{{telefone}}` | contato da pessoa |
 | `{{funcao}}` | função do certificado: Organizador(a), Palestrante, Equipe de apoio ou Comissão organizadora (vazio nos certificados de atividade/evento) |
+| `{{evento}}` | título do evento (alias `{{evento_nome}}`) |
+| `{{evento_local}}` | local do evento |
+| `{{evento_data_inicio}}` / `{{evento_data_fim}}` | datas (`dd/mm/aaaa`) |
+| `{{evento_periodo}}` | período do evento (ex.: `10 a 12/10/2026`) |
+| `{{evento_categoria}}` | categoria do evento |
+| `{{evento_descricao}}` | descrição do evento |
+| `{{evento_carga_horaria}}` | carga horária padrão do evento |
+| `{{organizador}}` | nome do organizador |
+| `{{atividade}}` | título da atividade (vazio no evento) (alias `{{atividade_nome}}`) |
+| `{{tipo_atividade}}` | tipo da atividade (ex.: Oficina) (alias `{{atividade_tipo}}`) |
+| `{{atividade_local}}` / `{{local}}` | local da atividade / local resolvido (atividade ou evento) |
+| `{{atividade_data}}` / `{{atividade_hora_inicio}}` / `{{atividade_hora_fim}}` | data e horários |
+| `{{atividade_inicio}}` / `{{atividade_fim}}` | início/término (`dd/mm/aaaa HH:MM`) |
+| `{{atividade_periodo}}` | ex.: `10/10/2026 08:00 às 10:00` |
+| `{{atividade_descricao}}` / `{{atividade_palestrantes}}` | descrição / palestrantes |
 | `{{carga_horaria}}` | carga da atividade (`2h`, `1h30`…) — **vazio no evento e na função** |
 | `{{percentual_participacao}}` | % que a pessoa atingiu no evento (ex.: `80%`) — só no evento |
 | `{{percentual_minimo}}` | % exigido pelo evento (ex.: `75%`) — só no evento |
-| `{{data}}` | data de emissão (`dd/mm/aaaa`) |
-| `{{local}}` | local da atividade ou do evento |
+| `{{data}}` | data de emissão (`dd/mm/aaaa`) (alias `{{data_emissao}}`) |
+| `{{hora_emissao}}` | hora de emissão (`HH:MM`) |
+| `{{meta_<chave>}}` | metadado do participante (ex.: `{{meta_curso}}`, `{{meta_turma}}`) |
 | `{{qr}}` | imagem do QR de verificação (só no modo `.docx`) |
-| `{{qr_url}}` | URL de verificação (texto) — só no modo `.docx` |
+| `{{qr_url}}` | URL de verificação (texto) |
 | `{{assinatura1}}` / `{{assinatura2}}` | imagem da assinatura (só no modo `.docx`) |
 | `{{assinante1}}` / `{{cargo_assinante1}}` | nome/cargo do assinante (e 2) |
 
 No modo **texto livre**, use as variáveis de texto (o QR e as assinaturas são
 desenhados automaticamente; o QR fica no canto inferior direito e a **URL de
-confirmação sai em uma linha abaixo do rodapé, clicável**). No modo **`.docx`**,
-todas funcionam, inclusive as imagens.
+confirmação sai em uma linha abaixo do rodapé, clicável**). O editor traz um
+seletor **“Inserir variável”** com a lista completa. No modo **`.docx`**, todas
+funcionam, inclusive as imagens.
 
 ## Elegibilidade
 

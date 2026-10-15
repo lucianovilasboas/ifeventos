@@ -19,6 +19,7 @@ from __future__ import annotations
 import io
 import logging
 import subprocess
+from datetime import datetime
 
 from django.db.models import Count
 from django.utils import timezone
@@ -28,7 +29,9 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
+from . import metadados
 from .models import Certificado, Inscricao, Participante, Presenca, FUNCAO_CHOICES
+from .tempo import local_legivel
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +276,111 @@ def config_efetiva(atividade=None, evento=None, funcao=None):
 # Contexto (variáveis do texto)
 # ---------------------------------------------------------------------------
 
+# Catálogo das variáveis — FONTE ÚNICA para o contexto e para a UI (seletor).
+# Cada item: (chave, rótulo, escopo, docx_only).
+#   escopo: None (todos) | "evento" | "atividade" | "funcao"
+#   docx_only: só existe no modo .docx (imagens/assinaturas)
+_VARIAVEIS = [
+    ("Pessoa", [
+        ("nome", "Nome completo", None, False),
+        ("primeiro_nome", "Primeiro nome", None, False),
+        ("sobrenome", "Sobrenome", None, False),
+        ("cpf", "CPF (só dígitos)", None, False),
+        ("email", "E-mail", None, False),
+        ("telefone", "Telefone", None, False),
+        ("funcao", "Função (organizador/palestrante/equipe/comissão)", "funcao", False),
+    ]),
+    ("Evento", [
+        ("evento", "Título do evento", None, False),
+        ("evento_local", "Local do evento", None, False),
+        ("evento_data_inicio", "Data de início do evento", None, False),
+        ("evento_data_fim", "Data de término do evento", None, False),
+        ("evento_periodo", "Período do evento", None, False),
+        ("evento_categoria", "Categoria do evento", None, False),
+        ("evento_descricao", "Descrição do evento", None, False),
+        ("evento_carga_horaria", "Carga horária do evento", None, False),
+        ("organizador", "Nome do organizador", None, False),
+    ]),
+    ("Atividade", [
+        ("atividade", "Título da atividade", "atividade", False),
+        ("tipo_atividade", "Tipo da atividade", "atividade", False),
+        ("atividade_local", "Local da atividade", "atividade", False),
+        ("local", "Local (atividade ou evento)", None, False),
+        ("atividade_data", "Data da atividade", "atividade", False),
+        ("atividade_hora_inicio", "Hora de início", "atividade", False),
+        ("atividade_hora_fim", "Hora de término", "atividade", False),
+        ("atividade_inicio", "Início (data e hora)", "atividade", False),
+        ("atividade_fim", "Término (data e hora)", "atividade", False),
+        ("atividade_periodo", "Período da atividade", "atividade", False),
+        ("atividade_descricao", "Descrição da atividade", "atividade", False),
+        ("atividade_palestrantes", "Palestrantes", "atividade", False),
+        ("carga_horaria", "Carga horária da atividade", "atividade", False),
+    ]),
+    ("Certificado", [
+        ("data", "Data de emissão", None, False),
+        ("hora_emissao", "Hora de emissão", None, False),
+        ("qr_url", "URL de verificação", None, False),
+        ("percentual_participacao", "Percentual de participação", "evento", False),
+        ("percentual_minimo", "Percentual mínimo exigido", "evento", False),
+    ]),
+    ("Documento .docx (imagens e assinaturas)", [
+        ("qr", "QR de verificação (imagem)", None, True),
+        ("assinatura1", "Imagem da assinatura 1", None, True),
+        ("assinatura2", "Imagem da assinatura 2", None, True),
+        ("assinante1", "Nome do assinante 1", None, True),
+        ("cargo_assinante1", "Cargo do assinante 1", None, True),
+        ("assinante2", "Nome do assinante 2", None, True),
+        ("cargo_assinante2", "Cargo do assinante 2", None, True),
+    ]),
+]
+
+
+def variaveis_certificado(tipo):
+    """Catálogo agrupado das variáveis disponíveis para um escopo.
+
+    `tipo` ∈ {"evento", "atividade", "funcao"}. Inclui a lista dinâmica de
+    metadados (`{{meta_<chave>}}`) configurados pela escola.
+    """
+    grupos = []
+    for nome, itens in _VARIAVEIS:
+        filtrados = [
+            {"chave": chave, "rotulo": rotulo, "docx_only": docx_only}
+            for chave, rotulo, escopo, docx_only in itens
+            if escopo is None or escopo == tipo
+        ]
+        if filtrados:
+            grupos.append({"grupo": nome, "itens": filtrados})
+
+    meta = [
+        {"chave": f"meta_{campo['chave']}", "rotulo": campo["rotulo"], "docx_only": False}
+        for campo in metadados.campos()
+    ]
+    if meta:
+        grupos.append({"grupo": "Metadados do participante", "itens": meta})
+    return grupos
+
+
+def _formata_data(valor):
+    """Data (`dd/mm/aaaa`) aceitando date, datetime ou texto ISO."""
+    if not valor:
+        return ""
+    if isinstance(valor, str):
+        try:
+            valor = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+        except ValueError:
+            return ""
+    return valor.strftime("%d/%m/%Y")
+
+
+def _metadados_contexto(participante):
+    """Variáveis `meta_<chave>` a partir dos metadados configurados."""
+    dados_obj = getattr(participante, "metadados", None)
+    dados = dict(dados_obj.dados) if dados_obj else {}
+    return {
+        f"meta_{campo['chave']}": str(dados.get(campo["chave"], "") or "")
+        for campo in metadados.campos()
+    }
+
 
 def contexto_certificado(
     participante, *, atividade=None, evento=None, config=None, funcao=None
@@ -325,6 +433,57 @@ def contexto_certificado(
         )
         percentual_minimo_txt = f"{minimo}%"
 
+    # -- Datas e horários -----------------------------------------------------
+    evento_data_inicio = _formata_data(getattr(evento, "data_inicio", None))
+    evento_data_fim = _formata_data(getattr(evento, "data_fim", None))
+    evento_periodo = ""
+    if evento is not None:
+        from .crachas import periodo_legivel
+
+        evento_periodo = periodo_legivel(evento)
+
+    atividade_data = atividade_hora_inicio = atividade_hora_fim = ""
+    atividade_inicio = atividade_fim = atividade_periodo = ""
+    if atividade is not None:
+        atividade_data = local_legivel(atividade.data_hora_inicio, "%d/%m/%Y")
+        atividade_hora_inicio = local_legivel(atividade.data_hora_inicio, "%H:%M")
+        atividade_hora_fim = local_legivel(atividade.data_hora_fim, "%H:%M")
+        atividade_inicio = local_legivel(atividade.data_hora_inicio)
+        atividade_fim = local_legivel(atividade.data_hora_fim)
+        if atividade_inicio and atividade_hora_fim:
+            atividade_periodo = f"{atividade_inicio} às {atividade_hora_fim}"
+
+    # -- Textos e campos derivados -------------------------------------------
+    evento_local = evento.local if evento is not None else ""
+    evento_categoria = evento.get_categoria_display() if evento is not None else ""
+    evento_descricao = evento.description if evento is not None else ""
+    evento_carga_horaria = ""
+    if evento is not None and evento.carga_horaria:
+        evento_carga_horaria = _formatar_carga(evento.carga_horaria * 60)
+    organizador = ""
+    if evento is not None and evento.organizador_id:
+        organizador = evento.organizador.get_full_name() or evento.organizador.email
+
+    atividade_local = atividade.local if atividade is not None else ""
+    atividade_descricao = atividade.descricao if atividade is not None else ""
+    atividade_palestrantes = ""
+    if atividade is not None:
+        atividade_palestrantes = ", ".join(
+            (p.get_full_name() or p.email) for p in atividade.palestrantes.all()
+        )
+
+    nome = participante.get_full_name()
+    evento_titulo = evento.title if evento is not None else ""
+    atividade_titulo = atividade.titulo if atividade is not None else ""
+    local = (
+        atividade.local
+        if (atividade is not None and atividade.local)
+        else evento_local
+    )
+    emitido_em = timezone.localtime()
+    data_emissao = emitido_em.strftime("%d/%m/%Y")
+    hora_emissao = emitido_em.strftime("%H:%M")
+
     if funcao:
         tipo_ctx = "funcao"
     elif atividade is not None:
@@ -332,21 +491,53 @@ def contexto_certificado(
     else:
         tipo_ctx = "evento"
 
-    return {
-        "nome": participante.get_full_name(),
+    contexto = {
+        # Pessoa
+        "nome": nome,
+        "primeiro_nome": participante.first_name or "",
+        "sobrenome": participante.last_name or "",
         "cpf": participante.cpf,
-        "atividade": atividade.titulo if atividade is not None else "",
-        "tipo_atividade": tipo_atividade,
-        "evento": evento.title if evento is not None else "",
-        "local": (atividade.local if atividade is not None and atividade.local else (evento.local if evento else "")),
+        "email": participante.email or "",
+        "telefone": participante.telefone or "",
         "funcao": funcao_txt,
+        # Evento (com aliases legados)
+        "evento": evento_titulo,
+        "evento_nome": evento_titulo,
+        "evento_local": evento_local,
+        "evento_data_inicio": evento_data_inicio,
+        "evento_data_fim": evento_data_fim,
+        "evento_periodo": evento_periodo,
+        "evento_categoria": evento_categoria,
+        "evento_descricao": evento_descricao,
+        "evento_carga_horaria": evento_carga_horaria,
+        "organizador": organizador,
+        # Atividade (com aliases legados)
+        "atividade": atividade_titulo,
+        "atividade_nome": atividade_titulo,
+        "tipo_atividade": tipo_atividade,
+        "atividade_tipo": tipo_atividade,
+        "atividade_local": atividade_local,
+        "local": local,
+        "atividade_data": atividade_data,
+        "atividade_hora_inicio": atividade_hora_inicio,
+        "atividade_hora_fim": atividade_hora_fim,
+        "atividade_inicio": atividade_inicio,
+        "atividade_fim": atividade_fim,
+        "atividade_periodo": atividade_periodo,
+        "atividade_descricao": atividade_descricao,
+        "atividade_palestrantes": atividade_palestrantes,
         "carga_horaria": carga_horaria,
+        # Certificado (com alias legado de {{data}})
+        "data": data_emissao,
+        "data_emissao": data_emissao,
+        "hora_emissao": hora_emissao,
         "percentual_participacao": percentual_participacao_txt,
         "percentual_minimo": percentual_minimo_txt,
-        "data": timezone.localtime().strftime("%d/%m/%Y"),
         "qr_url": qr_url,
         "tipo": tipo_ctx,
     }
+    contexto.update(_metadados_contexto(participante))
+    return contexto
 
 
 def substituir_variaveis(texto, contexto) -> str:
@@ -548,8 +739,10 @@ def _docx_para_pdf(docx_path, outdir):
 def render_docx(contexto, config) -> bytes:
     """Gera o PDF a partir do template .docx (docxtpl) + LibreOffice.
 
-    Tags de texto: `{{nome}}`, `{{atividade}}`, `{{evento}}`, `{{carga_horaria}}`,
-    `{{data}}`, `{{local}}`. Tags de imagem: `{{qr}}`, `{{assinatura1}}`,
+    Aceita TODAS as variáveis de texto do contexto (ver `VARIAVEIS_CERTIFICADO`),
+    por exemplo `{{nome}}`, `{{evento}}`, `{{evento_periodo}}`, `{{atividade}}`,
+    `{{atividade_periodo}}`, `{{carga_horaria}}`, `{{data}}`, `{{local}}`,
+    `{{meta_<chave>}}`. Tags de imagem: `{{qr}}`, `{{assinatura1}}`,
     `{{assinatura2}}`. Tags de assinante: `{{assinante1}}`, `{{cargo_assinante1}}`.
     """
     import os
