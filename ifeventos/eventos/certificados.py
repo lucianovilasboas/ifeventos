@@ -30,8 +30,9 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
 from . import metadados
-from .models import Certificado, Inscricao, Participante, Presenca, FUNCAO_CHOICES
+from .models import Atividade, Certificado, Inscricao, Participante, Presenca, FUNCAO_CHOICES
 from .tempo import local_legivel
+from .validators import formatar_cpf
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,56 @@ def participantes_da_funcao(evento, funcao):
         ids = set(evento.comissao.values_list("id", flat=True))
     ids.discard(None)
     return Participante.objects.filter(id__in=ids)
+
+
+def atividades_do_palestrante(evento, participante):
+    """Atividades do evento em que a pessoa é palestrante (ordem cronológica)."""
+    if evento is None or participante is None:
+        return Atividade.objects.none()
+    return (
+        evento.atividades.filter(palestrantes=participante)
+        .select_related("tipo")
+        .order_by("data_hora_inicio", "id")
+    )
+
+
+def _rotulo_tipo(atividade):
+    """Rótulo do tipo da atividade (catálogo → sugerido → genérico)."""
+    if atividade.tipo_id:
+        return atividade.tipo.nome
+    return atividade.tipo_sugerido or "Atividade"
+
+
+def _pluralizar(rotulo, n):
+    """Plural simples do rótulo do tipo quando há mais de uma atividade.
+
+    Adiciona "s" às palavras que não terminam em "s", preservando conectores
+    (`de`, `da`, `do`, `das`, `dos`, `e`). Ex.: `Mesa Redonda` → `Mesas Redondas`.
+    """
+    if n <= 1:
+        return rotulo
+    conectores = {"de", "da", "do", "das", "dos", "e"}
+    palavras = []
+    for palavra in rotulo.split():
+        if palavra.lower() in conectores or palavra.endswith("s"):
+            palavras.append(palavra)
+        else:
+            palavras.append(palavra + "s")
+    return " ".join(palavras)
+
+
+def _agrupar_texto(grupos):
+    """Texto corrido agrupado por tipo: `2 Palestras (A; B) e 1 Minicurso (C)`."""
+    partes = [
+        f"{len(g['titulos'])} {_pluralizar(g['rotulo'], len(g['titulos']))} "
+        f"({'; '.join(g['titulos'])})"
+        for g in grupos
+    ]
+    if not partes:
+        return ""
+    if len(partes) == 1:
+        return partes[0]
+    return ", ".join(partes[:-1]) + " e " + partes[-1]
 
 
 def participantes_do_evento(evento, config=None):
@@ -286,6 +337,7 @@ _VARIAVEIS = [
         ("primeiro_nome", "Primeiro nome", None, False),
         ("sobrenome", "Sobrenome", None, False),
         ("cpf", "CPF (só dígitos)", None, False),
+        ("cpf_mascara", "CPF com máscara (000.000.000-00)", None, False),
         ("email", "E-mail", None, False),
         ("telefone", "Telefone", None, False),
         ("funcao", "Função (organizador/palestrante/equipe/comissão)", "funcao", False),
@@ -323,6 +375,14 @@ _VARIAVEIS = [
         ("percentual_participacao", "Percentual de participação", "evento", False),
         ("percentual_minimo", "Percentual mínimo exigido", "evento", False),
     ]),
+    ("Atividades do palestrante", [
+        ("carga_horaria", "Carga horária total", "funcao:palestrante", False),
+        ("carga_horaria_total", "Carga horária total (alias)", "funcao:palestrante", False),
+        ("n_atividades", "Quantidade de atividades", "funcao:palestrante", False),
+        ("atividades_lista", "Lista das atividades (tipo, título, carga, data)", "funcao:palestrante", False),
+        ("atividades_texto", "Atividades em texto corrido", "funcao:palestrante", False),
+        ("atividades_resumo", "Resumo por tipo", "funcao:palestrante", False),
+    ]),
     ("Documento .docx (imagens e assinaturas)", [
         ("qr", "QR de verificação (imagem)", None, True),
         ("assinatura1", "Imagem da assinatura 1", None, True),
@@ -335,18 +395,21 @@ _VARIAVEIS = [
 ]
 
 
-def variaveis_certificado(tipo):
+def variaveis_certificado(tipo, funcao=None):
     """Catálogo agrupado das variáveis disponíveis para um escopo.
 
-    `tipo` ∈ {"evento", "atividade", "funcao"}. Inclui a lista dinâmica de
-    metadados (`{{meta_<chave>}}`) configurados pela escola.
+    `tipo` ∈ {"evento", "atividade", "funcao"}. Quando `tipo == "funcao"`,
+    `funcao` (código) habilita as variáveis específicas — hoje as do palestrante
+    (`funcao:palestrante`). Inclui a lista dinâmica de metadados
+    (`{{meta_<chave>}}`) configurados pela escola.
     """
+    escopo_funcao = f"funcao:{funcao}" if funcao else None
     grupos = []
     for nome, itens in _VARIAVEIS:
         filtrados = [
             {"chave": chave, "rotulo": rotulo, "docx_only": docx_only}
             for chave, rotulo, escopo, docx_only in itens
-            if escopo is None or escopo == tipo
+            if escopo is None or escopo == tipo or (escopo_funcao and escopo == escopo_funcao)
         ]
         if filtrados:
             grupos.append({"grupo": nome, "itens": filtrados})
@@ -484,6 +547,55 @@ def contexto_certificado(
     data_emissao = emitido_em.strftime("%d/%m/%Y")
     hora_emissao = emitido_em.strftime("%H:%M")
 
+    # -- Certificado do PALESTRANTE: agrega as atividades dele ----------------
+    # Um único certificado para todas as atividades: lista (tipo, título, carga)
+    # e soma da carga horária. Só se aplica à função "palestrante".
+    carga_horaria_total_txt = ""
+    n_atividades_txt = ""
+    atividades_lista = ""
+    atividades_resumo = ""
+    atividades_texto = ""
+    atividades = []
+    if funcao == "palestrante" and evento is not None:
+        grupos = []  # [{"rotulo", "titulos": [...]}] na ordem de aparição
+        linhas = []
+        minutos_total = 0
+        for at in atividades_do_palestrante(evento, participante):
+            rotulo = _rotulo_tipo(at)
+            minutos = _minutos_efetivos(at, config)
+            if minutos:
+                minutos_total += minutos
+            carga = _formatar_carga(minutos)
+            data_txt = local_legivel(at.data_hora_inicio, "%d/%m/%Y")
+            if carga:
+                linhas.append(
+                    f"- {rotulo}: {at.titulo}, com carga horária {carga} ({data_txt});"
+                )
+            else:
+                linhas.append(f"- {rotulo}: {at.titulo} ({data_txt});")
+            atividades.append({
+                "titulo": at.titulo,
+                "tipo": rotulo,
+                "carga_horaria": carga,
+                "carga_minutos": minutos or 0,
+                "data": data_txt,
+            })
+            for grupo in grupos:
+                if grupo["rotulo"] == rotulo:
+                    grupo["titulos"].append(at.titulo)
+                    break
+            else:
+                grupos.append({"rotulo": rotulo, "titulos": [at.titulo]})
+        atividades_lista = "\n".join(linhas)
+        atividades_resumo = ", ".join(
+            f"{len(g['titulos'])}× {g['rotulo']}" for g in grupos
+        )
+        atividades_texto = _agrupar_texto(grupos)
+        n_atividades_txt = str(len(atividades))
+        if minutos_total:
+            carga_horaria = _formatar_carga(minutos_total)
+            carga_horaria_total_txt = carga_horaria
+
     if funcao:
         tipo_ctx = "funcao"
     elif atividade is not None:
@@ -497,6 +609,7 @@ def contexto_certificado(
         "primeiro_nome": participante.first_name or "",
         "sobrenome": participante.last_name or "",
         "cpf": participante.cpf,
+        "cpf_mascara": formatar_cpf(participante.cpf),
         "email": participante.email or "",
         "telefone": participante.telefone or "",
         "funcao": funcao_txt,
@@ -527,6 +640,13 @@ def contexto_certificado(
         "atividade_descricao": atividade_descricao,
         "atividade_palestrantes": atividade_palestrantes,
         "carga_horaria": carga_horaria,
+        # Atividades do palestrante (agregado; vazio nas demais funções)
+        "carga_horaria_total": carga_horaria_total_txt,
+        "n_atividades": n_atividades_txt,
+        "atividades_lista": atividades_lista,
+        "atividades_texto": atividades_texto,
+        "atividades_resumo": atividades_resumo,
+        "atividades": atividades,
         # Certificado (com alias legado de {{data}})
         "data": data_emissao,
         "data_emissao": data_emissao,

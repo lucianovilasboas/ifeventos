@@ -56,6 +56,7 @@ Por **escopo** (aba):
 | `{{nome}}` | nome completo da pessoa |
 | `{{primeiro_nome}}` / `{{sobrenome}}` | nome e sobrenome |
 | `{{cpf}}` | CPF (só os dígitos) |
+| `{{cpf_mascara}}` | CPF formatado (`000.000.000-00`) |
 | `{{email}}` / `{{telefone}}` | contato da pessoa |
 | `{{funcao}}` | função do certificado: Organizador(a), Palestrante, Equipe de apoio ou Comissão organizadora (vazio nos certificados de atividade/evento) |
 | `{{evento}}` | título do evento (alias `{{evento_nome}}`) |
@@ -73,7 +74,12 @@ Por **escopo** (aba):
 | `{{atividade_inicio}}` / `{{atividade_fim}}` | início/término (`dd/mm/aaaa HH:MM`) |
 | `{{atividade_periodo}}` | ex.: `10/10/2026 08:00 às 10:00` |
 | `{{atividade_descricao}}` / `{{atividade_palestrantes}}` | descrição / palestrantes |
-| `{{carga_horaria}}` | carga da atividade (`2h`, `1h30`…) — **vazio no evento e na função** |
+| `{{carga_horaria}}` | carga da atividade (`2h`, `1h30`…) — **vazio no evento e na função**; **no palestrante é a carga TOTAL somada** |
+| `{{atividades_lista}}` | **só palestrante**: uma linha por atividade — `- Tipo: Título, com carga horária 1h30 (10/10/2026);` |
+| `{{atividades_texto}}` | **só palestrante**: texto corrido agrupado por tipo — `2 Palestras (Título A; Título B) e 1 Minicurso (Título C)` |
+| `{{atividades_resumo}}` | **só palestrante**: resumo por tipo (ex.: `2× Palestra, 1× Minicurso`) |
+| `{{n_atividades}}` | **só palestrante**: quantidade de atividades |
+| `{{carga_horaria_total}}` | **só palestrante**: carga total somada (igual a `{{carga_horaria}}` no palestrante) |
 | `{{percentual_participacao}}` | % que a pessoa atingiu no evento (ex.: `80%`) — só no evento |
 | `{{percentual_minimo}}` | % exigido pelo evento (ex.: `75%`) — só no evento |
 | `{{data}}` | data de emissão (`dd/mm/aaaa`) (alias `{{data_emissao}}`) |
@@ -89,6 +95,17 @@ desenhados automaticamente; o QR fica no canto inferior direito e a **URL de
 confirmação sai em uma linha abaixo do rodapé, clicável**). O editor traz um
 seletor **“Inserir variável”** com a lista completa. No modo **`.docx`**, todas
 funcionam, inclusive as imagens.
+
+### Certificado do palestrante (agregado)
+
+O certificado de **função palestrante** é **um só para todas as atividades** da
+pessoa no evento: ele lista cada atividade (`{{atividades_lista}}`, no formato
+`- Tipo: Título, com carga horária 1h30 (10/10/2026);`), traz um **texto corrido**
+agrupado por tipo (`{{atividades_texto}}`, ex.: `2 Palestras (Título A; Título B)
+e 1 Minicurso (Título C)`) e soma a carga horária total (`{{carga_horaria}}`).
+No `.docx` dá para percorrer a lista com `{% for a in atividades %}` (cada item
+tem `titulo`, `tipo`, `carga_horaria`, `carga_minutos`, `data`). O palestrante
+**continua** podendo receber o certificado por atividade, se tiver presença.
 
 ## Elegibilidade
 

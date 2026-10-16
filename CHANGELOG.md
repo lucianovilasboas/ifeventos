@@ -5,6 +5,18 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.21.0] — 2026-10-15
+
+### Adicionado
+
+- **Certificado do palestrante agregado**: um único certificado para **todas as atividades** do palestrante no evento, com **carga horária total somada** e as atividades agrupadas por tipo. Novas variáveis (só no escopo palestrante): `{{atividades_lista}}` (uma linha por atividade: `- Tipo: Título, com carga horária 1h30 (10/10/2026);`), `{{atividades_texto}}` (texto corrido: `2 Palestras (Título A; Título B) e 1 Minicurso (Título C)`), `{{n_atividades}}`, `{{atividades_resumo}}` e `{{carga_horaria_total}}`. No palestrante, `{{carga_horaria}}` passa a ser o total.
+- **Prévia por pessoa (modal)**: botão **“Prévia”** em cada linha da lista de membros das abas de função — abre o certificado real daquela pessoa num modal, **sem emitir** (não cria certificado nem envia e-mail).
+- **`{{cpf_mascara}}`**: CPF formatado (`000.000.000-00`); `{{cpf}}` continua com os dígitos.
+
+### Corrigido
+
+- **Prévia não abria**: o script dependia do Bootstrap (carregado com `defer`) e rodava cedo demais (agora roda em `DOMContentLoaded`); e a resposta de preview vinha com `X-Frame-Options: DENY`, que bloqueava o PDF no `<iframe>` (agora `SAMEORIGIN`).
+
 ## [2.20.0] — 2026-10-15
 
 ### Adicionado
