@@ -20,6 +20,7 @@ from eventos.forms import (
     CORPO_PADRAO,
     CORPO_PADRAO_EVENTO,
     CORPO_PADRAO_FUNCAO,
+    CORPO_PADRAO_PALESTRANTE,
     AssinanteForm,
     ConfiguracaoCertificadoForm,
 )
@@ -61,6 +62,7 @@ from eventos.crachas import (
     margens_de_presenca,
     modelo_de_cracha,
     PAPEIS_FILTRO,
+    papeis_no_evento,
     pessoas_do_evento,
     pode_exibir_qr_atividade,
     pode_checkin_apoio,
@@ -1108,7 +1110,11 @@ class CertificadoConfigView(LoginRequiredMixin, View):
             if escopo_db == ConfiguracaoCertificado.ESCOPO_EVENTO:
                 corpo = CORPO_PADRAO_EVENTO
             elif escopo_db == ConfiguracaoCertificado.ESCOPO_FUNCAO:
-                corpo = CORPO_PADRAO_FUNCAO
+                corpo = (
+                    CORPO_PADRAO_PALESTRANTE
+                    if funcao == "palestrante"
+                    else CORPO_PADRAO_FUNCAO
+                )
             else:
                 corpo = CORPO_PADRAO
             config = ConfiguracaoCertificado.objects.create(
@@ -1117,6 +1123,12 @@ class CertificadoConfigView(LoginRequiredMixin, View):
         return config
 
     def _contexto(self, evento, escopo, config, form):
+        alvo = self.ESCOPOS.get(escopo)
+        funcao_var = (
+            alvo[1]
+            if (alvo and alvo[0] == ConfiguracaoCertificado.ESCOPO_FUNCAO)
+            else None
+        )
         if escopo == "evento":
             tipo_var = "evento"
         elif escopo in ("atividades", "atividade"):
@@ -1131,11 +1143,10 @@ class CertificadoConfigView(LoginRequiredMixin, View):
             "assinantes": Assinante.objects.filter(ativo=True),
             "selecionados": {str(i) for i in (form["assinantes_escolhidos"].value() or [])},
             "funcoes": FUNCAO_CHOICES,
-            "variaveis": certificados.variaveis_certificado(tipo_var),
+            "variaveis": certificados.variaveis_certificado(tipo_var, funcao_var),
         }
-        alvo = self.ESCOPOS.get(escopo)
-        if alvo and alvo[0] == ConfiguracaoCertificado.ESCOPO_FUNCAO:
-            funcao = alvo[1]
+        if funcao_var:
+            funcao = funcao_var
             emitidos = set(
                 Certificado.objects.filter(
                     evento=evento, funcao=funcao
@@ -1217,9 +1228,27 @@ class CertificadoPreviewView(LoginRequiredMixin, View):
         else:
             config = certificados.config_do_evento(evento)
 
+        # Amostra: por padrão o usuário logado; com `?participante=<id>`, uma
+        # pessoa do evento — validada pela elegibilidade do escopo.
+        participante = request.user
+        participante_id = request.GET.get("participante")
+        if participante_id:
+            participante = get_object_or_404(Participante, id=participante_id)
+            if funcao:
+                elegiveis = certificados.participantes_da_funcao(evento, funcao)
+            elif atividade is not None:
+                elegiveis = certificados.participantes_da_atividade(atividade)
+            else:
+                elegiveis = None
+            if elegiveis is not None:
+                if not elegiveis.filter(id=participante.id).exists():
+                    raise Http404("Participante não é elegível a este certificado.")
+            elif not papeis_no_evento(participante, evento):
+                raise Http404("Participante não pertence a este evento.")
+
         try:
             arquivo = certificados.gerar_certificado(
-                request.user, atividade=atividade, evento=evento, config=config, funcao=funcao
+                participante, atividade=atividade, evento=evento, config=config, funcao=funcao
             )
         except certificados.CertificadoLayoutError as erro:
             return HttpResponse(
@@ -1229,6 +1258,9 @@ class CertificadoPreviewView(LoginRequiredMixin, View):
             )
         resposta = HttpResponse(arquivo.read(), content_type="application/pdf")
         resposta["Content-Disposition"] = 'inline; filename="certificado_amostra.pdf"'
+        # O preview é embutido num <iframe> da MESMA origem; o padrão do Django
+        # (X-Frame-Options: DENY) bloquearia o PDF. Libera só o mesmo site.
+        resposta["X-Frame-Options"] = "SAMEORIGIN"
         return resposta
 
 

@@ -845,6 +845,12 @@ CORPO_PADRAO_FUNCAO = (
     "Certificamos que {{nome}} atuou como {{funcao}} no evento {{evento}}, "
     "realizado em {{local}}."
 )
+CORPO_PADRAO_PALESTRANTE = (
+    "Certificamos que {{nome}} atuou como palestrante no evento {{evento}}, "
+    "realizado em {{local}}, nas seguintes atividades:\n"
+    "{{atividades_lista}}\n"
+    "Carga horária total: {{carga_horaria}}."
+)
 
 
 class ConfiguracaoCertificadoForm(forms.ModelForm):

@@ -24,6 +24,7 @@ from eventos.models import (
     ParticipanteMetadados,
     Presenca,
     TemplateCertificadoDocx,
+    TipoAtividade,
 )
 
 U = get_user_model()
@@ -489,6 +490,17 @@ class FuncaoTests(TestCase):
             ).exists()
         )
 
+    def test_config_funcao_renderiza_botao_e_modal_de_previa(self):
+        self.client.force_login(self.dono)
+        r = self.client.get(
+            reverse("organizador:certificado_config", args=[self.evento.id, "palestrante"])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "js-previa-pessoa")
+        self.assertContains(r, "modal-previa-cert")
+        # O script depende do Bootstrap (defer): precisa rodar no DOMContentLoaded.
+        self.assertContains(r, "DOMContentLoaded")
+
     def test_emitir_funcao_view_lote_e_individual(self):
         self.evento.comissao.add(self.dono)
         outro = U.objects.create_user(email="outroc@cert.test", password=SENHA)
@@ -602,6 +614,13 @@ class VariaveisCertificadoTests(TestCase):
         self.assertEqual(c["email"], "pv@cert.test")
         self.assertEqual(c["telefone"], "31999990000")
         self.assertEqual(c["cpf"], "12345678909")
+        self.assertEqual(c["cpf_mascara"], "123.456.789-09")
+
+    def test_cpf_mascara_vazio_sem_cpf(self):
+        sem = U.objects.create_user(email="semcpf@cert.test", password=SENHA)
+        c = certificados.contexto_certificado(sem, evento=self.evento)
+        self.assertEqual(c["cpf"], "")
+        self.assertEqual(c["cpf_mascara"], "")
 
     def test_aliases_iguais_aos_canonicos(self):
         c = self._ctx(atividade=self.atividade)
@@ -645,6 +664,128 @@ class VariaveisCertificadoTests(TestCase):
         }
         self.assertIn("funcao", chaves_funcao)
         self.assertNotIn("percentual_minimo", chaves_funcao)
+
+
+class PalestranteAgregadoTests(TestCase):
+    """Certificado do palestrante agrega as atividades dele (lista + carga total)."""
+
+    def setUp(self):
+        self.dono = U.objects.create_user(
+            email="donop@cert.test", password=SENHA, is_organizador=True
+        )
+        self.evento = _evento(self.dono)
+        self.pal = U.objects.create_user(
+            email="palp@cert.test", password=SENHA, first_name="Paulo", last_name="Palestrante"
+        )
+        self.tipo_palestra = TipoAtividade.objects.create(nome="Palestra")
+        self.tipo_mini = TipoAtividade.objects.create(nome="Minicurso")
+        self.a1 = _atividade(self.evento, titulo="Palestra A", tipo=self.tipo_palestra, carga_horaria=2)
+        self.a2 = _atividade(self.evento, titulo="Minicurso B", tipo=self.tipo_mini, carga_horaria=3)
+        self.a3 = _atividade(self.evento, titulo="Palestra C", tipo=self.tipo_palestra, carga_horaria=1)
+        for atividade in (self.a1, self.a2, self.a3):
+            atividade.palestrantes.add(self.pal)
+
+    def _ctx(self, participante=None, evento=None):
+        return certificados.contexto_certificado(
+            participante or self.pal, evento=evento or self.evento, funcao="palestrante"
+        )
+
+    def test_carga_total_lista_e_resumo(self):
+        c = self._ctx()
+        self.assertEqual(c["n_atividades"], "3")
+        self.assertEqual(c["carga_horaria"], "6h")  # 2 + 3 + 1
+        self.assertEqual(c["carga_horaria_total"], "6h")
+        self.assertIn(
+            "- Palestra: Palestra A, com carga horária 2h (10/10/2026);",
+            c["atividades_lista"],
+        )
+        self.assertIn(
+            "- Minicurso: Minicurso B, com carga horária 3h (10/10/2026);",
+            c["atividades_lista"],
+        )
+        self.assertEqual(c["atividades_resumo"], "2× Palestra, 1× Minicurso")
+        self.assertEqual(
+            c["atividades_texto"],
+            "2 Palestras (Palestra A; Palestra C) e 1 Minicurso (Minicurso B)",
+        )
+        self.assertEqual(len(c["atividades"]), 3)
+        self.assertEqual(c["atividades"][0]["tipo"], "Palestra")
+
+    def test_mesmo_tipo_agrupa_e_soma(self):
+        evento = _evento(self.dono, title="Evento 2")
+        pessoa = U.objects.create_user(email="p2p@cert.test", password=SENHA)
+        for i in range(2):
+            a = _atividade(evento, titulo=f"Oficina {i}", tipo=self.tipo_mini, carga_horaria=2)
+            a.palestrantes.add(pessoa)
+        c = self._ctx(participante=pessoa, evento=evento)
+        self.assertEqual(c["atividades_resumo"], "2× Minicurso")
+        self.assertEqual(c["atividades_texto"], "2 Minicursos (Oficina 0; Oficina 1)")
+        self.assertEqual(c["carga_horaria"], "4h")
+        self.assertEqual(c["n_atividades"], "2")
+
+    def test_sem_atividades_fica_vazio(self):
+        outra = U.objects.create_user(email="sem@cert.test", password=SENHA)
+        c = self._ctx(participante=outra)
+        self.assertEqual(c["n_atividades"], "0")
+        self.assertEqual(c["carga_horaria"], "")
+        self.assertEqual(c["atividades_lista"], "")
+        self.assertEqual(c["atividades_texto"], "")
+        self.assertEqual(c["atividades"], [])
+
+    def test_outra_funcao_nao_tem_agregado(self):
+        self.evento.equipe.add(self.pal)
+        c = certificados.contexto_certificado(self.pal, evento=self.evento, funcao="equipe")
+        self.assertEqual(c["atividades_lista"], "")
+        self.assertEqual(c["atividades_texto"], "")
+        self.assertEqual(c["carga_horaria"], "")
+        self.assertEqual(c["n_atividades"], "")
+
+    def test_catalogo_escopo_palestrante(self):
+        chaves_pal = {
+            i["chave"]
+            for g in certificados.variaveis_certificado("funcao", "palestrante")
+            for i in g["itens"]
+        }
+        self.assertIn("atividades_lista", chaves_pal)
+        self.assertIn("atividades_texto", chaves_pal)
+        self.assertIn("carga_horaria_total", chaves_pal)
+
+        chaves_equipe = {
+            i["chave"]
+            for g in certificados.variaveis_certificado("funcao", "equipe")
+            for i in g["itens"]
+        }
+        self.assertNotIn("atividades_lista", chaves_equipe)
+
+    def test_previa_por_participante_nao_emite(self):
+        self.client.force_login(self.dono)
+        url = reverse("organizador:certificado_preview", args=[self.evento.id])
+        r = self.client.get(url, {"escopo": "palestrante", "participante": self.pal.id})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+        # Precisa ser embutível no <iframe> da mesma origem (modal de prévia).
+        self.assertEqual(r["X-Frame-Options"], "SAMEORIGIN")
+        # Prévia NÃO emite: nenhum Certificado é criado.
+        self.assertFalse(
+            Certificado.objects.filter(
+                participante=self.pal, evento=self.evento, funcao="palestrante"
+            ).exists()
+        )
+
+    def test_previa_participante_fora_do_escopo_404(self):
+        self.client.force_login(self.dono)
+        fora = U.objects.create_user(email="foraprev@cert.test", password=SENHA)
+        url = reverse("organizador:certificado_preview", args=[self.evento.id])
+        r = self.client.get(url, {"escopo": "palestrante", "participante": fora.id})
+        self.assertEqual(r.status_code, 404)
+
+    def test_previa_exige_permissao(self):
+        intruso = U.objects.create_user(email="intrusoprev@cert.test", password=SENHA)
+        self.client.force_login(intruso)
+        url = reverse("organizador:certificado_preview", args=[self.evento.id])
+        r = self.client.get(url, {"escopo": "palestrante", "participante": self.pal.id})
+        self.assertEqual(r.status_code, 403)
 
 
 def _docx_template_bytes(texto="Certificado de {{ nome }}"):

@@ -382,7 +382,13 @@
                         <td class="js-funcao-status" data-id="{{ m.pessoa.id }}">
                             {% if m.emitido %}✅ Sim{% else %}❌ Não{% endif %}
                         </td>
-                        <td>
+                        <td class="text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-secondary js-previa-pessoa"
+                                    data-participante="{{ m.pessoa.id }}"
+                                    data-nome="{{ m.pessoa.get_full_name|default:m.pessoa.email }}"
+                                    title="Ver prévia (não emite)">
+                                <i class="fa-solid fa-eye"></i> Prévia
+                            </button>
                             <button type="button" class="btn btn-sm btn-app js-emitir-pessoa"
                                     data-participante="{{ m.pessoa.id }}"
                                     title="Emitir para esta pessoa">
@@ -397,8 +403,34 @@
             </table>
         </div>
     </div>
+    <div class="modal fade" id="modal-previa-cert" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fa-solid fa-eye"></i> Prévia — <span id="previa-nome"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body p-0 position-relative" style="min-height:70vh">
+                    <div id="previa-loading" class="position-absolute top-50 start-50 translate-middle text-muted">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Gerando prévia...
+                    </div>
+                    <iframe id="previa-frame" title="Prévia do certificado"
+                            style="width:100%;height:75vh;border:0" hidden></iframe>
+                </div>
+                <div class="modal-footer">
+                    <a id="previa-abrir" href="#" target="_blank" rel="noopener"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-up-right-from-square"></i> Abrir em nova aba
+                    </a>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script>
-    (function () {
+    document.addEventListener("DOMContentLoaded", function () {
         var url = "{% url 'organizador:emitir_certificados_funcao' evento.id funcao %}";
         var msg = document.getElementById("msg-emitir-funcao");
         function marcar(ids) {
@@ -442,7 +474,34 @@
                 emitir({ participante_id: parseInt(b.getAttribute("data-participante"), 10) });
             });
         });
-    })();
+
+        // Prévia por pessoa (modal; não emite).
+        var previaBase = "{% url 'organizador:certificado_preview' evento.id %}?escopo={{ funcao }}";
+        var modalEl = document.getElementById("modal-previa-cert");
+        if (modalEl) {
+            var modal = new bootstrap.Modal(modalEl);
+            var frame = document.getElementById("previa-frame");
+            var loading = document.getElementById("previa-loading");
+            var abrir = document.getElementById("previa-abrir");
+            var nomeEl = document.getElementById("previa-nome");
+            frame.addEventListener("load", function () {
+                loading.classList.add("d-none");
+                frame.hidden = false;
+            });
+            document.querySelectorAll(".js-previa-pessoa").forEach(function (b) {
+                b.addEventListener("click", function () {
+                    var id = b.getAttribute("data-participante");
+                    var url = previaBase + "&participante=" + encodeURIComponent(id);
+                    nomeEl.textContent = b.getAttribute("data-nome") || "";
+                    abrir.href = url;
+                    loading.classList.remove("d-none");
+                    frame.hidden = true;
+                    frame.src = url;
+                    modal.show();
+                });
+            });
+        }
+    });
     </script>
     {% endif %}
 
