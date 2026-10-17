@@ -248,7 +248,8 @@ class EmissaoTests(TestCase):
             )
         self.assertEqual(r.status_code, 200)
         dados = r.json()
-        self.assertEqual(dados["certificados"], [])
+        self.assertTrue(dados["pronto"])
+        self.assertEqual(dados["gerados"], 0)
         self.assertTrue(dados.get("falhas"))
         self.assertEqual(Certificado.objects.count(), 0)
 
@@ -258,7 +259,8 @@ class EmissaoTests(TestCase):
             reverse("organizador:emitir_certificados_evento", args=[self.evento.id])
         )
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()["certificados"], [self.pessoa.id])
+        self.assertTrue(r.json()["pronto"])
+        self.assertEqual(r.json()["gerados"], 1)
         self.assertTrue(
             Certificado.objects.filter(
                 participante=self.pessoa, evento=self.evento, tipo="evento"
@@ -271,7 +273,8 @@ class EmissaoTests(TestCase):
             reverse("organizador:emitir_certificados_todas_atividades", args=[self.evento.id])
         )
         self.assertEqual(r.status_code, 200)
-        self.assertIn(self.pessoa.id, r.json()["certificados"])
+        self.assertTrue(r.json()["pronto"])
+        self.assertEqual(r.json()["gerados"], 1)
         self.assertTrue(
             Certificado.objects.filter(
                 participante=self.pessoa, atividade=self.atividade
@@ -302,8 +305,9 @@ class EmissaoTests(TestCase):
 
         dados = r.json()
         self.assertEqual(r.status_code, 200)
-        self.assertIn(outro.id, dados["certificados"])
-        self.assertTrue(dados.get("falhas"))
+        self.assertTrue(dados["pronto"])
+        self.assertEqual(dados["gerados"], 1)
+        self.assertEqual(len(dados["falhas"]), 1)
         self.assertTrue(
             Certificado.objects.filter(participante=outro, atividade=self.atividade).exists()
         )
@@ -510,6 +514,8 @@ class FuncaoTests(TestCase):
         url = reverse("organizador:emitir_certificados_funcao", args=[self.evento.id, "comissao"])
         r = self.client.post(url)
         self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["pronto"])  # 2 ≤ limite síncrono
+        self.assertEqual(r.json()["gerados"], 2)
         self.assertEqual(
             Certificado.objects.filter(evento=self.evento, funcao="comissao").count(), 2
         )
@@ -520,7 +526,8 @@ class FuncaoTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(r2.status_code, 200)
-        self.assertIn(outro.id, r2.json()["ja_emitidos"])
+        self.assertTrue(r2.json()["pronto"])
+        self.assertEqual(r2.json()["ja_emitidos"], 1)
 
     def test_emitir_funcao_view_funcao_invalida(self):
         self.client.force_login(self.dono)

@@ -5,6 +5,24 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.22.0] — 2026-10-17
+
+### Adicionado
+
+- **Emissão assíncrona de certificados com barra de progresso**: o clique de "emitir" cria um **job** (`CertificadoJob`) e um **worker dedicado** (`manage.py processar_certificados`) o processa fora da requisição — sem estourar o timeout do gunicorn em lotes grandes / `.docx`. A tela acompanha por **AJAX polling** num modal com `.progress` ("X de N · gerados · já existentes").
+- **Limite síncrono configurável**: lotes pequenos seguem instantâneos (padrão **3**). Configurável por ambiente (`CERTIFICADOS_LIMITE_SINCRONO`) e **por evento** (`Evento.certificado_limite_sincrono`, no formulário do evento), onde `0` = sempre pela fila (mostra a barra até com 1 certificado).
+- O **worker** sobe em background no `entrypoint.sh` (junto do uvicorn). Lotes ≤ limite mostram um **spinner** durante o POST e recarregam a tela ao concluir.
+
+### Corrigido
+
+- **Modal de progresso não trava** quando o worker não está rodando: após ~30 s sem progresso ele avisa ("verifique se o worker está rodando") e libera o botão Fechar.
+
+### Notas
+
+- Idempotente: certificado já emitido **não** é regerado nem reenviado por e-mail (conta como "já existente").
+- Migrations `0056` (`CertificadoJob`) e `0057` (`Evento.certificado_limite_sincrono`).
+- Refactor: o laço de emissão em lote (`emitir_lote`) saiu de `organizador/views.py` para `eventos/certificados.py` (reuso pelo worker).
+
 ## [2.21.0] — 2026-10-15
 
 ### Adicionado

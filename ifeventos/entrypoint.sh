@@ -63,8 +63,14 @@ else
 fi
 SOCKET_PID=$!
 
-# Repassa sinais para o Socket.IO quando o contêiner for parado
-trap 'kill -TERM "$SOCKET_PID" 2>/dev/null || true' TERM INT
+# ---------------------------------------------------------------------
+# 4b. Worker de emissão de certificados (fila em banco), em segundo plano
+# ---------------------------------------------------------------------
+python manage.py processar_certificados &
+WORKER_PID=$!
+
+# Repassa sinais para o Socket.IO e o worker quando o contêiner for parado
+trap 'kill -TERM "$SOCKET_PID" "$WORKER_PID" 2>/dev/null || true' TERM INT
 
 # ---------------------------------------------------------------------
 # 5. Aplicação Django (porta 8501) em primeiro plano

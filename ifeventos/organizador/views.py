@@ -10,7 +10,6 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
-import logging
 import os
 from .forms import ParticipanteUpdateForm
 from .decorators import organizador_required
@@ -28,12 +27,14 @@ from eventos.models import (
     Assinante,
     AssinaturaCertificado,
     Certificado,
+    CertificadoJob,
     ConfiguracaoCertificado,
     FUNCAO_CHOICES,
     FundoCertificado,
     TemplateCertificadoDocx,
 )
 from eventos import certificados
+from eventos import emissao_certificados
 from eventos import auditoria
 from eventos.models import RegistroAuditoria
 from eventos.models import Evento
@@ -78,8 +79,6 @@ from eventos.listas_presenca import (
     pdf_lista_presenca,
     pdf_listas_presenca_evento,
 )
-
-logger = logging.getLogger(__name__)
 
 
 # -- Dashboard do Organizador --
@@ -320,6 +319,8 @@ def editar_evento(request, evento_id):
 
     return render(request, 'organizador/form_evento.html', {
         'form': form, 'evento': evento,
+        # Padrão do sistema do limite síncrono (mostrado na ajuda do campo).
+        'default_limite_sincrono': getattr(settings, 'CERTIFICADOS_LIMITE_SINCRONO', 3),
         # Títulos das atividades publicadas: a IA pode mencioná-los na descrição.
         'programacao_titulos': list(
             evento.atividades.filter(publicada=True)
@@ -821,33 +822,6 @@ def adicionar_espaco_ajax(request):
 # -- Certificados --
 
 
-def _emitir_lote(participantes, *, atividade=None, evento=None, funcao=None):
-    """Emite certificados de um lote SEM abortar no primeiro erro.
-
-    Devolve `(gerados, ja_emitidos, falhas)`: ids de participante criados
-    agora, ids que já tinham certificado e as mensagens de falha (uma por
-    participante). Uma falha individual não impede os demais.
-    """
-    gerados, ja_emitidos, falhas = [], [], []
-    for pessoa in participantes:
-        try:
-            _certificado, criado = certificados.emitir(
-                pessoa, atividade=atividade, evento=evento, funcao=funcao
-            )
-        except certificados.CertificadoLayoutError as erro:
-            falhas.append(f"{pessoa.get_full_name() or pessoa.email}: {erro}")
-            continue
-        except Exception as erro:  # nunca derrubar o lote por um participante
-            logger.exception("certificados: falha ao emitir para %r", pessoa)
-            falhas.append(f"{pessoa.get_full_name() or pessoa.email}: {erro}")
-            continue
-        if criado:
-            gerados.append(pessoa.id)
-        else:
-            ja_emitidos.append(pessoa.id)
-    return gerados, ja_emitidos, falhas
-
-
 class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
     """
     View para que o organizador emita um certificado para uma inscrição confirmada.
@@ -883,33 +857,19 @@ class EmitirCertificadoInscricaoView(LoginRequiredMixin, View):
 
 
 class EmitirCertificadosAtividadeView(LoginRequiredMixin, View):
-    """
-    View para que o organizador emita certificados de uma atividade encerrada para participantes confirmados.
-    """
+    """Enfileira a emissão dos certificados de uma atividade."""
+
     def post(self, request, atividade_id):
         atividade = get_object_or_404(Atividade, id=atividade_id)
         if not pode_gerenciar_evento(request.user, atividade.evento):
             raise PermissionDenied("Você não organiza o evento desta atividade.")
-
-        gerados, ja_emitidos, falhas = _emitir_lote(
-            certificados.participantes_da_atividade(atividade), atividade=atividade
+        job, _pronto = emissao_certificados.iniciar_job(
+            escopo=CertificadoJob.ESCOPO_ATIVIDADE,
+            evento=atividade.evento,
+            atividade=atividade,
+            criado_por=request.user,
         )
-
-        resposta = {
-            "message": "Certificados gerados com sucesso!",
-            "certificados": gerados,
-            "ja_emitidos": ja_emitidos,
-        }
-        if falhas:
-            resposta["falhas"] = falhas
-
-        auditoria.registrar(
-            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
-            objeto=atividade,
-            resumo=f"Emitiu {len(gerados)} certificado(s) da atividade",
-            detalhes={"tipo": "atividade", "gerados": len(gerados), "falhas": falhas},
-        )
-        return JsonResponse(resposta)
+        return JsonResponse(emissao_certificados.job_como_dict(job))
 
 
 
@@ -943,71 +903,33 @@ class ModeloCrachaEventoView(LoginRequiredMixin, View):
 
 
 class EmitirCertificadosEventoView(LoginRequiredMixin, View):
+    """Enfileira a emissão dos certificados do evento (percentual mínimo)."""
+
     def post(self, request, evento_id):
         evento = get_object_or_404(Evento, id=evento_id)
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
-
-        config = certificados.config_do_evento(evento)
-        gerados, ja_emitidos, falhas = _emitir_lote(
-            certificados.participantes_do_evento(evento, config), evento=evento
+        job, _pronto = emissao_certificados.iniciar_job(
+            escopo=CertificadoJob.ESCOPO_EVENTO, evento=evento, criado_por=request.user
         )
-
-        resposta = {
-            "message": "Certificados emitidos para o evento!",
-            "certificados": gerados,
-            "ja_emitidos": ja_emitidos,
-        }
-        if falhas:
-            resposta["falhas"] = falhas
-
-        auditoria.registrar(
-            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
-            objeto=evento,
-            evento=evento,
-            resumo=f"Emitiu {len(gerados)} certificado(s) do evento",
-            detalhes={"tipo": "evento", "gerados": len(gerados), "falhas": falhas},
-        )
-        return JsonResponse(resposta)
+        return JsonResponse(emissao_certificados.job_como_dict(job))
 
 
 class EmitirCertificadosTodasAtividadesView(LoginRequiredMixin, View):
-    """Emite os certificados de TODAS as atividades que emitem certificado."""
+    """Enfileira a emissão dos certificados de TODAS as atividades."""
 
     def post(self, request, evento_id):
         evento = get_object_or_404(Evento, id=evento_id)
         if not pode_gerenciar_evento(request.user, evento):
             raise PermissionDenied("Você não organiza este evento.")
-
-        gerados, ja_emitidos, falhas = [], [], []
-        for atividade in evento.atividades.filter(emite_certificado=True):
-            g, j, f = _emitir_lote(
-                certificados.participantes_da_atividade(atividade), atividade=atividade
-            )
-            gerados += g
-            ja_emitidos += j
-            falhas += f
-
-        resposta = {
-            "message": "Certificados gerados com sucesso!",
-            "certificados": sorted(set(gerados)),
-            "ja_emitidos": sorted(set(ja_emitidos)),
-        }
-        if falhas:
-            resposta["falhas"] = falhas
-
-        auditoria.registrar(
-            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
-            objeto=evento,
-            evento=evento,
-            resumo=f"Emitiu {len(gerados)} certificado(s) de todas as atividades",
-            detalhes={"tipo": "atividades", "gerados": len(gerados), "falhas": falhas},
+        job, _pronto = emissao_certificados.iniciar_job(
+            escopo=CertificadoJob.ESCOPO_TODAS, evento=evento, criado_por=request.user
         )
-        return JsonResponse(resposta)
+        return JsonResponse(emissao_certificados.job_como_dict(job))
 
 
 class EmitirCertificadosFuncaoView(LoginRequiredMixin, View):
-    """Emite os certificados de UMA função (organizador, palestrante, equipe, comissão).
+    """Enfileira a emissão dos certificados de UMA função (lote ou individual).
 
     Em lote (todos do grupo) ou individual, quando o corpo traz `participante_id`.
     """
@@ -1019,37 +941,33 @@ class EmitirCertificadosFuncaoView(LoginRequiredMixin, View):
         if funcao not in dict(FUNCAO_CHOICES):
             raise Http404("Função de certificado inválida.")
 
-        elegiveis = certificados.participantes_da_funcao(evento, funcao)
-
-        participante_id = None
+        participante = None
         if request.body:
             try:
                 participante_id = json.loads(request.body).get("participante_id")
             except (ValueError, AttributeError):
                 participante_id = None
-        if participante_id:
-            elegiveis = elegiveis.filter(id=participante_id)
+            if participante_id:
+                participante = Participante.objects.filter(id=participante_id).first()
 
-        gerados, ja_emitidos, falhas = _emitir_lote(
-            elegiveis, evento=evento, funcao=funcao
-        )
-
-        resposta = {
-            "message": "Certificados emitidos para a função!",
-            "certificados": gerados,
-            "ja_emitidos": ja_emitidos,
-        }
-        if falhas:
-            resposta["falhas"] = falhas
-
-        auditoria.registrar(
-            acao=RegistroAuditoria.ACAO_EMITIR_CERTIFICADO,
-            objeto=evento,
+        job, _pronto = emissao_certificados.iniciar_job(
+            escopo=CertificadoJob.ESCOPO_FUNCAO,
             evento=evento,
-            resumo=f"Emitiu {len(gerados)} certificado(s) de função ({funcao})",
-            detalhes={"tipo": "funcao", "funcao": funcao, "gerados": len(gerados), "falhas": falhas},
+            funcao=funcao,
+            participante=participante,
+            criado_por=request.user,
         )
-        return JsonResponse(resposta)
+        return JsonResponse(emissao_certificados.job_como_dict(job))
+
+
+class CertificadoJobStatusView(LoginRequiredMixin, View):
+    """Status/progresso de um job de emissão (AJAX polling)."""
+
+    def get(self, request, job_id):
+        job = get_object_or_404(CertificadoJob, id=job_id)
+        if not pode_gerenciar_evento(request.user, job.evento):
+            raise PermissionDenied("Você não organiza este evento.")
+        return JsonResponse(emissao_certificados.job_como_dict(job))
 
 
 # -- Configuração de certificados e catálogo de assinantes --

@@ -567,6 +567,15 @@ ACCOUNT_RATE_LIMITS = {"login_failed": "10/5m"}
 PRESENCA_MARGEM_ANTES_MINUTOS = config("PRESENCA_MARGEM_ANTES_MINUTOS", default=20, cast=int)
 PRESENCA_MARGEM_DEPOIS_MINUTOS = config("PRESENCA_MARGEM_DEPOIS_MINUTOS", default=20, cast=int)
 
+# Emissão de certificados: lotes com até N certificados são gerados na hora
+# (síncrono, sem fila nem barra de progresso). Acima disso, vão para a fila
+# (`CertificadoJob`) e são processados pelo worker `processar_certificados`,
+# com barra de progresso. `0` = sempre pela fila (mostra a barra até com 1
+# certificado) — nesse caso o worker precisa estar rodando.
+CERTIFICADOS_LIMITE_SINCRONO = config(
+    "CERTIFICADOS_LIMITE_SINCRONO", default=3, cast=int
+)
+
 # Validade do código que vai dentro do QR da atividade, em segundos. A tela do
 # organizador regenera o código nesse intervalo, então uma foto que circulou
 # deixa de funcionar. Curto demais atrapalha quem escaneia e ainda precisa

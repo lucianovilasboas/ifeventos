@@ -56,6 +56,7 @@ from .views import EmitirCertificadosAtividadeView
 from .views import EmitirCertificadosEventoView
 from .views import EmitirCertificadosTodasAtividadesView
 from .views import EmitirCertificadosFuncaoView
+from .views import CertificadoJobStatusView
 from .views import EmitirCertificadoInscricaoView
 from .views import CertificadoConfigView, CertificadoPreviewView
 from .views import CertificadoAtividadeView, CertificadoAtividadeUsarPadraoView
@@ -174,6 +175,7 @@ urlpatterns = [
     path("emitir-certificados/evento/<int:evento_id>/", EmitirCertificadosEventoView.as_view(), name="emitir_certificados_evento"),
     path("emitir-certificados/evento/<int:evento_id>/atividades/", EmitirCertificadosTodasAtividadesView.as_view(), name="emitir_certificados_todas_atividades"),
     path("emitir-certificados/funcao/<int:evento_id>/<str:funcao>/", EmitirCertificadosFuncaoView.as_view(), name="emitir_certificados_funcao"),
+    path("emitir-certificados/job/<int:job_id>/status/", CertificadoJobStatusView.as_view(), name="certificado_job_status"),
 
     # Configuração do certificado (texto/layout/assinaturas) e catálogo
     path("certificado/<int:evento_id>/config/<str:escopo>/", CertificadoConfigView.as_view(), name="certificado_config"),

@@ -1088,3 +1088,30 @@ def _marcar_inscricao_emitida(participante, atividade):
     Inscricao.objects.filter(
         participante=participante, atividade=atividade
     ).update(certificado_emitido=True)
+
+
+def emitir_lote(participantes, *, atividade=None, evento=None, funcao=None):
+    """Emite certificados de um lote SEM abortar no primeiro erro.
+
+    Devolve `(gerados, ja_emitidos, falhas)`: ids de participante criados
+    agora, ids que já tinham certificado e as mensagens de falha (uma por
+    participante). Uma falha individual não impede os demais.
+    """
+    gerados, ja_emitidos, falhas = [], [], []
+    for pessoa in participantes:
+        try:
+            _certificado, criado = emitir(
+                pessoa, atividade=atividade, evento=evento, funcao=funcao
+            )
+        except CertificadoLayoutError as erro:
+            falhas.append(f"{pessoa.get_full_name() or pessoa.email}: {erro}")
+            continue
+        except Exception as erro:  # nunca derrubar o lote por um participante
+            logger.exception("certificados: falha ao emitir para %r", pessoa)
+            falhas.append(f"{pessoa.get_full_name() or pessoa.email}: {erro}")
+            continue
+        if criado:
+            gerados.append(pessoa.id)
+        else:
+            ja_emitidos.append(pessoa.id)
+    return gerados, ja_emitidos, falhas
