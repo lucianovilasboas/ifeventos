@@ -1,7 +1,8 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
-from eventos.models import Atividade, Inscricao, Participante
+from eventos.models import Atividade, Inscricao, Participante, Presenca
+from eventos.inscricoes import certificados_que_dependem
 from eventos import agenda
 from django.contrib import messages
 from django.utils.timezone import localtime
@@ -68,6 +69,7 @@ from eventos.crachas import (
     pode_exibir_qr_atividade,
     pode_checkin_apoio,
     pode_gerenciar_evento,
+    registrar_presenca,
 )
 from eventos.models import Inscricao
 
@@ -1662,6 +1664,111 @@ class CheckinAtividadeView(LoginRequiredMixin, View):
             "janela_aberta": janela_aberta,
             "janela_motivo": motivo,
         })
+
+
+class MarcarPresencaManualView(LoginRequiredMixin, View):
+    """Marca/desmarca a presença de uma pessoa numa atividade (organizador/co).
+
+    Serve para quando o QR falha ou alguém esquece de passar o crachá: a
+    organização fecha a lista à mão. A marcação manual ignora a janela de
+    presença (`registrar_presenca` com `origem="manual"`); o desmarque é
+    bloqueado quando já existe certificado emitido (para não deixar o
+    certificado sem comprovação). Só organizador/co-organizador/staff.
+    """
+
+    def post(self, request, atividade_id, participante_id):
+        atividade = get_object_or_404(Atividade, id=atividade_id)
+        if not pode_gerenciar_evento(request.user, atividade.evento):
+            raise PermissionDenied("Você não organiza este evento.")
+        pessoa = get_object_or_404(Participante, id=participante_id)
+
+        try:
+            dados = json.loads(request.body) if request.body else {}
+        except ValueError:
+            dados = {}
+        presente = bool(dados.get("presente"))
+
+        if presente:
+            presenca, criada, motivo = registrar_presenca(
+                atividade, pessoa, registrada_por=request.user, origem="manual"
+            )
+            if presenca is None:
+                return JsonResponse(
+                    {"ok": False, "presente": False, "message": motivo}, status=400
+                )
+            if criada:
+                auditoria.registrar(
+                    acao=RegistroAuditoria.ACAO_REGISTRAR_PRESENCA,
+                    objeto=atividade,
+                    evento=atividade.evento,
+                    resumo="Marcou presença (manual) de "
+                    + (pessoa.get_full_name() or pessoa.email),
+                    detalhes={
+                        "tipo": "manual",
+                        "participante_id": pessoa.id,
+                        "atividade_id": atividade.id,
+                    },
+                )
+            return JsonResponse(
+                {"ok": True, "presente": True, "message": "Presença registrada."}
+            )
+
+        # Desmarcar. Se houver certificado que DEPENDE desta presença, não remove
+        # sem confirmação: devolve 409 com a lista, para a tela oferecer
+        # "remover certificado e presença".
+        presenca = Presenca.objects.filter(
+            atividade=atividade, participante=pessoa
+        ).first()
+        if presenca is None:
+            return JsonResponse(
+                {"ok": True, "presente": False, "message": "Já estava sem presença."}
+            )
+
+        dependentes = list(certificados_que_dependem(pessoa, atividade))
+        remover_certificado = bool(dados.get("remover_certificado"))
+        if dependentes and not remover_certificado:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "presente": True,
+                    "certificado": True,
+                    "certificados": [
+                        {
+                            "id": c.id,
+                            "rotulo": "Certificado da atividade"
+                            if c.atividade_id
+                            else "Certificado do evento",
+                        }
+                        for c in dependentes
+                    ],
+                    "message": "Esta pessoa já tem certificado emitido. "
+                    "Remova o certificado para tirar a presença.",
+                },
+                status=409,
+            )
+
+        if dependentes:
+            for certificado in dependentes:
+                auditoria.registrar(
+                    acao=RegistroAuditoria.ACAO_REMOVER_CERTIFICADO,
+                    objeto=atividade,
+                    evento=atividade.evento,
+                    resumo="Removeu certificado de "
+                    + (pessoa.get_full_name() or pessoa.email),
+                    detalhes={
+                        "certificado_id": certificado.id,
+                        "tipo": certificado.tipo,
+                        "funcao": certificado.funcao,
+                        "participante_id": pessoa.id,
+                        "atividade_id": atividade.id,
+                    },
+                )
+                certificado.delete()
+
+        presenca.cancelar(por=request.user, motivo="Marcação manual desfeita")
+        return JsonResponse(
+            {"ok": True, "presente": False, "message": "Presença removida."}
+        )
 
 
 @login_required(login_url='/accounts/login/')

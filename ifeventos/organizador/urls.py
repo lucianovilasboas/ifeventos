@@ -65,6 +65,7 @@ from .views import CertificadoTemplateAdicionarView, CertificadoTemplateRemoverV
 from .views import FundoCertificadoAdicionarView, FundoCertificadoRemoverView
 from .views import auditoria_agente, auditoria_responder, auditoria_diagnostico
 from .views import CheckinAtividadeView, CartazesAtividadesView, CrachasEventoView, QrAtividadeView
+from .views import MarcarPresencaManualView
 from .views import lista_presenca_pdf, listas_presenca_evento_pdf
 
 
@@ -161,6 +162,7 @@ urlpatterns = [
     path("listas-presenca/<int:evento_id>/opcoes/", listas_presenca_opcoes, name="listas_presenca_opcoes"),
     path("listas-presenca/<int:evento_id>/preparar/", listas_presenca_preparar, name="listas_presenca_preparar"),
     path("relatorio_lista_presenca/atividade/<int:atividade_id>/", ListaPresencaView.as_view(), name="relatorio_lista_presenca"),
+    path("presenca/manual/<int:atividade_id>/<int:participante_id>/", MarcarPresencaManualView.as_view(), name="presenca_manual"),
 
     # -- Listas de presença impressas (folha de assinatura em PDF) --
     path("lista-presenca/atividade/<int:atividade_id>/pdf", lista_presenca_pdf, name="lista_presenca_pdf"),

@@ -5,6 +5,21 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.23.0] — 2026-10-17
+
+### Adicionado
+
+- **Presença manual na Lista de Presença**: um **switch por participante** para o organizador/co-organizador marcar/desmarcar a presença à mão (quando o QR falha ou alguém esquece de passar o crachá). A marcação manual **ignora a janela** de presença e é **auditada** (`registrar_presenca`). A equipe de apoio e os participantes não têm acesso.
+- **Popup ao desmarcar quem tem certificado**: em vez de apenas bloquear, a tela oferece **“Remover certificado e presença”** num modal. Confirmando, o certificado (da atividade e/ou do evento) é removido e a presença cancelada — ambos auditados (`remover_certificado`).
+
+### Corrigido
+
+- **`certificado_emitido`**: passa a considerar apenas os certificados que **dependem da presença** (o da **atividade** e o do **evento**). Certificados de **função** (organizador/palestrante/equipe/comissão) vêm do vínculo, não da presença — deixam de bloquear (inclusive no cancelamento de inscrição).
+
+### Notas
+
+- Migrations `0058` e `0059` (novas ações de auditoria: registrar/remover presença/certificado).
+
 ## [2.22.0] — 2026-10-17
 
 ### Adicionado

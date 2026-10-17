@@ -1,7 +1,7 @@
 {% load metadados_extras %}
 {% comment %}Um card da lista de presença (mobile). Espera `inscrito`.{% endcomment %}
 <div class="app-item">
-    <div class="dot" style="background:{% if inscrito.confirmada %}linear-gradient(135deg,var(--app-green),var(--app-green-d)){% else %}linear-gradient(135deg,#f59e0b,#d97706){% endif %}">
+    <div class="dot" style="background:{% if inscrito.tem_presenca %}linear-gradient(135deg,var(--app-green),var(--app-green-d)){% else %}linear-gradient(135deg,#f59e0b,#d97706){% endif %}">
         <i class="fa-solid fa-user-check"></i>
     </div>
     <div class="info">
@@ -13,8 +13,15 @@
         {% endwith %}
         {% endfor %}
         <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
-            <span class="badge-app" style="background:{% if inscrito.confirmada %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
-                {% if inscrito.confirmada %}<i class="fa-solid fa-circle-check"></i> Presença confirmada{% else %}<i class="fa-solid fa-clock"></i> Não confirmada{% endif %}
+            <span class="badge-app d-inline-flex align-items-center" style="background:{% if inscrito.tem_presenca %}#dcfce7;color:var(--app-green-d){% else %}#fef3c7;color:#b45309{% endif %}">
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input js-presenca" type="checkbox"
+                           data-url="{% url 'organizador:presenca_manual' inscrito.atividade_id inscrito.participante_id %}"
+                           data-nome="{{ inscrito.participante|nome_vinculo }}"
+                           id="presenca-{{ inscrito.participante_id }}"
+                           {% if inscrito.tem_presenca %}checked{% endif %}>
+                    <label class="form-check-label small ms-1" for="presenca-{{ inscrito.participante_id }}">Presente</label>
+                </div>
             </span>
             <span class="js-cert-status badge-app" data-id="{{ inscrito.participante_id }}" style="background:{% if inscrito.certificado_emitido_efetivo %}#dcfce7;color:var(--app-green-d){% else %}#f1f0ff;color:var(--app-muted){% endif %}">
                 {% if inscrito.certificado_emitido_efetivo %}<i class="fa-solid fa-certificate"></i> Certificado emitido{% else %}<i class="fa-solid fa-certificate"></i> Sem certificado{% endif %}
