@@ -556,34 +556,19 @@
                         e.preventDefault();
 
                         let atividadeId = this.getAttribute("data-atividade");
-                        console.log(`Botão clicado para atividade ID: ${atividadeId}`);
 
-                        
                         if (confirm("Tem certeza que deseja emitir os certificados desta atividade?")) {
-                            
-                            message_("Gerando certificados para a atividade " + atividadeId, "info");
-
-                            fetch(`/organizador/emitir-certificados/atividade/${atividadeId}/`, {
-                                method: "POST",
-                                headers: {
-                                    "X-CSRFToken": "{{ csrf_token }}",
-                                    "Content-Type": "application/json"
-                                }
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                const falhas = data.falhas || [];
-                                if (falhas.length) {
-                                    message_(falhas[0], "danger");
-                                }
-                                if (data.certificados.length > 0) {
-                                    console.table(data.certificados);
-                                    message_( `🎉 ${data.certificados.length} ${data.message}`  )
-                                } else if (!falhas.length) {
-                                    message_( "Nenhum certificado foi gerado.", "warning");                               }
-                            })
-                            .catch(error => {
-                                console.error("Erro ao emitir certificados:", error);
+                            emitirCertificados(`/organizador/emitir-certificados/atividade/${atividadeId}/`, {
+                                csrf: "{{ csrf_token }}",
+                                reload: true,
+                                onPronto: function (d) {
+                                    if (d.falhas && d.falhas.length) {
+                                        message_(d.falhas[0], "danger");
+                                    } else {
+                                        message_(`🎉 ${d.gerados} certificado(s) emitido(s). ${d.mensagem}`);
+                                    }
+                                },
+                                onErro: function () { message_("Erro ao emitir certificados.", "danger"); }
                             });
                         }
                     });
@@ -655,5 +640,6 @@
 
     });
 </script>
+{% include 'includes/_modal_progresso_certificado.html' %}
 {% endblock scripts %}
 

@@ -9,6 +9,7 @@ from .models import Espaco
 from .models import Vaga
 from .models import Inscricao
 from .models import Certificado
+from .models import CertificadoJob
 from .models import PresencaCancelada
 from .models import PalestranteSugerido
 from .models import PessoaRoster
@@ -331,6 +332,17 @@ class CertificadoAdmin(admin.ModelAdmin):
         'atividade__titulo', 'evento__title',
     )
     list_filter = ('tipo', 'funcao', 'atividade', 'atividade__evento',)
+
+
+@admin.register(CertificadoJob)
+class CertificadoJobAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'escopo', 'funcao', 'status', 'total', 'processados',
+        'gerados', 'ja_emitidos', 'evento', 'criado_em', 'concluido_em',
+    )
+    list_filter = ('escopo', 'status', 'funcao', 'evento')
+    search_fields = ('evento__title', 'participante__email')
+    readonly_fields = ('criado_em', 'iniciado_em', 'concluido_em')
 
 
 @admin.register(PresencaCancelada)

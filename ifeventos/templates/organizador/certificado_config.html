@@ -324,35 +324,28 @@
     </div>
     {% if evento.encerrado %}
     <script>
-    (function () {
+    document.addEventListener("DOMContentLoaded", function () {
         var btn = document.getElementById("btn-emitir-certificados");
         if (!btn) return;
         var url = "{% if escopo == 'evento' %}{% url 'organizador:emitir_certificados_evento' evento.id %}{% else %}{% url 'organizador:emitir_certificados_todas_atividades' evento.id %}{% endif %}";
         var msg = document.getElementById("msg-emitir");
         btn.addEventListener("click", function () {
             if (!confirm("Emitir os certificados agora?")) return;
-            msg.innerHTML = "<div class='alert alert-info'>Gerando certificados...</div>";
-            fetch(url, {
-                method: "POST",
-                headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" }
-            })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                var falhas = data.falhas || [];
-                if (falhas.length) {
-                    msg.innerHTML = "<div class='alert alert-danger'>⚠ " + falhas[0] + "</div>";
-                    return;
-                }
-                var n = data.certificados.length;
-                if (n > 0) {
-                    msg.innerHTML = "<div class='alert alert-success'>🎉 " + n + " " + data.message + "</div>";
-                } else {
-                    msg.innerHTML = "<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>";
-                }
-            })
-            .catch(function () { msg.innerHTML = "<div class='alert alert-danger'>Erro ao emitir.</div>"; });
+            emitirCertificados(url, {
+                csrf: "{{ csrf_token }}",
+                reload: true,
+                onPronto: function (d) {
+                    if (d.falhas && d.falhas.length) {
+                        msg.innerHTML = "<div class='alert alert-danger'>⚠ " + d.falhas[0] + "</div>";
+                    } else {
+                        msg.innerHTML = "<div class='alert alert-success'>🎉 " + d.gerados
+                            + " certificado(s) emitido(s). " + d.mensagem + "</div>";
+                    }
+                },
+                onErro: function () { msg.innerHTML = "<div class='alert alert-danger'>Erro ao emitir.</div>"; }
+            });
         });
-    })();
+    });
     </script>
     {% endif %}
     {% endif %}
@@ -433,45 +426,31 @@
     document.addEventListener("DOMContentLoaded", function () {
         var url = "{% url 'organizador:emitir_certificados_funcao' evento.id funcao %}";
         var msg = document.getElementById("msg-emitir-funcao");
-        function marcar(ids) {
-            (ids || []).forEach(function (id) {
-                document.querySelectorAll('.js-funcao-status[data-id="' + id + '"]').forEach(function (el) {
-                    el.innerHTML = "✅ Sim";
-                });
-            });
+        function onPronto(d) {
+            if (d.falhas && d.falhas.length) {
+                msg.innerHTML = "<div class='alert alert-danger'>⚠ " + d.falhas[0] + "</div>";
+            } else {
+                msg.innerHTML = "<div class='alert alert-success'>🎉 " + d.gerados
+                    + " certificado(s) emitido(s). " + d.mensagem + "</div>";
+            }
         }
-        function emitir(body) {
-            msg.innerHTML = "<div class='alert alert-info'>Gerando certificados...</div>";
-            fetch(url, {
-                method: "POST",
-                headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" },
-                body: JSON.stringify(body || {})
-            })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                var falhas = data.falhas || [];
-                var novos = data.certificados || [];
-                var ja = data.ja_emitidos || [];
-                marcar(novos.concat(ja));
-                if (falhas.length) {
-                    msg.innerHTML = "<div class='alert alert-danger'>⚠ " + falhas[0] + "</div>";
-                } else if (novos.length) {
-                    msg.innerHTML = "<div class='alert alert-success'>🎉 " + novos.length + " " + data.message + "</div>";
-                } else if (ja.length) {
-                    msg.innerHTML = "<div class='alert alert-info'>Certificados já estavam emitidos para " + ja.length + " pessoa(s).</div>";
-                } else {
-                    msg.innerHTML = "<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>";
-                }
-            })
-            .catch(function () { msg.innerHTML = "<div class='alert alert-danger'>Erro ao emitir.</div>"; });
-        }
+        function onErro() { msg.innerHTML = "<div class='alert alert-danger'>Erro ao emitir.</div>"; }
+
         var btn = document.getElementById("btn-emitir-funcao");
         if (btn) btn.addEventListener("click", function () {
-            if (confirm("Emitir os certificados de {{ funcao_rotulo }} para todos?")) emitir({});
+            if (confirm("Emitir os certificados de {{ funcao_rotulo }} para todos?")) {
+                emitirCertificados(url, { csrf: "{{ csrf_token }}", reload: true, onPronto: onPronto, onErro: onErro });
+            }
         });
         document.querySelectorAll(".js-emitir-pessoa").forEach(function (b) {
             b.addEventListener("click", function () {
-                emitir({ participante_id: parseInt(b.getAttribute("data-participante"), 10) });
+                emitirCertificados(url, {
+                    csrf: "{{ csrf_token }}",
+                    reload: true,
+                    body: { participante_id: parseInt(b.getAttribute("data-participante"), 10) },
+                    onPronto: onPronto,
+                    onErro: onErro
+                });
             });
         });
 
@@ -764,4 +743,5 @@
     });
 })();
 </script>
+{% include 'includes/_modal_progresso_certificado.html' %}
 {% endblock content %}

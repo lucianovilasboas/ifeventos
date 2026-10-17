@@ -67,11 +67,12 @@ class EventoForm(forms.ModelForm):
         fields = [
             'title', 'description', 'data_inicio', 'data_fim', 'local', 'categoria',
             'imagem', 'margem_presenca_antes_min', 'margem_presenca_depois_min',
-            'senha_padrao',
+            'certificado_limite_sincrono', 'senha_padrao',
         ]
         labels = {
             'margem_presenca_antes_min': 'Tolerância antes (min)',
             'margem_presenca_depois_min': 'Tolerância depois (min)',
+            'certificado_limite_sincrono': 'Gerar na hora até (certificados)',
         }
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control'}),
@@ -82,6 +83,7 @@ class EventoForm(forms.ModelForm):
             'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'margem_presenca_antes_min': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
             'margem_presenca_depois_min': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'certificado_limite_sincrono': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
         }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

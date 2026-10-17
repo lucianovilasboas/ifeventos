@@ -156,61 +156,35 @@
 </div>
 
 
-<!-- Script para chamar a View via AJAX para emitir certificados -->
+<!-- Emissão de certificados (com barra de progresso) -->
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-
-        console.log("Script carregado (lista de presença)!");
-
+    document.addEventListener("DOMContentLoaded", function () {
         let button = document.querySelector("#btn-emitir-certificado");
         let mensagem = document.getElementById("mensagem");
         if (!button) return;
 
-        function setCertStatus(id, html) {
-            document.querySelectorAll(`.js-cert-status[data-id="${id}"]`).forEach(el => el.innerHTML = html);
-        }
-
-        button.addEventListener("click", function(e) {
+        button.addEventListener("click", function (e) {
             e.preventDefault();
-
             let atividadeId = this.getAttribute("data-atividade");
+            if (!confirm("Tem certeza que deseja emitir os certificados desta atividade?")) return;
 
-            if (confirm("Tem certeza que deseja emitir os certificados desta atividade?")) {
-                mensagem.innerHTML = `<div class='alert alert-success'>Gerando certificados... </div>`;
-
-                fetch(`/organizador/emitir-certificados/atividade/${atividadeId}/`, {
-                    method: "POST",
-                    headers: {
-                        "X-CSRFToken": "{{ csrf_token }}",
-                        "Content-Type": "application/json"
+            emitirCertificados(`/organizador/emitir-certificados/atividade/${atividadeId}/`, {
+                csrf: "{{ csrf_token }}",
+                reload: true,
+                onPronto: function (d) {
+                    if (d.falhas && d.falhas.length) {
+                        mensagem.innerHTML = `<div class='alert alert-danger'>⚠ ${d.falhas[0]}</div>`;
+                    } else {
+                        mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${d.gerados} certificado(s) emitido(s). ${d.mensagem}</div>`;
                     }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const falhas = data.falhas || [];
-                    const novos = data.certificados || [];
-                    const jaEmitidos = data.ja_emitidos || [];
-                    if (falhas.length) {
-                        mensagem.innerHTML = `<div class='alert alert-danger'>⚠ ${falhas[0]}</div>`;
-                    }
-                    for (let participanteId of novos.concat(jaEmitidos)) {
-                        setCertStatus(participanteId, "✅ Sim");
-                    }
-                    if (novos.length > 0) {
-                        console.table(novos);
-                        mensagem.innerHTML = `<div class='alert alert-success'>🎉 ${novos.length} ${data.message}</div>`;
-                    } else if (!falhas.length) {
-                        mensagem.innerHTML = jaEmitidos.length
-                            ? `<div class='alert alert-info'>Certificados já estavam emitidos para ${jaEmitidos.length} inscrito(s).</div>`
-                            : `<div class='alert alert-warning'>⚠ Nenhum certificado foi gerado.</div>`;
-                    }
-                })
-                .catch(error => {
-                    console.error("Erro ao emitir certificados:", error);
-                });
-            }
+                },
+                onErro: function () {
+                    mensagem.innerHTML = `<div class='alert alert-danger'>Erro ao emitir certificados.</div>`;
+                }
+            });
         });
     });
 </script>
+{% include 'includes/_modal_progresso_certificado.html' %}
 
 {% endblock %}

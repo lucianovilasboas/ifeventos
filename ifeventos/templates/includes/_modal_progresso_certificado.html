@@ -1,0 +1,136 @@
+{% comment %}
+Modal + helper de emissão de certificados com barra de progresso.
+
+Uso (em qualquer template, incluindo este partial uma vez):
+
+    emitirCertificados(url, {
+        csrf: "{{ csrf_token }}",
+        body: {},              // opcional (ex.: {participante_id: 123})
+        reload: true,          // recarrega a página ao concluir (opcional)
+        onPronto: function (d) { ... }  // lote pequeno (síncrono), sem modal
+    });
+
+O progresso é acompanhado por AJAX polling no endpoint de status do job.
+{% endcomment %}
+<div class="modal fade" id="modal-progresso-cert" tabindex="-1" aria-hidden="true"
+     data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-certificate"></i> Emitindo certificados</h5>
+            </div>
+            <div class="modal-body">
+                <p id="cert-progresso-texto" class="mb-2">Iniciando…</p>
+                <div class="progress" role="progressbar" aria-label="Progresso"
+                     aria-valuemin="0" aria-valuemax="100">
+                    <div id="cert-progresso-barra" class="progress-bar" style="width:0%"></div>
+                </div>
+                <p id="cert-progresso-resumo" class="text-muted small mt-2 mb-0"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" id="cert-progresso-fechar" disabled>
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="cert-gerando-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-none"
+     style="z-index:1080;background:rgba(255,255,255,.6)">
+    <div class="d-flex align-items-center justify-content-center h-100">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2 text-muted">Gerando certificados…</div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var STATUS_URL = "{% url 'organizador:certificado_job_status' 0 %}";
+    window.emitirCertificados = function (url, opts) {
+        opts = opts || {};
+        var modalEl = document.getElementById("modal-progresso-cert");
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        var barra = document.getElementById("cert-progresso-barra");
+        var texto = document.getElementById("cert-progresso-texto");
+        var resumo = document.getElementById("cert-progresso-resumo");
+        var fechar = document.getElementById("cert-progresso-fechar");
+        var overlay = document.getElementById("cert-gerando-overlay");
+
+        function mostrarGerando() { if (overlay) overlay.classList.remove("d-none"); }
+        function esconderGerando() { if (overlay) overlay.classList.add("d-none"); }
+
+        function concluir(html, tipo) {
+            texto.innerHTML = html;
+            barra.style.width = "100%";
+            if (tipo === "danger") { barra.className = "progress-bar bg-danger"; }
+            fechar.disabled = false;
+            if (opts.reload) { setTimeout(function () { window.location.reload(); }, 1200); }
+        }
+
+        function acompanhar(jobId) {
+            var urlStatus = STATUS_URL.replace("/0/", "/" + jobId + "/");
+            var inicio = Date.now();
+            var timer = setInterval(function () {
+                fetch(urlStatus, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        var pct = d.total ? Math.round(100 * d.processados / d.total) : 0;
+                        barra.style.width = pct + "%";
+                        texto.textContent = "Gerando certificados… " + d.processados + " de " + d.total;
+                        resumo.textContent = "Gerados: " + d.gerados
+                            + " · Já existentes: " + d.ja_emitidos
+                            + (d.falhas && d.falhas.length ? " · Falhas: " + d.falhas.length : "");
+                        if (d.pronto) {
+                            clearInterval(timer);
+                            if (d.falhas && d.falhas.length) {
+                                concluir("⚠ " + d.falhas[0], "danger");
+                            } else {
+                                concluir("🎉 " + d.gerados + " certificado(s) emitido(s). " + d.mensagem);
+                            }
+                            return;
+                        }
+                        // Nunca começou (fila sem worker) ou demorou demais: libera o Fechar
+                        // com um aviso, em vez de deixar o modal preso.
+                        var decorrido = Date.now() - inicio;
+                        var nuncaComecou = d.status === "pendente" && d.processados === 0 && decorrido > 30000;
+                        if (nuncaComecou || decorrido > 600000) {
+                            clearInterval(timer);
+                            texto.innerHTML = "⏳ A emissão está na fila e ainda não começou. "
+                                + "Verifique se o <b>worker de certificados</b> está rodando.";
+                            fechar.disabled = false;
+                        }
+                    })
+                    .catch(function () { /* segue tentando */ });
+            }, 1500);
+        }
+
+        mostrarGerando();
+        fetch(url, {
+            method: "POST",
+            headers: { "X-CSRFToken": opts.csrf, "Content-Type": "application/json" },
+            body: JSON.stringify(opts.body || {})
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            esconderGerando();
+            if (d.pronto) {  // lote pequeno: já saiu na hora (sem modal)
+                if (opts.onPronto) { opts.onPronto(d); }
+                if (opts.reload) { setTimeout(function () { window.location.reload(); }, 1200); }
+                return;
+            }
+            barra.style.width = "0%";
+            barra.className = "progress-bar";
+            texto.textContent = "Gerando certificados… 0 de " + d.total;
+            resumo.textContent = "";
+            fechar.disabled = true;
+            modal.show();
+            acompanhar(d.job_id);
+        })
+        .catch(function () {
+            esconderGerando();
+            if (opts.onErro) { opts.onErro(); }
+        });
+    };
+})();
+</script>

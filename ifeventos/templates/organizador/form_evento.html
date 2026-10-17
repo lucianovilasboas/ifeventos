@@ -97,6 +97,22 @@
                     </div>
                 </div>
 
+                <!-- Emissão de certificados: até quantos gerar na hora -->
+                <div class="row mb-3">
+                    <div class="col-md-6 col-lg-5">
+                      {{ form.certificado_limite_sincrono.label_tag }}
+                      {{ form.certificado_limite_sincrono }}
+                      <small class="text-muted d-block mt-1">
+                        Lotes com até esse número de certificados são gerados na hora.
+                        <b>0</b> = sempre com barra de progresso (fila). Em branco = padrão do
+                        sistema ({{ default_limite_sincrono }}).
+                      </small>
+                      {% for error in form.certificado_limite_sincrono.errors %}
+                      <div class="text-danger small mt-1">{{ error }}</div>
+                      {% endfor %}
+                    </div>
+                </div>
+
                 <!-- Senha padrão das contas criadas por você (equipe, co-organizadores, palestrantes) -->
                 <div class="row mb-3" data-senha-padrao>
                     <div class="col-md-6 col-lg-5">

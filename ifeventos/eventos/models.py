@@ -338,6 +338,16 @@ class Evento(models.Model):
     margem_presenca_depois_min = models.PositiveSmallIntegerField(null=True, blank=True)
 
     # ----------------------------------------------------------------------
+    # Emissão de certificados: até quantos certificados gerar na hora (síncrono,
+    # sem barra de progresso). Acima disso, vai para a fila (com barra). Vazio =
+    # usa o padrão do sistema (settings.CERTIFICADOS_LIMITE_SINCRONO); 0 = sempre
+    # pela fila. Decisão do organizador, por evento.
+    # ----------------------------------------------------------------------
+    certificado_limite_sincrono = models.PositiveSmallIntegerField(
+        null=True, blank=True, verbose_name="Gerar na hora até (certificados)"
+    )
+
+    # ----------------------------------------------------------------------
     # Senha padrão das contas que o organizador/co-organizador cria neste
     # evento (equipe de apoio, co-organizador, palestrante). A pessoa entra com
     # ela e troca depois. Fica em texto puro de propósito: é um valor
@@ -852,6 +862,73 @@ class Certificado(models.Model):
         if self.evento_id:
             return f"Certificado de {nome} - Evento {self.evento.title}"
         return f"Certificado de {nome}"
+
+
+class CertificadoJob(models.Model):
+    """Fila de emissão de certificados (processada pelo worker).
+
+    Cada clique de "emitir" cria um job; o worker dedicado
+    (`manage.py processar_certificados`) reivindica e processa um por vez,
+    atualizando o progresso. A tela acompanha por AJAX polling.
+    """
+
+    ESCOPO_EVENTO = "evento"
+    ESCOPO_ATIVIDADE = "atividade"
+    ESCOPO_TODAS = "todas_atividades"
+    ESCOPO_FUNCAO = "funcao"
+    ESCOPO_CHOICES = [
+        (ESCOPO_EVENTO, "Evento"),
+        (ESCOPO_ATIVIDADE, "Atividade"),
+        (ESCOPO_TODAS, "Todas as atividades"),
+        (ESCOPO_FUNCAO, "Função"),
+    ]
+
+    STATUS_PENDENTE = "pendente"
+    STATUS_PROCESSANDO = "processando"
+    STATUS_CONCLUIDO = "concluido"
+    STATUS_FALHOU = "falhou"
+    STATUS_CHOICES = [
+        (STATUS_PENDENTE, "Pendente"),
+        (STATUS_PROCESSANDO, "Processando"),
+        (STATUS_CONCLUIDO, "Concluído"),
+        (STATUS_FALHOU, "Falhou"),
+    ]
+
+    escopo = models.CharField(max_length=20, choices=ESCOPO_CHOICES)
+    evento = models.ForeignKey(
+        Evento, on_delete=models.CASCADE, related_name="certificado_jobs"
+    )
+    atividade = models.ForeignKey(
+        Atividade, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # Emissão individual (opcional): só esta pessoa.
+    participante = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    funcao = models.CharField(max_length=20, blank=True, default="")
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDENTE, db_index=True
+    )
+    total = models.PositiveIntegerField(default=0)
+    processados = models.PositiveIntegerField(default=0)
+    gerados = models.PositiveIntegerField(default=0)
+    ja_emitidos = models.PositiveIntegerField(default=0)
+    falhas = models.JSONField(default=list, blank=True)
+    mensagem = models.CharField(max_length=255, blank=True, default="")
+    criado_por = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    iniciado_em = models.DateTimeField(null=True, blank=True)
+    concluido_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Job de certificados"
+        verbose_name_plural = "Jobs de certificados"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"Job #{self.pk} {self.escopo} ({self.status}) {self.processados}/{self.total}"
 
 
 def categorias_conhecidas():
