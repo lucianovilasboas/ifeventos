@@ -123,6 +123,15 @@ tem `titulo`, `tipo`, `carga_horaria`, `carga_minutos`, `data`). O palestrante
   telas de certificados.
 - A **comissão organizadora** é uma lista do evento (em **Editar evento**), sem
   poderes de gestão.
-- Idempotente: não gera de novo o que já existe; uma pessoa pode ter certificados
-  de funções diferentes (ex.: organizador **e** palestrante).
+- **Assíncrona com fila e barra de progresso**: lotes acima do *limite síncrono*
+  viram um **job** (`CertificadoJob`) processado pelo **worker**
+  (`manage.py processar_certificados`, que sobe com o contêiner). A tela acompanha
+  num modal com barra (“X de N · gerados · já existentes”). Lotes pequenos
+  (≤ limite) são gerados na hora.
+  - Limite **global**: `CERTIFICADOS_LIMITE_SINCRONO` (padrão 3; `0` = sempre pela fila).
+  - Limite **por evento**: campo “Gerar na hora até (certificados)” em **Editar evento**
+    (sobrepõe o global; vazio = usa o global).
+- Idempotente: não gera de novo o que já existe (nem reenvia e-mail) — conta como
+  “já existente”; uma pessoa pode ter certificados de funções diferentes (ex.:
+  organizador **e** palestrante).
 - Verificação pública pelo QR: `/c/<token>/`.

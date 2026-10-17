@@ -2,9 +2,10 @@
 # =====================================================================
 # Nossos Eventos (IF Eventos) — ponto de entrada do contêiner
 # ---------------------------------------------------------------------
-# Sobe dois processos no mesmo contêiner:
+# Sobe três processos no mesmo contêiner:
 #   8500 -> servidor Socket.IO (ASGI, uvicorn)
 #   8501 -> aplicação Django (WSGI)
+#   worker de emissão de certificados (fila em banco, sem porta)
 #
 # Variáveis de ambiente reconhecidas:
 #   APP_SERVER=gunicorn|runserver   (padrão: gunicorn)

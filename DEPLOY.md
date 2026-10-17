@@ -10,7 +10,9 @@ Guia de implantação da aplicação em **produção** (`https://ifeventos.lucia
   Traefik em 80/443; o contêiner não publica porta no host.
 - **Dentro do contêiner** (porta 8501 = site, 8500 = Socket.IO), o `entrypoint.sh`
   já roda `migrate`, `collectstatic --clear` e `createcachetable` no start — **não**
-  é preciso rodar nada disso manualmente.
+  é preciso rodar nada disso manualmente. Ele também sobe, em segundo plano, o
+  **worker de emissão de certificados** (`manage.py processar_certificados`), que
+  consome a fila `CertificadoJob`. Ou seja: **recriar o contêiner já sobe o worker**.
 
 ## Pré-requisitos no servidor
 
@@ -27,6 +29,7 @@ Guia de implantação da aplicação em **produção** (`https://ifeventos.lucia
 | `IA_MODELO_TEXTO` | não | `gpt-4o` |
 | `IA_MODELO_CLASSIFICACAO` | não | `gpt-4o-mini` |
 | `PROPOSTAS_NOTIFICAR_EMAIL` | não | — |
+| `CERTIFICADOS_LIMITE_SINCRONO` | não | `3` (lotes ≤ N geram na hora; `0` = sempre pela fila/worker) |
 | `DEBUG` | sim (produção = `False`) | — |
 
 ## Deploy (atualizar para a versão mais recente)
@@ -74,6 +77,9 @@ tail -n 60 /opt/docker/logs/ifeventos/deploy-latest.log   # ultima execucao
 ```bash
 docker compose ps                      # app e db "Up"
 curl -I https://ifeventos.lucianovilasboas.com.br
+
+# o worker de certificados deve ter subido (aparece no log do contêiner)
+docker compose logs app | grep "Worker de certificados iniciado"
 ```
 
 - O rodapé do site e o admin devem mostrar a versão (`v2.0.0`).
@@ -81,6 +87,8 @@ curl -I https://ifeventos.lucianovilasboas.com.br
   `sincronizar_contextos_ia` a cada start; ver `IA.md`).
 - Funcionalidades novas (relatórios por participante/turma/tipo, "criar gráfico com IA",
   minhas palestras etc.) funcionando na área do organizador.
+- **Emissão de certificados**: um lote grande (acima do limite síncrono) deve abrir o
+  modal com a **barra de progresso** e concluir — é o worker que processa a fila.
 
 ## Rollback
 
