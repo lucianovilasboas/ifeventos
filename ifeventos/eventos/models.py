@@ -1507,6 +1507,8 @@ class RegistroAuditoria(models.Model):
     ACAO_CONFIGURAR_CERTIFICADO = "configurar_certificado"
     ACAO_CHECKIN = "checkin"
     ACAO_CANCELAR_PRESENCA = "cancelar_presenca"
+    ACAO_REGISTRAR_PRESENCA = "registrar_presenca"
+    ACAO_REMOVER_CERTIFICADO = "remover_certificado"
     ACAO_ERRO = "erro"
     ACAO_CHOICES = [
         (ACAO_CRIAR, "Criar"),
@@ -1522,6 +1524,8 @@ class RegistroAuditoria(models.Model):
         (ACAO_CONFIGURAR_CERTIFICADO, "Configurar certificado"),
         (ACAO_CHECKIN, "Check-in"),
         (ACAO_CANCELAR_PRESENCA, "Cancelar presença"),
+        (ACAO_REGISTRAR_PRESENCA, "Registrar presença"),
+        (ACAO_REMOVER_CERTIFICADO, "Remover certificado"),
         (ACAO_ERRO, "Erro"),
     ]
 

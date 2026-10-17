@@ -117,7 +117,7 @@
                             <th>Participante</th>
                             <th>Email</th>
                             {% for col in colunas_metadados %}<th>{{ col.rotulo }}</th>{% endfor %}
-                            <th>Presença Confirmada</th>
+                            <th>Presença</th>
                             <th>Certificado Emitido</th>
                             <th>QR Code</th>
                             <th>Assinatura</th>
@@ -183,6 +183,130 @@
                 }
             });
         });
+    });
+</script>
+
+<!-- Presença manual (checkbox por linha; só organizador/co acessa a tela) -->
+<div class="modal fade" id="modal-remover-certificado" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-triangle-exclamation text-warning"></i>
+                    Certificado emitido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2"><b id="remover-cert-nome"></b> já tem certificado emitido,
+                   que depende desta presença:</p>
+                <ul id="remover-cert-lista" class="mb-2"></ul>
+                <p class="text-muted small mb-0">
+                    Para tirar a presença, é preciso remover o certificado junto.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger btn-sm" id="remover-cert-confirmar">
+                    <i class="fa-solid fa-trash"></i> Remover certificado e presença
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var msg = document.getElementById("mensagem");
+        var modalEl = document.getElementById("modal-remover-certificado");
+        var modal = modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+        var listaCerts = document.getElementById("remover-cert-lista");
+        var nomeEl = document.getElementById("remover-cert-nome");
+        var btnConfirmar = document.getElementById("remover-cert-confirmar");
+        var pendente = null;  // { chk }
+
+        function salvarPresenca(url, presente, removerCertificado) {
+            return fetch(url, {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token }}", "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    presente: presente,
+                    remover_certificado: !!removerCertificado
+                })
+            }).then(function (r) {
+                return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; });
+            });
+        }
+
+        document.querySelectorAll(".js-presenca").forEach(function (chk) {
+            chk.addEventListener("change", function () {
+                var desejado = chk.checked;
+                var url = chk.getAttribute("data-url");
+                chk.disabled = true;
+                salvarPresenca(url, desejado, false)
+                    .then(function (res) {
+                        chk.disabled = false;
+                        if (res.ok && res.d.ok) return;
+                        if (res.status === 409 && res.d.certificado && modal) {
+                            // Abre o modal para confirmar a remoção do certificado.
+                            pendente = { chk: chk };
+                            nomeEl.textContent = chk.getAttribute("data-nome") || "";
+                            listaCerts.innerHTML = (res.d.certificados || [])
+                                .map(function (c) { return "<li>" + c.rotulo + "</li>"; })
+                                .join("");
+                            modal.show();
+                            return;  // o modal decide (não reverte agora)
+                        }
+                        chk.checked = !desejado;
+                        if (msg) {
+                            msg.innerHTML = "<div class='alert alert-danger'>⚠ "
+                                + ((res.d && res.d.message) || "Não foi possível salvar a presença.")
+                                + "</div>";
+                        }
+                    })
+                    .catch(function () {
+                        chk.disabled = false;
+                        chk.checked = !desejado;
+                        if (msg) {
+                            msg.innerHTML = "<div class='alert alert-danger'>Erro de conexão ao salvar a presença.</div>";
+                        }
+                    });
+            });
+        });
+
+        if (btnConfirmar) {
+            btnConfirmar.addEventListener("click", function () {
+                if (!pendente) return;
+                btnConfirmar.disabled = true;
+                salvarPresenca(pendente.chk.getAttribute("data-url"), false, true)
+                    .then(function (res) {
+                        btnConfirmar.disabled = false;
+                        var chk = pendente.chk;
+                        pendente = null;
+                        modal.hide();
+                        if (res.ok && res.d.ok) {
+                            chk.checked = false;
+                            if (msg) msg.innerHTML = "<div class='alert alert-success'>Certificado e presença removidos.</div>";
+                        } else {
+                            chk.checked = true;
+                            if (msg) msg.innerHTML = "<div class='alert alert-danger'>⚠ "
+                                + ((res.d && res.d.message) || "Não foi possível remover.") + "</div>";
+                        }
+                    })
+                    .catch(function () {
+                        btnConfirmar.disabled = false;
+                        var chk = pendente ? pendente.chk : null;
+                        pendente = null;
+                        modal.hide();
+                        if (chk) chk.checked = true;
+                        if (msg) msg.innerHTML = "<div class='alert alert-danger'>Erro de conexão.</div>";
+                    });
+            });
+        }
+
+        // Fechar/cancelar o modal mantém a presença (reverte o switch).
+        if (modalEl) {
+            modalEl.addEventListener("hidden.bs.modal", function () {
+                if (pendente) { pendente.chk.checked = true; pendente = null; }
+            });
+        }
     });
 </script>
 {% include 'includes/_modal_progresso_certificado.html' %}

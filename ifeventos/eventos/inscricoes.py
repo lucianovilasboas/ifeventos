@@ -10,6 +10,7 @@ inscrição (tela do participante, AJAX dela e API/MCP). Todos passam por aqui.
 """
 
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 from .models import Atividade, Certificado, Presenca
 
@@ -37,6 +38,27 @@ def conflito_com_inscricoes(participante, atividade):
     return None
 
 
+def certificados_que_dependem(participante, atividade):
+    """Certificados que DEPENDEM da presença nesta atividade (queryset).
+
+    São só dois: o certificado **da atividade** e o certificado **do evento**
+    (`funcao=""`). Certificados de **função** (organizador/palestrante/equipe/
+    comissão) vêm do vínculo com o evento, não da presença — por isso NÃO entram
+    aqui (não devem bloquear nem ser removidos ao mexer na presença).
+    """
+    if atividade is None:
+        return Certificado.objects.none()
+    return Certificado.objects.filter(
+        Q(participante=participante, atividade=atividade)
+        | Q(
+            participante=participante,
+            atividade__isnull=True,
+            evento=atividade.evento_id,
+            funcao="",
+        )
+    )
+
+
 def certificado_emitido(participante, atividade):
     """Certificado já emitido que DEPENDE desta presença (ou None).
 
@@ -45,15 +67,11 @@ def certificado_emitido(participante, atividade):
     (`organizador/views.py`), então remover a presença também tiraria o lastro
     dele. Sem esta checagem, apagar a presença deixaria um certificado emitido
     sem nenhuma comprovação por trás.
+
+    Certificados de **função** (organizador/palestrante/equipe/comissão) NÃO
+    entram: eles vêm do vínculo com o evento, não da presença.
     """
-    da_atividade = Certificado.objects.filter(
-        participante=participante, atividade=atividade
-    ).first()
-    if da_atividade is not None:
-        return da_atividade
-    return Certificado.objects.filter(
-        participante=participante, atividade__isnull=True, evento=atividade.evento_id
-    ).first()
+    return certificados_que_dependem(participante, atividade).first()
 
 
 def cancelar_inscricao(inscricao, por=None, motivo="Cancelamento de inscrição"):

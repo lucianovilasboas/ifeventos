@@ -15,7 +15,7 @@ from datetime import date
 from .listas_preparacao import agrupamento_pdf, dias_evento, nome_com_contexto, pdf_lista_continua, pdf_lista_preparada, registros_lista, agrupar_por_turma, opcoes_filtros_cascata
 from asgiref.sync import sync_to_async
 from eventos.metadados import campos as campos_metadados, colunas_selecionadas, nome_com_vinculo
-from eventos.models import Inscricao, Atividade, Certificado
+from eventos.models import Inscricao, Atividade, Certificado, Presenca
 
 
 class _PermissaoEventoMixin:
@@ -482,10 +482,17 @@ class ListaPresencaView(_PermissaoEventoMixin, _ColunasMetadadosMixin, LoginRequ
                 atividade_id=self.kwargs.get("atividade_id")
             ).values_list("participante_id", flat=True)
         )
+        # Presença real (tabela `Presenca`) — é o que o checkbox manual marca.
+        com_presenca = set(
+            Presenca.objects.filter(
+                atividade_id=self.kwargs.get("atividade_id")
+            ).values_list("participante_id", flat=True)
+        )
         for inscricao in inscricoes:
             inscricao.certificado_emitido_efetivo = (
                 inscricao.participante_id in com_certificado
             )
+            inscricao.tem_presenca = inscricao.participante_id in com_presenca
 
         # Filtros de metadados rodam em Python (os valores vivem num JSON).
         if any(filtros[c] for c in self.CAMPOS_FILTRO):
