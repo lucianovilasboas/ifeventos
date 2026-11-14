@@ -5,6 +5,18 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.24.0] — 2026-11-14
+
+### Adicionado
+
+- **Lista de inscritos para o palestrante**: em **Minhas palestras**, cada atividade ganhou o botão **“Ver inscritos”** e a contagem de inscritos em destaque. A nova página (`/participante/minhas-palestras/<id>/inscritos/`) lista as pessoas inscritas na atividade com **nome + vínculo** (curso/turma/ano, via `nome_com_vinculo`) e o **status de presença** com a hora do check-in, além do resumo *inscritos · presentes · pendentes*. Em atividade aberta (sem lista de inscrição), a página mostra as presenças registradas.
+- **Permissão única para inscritos e QR da atividade**: `pode_ver_inscritos_atividade()` em `eventos/crachas.py` — organizador/co-organizador/equipe do evento ou palestrante da atividade. `pode_exibir_qr_atividade()` passou a delegar para ela.
+
+### Notas
+
+- A tela do palestrante continua **sem e-mail, CPF ou matrícula**: mostra nome e vínculo, o suficiente para receber a turma.
+- Sem migration.
+
 ## [2.23.0] — 2026-10-17
 
 ### Adicionado

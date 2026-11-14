@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.db.models import Exists, OuterRef
-from eventos.models import Atividade, Evento, Inscricao, Participante
+from eventos.models import Atividade, Evento, Inscricao, Participante, Presenca
 from eventos.tempo import local_legivel
 from eventos import agenda, propostas
 from eventos.forms import PropostaForm
@@ -645,12 +645,12 @@ def assistente_sugestoes(request):
     return JsonResponse({"sugestoes": concierge.sugestoes(request.GET.get("q", ""))})
 
 
-# -- Minhas palestras (área restrita do palestrante, sem PII) --
+# -- Minhas palestras (área restrita do palestrante, sem dados de contato) --
 class MinhasPalestrasView(LoginRequiredMixin, TemplateView):
-    """Atividades em que a pessoa é palestrante (só ver + QR).
+    """Atividades em que a pessoa é palestrante (lista, QR e inscritos).
 
-    Sem lista de inscritos com e-mail/CPF: o palestrante vê a atividade e o QR
-    de presença para mostrar na sala — nada além disso.
+    A lista de inscritos fica numa tela à parte (`minha_palestra_inscritos`) e
+    mostra nome + vínculo, nunca e-mail/CPF/matrícula.
     """
 
     template_name = "participante/minhas_palestras.html"
@@ -662,6 +662,73 @@ class MinhasPalestrasView(LoginRequiredMixin, TemplateView):
         contexto["atividades"] = atividades_do_palestrante(self.request.user)
         contexto["logo_url"] = url_da_logo()
         return contexto
+
+
+@login_required(login_url='/accounts/login/')
+def minha_palestra_inscritos(request, atividade_id):
+    """Inscritos (e presenças) de uma atividade, para quem palestra nela.
+
+    O palestrante precisa saber quem está na turma e quem já confirmou presença.
+    Mostra nome + vínculo (`metadados.nome_com_vinculo`), mas **não** e-mail,
+    CPF nem matrícula: contato é dado do participante e não é necessário para
+    conduzir a atividade.
+
+    Em atividade aberta (`exige_inscricao=False`) não há inscritos, então a
+    lista mostra as presenças registradas — é a informação equivalente.
+    """
+    from django.http import HttpResponseForbidden
+
+    from eventos.crachas import pode_ver_inscritos_atividade
+
+    atividade = get_object_or_404(
+        Atividade.objects.select_related("evento", "tipo"), id=atividade_id
+    )
+    if not pode_ver_inscritos_atividade(request.user, atividade):
+        return HttpResponseForbidden(
+            "Você não organiza este evento nem palestra nesta atividade."
+        )
+
+    presencas = list(
+        Presenca.objects.filter(atividade=atividade)
+        .select_related("participante", "participante__metadados")
+        .order_by(
+            "participante__first_name",
+            "participante__last_name",
+            "participante__id",
+        )
+    )
+    presenca_por_pessoa = {presenca.participante_id: presenca for presenca in presencas}
+
+    if atividade.exige_inscricao:
+        pessoas = [
+            inscricao.participante
+            for inscricao in Inscricao.objects.filter(atividade=atividade)
+            .select_related("participante", "participante__metadados")
+            .order_by(
+                "participante__first_name",
+                "participante__last_name",
+                "participante__id",
+            )
+        ]
+    else:
+        pessoas = [presenca.participante for presenca in presencas]
+
+    linhas = [
+        {"participante": pessoa, "presenca": presenca_por_pessoa.get(pessoa.id)}
+        for pessoa in pessoas
+    ]
+    total_presentes = sum(1 for linha in linhas if linha["presenca"])
+    total_inscritos = len(pessoas) if atividade.exige_inscricao else 0
+
+    return render(request, "participante/minha_palestra_inscritos.html", {
+        "atividade": atividade,
+        "evento": atividade.evento,
+        "linhas": linhas,
+        "exige_inscricao": atividade.exige_inscricao,
+        "total_inscritos": total_inscritos,
+        "total_presentes": total_presentes,
+        "total_pendentes": max(total_inscritos - total_presentes, 0),
+    })
 
 
 @login_required(login_url='/accounts/login/')

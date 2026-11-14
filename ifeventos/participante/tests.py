@@ -14,6 +14,7 @@ from eventos.models import (
     Evento,
     Inscricao,
     ParticipanteMetadados,
+    Presenca,
     TipoAtividade,
 )
 
@@ -311,7 +312,7 @@ class MenuDoUsuarioTests(TestCase):
 
 
 class MinhasPalestrasTests(TestCase):
-    """R4: seção do palestrante no participante (só ver + QR, sem PII)."""
+    """R4: seção do palestrante — atividades, inscritos e QR."""
 
     def setUp(self):
         self.org = U.objects.create_user(
@@ -346,6 +347,68 @@ class MinhasPalestrasTests(TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Palestra R4")
         self.assertContains(resposta, "QR de presença")
+
+    def test_card_tem_botao_ver_inscritos(self):
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(reverse("participante:minhas_palestras"))
+        self.assertContains(resposta, "Ver inscritos")
+        self.assertContains(
+            resposta,
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id]),
+        )
+
+    def test_palestrante_ve_inscritos_com_vinculo_e_presenca(self):
+        self._inscrito(com_presenca=True)
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Inscrita Teste")
+        # Nome com vínculo (curso/turma/ano), mas sem dados de contato.
+        self.assertContains(resposta, "Aluno/Informática-Turma 1-Primeiro ano")
+        self.assertContains(resposta, "Presente")
+        self.assertNotContains(resposta, "inscrito_mp@example.com")
+
+    def test_estranho_nao_ve_inscritos(self):
+        self.client.force_login(self.estranho)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_atividade_aberta_lista_as_presencas(self):
+        self.atividade.exige_inscricao = False
+        self.atividade.save()
+        self._inscrito(com_inscricao=False, com_presenca=True)
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Inscrita Teste")
+        self.assertContains(resposta, "presença(s) registrada(s)")
+
+    def _inscrito(self, com_inscricao=True, com_presenca=False):
+        """Cria uma pessoa com vínculo (e, se pedido, inscrição/presença)."""
+        pessoa = U.objects.create_user(
+            email="inscrito_mp@example.com", password=SENHA, cpf="52998224725",
+            first_name="Inscrita", last_name="Teste",
+        )
+        ParticipanteMetadados.objects.create(
+            participante=pessoa,
+            dados={
+                "vinculo": "Aluno", "curso": "Informática",
+                "turma": "Turma 1", "ano": "Primeiro ano",
+            },
+        )
+        if com_inscricao:
+            Inscricao.objects.create(participante=pessoa, atividade=self.atividade)
+        if com_presenca:
+            Presenca.objects.create(
+                atividade=self.atividade, participante=pessoa, papel="participante",
+            )
+        return pessoa
 
     def test_nao_palestrante_ve_lista_vazia(self):
         self.client.force_login(self.estranho)

@@ -12,8 +12,9 @@
 
 {% if atividades %}
 <p class="text-muted">
-    As atividades em que você é palestrante. Abra o QR de presença para mostrar
-    na sala e os participantes confirmarem a presença.
+    As atividades em que você é palestrante. Veja quem está inscrito em cada uma
+    e abra o QR de presença para mostrar na sala e os participantes confirmarem
+    a presença.
 </p>
 
 <div class="row g-3">
@@ -36,11 +37,21 @@
                     {% if atividade.data_hora_fim %}— {{ atividade.data_hora_fim|date:"H:i" }}{% endif %}</li>
                 <li><i class="fa-solid fa-location-dot"></i> {{ atividade.local|default:atividade.evento.local }}</li>
                 <li><i class="fa-solid fa-tag"></i> {{ atividade.tipo.nome|default:"Sem tipo" }}</li>
-                <li><i class="fa-solid fa-users"></i> {{ atividade.n_inscricoes }} inscrito(s) · {{ atividade.n_vagas }} vaga(s)</li>
+                <li>
+                    <i class="fa-solid fa-users"></i>
+                    <strong>{{ atividade.n_inscricoes }}</strong> inscrito(s)
+                    {% if atividade.exige_inscricao %}· {{ atividade.n_vagas }} vaga(s){% else %}· não exige inscrição{% endif %}
+                </li>
             </ul>
-            <a href="{% url 'participante:minha_palestra_qr' atividade.id %}" class="btn btn-sm btn-app">
-                <i class="fa-solid fa-qrcode"></i> QR de presença
-            </a>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{% url 'participante:minha_palestra_inscritos' atividade.id %}"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="fa-solid fa-list-check"></i> Ver inscritos
+                </a>
+                <a href="{% url 'participante:minha_palestra_qr' atividade.id %}" class="btn btn-sm btn-app">
+                    <i class="fa-solid fa-qrcode"></i> QR de presença
+                </a>
+            </div>
         </div>
     </div>
     {% endfor %}
