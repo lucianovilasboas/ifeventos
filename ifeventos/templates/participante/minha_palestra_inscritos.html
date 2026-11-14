@@ -35,7 +35,20 @@
             <strong>{{ total_presentes }}</strong> presença(s) registrada(s)
             {% endif %}
         </p>
+        {% if pode_marcar_presenca %}
+        <p class="text-muted small mb-0 mt-2">
+            <i class="fa-solid fa-toggle-on"></i>
+            Use o switch para fazer a chamada: marcar ou desmarcar a presença
+            atualiza a lista na hora, sem precisar do QR.
+        </p>
+        {% elif motivo_presenca_bloqueada %}
+        <div class="alert alert-warning small mb-0 mt-2 py-2 px-3" role="alert">
+            <i class="fa-solid fa-lock"></i> {{ motivo_presenca_bloqueada }}
+        </div>
+        {% endif %}
     </div>
+
+    <div id="mensagem"></div>
 
     {% if linhas %}
 
@@ -43,17 +56,25 @@
     <div class="app-list d-md-none">
         {% for linha in linhas %}
         <div class="app-item">
-            <div class="dot" style="background:linear-gradient(135deg,#2f9e41,#1d7a2f)">
-                <i class="fa-solid fa-user"></i>
+            {% if pode_marcar_presenca %}
+            <div class="form-check form-switch m-0 me-2 align-self-center">
+                <input class="form-check-input js-presenca" type="checkbox" role="switch"
+                       id="presenca-m-{{ linha.participante.id }}"
+                       data-url="{% url 'organizador:presenca_manual' atividade.id linha.participante.id %}"
+                       data-nome="{{ linha.participante|nome_vinculo }}"
+                       {% if linha.presenca %}checked{% endif %}
+                       aria-label="Presença de {{ linha.participante|nome_vinculo }}">
             </div>
+            {% endif %}
             <div class="info">
                 <h5>{{ linha.participante|nome_vinculo }}</h5>
                 <p class="mb-0">
-                    {% if linha.presenca %}
-                    <span class="badge text-bg-success">Presente</span>
-                    <span class="text-muted small">às {{ linha.presenca.registrada_em|date:"H:i" }}</span>
+                    {% if pode_marcar_presenca %}
+                    <span class="badge js-presenca-badge {% if linha.presenca %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if linha.presenca %}Presente{% else %}Não confirmado{% endif %}</span>
+                    <span class="text-muted small js-presenca-quando">{% if linha.presenca %}{{ linha.presenca.registrada_em|date:"d/m/Y H:i" }}{% endif %}</span>
                     {% else %}
-                    <span class="badge text-bg-secondary">Não confirmado</span>
+                    <span class="badge {% if linha.presenca %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if linha.presenca %}Presente{% else %}Não confirmado{% endif %}</span>
+                    {% if linha.presenca %}<span class="text-muted small">{{ linha.presenca.registrada_em|date:"d/m/Y H:i" }}</span>{% endif %}
                     {% endif %}
                 </p>
             </div>
@@ -68,23 +89,31 @@
                 <table class="table table-striped table-hover align-middle">
                     <thead class="table-dark">
                         <tr>
-                            <th>#</th>
-                            <th>Participante</th>
                             <th>Presença</th>
+                            <th>Participante</th>
+                            <th>Confirmou presença</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for linha in linhas %}
                         <tr>
-                            <td>{{ forloop.counter }}</td>
-                            <td>{{ linha.participante|nome_vinculo }}</td>
                             <td>
-                                {% if linha.presenca %}
-                                <span class="badge text-bg-success"><i class="fa-solid fa-check"></i> Presente</span>
-                                <span class="text-muted small">às {{ linha.presenca.registrada_em|date:"H:i" }}</span>
+                                {% if pode_marcar_presenca %}
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input js-presenca" type="checkbox" role="switch"
+                                           id="presenca-d-{{ linha.participante.id }}"
+                                           data-url="{% url 'organizador:presenca_manual' atividade.id linha.participante.id %}"
+                                           data-nome="{{ linha.participante|nome_vinculo }}"
+                                           {% if linha.presenca %}checked{% endif %}
+                                           aria-label="Presença de {{ linha.participante|nome_vinculo }}">
+                                </div>
                                 {% else %}
-                                <span class="badge text-bg-secondary">Não confirmado</span>
+                                <span class="badge {% if linha.presenca %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if linha.presenca %}Presente{% else %}Não confirmado{% endif %}</span>
                                 {% endif %}
+                            </td>
+                            <td>{{ linha.participante|nome_vinculo }}</td>
+                            <td class="text-muted small js-presenca-quando">
+                                {% if linha.presenca %}{{ linha.presenca.registrada_em|date:"d/m/Y H:i" }}{% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -113,3 +142,69 @@
 
 </div>
 {% endblock content %}
+
+{% block scripts %}
+{% if pode_marcar_presenca %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const msg = document.getElementById("mensagem");
+
+        function mostrarErro(texto) {
+            if (msg) msg.innerHTML = "<div class='alert alert-danger'>" + texto + "</div>";
+        }
+
+        function atualizarLinha(chk, presente, confirmadaEm) {
+            const linha = chk.closest("tr") || chk.closest(".app-item");
+            if (!linha) return;
+
+            const quandoEl = linha.querySelector(".js-presenca-quando");
+            if (quandoEl) quandoEl.textContent = presente && confirmadaEm ? confirmadaEm : "";
+
+            const badge = linha.querySelector(".js-presenca-badge");
+            if (badge) {
+                badge.textContent = presente ? "Presente" : "Não confirmado";
+                badge.classList.toggle("text-bg-success", presente);
+                badge.classList.toggle("text-bg-secondary", !presente);
+            }
+        }
+
+        document.querySelectorAll(".js-presenca").forEach(function (chk) {
+            chk.addEventListener("change", function () {
+                const desejado = chk.checked;
+                const url = chk.getAttribute("data-url");
+                if (msg) msg.innerHTML = "";
+                chk.disabled = true;
+
+                fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": "{{ csrf_token }}",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ presente: desejado })
+                }).then(function (resposta) {
+                    return resposta.json().then(function (dados) {
+                        return { ok: resposta.ok, dados: dados };
+                    });
+                }).then(function (res) {
+                    chk.disabled = false;
+                    if (res.ok && res.dados.ok) {
+                        atualizarLinha(chk, res.dados.presente, res.dados.confirmada_em);
+                        return;
+                    }
+                    chk.checked = !desejado;
+                    mostrarErro(
+                        (res.dados && res.dados.message)
+                        || "Não foi possível salvar a presença."
+                    );
+                }).catch(function () {
+                    chk.disabled = false;
+                    chk.checked = !desejado;
+                    mostrarErro("Erro de conexão ao salvar a presença.");
+                });
+            });
+        });
+    });
+</script>
+{% endif %}
+{% endblock scripts %}

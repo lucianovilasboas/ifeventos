@@ -1,7 +1,7 @@
 """Testes da marcação manual de presença (checkbox da Lista de Presença)."""
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import timezone as tz
 
 from django.contrib.auth import get_user_model
@@ -34,8 +34,10 @@ def _evento(organizador, **kwargs):
 def _atividade(evento, **kwargs):
     dados = dict(
         titulo="Atividade", descricao="d", local="Sala",
-        data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
-        data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+        # A janela da chamada manual do palestrante é o horário exato da
+        # atividade: o padrão fica "acontecendo agora" para os testes.
+        data_hora_inicio=datetime.now(tz.utc) - timedelta(hours=1),
+        data_hora_fim=datetime.now(tz.utc) + timedelta(hours=1),
         n_vagas=10, emite_certificado=True,
     )
     dados.update(kwargs)
@@ -57,6 +59,10 @@ class PresencaManualTests(TestCase):
         self.evento.organizadores.add(self.co)
         self.evento.equipe.add(self.equipe)
         self.atividade = _atividade(self.evento)
+        self.palestrante = U.objects.create_user(
+            email="palestrantepm@cert.test", password=SENHA
+        )
+        self.atividade.palestrantes.add(self.palestrante)
         self.pessoa = U.objects.create_user(email="alunopm@cert.test", password=SENHA)
         Inscricao.objects.create(
             participante=self.pessoa, atividade=self.atividade, confirmada=False
@@ -173,6 +179,121 @@ class PresencaManualTests(TestCase):
             RegistroAuditoria.objects.filter(
                 acao=RegistroAuditoria.ACAO_REMOVER_CERTIFICADO
             ).exists()
+        )
+
+    def test_palestrante_marca_presenca_manual(self):
+        self.client.force_login(self.palestrante)
+        r = self._post(True)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(r.json()["confirmada_em"])
+        # Data e hora na mesma string (o "Check-in" da tela mostra as duas).
+        self.assertIn("/", r.json()["confirmada_em"])
+        self.assertIn(":", r.json()["confirmada_em"])
+        presenca = Presenca.objects.get(
+            atividade=self.atividade, participante=self.pessoa
+        )
+        self.assertEqual(presenca.origem, "manual")
+        self.assertEqual(presenca.registrada_por, self.palestrante)
+
+    def test_palestrante_desmarca_presenca(self):
+        self.client.force_login(self.palestrante)
+        self._post(True)
+        r = self._post(False)
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(
+            Presenca.objects.filter(atividade=self.atividade, participante=self.pessoa).exists()
+        )
+
+    def test_palestrante_nao_altera_com_certificado_emitido(self):
+        self.client.force_login(self.palestrante)
+        self._post(True)
+        certificado = Certificado.objects.create(
+            participante=self.pessoa, atividade=self.atividade, tipo="atividade"
+        )
+        # Certificado emitido encerra a chamada do palestrante por inteiro: nem
+        # desmarcar, nem pedir remoção do certificado. Só a organização altera.
+        r = self.client.post(
+            self._url(),
+            data=json.dumps({"presente": False, "remover_certificado": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("certificados", r.json()["message"])
+        self.assertTrue(Certificado.objects.filter(id=certificado.id).exists())
+        self.assertTrue(
+            Presenca.objects.filter(atividade=self.atividade, participante=self.pessoa).exists()
+        )
+
+    def test_palestrante_nao_marca_antes_do_inicio(self):
+        self.atividade.data_hora_inicio = datetime.now(tz.utc) + timedelta(hours=2)
+        self.atividade.data_hora_fim = datetime.now(tz.utc) + timedelta(hours=3)
+        self.atividade.save()
+        self.client.force_login(self.palestrante)
+        r = self._post(True)
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("abre no início", r.json()["message"])
+        self.assertFalse(
+            Presenca.objects.filter(atividade=self.atividade, participante=self.pessoa).exists()
+        )
+
+    def test_palestrante_nao_marca_depois_do_fim(self):
+        self.atividade.data_hora_inicio = datetime.now(tz.utc) - timedelta(hours=3)
+        self.atividade.data_hora_fim = datetime.now(tz.utc) - timedelta(hours=2)
+        self.atividade.save()
+        self.client.force_login(self.palestrante)
+        r = self._post(True)
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("encerrou com a atividade", r.json()["message"])
+        self.assertFalse(
+            Presenca.objects.filter(atividade=self.atividade, participante=self.pessoa).exists()
+        )
+
+    def test_organizador_marca_fora_da_janela(self):
+        self.atividade.data_hora_inicio = datetime.now(tz.utc) - timedelta(hours=3)
+        self.atividade.data_hora_fim = datetime.now(tz.utc) - timedelta(hours=2)
+        self.atividade.save()
+        self.client.force_login(self.dono)
+        r = self._post(True)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(
+            Presenca.objects.filter(atividade=self.atividade, participante=self.pessoa).exists()
+        )
+
+    def test_palestrante_nao_marca_com_certificado_do_evento(self):
+        Certificado.objects.create(
+            participante=self.pessoa, evento=self.evento, tipo="evento"
+        )
+        self.client.force_login(self.palestrante)
+        r = self._post(True)
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("certificados", r.json()["message"])
+        self.assertFalse(
+            Presenca.objects.filter(atividade=self.atividade, participante=self.pessoa).exists()
+        )
+
+    def test_palestrante_de_outra_atividade_recebe_403(self):
+        outra = _atividade(self.evento, titulo="Outra atividade")
+        self.client.force_login(self.palestrante)
+        r = self.client.post(
+            reverse("organizador:presenca_manual", args=[outra.id, self.pessoa.id]),
+            data=json.dumps({"presente": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_certificado_de_funcao_nao_bloqueia_palestrante(self):
+        # Certificado de FUNÇÃO não depende da presença: a chamada do
+        # palestrante segue liberada dentro da atividade.
+        Certificado.objects.create(
+            participante=self.palestrante, evento=self.evento,
+            tipo="funcao", funcao="palestrante",
+        )
+        self.client.force_login(self.palestrante)
+        r = self._post(True)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(
+            Presenca.objects.filter(atividade=self.atividade, participante=self.pessoa).exists()
         )
 
     def test_certificado_de_funcao_nao_bloqueia_desmarque(self):

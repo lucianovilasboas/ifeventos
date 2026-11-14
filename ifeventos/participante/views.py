@@ -678,7 +678,11 @@ def minha_palestra_inscritos(request, atividade_id):
     """
     from django.http import HttpResponseForbidden
 
-    from eventos.crachas import pode_ver_inscritos_atividade
+    from eventos.crachas import (
+        pode_alterar_presenca_agora,
+        pode_marcar_presenca_atividade,
+        pode_ver_inscritos_atividade,
+    )
 
     atividade = get_object_or_404(
         Atividade.objects.select_related("evento", "tipo"), id=atividade_id
@@ -720,6 +724,14 @@ def minha_palestra_inscritos(request, atividade_id):
     total_presentes = sum(1 for linha in linhas if linha["presenca"])
     total_inscritos = len(pessoas) if atividade.exige_inscricao else 0
 
+    # O switch só aparece quando o usuário tem o papel E pode alterar agora:
+    # palestrante apenas durante a atividade e antes de emitir certificados;
+    # organização sempre. Fora da janela, mostramos o motivo no lugar do switch.
+    tem_papel_presenca = pode_marcar_presenca_atividade(request.user, atividade)
+    pode_marcar_presenca, motivo_presenca = pode_alterar_presenca_agora(
+        request.user, atividade
+    )
+
     return render(request, "participante/minha_palestra_inscritos.html", {
         "atividade": atividade,
         "evento": atividade.evento,
@@ -728,6 +740,10 @@ def minha_palestra_inscritos(request, atividade_id):
         "total_inscritos": total_inscritos,
         "total_presentes": total_presentes,
         "total_pendentes": max(total_inscritos - total_presentes, 0),
+        "pode_marcar_presenca": pode_marcar_presenca,
+        "motivo_presenca_bloqueada": (
+            motivo_presenca if tem_papel_presenca and not pode_marcar_presenca else ""
+        ),
     })
 
 
