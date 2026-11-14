@@ -1230,6 +1230,21 @@ def atividades_do_palestrante(usuario):
     )
 
 
+def pode_ver_inscritos_atividade(usuario, atividade):
+    """Quem pode ver os inscritos/presenças de uma atividade.
+
+    É quem organiza o evento (ou é co-organizador/equipe de apoio) **ou** quem
+    palestra naquela atividade: o palestrante precisa da lista para receber a
+    turma, e já enxerga a atividade em "Minhas palestras". A regra é a mesma do
+    QR da atividade, para as duas permissões não divergirem.
+    """
+    if pode_checkin_apoio(usuario, atividade.evento):
+        return True
+    if not usuario or not getattr(usuario, "is_authenticated", False):
+        return False
+    return atividade.palestrantes.filter(id=usuario.id).exists()
+
+
 def pode_exibir_qr_atividade(usuario, atividade):
     """Quem pode exibir o QR de presença da atividade.
 
@@ -1237,11 +1252,7 @@ def pode_exibir_qr_atividade(usuario, atividade):
     estão na sala no momento e podem mostrar o código para a turma. A equipe
     de apoio do evento também (ajuda a projetar na porta/sala).
     """
-    if pode_checkin_apoio(usuario, atividade.evento):
-        return True
-    if not usuario or not getattr(usuario, "is_authenticated", False):
-        return False
-    return atividade.palestrantes.filter(id=usuario.id).exists()
+    return pode_ver_inscritos_atividade(usuario, atividade)
 
 
 def verificar_token(token):
