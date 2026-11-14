@@ -327,16 +327,23 @@ class MinhasPalestrasTests(TestCase):
             email="est_mp@example.com", password=SENHA, cpf="39053344705",
             is_participante=True,
         )
+        self.equipe = U.objects.create_user(
+            email="eq_mp@example.com", password=SENHA, cpf="15350946056",
+            is_equipe=True,
+        )
         self.tipo = TipoAtividade.objects.create(nome="Oficina")
         self.evento = Evento.objects.create(
             title="Evento", description="d", local="l",
             data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
             categoria="formacao", organizador=self.org,
         )
+        self.evento.equipe.add(self.equipe)
         self.atividade = Atividade.objects.create(
             evento=self.evento, titulo="Palestra R4", descricao="d", tipo=self.tipo,
-            data_hora_inicio=datetime(2026, 10, 10, 10, 0, tzinfo=tz.utc),
-            data_hora_fim=datetime(2026, 10, 10, 11, 0, tzinfo=tz.utc),
+            # A chamada do palestrante só vale durante a atividade: o padrão
+            # dos testes fica "acontecendo agora".
+            data_hora_inicio=datetime.now(tz.utc) - timedelta(hours=1),
+            data_hora_fim=datetime.now(tz.utc) + timedelta(hours=1),
             n_vagas=10, n_inscricoes=3,
         )
         self.atividade.palestrantes.add(self.palestrante)
@@ -369,6 +376,74 @@ class MinhasPalestrasTests(TestCase):
         self.assertContains(resposta, "Aluno/Informática-Turma 1-Primeiro ano")
         self.assertContains(resposta, "Presente")
         self.assertNotContains(resposta, "inscrito_mp@example.com")
+
+    def test_palestrante_ve_switch_de_presenca_manual(self):
+        pessoa = self._inscrito(com_presenca=True)
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertContains(resposta, "js-presenca")
+        self.assertContains(
+            resposta,
+            reverse("organizador:presenca_manual", args=[self.atividade.id, pessoa.id]),
+        )
+        self.assertContains(resposta, "fazer a chamada")
+
+    def test_coluna_confirmou_presenca_com_data_e_hora(self):
+        from django.utils import timezone as dj_timezone
+
+        pessoa = self._inscrito(com_presenca=True)
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertContains(resposta, "Confirmou presença")
+        presenca = Presenca.objects.get(
+            atividade=self.atividade, participante=pessoa
+        )
+        esperado = dj_timezone.localtime(presenca.registrada_em).strftime("%d/%m/%Y %H:%M")
+        self.assertContains(resposta, esperado)
+
+    def test_palestrante_fora_da_janela_ve_motivo_sem_switch(self):
+        pessoa = self._inscrito()
+        self.atividade.data_hora_inicio = datetime.now(tz.utc) + timedelta(hours=2)
+        self.atividade.data_hora_fim = datetime.now(tz.utc) + timedelta(hours=3)
+        self.atividade.save()
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(
+            resposta,
+            reverse("organizador:presenca_manual", args=[self.atividade.id, pessoa.id]),
+        )
+        self.assertContains(resposta, "abre no início da atividade")
+
+    def test_palestrante_com_certificado_ve_motivo_sem_switch(self):
+        pessoa = self._inscrito()
+        Certificado.objects.create(
+            participante=pessoa, atividade=self.atividade, tipo="atividade"
+        )
+        self.client.force_login(self.palestrante)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(
+            resposta,
+            reverse("organizador:presenca_manual", args=[self.atividade.id, pessoa.id]),
+        )
+        self.assertContains(resposta, "certificados desta atividade já foram emitidos")
+
+    def test_equipe_ve_lista_sem_switch(self):
+        self.client.force_login(self.equipe)
+        resposta = self.client.get(
+            reverse("participante:minha_palestra_inscritos", args=[self.atividade.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(resposta, "js-presenca")
 
     def test_estranho_nao_ve_inscritos(self):
         self.client.force_login(self.estranho)

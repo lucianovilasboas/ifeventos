@@ -69,9 +69,11 @@ from eventos.crachas import (
     pode_exibir_qr_atividade,
     pode_checkin_apoio,
     pode_gerenciar_evento,
+    pode_alterar_presenca_agora,
     registrar_presenca,
 )
 from eventos.models import Inscricao
+from eventos.tempo import local_legivel
 
 from eventos.imagens import imagem_cortada
 from eventos.listas_presenca import (
@@ -1667,19 +1669,30 @@ class CheckinAtividadeView(LoginRequiredMixin, View):
 
 
 class MarcarPresencaManualView(LoginRequiredMixin, View):
-    """Marca/desmarca a presença de uma pessoa numa atividade (organizador/co).
+    """Marca/desmarca a presença de uma pessoa numa atividade, à mão.
 
-    Serve para quando o QR falha ou alguém esquece de passar o crachá: a
-    organização fecha a lista à mão. A marcação manual ignora a janela de
-    presença (`registrar_presenca` com `origem="manual"`); o desmarque é
-    bloqueado quando já existe certificado emitido (para não deixar o
-    certificado sem comprovação). Só organizador/co-organizador/staff.
+    Serve para quando o QR falha ou alguém esquece de passar o crachá. A
+    marcação manual ignora a janela de presença (`registrar_presenca` com
+    `origem="manual"`). Pode ser usada pela organização/co-organização/staff e
+    pelo PALESTRANTE da atividade — este faz a chamada na própria sala, sem o
+    QR. A equipe de apoio não entra: ela já registra presença pela câmera.
+
+    O desmarque é bloqueado quando já existe certificado emitido. Remover esse
+    certificado, porém, continua exclusivo de quem gerencia o evento: o
+    palestrante recebe 409 com `pode_remover: False` e é orientado a falar com
+    a organização.
+
+    O palestrante só altera a presença DURANTE a atividade (início ao fim
+    exatos) e enquanto os certificados que dependem da presença não foram
+    emitidos. Fora disso, a chamada fica com a organização.
     """
 
     def post(self, request, atividade_id, participante_id):
         atividade = get_object_or_404(Atividade, id=atividade_id)
-        if not pode_gerenciar_evento(request.user, atividade.evento):
-            raise PermissionDenied("Você não organiza este evento.")
+        permitido, motivo = pode_alterar_presenca_agora(request.user, atividade)
+        if not permitido:
+            return JsonResponse({"ok": False, "message": motivo}, status=403)
+        gerencia = pode_gerenciar_evento(request.user, atividade.evento)
         pessoa = get_object_or_404(Participante, id=participante_id)
 
         try:
@@ -1710,7 +1723,15 @@ class MarcarPresencaManualView(LoginRequiredMixin, View):
                     },
                 )
             return JsonResponse(
-                {"ok": True, "presente": True, "message": "Presença registrada."}
+                {
+                    "ok": True,
+                    "presente": True,
+                    "message": "Presença registrada.",
+                    # A tela atualiza a data/hora sem recarregar a lista.
+                    "confirmada_em": local_legivel(
+                        presenca.registrada_em, "%d/%m/%Y %H:%M"
+                    ),
+                }
             )
 
         # Desmarcar. Se houver certificado que DEPENDE desta presença, não remove
@@ -1726,12 +1747,13 @@ class MarcarPresencaManualView(LoginRequiredMixin, View):
 
         dependentes = list(certificados_que_dependem(pessoa, atividade))
         remover_certificado = bool(dados.get("remover_certificado"))
-        if dependentes and not remover_certificado:
+        if dependentes and (not gerencia or not remover_certificado):
             return JsonResponse(
                 {
                     "ok": False,
                     "presente": True,
                     "certificado": True,
+                    "pode_remover": gerencia,
                     "certificados": [
                         {
                             "id": c.id,
@@ -1741,8 +1763,13 @@ class MarcarPresencaManualView(LoginRequiredMixin, View):
                         }
                         for c in dependentes
                     ],
-                    "message": "Esta pessoa já tem certificado emitido. "
-                    "Remova o certificado para tirar a presença.",
+                    "message": (
+                        "Esta pessoa já tem certificado emitido. "
+                        "Remova o certificado para tirar a presença."
+                        if gerencia
+                        else "Esta pessoa já tem certificado emitido. "
+                        "Fale com a organização para desfazer a presença."
+                    ),
                 },
                 status=409,
             )

@@ -5,6 +5,25 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.25.0] — 2026-11-14
+
+### Adicionado
+
+- **Chamada manual pelo palestrante**: na lista de inscritos da atividade, cada participante ganhou um **switch** (mesmo padrão da Lista de Presença do organizador) para marcar/desmarcar a presença durante a própria atividade, sem usar o QR. Reaproveita o endpoint `presenca/manual/<atividade>/<participante>/`, com `origem="manual"` e auditoria. No celular o switch fica à frente do nome; no desktop, na coluna “Presença”.
+- **Coluna “Confirmou presença”**: substitui o antigo “Check-in” e passa a mostrar **data + hora** da confirmação (fuso local), no desktop e no celular.
+- **Permissão `pode_marcar_presenca_atividade()`**: organização/co-organização/staff ou palestrante da atividade. A equipe de apoio continua apenas visualizando a lista (já registra presença pelo check-in da câmera).
+
+### Segurança
+
+- **Janela estrita do palestrante**: a chamada manual vale **somente do início ao fim exatos da atividade**, sem as margens do QR. Antes ou depois, só a organização altera. A tela mostra o motivo no lugar do switch.
+- **Certificados encerram a chamada do palestrante**: emitido certificado da atividade ou do evento (os que dependem da presença), o palestrante não marca nem desmarca — recebe **403** com orientação para falar com a organização. Certificados de função (palestrante/organizador/equipe) não bloqueiam.
+- **Remoção de certificado continua exclusiva da organização**: o palestrante não apaga certificado pelo endpoint; a organização mantém o fluxo de confirmação já existente (409 + modal).
+- A resposta da marcação inclui `confirmada_em` (`dd/mm/aaaa hh:mm`, fuso local), usada pela tela para atualizar sem recarregar.
+
+### Notas
+
+- Sem migration.
+
 ## [2.24.0] — 2026-11-14
 
 ### Adicionado

@@ -26,6 +26,7 @@ import qrcode
 from django.conf import settings
 from django.core import signing
 from django.core.files.base import ContentFile
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import Atividade, Certificado, Evento, Inscricao, Participante, Presenca
@@ -1253,6 +1254,81 @@ def pode_exibir_qr_atividade(usuario, atividade):
     de apoio do evento também (ajuda a projetar na porta/sala).
     """
     return pode_ver_inscritos_atividade(usuario, atividade)
+
+
+def pode_marcar_presenca_atividade(usuario, atividade):
+    """Quem pode marcar/desmarcar presença MANUALMENTE numa atividade.
+
+    A organização/co-organização (e staff) fecha a lista pelo painel; o
+    PALESTRANTE também pode, durante a própria atividade, fazer a chamada sem
+    usar o QR. A equipe de apoio fica de fora: ela já registra presença pelo
+    check-in da câmera, e a marcação manual segue sob a organização.
+    """
+    if pode_gerenciar_evento(usuario, atividade.evento):
+        return True
+    if not usuario or not getattr(usuario, "is_authenticated", False):
+        return False
+    return atividade.palestrantes.filter(id=usuario.id).exists()
+
+
+def atividade_tem_certificado_emitido(atividade):
+    """Já existe certificado que DEPENDE da presença nesta atividade?
+
+    São os certificados da atividade e o do evento (`funcao=""`) — os mesmos
+    que `inscricoes.certificados_que_dependem` considera. Certificados de
+    FUNÇÃO (organizador, palestrante, equipe) vêm do vínculo com o evento e não
+    dependem da presença, então não entram.
+    """
+    return Certificado.objects.filter(
+        Q(atividade=atividade)
+        | Q(atividade__isnull=True, evento=atividade.evento_id, funcao="")
+    ).exists()
+
+
+def _como_aware(valor):
+    """Torna `datetime` ingênuo aware no fuso corrente (evita comparação inválida)."""
+    if valor is not None and timezone.is_naive(valor):
+        return timezone.make_aware(valor, timezone.get_current_timezone())
+    return valor
+
+
+def pode_alterar_presenca_agora(usuario, atividade, agora=None):
+    """Pode alterar a presença desta atividade NESTE momento? (permitido, motivo).
+
+    A organização/co-organização/staff sempre pode (inclusive antes/depois da
+    atividade) — é ela que corrige a lista ao final e remove certificado.
+
+    O PALESTRANTE só pode durante a atividade, do início ao fim exatos, e
+    enquanto não houver certificado emitido que dependa da presença. Fora dessa
+    janela, a chamada manual fica com a organização. A equipe de apoio não tem
+    esse papel (registra presença pelo check-in da câmera).
+    """
+    if pode_gerenciar_evento(usuario, atividade.evento):
+        return True, ""
+
+    if not pode_marcar_presenca_atividade(usuario, atividade):
+        return False, "Você não organiza este evento nem palestra nesta atividade."
+
+    agora = _como_aware(agora or timezone.now())
+    inicio = _como_aware(atividade.data_hora_inicio)
+    fim = _como_aware(atividade.data_hora_fim)
+
+    if inicio and agora < inicio:
+        return False, (
+            "A chamada manual abre no início da atividade, "
+            f"{local_legivel(inicio, '%d/%m às %H:%M')}."
+        )
+    if fim and agora > fim:
+        return False, (
+            "A chamada manual encerrou com a atividade, "
+            f"em {local_legivel(fim, '%d/%m às %H:%M')}."
+        )
+    if atividade_tem_certificado_emitido(atividade):
+        return False, (
+            "Os certificados desta atividade já foram emitidos. "
+            "Fale com a organização para alterar a presença."
+        )
+    return True, ""
 
 
 def verificar_token(token):
