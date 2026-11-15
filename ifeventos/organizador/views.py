@@ -49,6 +49,7 @@ from eventos import importacao_assistida
 from eventos import copiloto_evento
 from eventos import operacao
 from eventos import comunicacao
+from eventos import comunicados
 from django.db.models import Count, Exists, OuterRef, Q
 from asgiref.sync import sync_to_async, async_to_sync
 
@@ -2424,4 +2425,195 @@ async def gerar_divulgacao(request, evento_id):
         evento,
         canal=(dados.get("canal") or "post").strip(),
         objetivo=(dados.get("objetivo") or "").strip(),
+    ))
+
+
+# -- Comunicação por e-mail com o público do evento --
+def _ids_da_lista(valores):
+    """Ids inteiros de uma lista de parâmetros, ignorando lixo."""
+    ids = []
+    for valor in valores or []:
+        try:
+            ids.append(int(valor))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+def _contexto_comunicacao(evento, valores=None):
+    """Contexto da tela, preservando o que o organizador digitou."""
+    valores = valores or {}
+    atividade = comunicados.atividade_do_evento(evento, valores.get("atividade_id"))
+    pessoas_ids = _ids_da_lista(valores.get("pessoas"))
+    return {
+        "evento": evento,
+        "grupos": comunicados.grupos_com_contagem(evento),
+        "atividades": evento.atividades.order_by("data_hora_inicio", "id"),
+        "modelos_email": comunicacao.MODELOS_EMAIL.items(),
+        "max_destinatarios": comunicados.max_destinatarios(),
+        "atividade_selecionada": atividade,
+        "pessoas_selecionadas": comunicados.pessoas_por_ids(evento, pessoas_ids),
+        "envios_recentes": comunicados.envios_recentes(evento),
+        "valores": {
+            "assunto": valores.get("assunto", ""),
+            "corpo": valores.get("corpo", ""),
+            "modelo": valores.get("modelo", "livre"),
+            "atividade_id": atividade.pk if atividade else "",
+            "objetivo": valores.get("objetivo", ""),
+            "grupos": valores.get("grupos", []),
+            "nao_eu": valores.get("nao_eu", True),
+            "pessoas": pessoas_ids,
+        },
+    }
+
+
+@login_required(login_url='/accounts/login/')
+def comunicacao_evento(request, evento_id):
+    """Tela de comunicação: escolhe destinatários, escreve e envia um e-mail.
+
+    Cada pessoa recebe uma mensagem individual (sem CC/BCC). O servidor
+    recalcula os destinatários no POST — a contagem da tela é só conferência.
+    """
+    evento = _evento_gerenciavel(request, evento_id)
+
+    if request.method != "POST":
+        return render(request, "organizador/comunicacao.html",
+                      _contexto_comunicacao(evento))
+
+    assunto = (request.POST.get("assunto") or "").strip()[:160]
+    corpo = (request.POST.get("corpo") or "").strip()[:5000]
+    grupos = request.POST.getlist("grupos")
+    pessoas_ids = _ids_da_lista(request.POST.getlist("pessoas"))
+    atividade = comunicados.atividade_do_evento(
+        evento, request.POST.get("atividade_id")
+    )
+    nao_eu = request.POST.get("nao_eu") == "1"
+
+    destinatarios, ignorados = comunicados.destinatarios(
+        evento,
+        grupos=grupos,
+        pessoas_ids=pessoas_ids,
+        atividade_id=atividade.pk if atividade else None,
+        excluir=request.user if nao_eu else None,
+    )
+
+    erros = []
+    if not assunto:
+        erros.append("Informe o assunto do e-mail.")
+    if not corpo:
+        erros.append("Escreva a mensagem.")
+    if not destinatarios:
+        erros.append("Escolha pelo menos um destinatário com e-mail.")
+    limite = comunicados.max_destinatarios()
+    if limite and len(destinatarios) > limite:
+        erros.append(
+            "Este envio tem %s destinatários, acima do limite de %s. "
+            "Divida em lotes." % (len(destinatarios), limite)
+        )
+
+    if erros:
+        for erro in erros:
+            messages.error(request, erro)
+        return render(request, "organizador/comunicacao.html", _contexto_comunicacao(
+            evento,
+            {
+                "assunto": assunto,
+                "corpo": corpo,
+                "modelo": request.POST.get("modelo", "livre"),
+                "atividade_id": atividade.pk if atividade else "",
+                "objetivo": request.POST.get("objetivo", ""),
+                "grupos": grupos,
+                "nao_eu": nao_eu,
+                "pessoas": pessoas_ids,
+            },
+        ))
+
+    enfileirados = comunicados.enviar_comunicado(
+        assunto, corpo, destinatarios, reply_to=request.user.email
+    )
+    auditoria.registrar(
+        acao=RegistroAuditoria.ACAO_ENVIAR_COMUNICADO,
+        objeto=evento,
+        evento=evento,
+        resumo="Enviou comunicado: %s" % assunto,
+        detalhes={
+            "assunto": assunto,
+            "grupos": grupos,
+            "atividade_id": atividade.pk if atividade else None,
+            "total": len(destinatarios),
+            "ignorados": len(ignorados),
+            "enfileirados": enfileirados,
+        },
+    )
+
+    if enfileirados:
+        texto = "%s e-mail(s) enfileirado(s) para envio." % enfileirados
+        if ignorados:
+            texto += " %s pessoa(s) sem e-mail foram ignoradas." % len(ignorados)
+        messages.success(request, texto)
+    else:
+        messages.error(
+            request,
+            "Nenhum e-mail pôde ser enviado. Confira a configuração de SMTP "
+            "e tente novamente.",
+        )
+    return redirect("organizador:comunicacao_evento", evento_id=evento.id)
+
+
+@csrf_exempt
+@login_required(login_url='/accounts/login/')
+async def comunicacao_ia(request, evento_id):
+    """Gera assunto/corpo do e-mail por IA (com fallback determinístico)."""
+    if request.method != "POST":
+        return JsonResponse({"erro": "Método não permitido"}, status=405)
+    try:
+        evento = await sync_to_async(_evento_gerenciavel)(request, evento_id)
+    except PermissionDenied:
+        return JsonResponse({"erro": "Você não gerencia este evento."}, status=403)
+    try:
+        dados = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        dados = {}
+
+    atividade = None
+    if dados.get("atividade_id"):
+        atividade = await sync_to_async(
+            comunicados.atividade_do_evento
+        )(evento, dados.get("atividade_id"))
+
+    return JsonResponse(await comunicacao.gerar_email(
+        evento,
+        modelo=(dados.get("modelo") or "livre").strip(),
+        atividade=atividade,
+        publico=(dados.get("publico") or "").strip()[:200],
+        objetivo=(dados.get("objetivo") or "").strip()[:500],
+    ))
+
+
+@login_required(login_url='/accounts/login/')
+def comunicacao_pessoas(request, evento_id):
+    """Busca individual de pessoas relacionadas ao evento (nome ou e-mail)."""
+    evento = _evento_gerenciavel(request, evento_id)
+    return JsonResponse({
+        "pessoas": comunicados.buscar_pessoas(evento, request.GET.get("q", ""))
+    })
+
+
+@login_required(login_url='/accounts/login/')
+def comunicacao_contar(request, evento_id):
+    """Total de destinatários únicos + o que foi deduplicado/excluído.
+
+    A tela usa os contadores para explicar por que o total não é a soma dos
+    badges (os grupos se sobrepõem).
+    """
+    evento = _evento_gerenciavel(request, evento_id)
+    atividade = comunicados.atividade_do_evento(
+        evento, request.GET.get("atividade_id")
+    )
+    return JsonResponse(comunicados.resumo_selecao(
+        evento,
+        grupos=request.GET.getlist("grupos"),
+        pessoas_ids=_ids_da_lista(request.GET.getlist("pessoas")),
+        atividade_id=atividade.pk if atividade else None,
+        excluir=request.user if request.GET.get("nao_eu") == "1" else None,
     ))

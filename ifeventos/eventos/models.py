@@ -1509,6 +1509,7 @@ class RegistroAuditoria(models.Model):
     ACAO_CANCELAR_PRESENCA = "cancelar_presenca"
     ACAO_REGISTRAR_PRESENCA = "registrar_presenca"
     ACAO_REMOVER_CERTIFICADO = "remover_certificado"
+    ACAO_ENVIAR_COMUNICADO = "enviar_comunicado"
     ACAO_ERRO = "erro"
     ACAO_CHOICES = [
         (ACAO_CRIAR, "Criar"),
@@ -1526,6 +1527,7 @@ class RegistroAuditoria(models.Model):
         (ACAO_CANCELAR_PRESENCA, "Cancelar presença"),
         (ACAO_REGISTRAR_PRESENCA, "Registrar presença"),
         (ACAO_REMOVER_CERTIFICADO, "Remover certificado"),
+        (ACAO_ENVIAR_COMUNICADO, "Enviar comunicado"),
         (ACAO_ERRO, "Erro"),
     ]
 

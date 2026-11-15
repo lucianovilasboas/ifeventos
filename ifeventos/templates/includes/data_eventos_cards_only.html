@@ -84,6 +84,9 @@
                           style="position:absolute;top:-5px;right:-5px;font-size:9px"
                           {% if not evento.n_pendentes %}hidden{% endif %}>{{ evento.n_pendentes }}</span>
                 </a>
+                <a href="{% url 'organizador:comunicacao_evento' evento.id %}" class="btn btn-sm btn-outline-primary btn-icon" title="Comunicação por e-mail">
+                    <i class="fa-solid fa-envelope"></i>
+                </a>
                 {# Equipe de apoio: abre o modal do evento (dados embutidos no dashboard). #}
                 <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" title="Equipe de apoio"
                         data-equipe-abrir

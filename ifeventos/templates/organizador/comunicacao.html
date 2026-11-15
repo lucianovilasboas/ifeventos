@@ -1,0 +1,591 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Comunicação | {{ evento.title }}{% endblock %}
+
+{% block action %}
+<div class="pagina-topo">
+    <h2><i class="fa-solid fa-envelope"></i> Comunicação do evento</h2>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'organizador:atividades_evento' evento.id %}">
+        <i class="fa-solid fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="app-page">
+
+    <p class="text-muted small">
+        Escolha os destinatários, escreva a mensagem e envie. Cada pessoa recebe
+        um <strong>e-mail individual</strong> — ninguém vê o endereço dos demais.
+    </p>
+
+    <div id="mensagemComunicacao"></div>
+
+    <form method="post" id="formComunicacao"
+          action="{% url 'organizador:comunicacao_evento' evento.id %}">
+        {% csrf_token %}
+
+        <div class="row g-3">
+            <div class="col-12 col-lg-5">
+                <div class="app-panel h-100">
+                    <h5 class="mb-1"><i class="fa-solid fa-users"></i> Destinatários</h5>
+                    <p class="text-muted small mb-3">
+                        Marque grupos e/ou busque pessoas. Quem estiver em mais de
+                        um grupo recebe um e-mail só — o total conta cada pessoa
+                        uma única vez.
+                    </p>
+
+                    {% for grupo in grupos %}
+                    <div class="form-check d-flex justify-content-between align-items-center border rounded-3 px-3 py-2 mb-2">
+                        <div>
+                            <input class="form-check-input js-grupo" type="checkbox" name="grupos"
+                                   value="{{ grupo.chave }}" id="grupo-{{ grupo.chave }}"
+                                   {% if grupo.chave in valores.grupos %}checked{% endif %}>
+                            <label class="form-check-label" for="grupo-{{ grupo.chave }}">{{ grupo.rotulo }}</label>
+                        </div>
+                        <span class="badge text-bg-light">{{ grupo.total }}</span>
+                    </div>
+                    {% endfor %}
+
+                    <div class="form-check d-flex justify-content-between align-items-center border rounded-3 px-3 py-2 mb-2">
+                        <div>
+                            <input class="form-check-input js-grupo" type="checkbox" name="grupos"
+                                   value="inscritos_atividade" id="grupo-inscritos-atividade"
+                                   {% if 'inscritos_atividade' in valores.grupos %}checked{% endif %}>
+                            <label class="form-check-label" for="grupo-inscritos-atividade">Inscritos na atividade</label>
+                        </div>
+                        <span class="badge text-bg-light" id="grupo-atividade-total">{{ atividade_selecionada.n_inscricoes|default:0 }}</span>
+                    </div>
+
+                    <div class="mt-2">
+                        <label class="form-label small" for="atividadeRef">Atividade de referência</label>
+                        <select class="form-select form-select-sm" name="atividade_id" id="atividadeRef">
+                            <option value="">— Nenhuma —</option>
+                            {% for atividade in atividades %}
+                            <option value="{{ atividade.id }}" data-inscritos="{{ atividade.n_inscricoes }}"
+                                    {% if valores.atividade_id == atividade.id %}selected{% endif %}>
+                                {{ atividade.titulo }} · {{ atividade.data_hora_inicio|date:"d/m H:i" }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            Usada pelo grupo “Inscritos na atividade” e pelo modelo
+                            “Lembrete de atividade”.
+                        </div>
+                    </div>
+
+                    <div class="form-check mt-3">
+                        <input class="form-check-input js-grupo" type="checkbox" name="nao_eu" value="1"
+                               id="naoEu" {% if valores.nao_eu %}checked{% endif %}>
+                        <label class="form-check-label" for="naoEu">Não me incluir automaticamente nos grupos</label>
+                        <div class="form-text">
+                            Vale para os grupos. Se você se adicionar individualmente,
+                            continua na lista.
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <label class="form-label small" for="buscaPessoa">Adicionar pessoa</label>
+                    <input type="search" id="buscaPessoa" class="form-control form-control-sm"
+                           placeholder="Nome ou e-mail" autocomplete="off">
+                    <div id="resultadosPessoa" class="list-group mt-2"></div>
+
+                    <div id="pessoasSelecionadas" class="d-flex flex-wrap gap-2 mt-2">
+                        {% for pessoa in pessoas_selecionadas %}
+                        <span class="badge text-bg-secondary d-inline-flex align-items-center gap-1 js-chip"
+                              data-pessoa="{{ pessoa.id }}">
+                            {{ pessoa.get_full_name|default:pessoa.email }}
+                            <button type="button" class="btn btn-sm p-0 px-1 border-0 bg-transparent text-white js-remover-chip"
+                                    aria-label="Remover {{ pessoa.get_full_name|default:pessoa.email }}">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </span>
+                        <input type="hidden" name="pessoas" value="{{ pessoa.id }}">
+                        {% endfor %}
+                    </div>
+
+                    <div class="alert alert-light border mt-3 mb-0 d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-paper-plane"></i> Total de destinatários únicos</span>
+                        <strong id="totalDestinatarios">0</strong>
+                    </div>
+                    <p class="text-muted small mb-0 mt-1" id="detalhesDestinatarios" hidden></p>
+                    {% if max_destinatarios %}
+                    <p class="text-muted small mb-0 mt-1">
+                        Limite por envio: {{ max_destinatarios }} destinatário(s).
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-7">
+                <div class="app-panel h-100">
+                    <h5 class="mb-1"><i class="fa-solid fa-pen-to-square"></i> Mensagem</h5>
+                    <p class="text-muted small mb-3">
+                        Use um modelo pronto ou escreva livremente. O botão de IA
+                        monta um rascunho a partir do objetivo informado.
+                    </p>
+
+                    <div class="row g-2">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small" for="modeloEmail">Modelo</label>
+                            <select class="form-select form-select-sm" name="modelo" id="modeloEmail">
+                                {% for chave, rotulo in modelos_email %}
+                                <option value="{{ chave }}" {% if valores.modelo == chave %}selected{% endif %}>{{ rotulo }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small" for="objetivoIa">Objetivo para a IA (opcional)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" name="objetivo" id="objetivoIa"
+                                       maxlength="500" value="{{ valores.objetivo }}"
+                                       placeholder="ex.: lembrar do credenciamento às 7h30">
+                                <button class="btn btn-ia" type="button" id="btnGerarIa"
+                                        data-url="{% url 'organizador:comunicacao_ia' evento.id %}"
+                                        data-carregando="Gerando…">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="form-text mb-0 text-primary" id="iaCarregando" hidden>
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        A IA está escrevendo o rascunho…
+                    </p>
+                    <p class="form-text mb-0" id="iaAviso" hidden></p>
+
+                    <div class="mt-2">
+                        <label class="form-label small" for="assunto">Assunto</label>
+                        <input class="form-control form-control-sm" name="assunto" id="assunto"
+                               maxlength="160" required value="{{ valores.assunto }}">
+                    </div>
+
+                    <div class="mt-2">
+                        <label class="form-label small" for="corpo">Mensagem</label>
+                        <textarea class="form-control" name="corpo" id="corpo" rows="12"
+                                  maxlength="5000" required>{{ valores.corpo }}</textarea>
+                        <div class="form-text d-flex justify-content-between">
+                            <span>A assinatura e os dados do evento são seus: escreva como quiser.</span>
+                            <span id="contadorCorpo">0/5000</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span class="text-muted small">
+                            <i class="fa-solid fa-envelope"></i>
+                            <span id="totalRodape">0</span> destinatário(s) único(s)
+                        </span>
+                        <button type="button" class="btn btn-app" id="btnEnviar">
+                            <i class="fa-solid fa-paper-plane"></i> Enviar e-mails
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    {% if envios_recentes %}
+    <div class="app-panel mt-3">
+        <h6 class="mb-2"><i class="fa-solid fa-clock-rotate-left"></i> Envios recentes</h6>
+        <ul class="list-unstyled mb-0 small">
+            {% for envio in envios_recentes %}
+            <li class="d-flex justify-content-between gap-2 border-bottom py-1">
+                <span>
+                    <strong>{{ envio.detalhes.assunto|default:"(sem assunto)" }}</strong>
+                    · {{ envio.detalhes.total|default:0 }} e-mail(s)
+                </span>
+                <span class="text-muted text-nowrap">
+                    {{ envio.criado_em|date:"d/m/Y H:i" }} · {{ envio.usuario_nome|default:"—" }}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Confirmação do envio -->
+<div class="modal fade" id="modalConfirmarEnvio" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-paper-plane"></i> Confirmar envio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Enviar <strong id="totalConfirmar">0</strong> e-mail(s)?
+                </p>
+                <p class="text-muted small mb-0">
+                    Cada pessoa recebe uma mensagem individual. O envio não pode
+                    ser desfeito.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-app" id="confirmarEnvio">
+                    <i class="fa-solid fa-paper-plane"></i> Enviar agora
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("formComunicacao");
+        const csrf = "{{ csrf_token }}";
+        const urlContar = "{% url 'organizador:comunicacao_contar' evento.id %}";
+        const urlPessoas = "{% url 'organizador:comunicacao_pessoas' evento.id %}";
+        const busca = document.getElementById("buscaPessoa");
+        const resultados = document.getElementById("resultadosPessoa");
+        const chips = document.getElementById("pessoasSelecionadas");
+        const atividadeRef = document.getElementById("atividadeRef");
+        const naoEu = document.getElementById("naoEu");
+        const totalDestinatarios = document.getElementById("totalDestinatarios");
+        const totalRodape = document.getElementById("totalRodape");
+        const totalConfirmar = document.getElementById("totalConfirmar");
+        const detalhesDestinatarios = document.getElementById("detalhesDestinatarios");
+        const mensagem = document.getElementById("mensagemComunicacao");
+        const corpo = document.getElementById("corpo");
+        const assunto = document.getElementById("assunto");
+        const modelo = document.getElementById("modeloEmail");
+        const objetivo = document.getElementById("objetivoIa");
+        const iaAviso = document.getElementById("iaAviso");
+        const iaCarregando = document.getElementById("iaCarregando");
+        const btnIa = document.getElementById("btnGerarIa");
+        const btnEnviar = document.getElementById("btnEnviar");
+        const confirmarEnvio = document.getElementById("confirmarEnvio");
+        const modalEl = document.getElementById("modalConfirmarEnvio");
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        let totalAtual = 0;
+        let timerTotal = null;
+        let timerBusca = null;
+        let animacaoCorpo = null;
+
+        function gruposSelecionados() {
+            return Array.from(document.querySelectorAll('input[name="grupos"]:checked'))
+                .map(function (campo) { return campo.value; });
+        }
+
+        function idsSelecionados() {
+            return Array.from(document.querySelectorAll('input[name="pessoas"]'))
+                .map(function (campo) { return campo.value; });
+        }
+
+        function adicionarParametros(params) {
+            gruposSelecionados().forEach(function (grupo) { params.append("grupos", grupo); });
+            idsSelecionados().forEach(function (id) { params.append("pessoas", id); });
+            if (atividadeRef.value) params.set("atividade_id", atividadeRef.value);
+            if (naoEu.checked) params.set("nao_eu", "1");
+            return params;
+        }
+
+        function mostrarErro(texto) {
+            if (!mensagem) return;
+            mensagem.innerHTML = "";
+            const alerta = document.createElement("div");
+            alerta.className = "alert alert-danger";
+            alerta.textContent = texto;
+            mensagem.appendChild(alerta);
+        }
+
+        async function atualizarTotal() {
+            try {
+                const params = adicionarParametros(new URLSearchParams());
+                const resposta = await fetch(urlContar + "?" + params.toString(), {
+                    headers: { "Accept": "application/json" }
+                });
+                if (!resposta.ok) return;
+                const dados = await resposta.json();
+                totalAtual = dados.total || 0;
+                totalDestinatarios.textContent = totalAtual;
+                totalRodape.textContent = totalAtual;
+                const partes = [];
+                if (dados.grupos) partes.push(dados.grupos + " nos grupos");
+                if (dados.repetidos) {
+                    partes.push(dados.repetidos + " já incluída(s) nos grupos");
+                }
+                if (dados.excluido) {
+                    partes.push("você fora por “não me incluir”");
+                }
+                if (dados.nao_relacionados) {
+                    partes.push(dados.nao_relacionados + " sem vínculo com o evento (ignorada(s))");
+                }
+                if (dados.ignorados) {
+                    partes.push(dados.ignorados + " sem e-mail");
+                }
+                if (partes.length) {
+                    detalhesDestinatarios.hidden = false;
+                    detalhesDestinatarios.textContent = partes.join(" · ");
+                } else {
+                    detalhesDestinatarios.hidden = true;
+                }
+            } catch (erro) {
+                // Contagem é acessória: o envio recalcula no servidor.
+            }
+        }
+
+        function agendarTotal() {
+            clearTimeout(timerTotal);
+            timerTotal = setTimeout(atualizarTotal, 250);
+        }
+
+        function criarChip(id, nome) {
+            const chip = document.createElement("span");
+            chip.className = "badge text-bg-secondary d-inline-flex align-items-center gap-1 js-chip";
+            chip.dataset.pessoa = id;
+            chip.appendChild(document.createTextNode(nome));
+
+            const remover = document.createElement("button");
+            remover.type = "button";
+            remover.className = "btn btn-sm p-0 px-1 border-0 bg-transparent text-white js-remover-chip";
+            remover.setAttribute("aria-label", "Remover " + nome);
+            remover.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+            chip.appendChild(remover);
+
+            const oculto = document.createElement("input");
+            oculto.type = "hidden";
+            oculto.name = "pessoas";
+            oculto.value = id;
+            return { chip: chip, oculto: oculto };
+        }
+
+        function adicionarPessoa(pessoa) {
+            if (idsSelecionados().indexOf(String(pessoa.id)) !== -1) return;
+            const partes = criarChip(pessoa.id, pessoa.nome);
+            chips.appendChild(partes.chip);
+            chips.appendChild(partes.oculto);
+            resultados.innerHTML = "";
+            busca.value = "";
+            agendarTotal();
+        }
+
+        function removerChip(botao) {
+            const chip = botao.closest(".js-chip");
+            if (!chip) return;
+            const id = chip.dataset.pessoa;
+            chip.remove();
+            document.querySelectorAll('input[name="pessoas"]').forEach(function (campo) {
+                if (campo.value === id) campo.remove();
+            });
+            agendarTotal();
+        }
+
+        function renderizarResultados(pessoas) {
+            resultados.innerHTML = "";
+            if (!pessoas.length) {
+                const vazio = document.createElement("span");
+                vazio.className = "text-muted small";
+                vazio.textContent = "Ninguém encontrado.";
+                resultados.appendChild(vazio);
+                return;
+            }
+            pessoas.forEach(function (pessoa) {
+                const item = document.createElement("button");
+                item.type = "button";
+                item.className = "list-group-item list-group-item-action py-2 px-2 d-flex justify-content-between align-items-center gap-2 w-100 text-start";
+
+                const texto = document.createElement("span");
+                const nome = document.createElement("strong");
+                nome.textContent = pessoa.nome;
+                const detalhe = document.createElement("small");
+                detalhe.className = "text-muted d-block";
+                detalhe.textContent = (pessoa.email || "sem e-mail")
+                    + (pessoa.papeis && pessoa.papeis.length ? " · " + pessoa.papeis.join(" · ") : "");
+                texto.appendChild(nome);
+                texto.appendChild(detalhe);
+                item.appendChild(texto);
+
+                const acao = document.createElement("i");
+                if (!pessoa.tem_email) {
+                    item.disabled = true;
+                    acao.className = "fa-solid fa-ban text-warning";
+                    acao.title = "Pessoa sem e-mail";
+                } else if (idsSelecionados().indexOf(String(pessoa.id)) !== -1) {
+                    item.disabled = true;
+                    acao.className = "fa-solid fa-check text-success";
+                } else {
+                    acao.className = "fa-solid fa-plus";
+                    item.addEventListener("click", function () { adicionarPessoa(pessoa); });
+                }
+                item.appendChild(acao);
+                resultados.appendChild(item);
+            });
+        }
+
+        async function buscarPessoas() {
+            const termo = busca.value.trim();
+            if (termo.length < 2) {
+                resultados.innerHTML = "";
+                return;
+            }
+            try {
+                const resposta = await fetch(urlPessoas + "?q=" + encodeURIComponent(termo), {
+                    headers: { "Accept": "application/json" }
+                });
+                if (!resposta.ok) return;
+                const dados = await resposta.json();
+                renderizarResultados(dados.pessoas || []);
+            } catch (erro) {
+                // Busca é acessória; a lista de grupos continua valendo.
+            }
+        }
+
+        function rotulosDosGrupos() {
+            const rotulos = [];
+            document.querySelectorAll('input[name="grupos"]:checked').forEach(function (campo) {
+                const label = document.querySelector('label[for="' + campo.id + '"]');
+                if (label) rotulos.push(label.textContent.trim());
+            });
+            if (idsSelecionados().length) rotulos.push("pessoas selecionadas");
+            return rotulos.join(", ");
+        }
+
+        function atualizarContador() {
+            document.getElementById("contadorCorpo").textContent =
+                corpo.value.length + "/5000";
+        }
+
+        function liberarEnvio() {
+            btnEnviar.disabled = false;
+        }
+
+        function pararDigitacao() {
+            if (animacaoCorpo) {
+                cancelAnimationFrame(animacaoCorpo);
+                animacaoCorpo = null;
+            }
+            liberarEnvio();
+        }
+
+        // Efeito de digitação: o texto aparece progressivamente, como um stream.
+        // Se o organizador editar o campo, a animação para na hora.
+        function digitarCorpo(texto, aoFinal) {
+            pararDigitacao();
+            btnEnviar.disabled = true;
+            corpo.value = "";
+            atualizarContador();
+            const total = texto.length;
+            const passo = Math.max(1, Math.ceil(total / 120));  // ~2 s a 60 fps
+            let posicao = 0;
+
+            function quadro() {
+                posicao = Math.min(total, posicao + passo);
+                corpo.value = texto.slice(0, posicao);
+                corpo.scrollTop = corpo.scrollHeight;
+                atualizarContador();
+                if (posicao < total) {
+                    animacaoCorpo = requestAnimationFrame(quadro);
+                } else {
+                    animacaoCorpo = null;
+                    if (aoFinal) aoFinal();
+                }
+            }
+            animacaoCorpo = requestAnimationFrame(quadro);
+        }
+
+        document.querySelectorAll(".js-grupo").forEach(function (campo) {
+            campo.addEventListener("change", agendarTotal);
+        });
+        atividadeRef.addEventListener("change", function () {
+            const opcao = atividadeRef.options[atividadeRef.selectedIndex];
+            document.getElementById("grupo-atividade-total").textContent =
+                (opcao && opcao.dataset.inscritos) ? opcao.dataset.inscritos : "0";
+            agendarTotal();
+        });
+        // Delegação: vale para os chips já renderizados e para os criados pela
+        // busca depois do carregamento (sem listener individual em cada um).
+        chips.addEventListener("click", function (evento) {
+            const botao = evento.target.closest(".js-remover-chip");
+            if (botao) removerChip(botao);
+        });
+        busca.addEventListener("input", function () {
+            clearTimeout(timerBusca);
+            timerBusca = setTimeout(buscarPessoas, 300);
+        });
+        corpo.addEventListener("input", function () {
+            pararDigitacao();
+            atualizarContador();
+        });
+
+        btnIa.addEventListener("click", async function () {
+            pararDigitacao();
+            const htmlOriginal = btnIa.innerHTML;
+            btnIa.disabled = true;
+            btnIa.setAttribute("aria-busy", "true");
+            btnIa.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> '
+                + (btnIa.dataset.carregando || "Gerando…");
+            iaAviso.hidden = true;
+            iaCarregando.hidden = false;
+            btnEnviar.disabled = true;
+            try {
+                const resposta = await fetch(btnIa.dataset.url, {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": csrf,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        modelo: modelo.value,
+                        atividade_id: atividadeRef.value || null,
+                        publico: rotulosDosGrupos(),
+                        objetivo: objetivo.value
+                    })
+                });
+                const dados = await resposta.json();
+                if (!resposta.ok) {
+                    mostrarErro(dados.erro || "Não foi possível gerar o texto.");
+                    liberarEnvio();
+                    return;
+                }
+                if (dados.assunto) assunto.value = dados.assunto;
+                if (dados.corpo) {
+                    digitarCorpo(dados.corpo, liberarEnvio);
+                } else {
+                    atualizarContador();
+                    liberarEnvio();
+                }
+                if (dados.aviso) {
+                    iaAviso.hidden = false;
+                    iaAviso.textContent = dados.aviso;
+                }
+            } catch (erro) {
+                mostrarErro("Erro de conexão ao gerar o texto.");
+                liberarEnvio();
+            } finally {
+                btnIa.disabled = false;
+                btnIa.removeAttribute("aria-busy");
+                btnIa.innerHTML = htmlOriginal;
+                iaCarregando.hidden = true;
+            }
+        });
+
+        btnEnviar.addEventListener("click", function () {
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            if (totalAtual < 1) {
+                mostrarErro("Escolha pelo menos um destinatário com e-mail.");
+                return;
+            }
+            totalConfirmar.textContent = totalAtual;
+            modal.show();
+        });
+
+        confirmarEnvio.addEventListener("click", function () {
+            confirmarEnvio.disabled = true;
+            form.submit();
+        });
+
+        atualizarContador();
+        atualizarTotal();
+    });
+</script>
+{% endblock scripts %}

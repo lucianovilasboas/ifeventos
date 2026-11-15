@@ -118,6 +118,15 @@
         </div>
 
         <div class="acoes-evento-grupo">
+            <span class="acoes-evento-rotulo"><i class="fa-solid fa-envelope"></i> Comunicação</span>
+            <div class="acoes-evento-botoes">
+                <a href="{% url 'organizador:comunicacao_evento' evento.id %}" class="btn btn-outline-primary">
+                    <i class="fa-solid fa-paper-plane"></i> Enviar e-mails
+                </a>
+            </div>
+        </div>
+
+        <div class="acoes-evento-grupo">
             <span class="acoes-evento-rotulo"><i class="fa-solid fa-chart-simple"></i> Relatórios e certificados</span>
             <div class="acoes-evento-botoes">
                 <div class="btn-group">

@@ -30,6 +30,7 @@ Guia de implantação da aplicação em **produção** (`https://ifeventos.lucia
 | `IA_MODELO_CLASSIFICACAO` | não | `gpt-4o-mini` |
 | `PROPOSTAS_NOTIFICAR_EMAIL` | não | — |
 | `CERTIFICADOS_LIMITE_SINCRONO` | não | `3` (lotes ≤ N geram na hora; `0` = sempre pela fila/worker) |
+| `COMUNICADOS_MAX_DESTINATARIOS` | não | `300` (limite por envio de e-mail do organizador; `0` = sem limite) |
 | `DEBUG` | sim (produção = `False`) | — |
 
 ## Deploy (atualizar para a versão mais recente)

@@ -5,6 +5,32 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.26.0] — 2026-11-15
+
+### Adicionado
+
+- **Comunicação por e-mail do organizador**: nova tela em **Atividades do evento → Comunicação → Enviar e-mails** (`/organizador/evento/<id>/comunicacao/`). O organizador escolhe **grupos** (Organizadores, Palestrantes, Equipe de apoio, Comissão, Participantes e **Inscritos na atividade** de referência) e/ou **pessoas individualmente**, escreve assunto e mensagem e envia. Cada pessoa recebe um **e-mail individual** (sem CC/BCC), com `Reply-To` do organizador.
+- **Modelos e IA**: modelos prontos (Mensagem livre, Lembrete do evento, Lembrete de atividade, Convite, Agradecimento) e botão **Gerar com IA** a partir de um objetivo livre. Sem IA, um modelo determinístico preenche assunto e corpo — a tela nunca fica sem texto. Durante a geração o botão mostra **“Gerando…”** e, na volta, o corpo é revelado com **efeito de digitação** (interrompido se o organizador editar o campo).
+- **Atalho no card do evento**: botão de envelope no painel do organizador abre a tela de comunicação direto.
+- **Contagem e deduplicação**: total de destinatários calculado no servidor (quem está em mais de um grupo recebe uma vez só); “Não me incluir automaticamente nos grupos” marcado por padrão; pessoas sem e-mail são ignoradas e avisadas.
+- **Limite por disparo**: `COMUNICADOS_MAX_DESTINATARIOS` (padrão **300**, `0` = sem limite) para não estourar a cota do SMTP.
+- **Histórico**: os envios ficam na auditoria (nova ação `enviar_comunicado`, sem armazenar e-mails) e aparecem em “Envios recentes” na própria tela.
+
+### Melhorado
+
+- **Total de destinatários transparente**: a tela mostra o número de **pessoas únicas** e detalha a seleção (pessoas nos grupos, quem já estava incluído, quem ficou fora pelo “não me incluir”, chips sem vínculo e pessoas sem e-mail). Como os grupos se sobrepõem, o total não é a soma dos badges.
+
+### Corrigido
+
+- **Destinatário individual não é mais anulado pelo “não me incluir”**: a exclusão automática vale só para os grupos; quem é escolhido individualmente (inclusive o próprio organizador) continua na lista.
+- **Remoção de destinatário adicionado pela busca**: o X dos chips agora usa delegação de evento e funciona tanto nos chips já renderizados quanto nos criados em tempo real.
+- **Textos da IA sem Markdown**: o prompt pede texto puro e o servidor remove `**negrito**`, títulos e marcadores de lista antes de devolver assunto/corpo.
+
+### Notas
+
+- Migration `0060` (nova escolha de ação da auditoria).
+- Nova chave opcional no `.env`: `COMUNICADOS_MAX_DESTINATARIOS`.
+
 ## [2.25.0] — 2026-11-14
 
 ### Adicionado
