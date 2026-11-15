@@ -15,6 +15,12 @@ from .views import equipe_apoio_adicionar, equipe_apoio_remover
 from .views import coorganizador_adicionar, coorganizador_remover
 from .views import comissao_adicionar, comissao_remover
 from .views import briefing_operacional, briefing_leitura, gerar_divulgacao
+from .views import (
+    comunicacao_evento,
+    comunicacao_ia,
+    comunicacao_pessoas,
+    comunicacao_contar,
+)
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
 from relatorios.views import OcupacaoSalasView
@@ -92,6 +98,12 @@ urlpatterns = [
     path('evento/<int:evento_id>/operacao/', briefing_operacional, name='briefing_operacional'),
     path('evento/<int:evento_id>/operacao/leitura/', briefing_leitura, name='briefing_leitura'),
     path('evento/<int:evento_id>/divulgacao/', gerar_divulgacao, name='gerar_divulgacao'),
+
+    # -- Comunicação por e-mail com o público do evento --
+    path('evento/<int:evento_id>/comunicacao/', comunicacao_evento, name='comunicacao_evento'),
+    path('evento/<int:evento_id>/comunicacao/ia/', comunicacao_ia, name='comunicacao_ia'),
+    path('evento/<int:evento_id>/comunicacao/pessoas/', comunicacao_pessoas, name='comunicacao_pessoas'),
+    path('evento/<int:evento_id>/comunicacao/contar/', comunicacao_contar, name='comunicacao_contar'),
 
     path('criar_atividade/', criar_atividade, name='criar_atividade'), # criar atividade via modal
 

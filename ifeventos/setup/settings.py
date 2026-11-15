@@ -334,6 +334,12 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER")   # Substitua pelo seu e-mail
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")  # Substitua pela senha do seu e-mail
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")  # Substitua pelo seu e-mail
 
+# Limite de destinatários por comunicado do organizador. Evita disparar um
+# lote que estoure a cota diária do SMTP (Gmail ~500/dia). 0 = sem limite.
+COMUNICADOS_MAX_DESTINATARIOS = config(
+    "COMUNICADOS_MAX_DESTINATARIOS", default=300, cast=int
+)
+
 
 # -- Configurações da API OpenAI --
 # -- adicionado por Luciano Vilas Boas --
