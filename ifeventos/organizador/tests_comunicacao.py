@@ -14,8 +14,11 @@ from django.utils import timezone
 from eventos import comunicados
 from eventos.models import (
     Atividade,
+    ComunicadoDestinatario,
+    ComunicadoJob,
     Evento,
     Inscricao,
+    Notificacao,
     RegistroAuditoria,
     TipoAtividade,
 )
@@ -243,6 +246,9 @@ class TelaComunicacaoTests(BaseComunicacaoTests):
         self.assertContains(resposta, 'id="btnGerarIa"')
         self.assertContains(resposta, 'data-carregando="Gerando…"')
         self.assertContains(resposta, "A IA está escrevendo o rascunho")
+        self.assertContains(resposta, "modal-progresso-comunicado")
+        self.assertContains(resposta, "Você pode fechar esta janela")
+        self.assertContains(resposta, 'id="statusEnvioRodape"')
 
     def test_coorganizador_ve_a_tela(self):
         self.client.force_login(self.co)
@@ -308,10 +314,49 @@ class TelaComunicacaoTests(BaseComunicacaoTests):
 
 
 class EnvioComunicadoTests(BaseComunicacaoTests):
-    def test_envia_um_email_por_pessoa(self):
+    def _job(self):
+        return ComunicadoJob.objects.latest("id")
+
+    def _processar(self):
+        return comunicados.processar_proximo_job()
+
+    def test_post_cria_job_e_congela_destinatarios(self):
         self.client.force_login(self.org)
         resposta = self._post_envio()
         self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(len(mail.outbox), 0)  # nada sai na requisição
+        job = self._job()
+        self.assertEqual(job.status, ComunicadoJob.STATUS_PENDENTE)
+        self.assertEqual(job.total, 1)
+        destino = job.destinatarios.get()
+        self.assertEqual(destino.email, self.palestrante.email)
+        self.assertEqual(destino.nome, "Pedro Palestrante")
+        self.assertEqual(destino.status, ComunicadoDestinatario.STATUS_PENDENTE)
+
+    def test_ajax_retorna_job_para_o_modal(self):
+        self.client.force_login(self.org)
+        resposta = self.client.post(
+            self._url(),
+            {
+                "assunto": "Lembrete do evento",
+                "corpo": "Olá!",
+                "grupos": ["palestrantes"],
+                "nao_eu": "1",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertTrue(dados["job_id"])
+        self.assertEqual(dados["total"], 1)
+
+    def test_processa_e_envia_um_email_por_pessoa(self):
+        self.client.force_login(self.org)
+        self._post_envio()
+        job = self._processar()
+        self.assertEqual(job.status, ComunicadoJob.STATUS_CONCLUIDO)
+        self.assertEqual(job.enviados, 1)
+        self.assertEqual(job.processados, 1)
         self.assertEqual(len(mail.outbox), 1)
         mensagem = mail.outbox[0]
         self.assertEqual(mensagem.to, [self.palestrante.email])
@@ -321,10 +366,8 @@ class EnvioComunicadoTests(BaseComunicacaoTests):
 
     def test_envio_para_individuais(self):
         self.client.force_login(self.org)
-        resposta = self._post_envio(
-            grupos=(), pessoas=[self.equipe.id, self.comissao.id]
-        )
-        self.assertEqual(resposta.status_code, 302)
+        self._post_envio(grupos=(), pessoas=[self.equipe.id, self.comissao.id])
+        self._processar()
         self.assertEqual(
             sorted(m.to[0] for m in mail.outbox),
             sorted([self.equipe.email, self.comissao.email]),
@@ -332,23 +375,23 @@ class EnvioComunicadoTests(BaseComunicacaoTests):
 
     def test_envio_individual_para_mim_ignora_nao_eu(self):
         self.client.force_login(self.org)
-        resposta = self._post_envio(grupos=(), pessoas=[self.org.id])
-        self.assertEqual(resposta.status_code, 302)
+        self._post_envio(grupos=(), pessoas=[self.org.id])
+        self._processar()
         self.assertEqual([m.to[0] for m in mail.outbox], [self.org.email])
 
-    def test_sem_destinatario_nao_envia(self):
+    def test_sem_destinatario_nao_cria_job(self):
         self.client.force_login(self.org)
         resposta = self._post_envio(grupos=())
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "pelo menos um destinatário")
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(ComunicadoJob.objects.count(), 0)
 
-    def test_sem_assunto_ou_corpo_nao_envia(self):
+    def test_sem_assunto_ou_corpo_nao_cria_job(self):
         self.client.force_login(self.org)
         resposta = self._post_envio(corpo="")
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Escreva a mensagem")
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(ComunicadoJob.objects.count(), 0)
 
     @override_settings(COMUNICADOS_MAX_DESTINATARIOS=1)
     def test_limite_por_disparo(self):
@@ -356,23 +399,207 @@ class EnvioComunicadoTests(BaseComunicacaoTests):
         resposta = self._post_envio(grupos=["organizadores"], nao_eu="")
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "acima do limite")
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(ComunicadoJob.objects.count(), 0)
+
+    def test_bloqueia_segundo_envio_enquanto_houver_job(self):
+        self.client.force_login(self.org)
+        self._post_envio()  # fica pendente
+        resposta = self.client.post(
+            self._url(),
+            {
+                "assunto": "Outro",
+                "corpo": "Outro corpo",
+                "grupos": ["palestrantes"],
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resposta.status_code, 409)
+        self.assertIn("andamento", resposta.json()["erro"])
+        self.assertEqual(ComunicadoJob.objects.count(), 1)
 
     def test_envio_grava_auditoria(self):
         self.client.force_login(self.org)
         self._post_envio()
+        self._processar()
         registro = RegistroAuditoria.objects.get(
             acao=RegistroAuditoria.ACAO_ENVIAR_COMUNICADO
         )
         self.assertEqual(registro.evento_id, self.evento.id)
         self.assertEqual(registro.detalhes["total"], 1)
+        self.assertEqual(registro.detalhes["enviados"], 1)
         self.assertEqual(registro.detalhes["assunto"], "Lembrete do evento")
+
+    def test_conclusao_cria_notificacao_para_o_autor(self):
+        self.client.force_login(self.org)
+        self._post_envio()
+        self._processar()
+        notificacao = Notificacao.objects.get(usuario=self.org)
+        self.assertEqual(notificacao.tipo, Notificacao.TIPO_COMUNICADO)
+        self.assertIn("Comunicado enviado", notificacao.titulo)
+        self.assertIn("/comunicacao/", notificacao.url)
+
+    def test_status_endpoint(self):
+        self.client.force_login(self.org)
+        self._post_envio()
+        job = self._job()
+        resposta = self.client.get(
+            reverse("organizador:comunicacao_job_status", args=[job.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json()["total"], 1)
+        self.client.force_login(self.participante)
+        resposta = self.client.get(
+            reverse("organizador:comunicacao_job_status", args=[job.id])
+        )
+        self.assertEqual(resposta.status_code, 403)
 
     def test_mensagem_de_sucesso(self):
         self.client.force_login(self.org)
-        resposta = self._post_envio()
+        self._post_envio()
         resposta = self.client.get(self._url())
-        self.assertContains(resposta, "enfileirado")
+        self.assertContains(resposta, "na fila de envio")
+
+    def test_pagina_mostra_envio_em_andamento(self):
+        self.client.force_login(self.org)
+        self._post_envio()
+        resposta = self.client.get(self._url())
+        self.assertContains(resposta, "Envio de e-mails em andamento")
+        self.assertContains(resposta, "Acompanhar envio")
+        self.assertContains(resposta, "Enviando e-mails…")
+        self.assertContains(resposta, 'id="statusEnvioRodape"')
+
+    def test_pagina_mostra_ultimo_envio_concluido(self):
+        self.client.force_login(self.org)
+        self._post_envio()
+        self._processar()
+        resposta = self.client.get(self._url())
+        self.assertContains(resposta, "Último envio")
+        self.assertContains(resposta, "e-mail(s) enviado(s)")
+
+    def test_pagina_sem_envio_nao_mostra_status(self):
+        self.client.force_login(self.org)
+        resposta = self.client.get(self._url())
+        self.assertIsNone(resposta.context["envio_em_andamento"])
+        self.assertIsNone(resposta.context["ultimo_envio"])
+        self.assertNotContains(resposta, "Último envio")
+
+    def test_job_como_dict_traz_detalhes_das_falhas(self):
+        job = comunicados.criar_job(
+            evento=self.evento,
+            assunto="Teste",
+            corpo="Corpo",
+            grupos=[],
+            pessoas=[self.participante],
+            criado_por=self.org,
+        )
+        destino = job.destinatarios.get()
+        destino.status = ComunicadoDestinatario.STATUS_FALHOU
+        destino.erro = "Caixa cheia"
+        destino.save(update_fields=["status", "erro"])
+        ComunicadoJob.objects.filter(pk=job.pk).update(
+            status=ComunicadoJob.STATUS_FALHOU,
+            total=1,
+            processados=1,
+            falhas=1,
+        )
+        job.refresh_from_db()
+        dados = comunicados.job_como_dict(job)
+        self.assertEqual(dados["falhas"], 1)
+        self.assertEqual(dados["falhas_detalhe"][0]["nome"], "Paula Participante")
+        self.assertIn("Caixa cheia", dados["falhas_detalhe"][0]["erro"])
+
+    def test_falha_de_smtp_marca_job_e_permite_reenviar(self):
+        self.client.force_login(self.org)
+        self._post_envio()
+        with mock.patch("eventos.comunicados._conexao_sincrona") as conexao:
+            conexao.return_value.open.side_effect = OSError("SMTP fora")
+            job = self._processar()
+        self.assertEqual(job.status, ComunicadoJob.STATUS_FALHOU)
+        self.assertEqual(job.enviados, 0)
+        self.assertEqual(job.falhas, 1)
+        destino = job.destinatarios.get()
+        self.assertEqual(destino.status, ComunicadoDestinatario.STATUS_FALHOU)
+        self.assertIn("SMTP", destino.erro)
+        # O botão de reenvio recoloca a falha na fila.
+        quantidade = comunicados.reenviar_falhas(job)
+        self.assertEqual(quantidade, 1)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ComunicadoJob.STATUS_PENDENTE)
+        self.assertEqual(job.falhas, 0)
+
+    def test_reenviar_nao_duplica_quem_ja_recebeu(self):
+        job = comunicados.criar_job(
+            evento=self.evento,
+            assunto="Teste",
+            corpo="Corpo",
+            grupos=[],
+            pessoas=[self.participante, self.palestrante],
+            criado_por=self.org,
+        )
+        # Simula uma falha anterior em um dos dois.
+        falhou = job.destinatarios.get(participante=self.participante)
+        falhou.status = ComunicadoDestinatario.STATUS_FALHOU
+        falhou.erro = "recusado"
+        falhou.save(update_fields=["status", "erro"])
+        job.total = 2
+        job.processados = 1
+        job.falhas = 1
+        job.save(update_fields=["total", "processados", "falhas"])
+
+        comunicados.processar_job(job)  # envia só o pendente
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.palestrante.email])
+
+        self.assertEqual(comunicados.reenviar_falhas(job), 1)
+        comunicados.processar_proximo_job()  # envia só o que falhou
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[1].to, [self.participante.email])
+        # O palestrante não recebeu de novo.
+        self.assertEqual(
+            [m.to[0] for m in mail.outbox].count(self.palestrante.email), 1
+        )
+
+    def test_reenviar_endpoint(self):
+        job = comunicados.criar_job(
+            evento=self.evento,
+            assunto="Teste",
+            corpo="Corpo",
+            grupos=[],
+            pessoas=[self.participante],
+            criado_por=self.org,
+        )
+        destino = job.destinatarios.get()
+        destino.status = ComunicadoDestinatario.STATUS_FALHOU
+        destino.save(update_fields=["status"])
+        job.status = ComunicadoJob.STATUS_FALHOU
+        job.falhas = 1
+        job.save(update_fields=["status", "falhas"])
+
+        self.client.force_login(self.org)
+        resposta = self.client.post(
+            reverse("organizador:comunicacao_reenviar", args=[job.id])
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json()["total"], 1)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ComunicadoJob.STATUS_PENDENTE)
+
+    def test_reciclar_presos_devolve_para_a_fila(self):
+        job = comunicados.criar_job(
+            evento=self.evento,
+            assunto="Teste",
+            corpo="Corpo",
+            grupos=[],
+            pessoas=[self.participante],
+            criado_por=self.org,
+        )
+        ComunicadoJob.objects.filter(pk=job.pk).update(
+            status=ComunicadoJob.STATUS_PROCESSANDO,
+            iniciado_em=timezone.now() - timedelta(hours=1),
+        )
+        self.assertEqual(comunicados.reciclar_presos(), 1)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ComunicadoJob.STATUS_PENDENTE)
 
 
 class IaDoComunicadoTests(BaseComunicacaoTests):

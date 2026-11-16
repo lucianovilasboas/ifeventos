@@ -21,6 +21,23 @@
 
     <div id="mensagemComunicacao"></div>
 
+    {% if envio_em_andamento %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            Envio de e-mails em andamento
+            (<strong>{{ envio_em_andamento.processados }}</strong> de
+            <strong>{{ envio_em_andamento.total }}</strong>).
+            Você pode continuar navegando — o envio segue em segundo plano.
+        </span>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnAcompanharEnvio"
+                data-job="{{ envio_em_andamento.job_id }}"
+                data-total="{{ envio_em_andamento.total }}">
+            <i class="fa-solid fa-chart-simple"></i> Acompanhar envio
+        </button>
+    </div>
+    {% endif %}
+
     <form method="post" id="formComunicacao"
           action="{% url 'organizador:comunicacao_evento' evento.id %}">
         {% csrf_token %}
@@ -171,11 +188,31 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <span class="text-muted small">
-                            <i class="fa-solid fa-envelope"></i>
-                            <span id="totalRodape">0</span> destinatário(s) único(s)
-                        </span>
+                    <div class="d-flex justify-content-between align-items-center mt-3 gap-2 flex-wrap">
+                        <div class="d-flex flex-column">
+                            <span class="text-muted small">
+                                <i class="fa-solid fa-envelope"></i>
+                                <span id="totalRodape">0</span> destinatário(s) único(s)
+                            </span>
+                            <span id="statusEnvioRodape"
+                                  class="small mt-1 {% if envio_em_andamento %}text-primary{% elif ultimo_envio.falhas %}text-warning{% elif ultimo_envio %}text-success{% endif %}"
+                                  {% if envio_em_andamento %}data-job="{{ envio_em_andamento.job_id }}" data-total="{{ envio_em_andamento.total }}"{% endif %}>
+                                {% if envio_em_andamento %}
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                Enviando e-mails… {{ envio_em_andamento.processados }} de {{ envio_em_andamento.total }}
+                                {% elif ultimo_envio %}
+                                    {% if ultimo_envio.falhas %}
+                                    <i class="fa-solid fa-triangle-exclamation text-warning"></i>
+                                    Último envio: {{ ultimo_envio.enviados }} enviado(s), {{ ultimo_envio.falhas }} falha(s).
+                                    <button type="button" class="btn btn-sm btn-link p-0 ms-1 js-reenviar-rodape"
+                                            data-job="{{ ultimo_envio.job_id }}">Reenviar falhas</button>
+                                    {% else %}
+                                    <i class="fa-solid fa-circle-check text-success"></i>
+                                    Último envio: {{ ultimo_envio.enviados }} de {{ ultimo_envio.total }} e-mail(s) enviado(s).
+                                    {% endif %}
+                                {% endif %}
+                            </span>
+                        </div>
                         <button type="button" class="btn btn-app" id="btnEnviar">
                             <i class="fa-solid fa-paper-plane"></i> Enviar e-mails
                         </button>
@@ -232,6 +269,7 @@
         </div>
     </div>
 </div>
+{% include 'includes/_modal_progresso_comunicado.html' %}
 {% endblock content %}
 
 {% block scripts %}
@@ -259,6 +297,10 @@
         const iaCarregando = document.getElementById("iaCarregando");
         const btnIa = document.getElementById("btnGerarIa");
         const btnEnviar = document.getElementById("btnEnviar");
+        const statusRodape = document.getElementById("statusEnvioRodape");
+        const urlStatusBase = "{% url 'organizador:comunicacao_job_status' 0 %}";
+        const urlReenviarBase = "{% url 'organizador:comunicacao_reenviar' 0 %}";
+        let timerRodape = null;
         const confirmarEnvio = document.getElementById("confirmarEnvio");
         const modalEl = document.getElementById("modalConfirmarEnvio");
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -489,6 +531,88 @@
             animacaoCorpo = requestAnimationFrame(quadro);
         }
 
+        function pararRodape() {
+            if (timerRodape) { clearInterval(timerRodape); timerRodape = null; }
+        }
+
+        function urlDoJob(base, jobId) {
+            return base.replace("/0/", "/" + jobId + "/");
+        }
+
+        function textoStatusRodape(dados) {
+            if (!dados.pronto) {
+                return '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> '
+                    + "Enviando e-mails… " + dados.processados + " de " + dados.total;
+            }
+            if (dados.falhas) {
+                return '<i class="fa-solid fa-triangle-exclamation text-warning"></i> '
+                    + "Envio concluído: " + dados.enviados + " enviado(s), "
+                    + dados.falhas + " falha(s).";
+            }
+            return '<i class="fa-solid fa-circle-check text-success"></i> '
+                + "E-mails enviados: " + dados.enviados + " de " + dados.total + ".";
+        }
+
+        function aplicarStatusRodape(dados) {
+            statusRodape.className = "small mt-1 " + (
+                !dados.pronto ? "text-primary" : (dados.falhas ? "text-warning" : "text-success")
+            );
+            statusRodape.innerHTML = textoStatusRodape(dados);
+            if (dados.pronto && dados.falhas) {
+                const botao = document.createElement("button");
+                botao.type = "button";
+                botao.className = "btn btn-sm btn-link p-0 ms-1 js-reenviar-rodape";
+                botao.dataset.job = dados.job_id;
+                botao.textContent = "Reenviar falhas";
+                botao.addEventListener("click", function () {
+                    reenviarRodape(dados.job_id);
+                });
+                statusRodape.appendChild(botao);
+            }
+        }
+
+        async function reenviarRodape(jobId) {
+            try {
+                const resposta = await fetch(urlDoJob(urlReenviarBase, jobId), {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": csrf,
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+                const dados = await resposta.json();
+                if (!resposta.ok) {
+                    mostrarErro(dados.erro || "Não foi possível reenviar as falhas.");
+                    return;
+                }
+                monitorarRodape(dados.job_id, dados.total);
+            } catch (erro) {
+                mostrarErro("Erro de conexão ao reenviar as falhas.");
+            }
+        }
+
+        // Indicador do rodapé: continua acompanhando depois que o modal fecha.
+        function monitorarRodape(jobId, totalInicial) {
+            pararRodape();
+            statusRodape.hidden = false;
+            statusRodape.dataset.job = jobId;
+            statusRodape.className = "small mt-1 text-primary";
+            statusRodape.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> '
+                + "Enviando e-mails… 0 de " + (totalInicial || "?");
+            timerRodape = setInterval(function () {
+                fetch(urlDoJob(urlStatusBase, jobId), {
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (dados) {
+                        aplicarStatusRodape(dados);
+                        if (dados.pronto) pararRodape();
+                    })
+                    .catch(function () { /* segue tentando */ });
+            }, 2000);
+        }
+        window.monitorarStatusComunicado = monitorarRodape;
+
         document.querySelectorAll(".js-grupo").forEach(function (campo) {
             campo.addEventListener("change", agendarTotal);
         });
@@ -579,13 +703,65 @@
             modal.show();
         });
 
-        confirmarEnvio.addEventListener("click", function () {
+        confirmarEnvio.addEventListener("click", async function () {
             confirmarEnvio.disabled = true;
-            form.submit();
+            try {
+                const resposta = await fetch(form.action, {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": csrf,
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Accept": "application/json"
+                    },
+                    body: new FormData(form)
+                });
+                const dados = await resposta.json();
+                if (!resposta.ok) {
+                    mostrarErro(dados.erro || "Não foi possível colocar o envio na fila.");
+                    confirmarEnvio.disabled = false;
+                    modal.hide();
+                    return;
+                }
+                modal.hide();
+                btnEnviar.disabled = true;
+                if (window.acompanharComunicado) {
+                    window.acompanharComunicado(dados.job_id, dados.total);
+                }
+                monitorarRodape(dados.job_id, dados.total);
+                confirmarEnvio.disabled = false;
+            } catch (erro) {
+                mostrarErro("Erro de conexão ao colocar o envio na fila.");
+                confirmarEnvio.disabled = false;
+                modal.hide();
+            }
+        });
+
+        const btnAcompanhar = document.getElementById("btnAcompanharEnvio");
+        if (btnAcompanhar) {
+            btnAcompanhar.addEventListener("click", function () {
+                if (window.acompanharComunicado) {
+                    window.acompanharComunicado(
+                        btnAcompanhar.dataset.job,
+                        Number(btnAcompanhar.dataset.total) || 0
+                    );
+                }
+            });
+        }
+
+        document.querySelectorAll(".js-reenviar-rodape").forEach(function (botao) {
+            botao.addEventListener("click", function () {
+                reenviarRodape(botao.dataset.job);
+            });
         });
 
         atualizarContador();
         atualizarTotal();
+        if (statusRodape && statusRodape.dataset.job) {
+            monitorarRodape(
+                statusRodape.dataset.job,
+                Number(statusRodape.dataset.total) || 0
+            );
+        }
     });
 </script>
 {% endblock scripts %}

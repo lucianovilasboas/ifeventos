@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.static import serve
 from eventos.views import confirmar_presenca_pelo_qr, eventos_view, verificar_cracha
+from eventos import notificacoes as notificacoes_views
 from eventos.pwa import manifest_view, offline_view, service_worker_view
 from django.conf import settings
 from django.conf.urls.static import static
@@ -41,6 +42,11 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # -- Eventos --
     path("eventos/", include("eventos.urls", namespace="eventos")), 
+
+    # -- Notificações persistentes (sino do topo) --
+    path("notificacoes/", notificacoes_views.listar, name="notificacoes"),
+    path("notificacoes/<int:notificacao_id>/lida/", notificacoes_views.marcar_lida, name="notificacao_lida"),
+    path("notificacoes/marcar-todas/", notificacoes_views.marcar_todas, name="notificacoes_marcar_todas"),
 
         # -- Social Auth --
     path('accounts/', include('allauth.urls')), 

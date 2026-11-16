@@ -20,6 +20,8 @@ from .views import (
     comunicacao_ia,
     comunicacao_pessoas,
     comunicacao_contar,
+    comunicacao_job_status,
+    comunicacao_reenviar,
 )
 from relatorios.views import RelatorioInscricoesView
 from relatorios.views import ListaPresencaView
@@ -104,6 +106,8 @@ urlpatterns = [
     path('evento/<int:evento_id>/comunicacao/ia/', comunicacao_ia, name='comunicacao_ia'),
     path('evento/<int:evento_id>/comunicacao/pessoas/', comunicacao_pessoas, name='comunicacao_pessoas'),
     path('evento/<int:evento_id>/comunicacao/contar/', comunicacao_contar, name='comunicacao_contar'),
+    path('comunicacao/job/<int:job_id>/status/', comunicacao_job_status, name='comunicacao_job_status'),
+    path('comunicacao/job/<int:job_id>/reenviar/', comunicacao_reenviar, name='comunicacao_reenviar'),
 
     path('criar_atividade/', criar_atividade, name='criar_atividade'), # criar atividade via modal
 

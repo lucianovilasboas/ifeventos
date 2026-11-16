@@ -10,6 +10,9 @@ from .models import Vaga
 from .models import Inscricao
 from .models import Certificado
 from .models import CertificadoJob
+from .models import ComunicadoJob
+from .models import ComunicadoDestinatario
+from .models import Notificacao
 from .models import PresencaCancelada
 from .models import PalestranteSugerido
 from .models import PessoaRoster
@@ -343,6 +346,37 @@ class CertificadoJobAdmin(admin.ModelAdmin):
     list_filter = ('escopo', 'status', 'funcao', 'evento')
     search_fields = ('evento__title', 'participante__email')
     readonly_fields = ('criado_em', 'iniciado_em', 'concluido_em')
+
+
+@admin.register(ComunicadoJob)
+class ComunicadoJobAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'evento', 'status', 'total', 'processados', 'enviados',
+        'falhas', 'criado_por', 'criado_em', 'concluido_em',
+    )
+    list_filter = ('status', 'evento')
+    search_fields = ('evento__title', 'assunto', 'criado_por__email')
+    readonly_fields = ('criado_em', 'iniciado_em', 'concluido_em')
+
+
+@admin.register(ComunicadoDestinatario)
+class ComunicadoDestinatarioAdmin(admin.ModelAdmin):
+    """Destinatários de um job — somente leitura (snapshot do envio)."""
+
+    list_display = ('id', 'job', 'nome', 'email', 'status', 'enviado_em')
+    list_filter = ('status',)
+    search_fields = ('nome', 'email', 'job__evento__title')
+    readonly_fields = ('job', 'participante', 'nome', 'email', 'status', 'erro', 'enviado_em')
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(Notificacao)
+class NotificacaoAdmin(admin.ModelAdmin):
+    list_display = ('id', 'usuario', 'tipo', 'titulo', 'lida', 'criada_em')
+    list_filter = ('tipo', 'lida')
+    search_fields = ('titulo', 'mensagem', 'usuario__email')
 
 
 @admin.register(PresencaCancelada)

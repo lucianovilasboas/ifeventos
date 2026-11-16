@@ -1,0 +1,24 @@
+{% if request.user.is_authenticated %}
+<div class="notif" data-notificacoes
+     data-url-listar="{% url 'notificacoes' %}"
+     data-url-todas="{% url 'notificacoes_marcar_todas' %}"
+     data-url-lida="{% url 'notificacao_lida' 0 %}"
+     data-csrf="{{ csrf_token }}">
+    <button type="button" class="notif-gatilho" data-notif-gatilho
+            aria-label="Notificações" aria-expanded="false">
+        <i class="fa-regular fa-bell"></i>
+        <span class="notif-badge" data-notif-badge hidden>0</span>
+    </button>
+    <div class="notif-painel" data-notif-painel hidden>
+        <div class="notif-topo">
+            <strong>Notificações</strong>
+            <button type="button" class="notif-todas" data-notif-todas>
+                Marcar todas como lidas
+            </button>
+        </div>
+        <div class="notif-lista" data-notif-lista>
+            <p class="notif-vazio">Carregando…</p>
+        </div>
+    </div>
+</div>
+{% endif %}
