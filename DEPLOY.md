@@ -12,7 +12,9 @@ Guia de implantação da aplicação em **produção** (`https://ifeventos.lucia
   já roda `migrate`, `collectstatic --clear` e `createcachetable` no start — **não**
   é preciso rodar nada disso manualmente. Ele também sobe, em segundo plano, o
   **worker de emissão de certificados** (`manage.py processar_certificados`), que
-  consome a fila `CertificadoJob`. Ou seja: **recriar o contêiner já sobe o worker**.
+  consome a fila `CertificadoJob`, e o **worker de comunicados**
+  (`manage.py processar_comunicados`), que consome a fila `ComunicadoJob`.
+  Ou seja: **recriar o contêiner já sobe os dois workers**.
 
 ## Pré-requisitos no servidor
 
@@ -31,6 +33,8 @@ Guia de implantação da aplicação em **produção** (`https://ifeventos.lucia
 | `PROPOSTAS_NOTIFICAR_EMAIL` | não | — |
 | `CERTIFICADOS_LIMITE_SINCRONO` | não | `3` (lotes ≤ N geram na hora; `0` = sempre pela fila/worker) |
 | `COMUNICADOS_MAX_DESTINATARIOS` | não | `300` (limite por envio de e-mail do organizador; `0` = sem limite) |
+| `COMUNICADOS_TAM_LOTE` | não | `10` (e-mails por lote do worker; pausa entre lotes) |
+| `COMUNICADOS_INTERVALO_LOTE` | não | `2` (segundos de pausa entre lotes, para não estourar o SMTP) |
 | `DEBUG` | sim (produção = `False`) | — |
 
 ## Deploy (atualizar para a versão mais recente)
@@ -81,6 +85,9 @@ curl -I https://ifeventos.lucianovilasboas.com.br
 
 # o worker de certificados deve ter subido (aparece no log do contêiner)
 docker compose logs app | grep "Worker de certificados iniciado"
+
+# o worker de comunicados também
+docker compose logs app | grep "Worker de comunicados iniciado"
 ```
 
 - O rodapé do site e o admin devem mostrar a versão (`v2.0.0`).

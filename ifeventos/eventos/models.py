@@ -949,6 +949,108 @@ def categorias_conhecidas():
     return pares
 
 
+class ComunicadoJob(models.Model):
+    """Fila de envio de comunicados por e-mail (worker `processar_comunicados`).
+
+    Cada envio do organizador cria um job; o worker reivindica um por vez,
+    envia em lotes e atualiza o progresso. A tela acompanha por AJAX polling e
+    a conclusão gera uma `Notificacao` para o autor. O mesmo desenho de
+    `CertificadoJob`, mas com o status por destinatário em
+    `ComunicadoDestinatario` — é o que permite reenviar só as falhas.
+    """
+
+    STATUS_PENDENTE = "pendente"
+    STATUS_PROCESSANDO = "processando"
+    STATUS_CONCLUIDO = "concluido"
+    STATUS_FALHOU = "falhou"
+    STATUS_CHOICES = [
+        (STATUS_PENDENTE, "Pendente"),
+        (STATUS_PROCESSANDO, "Processando"),
+        (STATUS_CONCLUIDO, "Concluído"),
+        (STATUS_FALHOU, "Falhou"),
+    ]
+
+    evento = models.ForeignKey(
+        Evento, on_delete=models.CASCADE, related_name="comunicado_jobs"
+    )
+    criado_por = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="comunicado_jobs",
+    )
+    assunto = models.CharField(max_length=160)
+    corpo = models.TextField()
+    # Recorte usado na criação (para histórico/exibição; os destinatários
+    # efetivos ficam congelados em ComunicadoDestinatario).
+    grupos = models.JSONField(default=list, blank=True)
+    atividade = models.ForeignKey(
+        Atividade, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDENTE, db_index=True
+    )
+    total = models.PositiveIntegerField(default=0)
+    processados = models.PositiveIntegerField(default=0)
+    enviados = models.PositiveIntegerField(default=0)
+    falhas = models.PositiveIntegerField(default=0)
+    mensagem = models.CharField(max_length=255, blank=True, default="")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    iniciado_em = models.DateTimeField(null=True, blank=True)
+    concluido_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Job de comunicado"
+        verbose_name_plural = "Jobs de comunicado"
+        ordering = ["-criado_em"]
+
+    def __str__(self):
+        return f"Comunicado #{self.pk} ({self.status}) {self.processados}/{self.total}"
+
+
+class ComunicadoDestinatario(models.Model):
+    """Uma pessoa de um `ComunicadoJob`, com o status individual do envio.
+
+    Nome e e-mail são snapshots do momento da criação: o job continua
+    auditável mesmo se a pessoa editar o perfil ou for removida. É essa tabela
+    que permite reenviar só quem falhou, sem duplicar quem já recebeu.
+    """
+
+    STATUS_PENDENTE = "pendente"
+    STATUS_ENVIADO = "enviado"
+    STATUS_FALHOU = "falhou"
+    STATUS_CHOICES = [
+        (STATUS_PENDENTE, "Pendente"),
+        (STATUS_ENVIADO, "Enviado"),
+        (STATUS_FALHOU, "Falhou"),
+    ]
+
+    job = models.ForeignKey(
+        ComunicadoJob, on_delete=models.CASCADE, related_name="destinatarios"
+    )
+    participante = models.ForeignKey(
+        Participante, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    nome = models.CharField(max_length=255, blank=True, default="")
+    email = models.EmailField()
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDENTE, db_index=True
+    )
+    erro = models.CharField(max_length=255, blank=True, default="")
+    enviado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Destinatário de comunicado"
+        verbose_name_plural = "Destinatários de comunicado"
+        ordering = ["id"]
+        indexes = [
+            models.Index(
+                fields=["job", "status"], name="comunicado_job_status_idx"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.nome or self.email} ({self.status})"
+
+
 class Presenca(models.Model):
     """Presença de uma pessoa em uma atividade — é o que o check-in do crachá grava.
 
@@ -1574,3 +1676,47 @@ class RegistroAuditoria(models.Model):
         quando = local_legivel(self.criado_em, "%d/%m %H:%M") if self.criado_em else "—"
         autor = self.usuario_nome or "sistema"
         return f"[{quando}] {autor} · {self.get_acao_display()} {self.entidade}".strip()
+
+
+class Notificacao(models.Model):
+    """Aviso persistente para uma pessoa, exibido no sino do topo.
+
+    Diferente das `messages` do Django (que morrem na próxima requisição), a
+    notificação fica no banco: o destinatário a vê em qualquer página e em
+    qualquer dispositivo, até marcá-la como lida. Criada pelo worker ao
+    concluir tarefas longas (hoje: envio de comunicados).
+    """
+
+    TIPO_COMUNICADO = "comunicado"
+    TIPO_CHOICES = [
+        (TIPO_COMUNICADO, "Comunicado"),
+    ]
+
+    usuario = models.ForeignKey(
+        Participante, on_delete=models.CASCADE, related_name="notificacoes"
+    )
+    evento = models.ForeignKey(
+        Evento, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    tipo = models.CharField(
+        max_length=20, choices=TIPO_CHOICES, default=TIPO_COMUNICADO, db_index=True
+    )
+    titulo = models.CharField(max_length=160)
+    mensagem = models.CharField(max_length=255, blank=True, default="")
+    url = models.CharField(max_length=255, blank=True, default="")
+    lida = models.BooleanField(default=False, db_index=True)
+    criada_em = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Notificação"
+        verbose_name_plural = "Notificações"
+        ordering = ["-criada_em", "-id"]
+        indexes = [
+            models.Index(
+                fields=["usuario", "lida", "-criada_em"],
+                name="notificacao_usuario_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.usuario} · {self.titulo} ({'lida' if self.lida else 'nova'})"

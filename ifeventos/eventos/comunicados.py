@@ -1,26 +1,45 @@
 """Comunicação por e-mail do organizador com as pessoas do evento.
 
 Reúne quem tem vínculo com o evento (organizadores, palestrantes, equipe de
-apoio, comissão e inscritos), resolve a seleção de grupos + pessoas, deduplica
-e envia **um e-mail por pessoa** — sem CC/BCC, para ninguém ver o endereço dos
-outros. O envio usa o backend configurado (assíncrono em produção) e é
-best-effort, como o resto do sistema.
+apoio, comissão e inscritos), resolve a seleção de grupos + pessoas e
+deduplica por e-mail. O envio não acontece na requisição: vira um
+`ComunicadoJob` (fila em banco), processado pelo worker
+`manage.py processar_comunicados`, que envia **um e-mail por pessoa** (sem
+CC/BCC), em lotes, com progresso e reenvio apenas das falhas.
 
 As regras de quem pode gerenciar o evento continuam em `crachas.py`
-(`pode_gerenciar_evento`); aqui fica só o domínio dos destinatários e do envio.
+(`pode_gerenciar_evento`); aqui fica só o domínio dos destinatários e da fila.
 """
 
 from __future__ import annotations
 
 import logging
+import time
+from datetime import timedelta
 
 from django.conf import settings
-from django.core import mail
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage, get_connection
+from django.db import transaction
+from django.urls import reverse
+from django.utils import timezone
 
-from .models import Inscricao, Participante
+from . import auditoria
+from .models import (
+    ComunicadoDestinatario,
+    ComunicadoJob,
+    Inscricao,
+    Notificacao,
+    Participante,
+    RegistroAuditoria,
+)
 
 logger = logging.getLogger(__name__)
+
+# Tamanho do lote e pausa entre lotes (evita rajada no SMTP/Gmail).
+TAM_LOTE = 10
+INTERVALO_LOTE = 2
+# Job preso em "processando" por mais que isto é reciclado para "pendente".
+MINUTOS_PRESO = 30
 
 # Papéis que uma pessoa pode ter no evento. A mesma pessoa pode acumular mais
 # de um (ex.: organiza e também palestra) e entra uma vez só no envio.
@@ -319,41 +338,364 @@ def max_destinatarios():
         return 300
 
 
-def enviar_comunicado(assunto, corpo, pessoas, reply_to=None):
-    """Envia o mesmo texto para cada pessoa, em mensagens INDIVIDUAIS.
+def job_em_andamento(evento):
+    """Job pendente/processando do evento (ou None).
 
-    Devolve quantas mensagens foram entregues ao backend (em produção, o
-    backend assíncrono as enfileira). Nunca levanta: falha de SMTP vai para o
-    log e o retorno 0 sinaliza que nada saiu.
+    A tela usa isso para mostrar o aviso “envio em andamento” e para impedir
+    dois disparos simultâneos no mesmo evento.
     """
-    remetente = getattr(settings, "DEFAULT_FROM_EMAIL", None)
-    mensagens = []
-    for pessoa in pessoas:
-        email = (pessoa.email or "").strip()
-        if not email:
-            continue
-        mensagem = EmailMessage(assunto, corpo, remetente, [email])
-        if reply_to:
-            mensagem.reply_to = [reply_to]
-        mensagens.append(mensagem)
-
-    if not mensagens:
-        return 0
-    try:
-        connection = mail.get_connection()
-        connection.send_messages(mensagens)
-    except Exception:  # noqa: BLE001 - e-mail é acessório, não derruba a ação
-        logger.exception(
-            "Falha ao enviar comunicado para %s destinatário(s)", len(mensagens)
+    return (
+        ComunicadoJob.objects.filter(
+            evento=evento,
+            status__in=[
+                ComunicadoJob.STATUS_PENDENTE,
+                ComunicadoJob.STATUS_PROCESSANDO,
+            ],
         )
+        .order_by("-criado_em", "-id")
+        .first()
+    )
+
+
+def criar_job(*, evento, assunto, corpo, grupos, pessoas, atividade=None,
+              criado_por=None):
+    """Cria o job e congela os destinatários. Devolve o `ComunicadoJob`.
+
+    O snapshot (nome/e-mail) protege o envio de mudanças posteriores no perfil
+    e permite reenviar só as falhas. Não valida nada de negócio: o chamador já
+    resolveu/validou os destinatários.
+    """
+    with transaction.atomic():
+        job = ComunicadoJob.objects.create(
+            evento=evento,
+            criado_por=criado_por,
+            assunto=assunto,
+            corpo=corpo,
+            grupos=list(grupos or []),
+            atividade=atividade,
+        )
+        vistos = set()
+        destinatarios = []
+        for pessoa in pessoas:
+            email = (pessoa.email or "").strip()
+            if not email or email.lower() in vistos:
+                continue
+            vistos.add(email.lower())
+            destinatarios.append(ComunicadoDestinatario(
+                job=job,
+                participante=pessoa,
+                nome=(pessoa.get_full_name() or pessoa.email or "")[:255],
+                email=email,
+            ))
+        ComunicadoDestinatario.objects.bulk_create(destinatarios)
+        job.total = len(destinatarios)
+        job.save(update_fields=["total"])
+    return job
+
+
+def _conexao_sincrona():
+    """Conexão SMTP do worker, mesmo com o backend async no site.
+
+    O backend assíncrono devolve o controle antes do envio e não informa
+    falhas — no worker precisamos do resultado por destinatário. Em dev/teste
+    (locmem/console) o backend configurado continua valendo.
+    """
+    backend = getattr(settings, "EMAIL_BACKEND", "")
+    if backend == "eventos.mail_backend.AsyncEmailBackend":
+        backend = "django.core.mail.backends.smtp.EmailBackend"
+    return get_connection(backend=backend)
+
+
+def _atualizar_progresso(job, *, total, processados, enviados, falhas):
+    ComunicadoJob.objects.filter(pk=job.pk).update(
+        total=total,
+        processados=processados,
+        enviados=enviados,
+        falhas=falhas,
+    )
+
+
+def _finalizar_job(job, *, enviados, falhas):
+    """Fecha o job, audita e notifica o autor."""
+    mensagem = "%s enviado(s)" % enviados
+    if falhas:
+        mensagem += ", %s falha(s)" % falhas
+    status = (
+        ComunicadoJob.STATUS_CONCLUIDO
+        if enviados or not falhas
+        else ComunicadoJob.STATUS_FALHOU
+    )
+    ComunicadoJob.objects.filter(pk=job.pk).update(
+        status=status,
+        mensagem=mensagem,
+        concluido_em=timezone.now(),
+    )
+    _auditar(job, enviados, falhas)
+    _notificar(job, enviados, falhas, status)
+    job.refresh_from_db()
+    return job
+
+
+def _auditar(job, enviados, falhas):
+    auditoria.registrar(
+        acao=RegistroAuditoria.ACAO_ENVIAR_COMUNICADO,
+        objeto=job.evento,
+        evento=job.evento,
+        usuario=job.criado_por,
+        resumo="Enviou comunicado: %s (%s e-mail(s))" % (job.assunto, enviados),
+        detalhes={
+            "assunto": job.assunto,
+            "grupos": job.grupos,
+            "atividade_id": job.atividade_id,
+            "total": job.total,
+            "enviados": enviados,
+            "falhas": falhas,
+        },
+    )
+
+
+def _notificar(job, enviados, falhas, status):
+    """Cria a notificação persistente do autor (sino no topo)."""
+    if not job.criado_por_id:
+        return
+    titulo = (
+        "Comunicado enviado"
+        if status == ComunicadoJob.STATUS_CONCLUIDO
+        else "Comunicado com falhas"
+    )
+    mensagem = "%s de %s e-mail(s) enviados." % (enviados, job.total)
+    if falhas:
+        mensagem += " %s falha(s)." % falhas
+    Notificacao.objects.create(
+        usuario=job.criado_por,
+        evento=job.evento,
+        tipo=Notificacao.TIPO_COMUNICADO,
+        titulo=titulo,
+        mensagem=mensagem,
+        url=reverse("organizador:comunicacao_evento", args=[job.evento_id]),
+    )
+
+
+def processar_job(job):
+    """Envia os destinatários PENDENTES do job, em lotes. Devolve o job.
+
+    Idempotente por destinatário: só linhas pendentes são enviadas, então um
+    job retomado após queda do worker (ou o reenvio de falhas) nunca duplica
+    quem já recebeu.
+    """
+    ComunicadoJob.objects.filter(pk=job.pk).update(
+        status=ComunicadoJob.STATUS_PROCESSANDO,
+        iniciado_em=timezone.now(),
+    )
+    job.refresh_from_db()
+
+    enviados = job.destinatarios.filter(
+        status=ComunicadoDestinatario.STATUS_ENVIADO
+    ).count()
+    falhas = job.destinatarios.filter(
+        status=ComunicadoDestinatario.STATUS_FALHOU
+    ).count()
+    pendentes = list(
+        job.destinatarios.filter(
+            status=ComunicadoDestinatario.STATUS_PENDENTE
+        ).order_by("id")
+    )
+    total = enviados + falhas + len(pendentes)
+    processados = enviados + falhas
+    _atualizar_progresso(
+        job, total=total, processados=processados,
+        enviados=enviados, falhas=falhas,
+    )
+
+    remetente = getattr(settings, "DEFAULT_FROM_EMAIL", None)
+    reply_to = job.criado_por.email if job.criado_por_id else None
+    tamanho = max(
+        1, int(getattr(settings, "COMUNICADOS_TAM_LOTE", TAM_LOTE) or TAM_LOTE)
+    )
+    intervalo = max(
+        0, int(getattr(settings, "COMUNICADOS_INTERVALO_LOTE", INTERVALO_LOTE))
+    )
+
+    for inicio in range(0, len(pendentes), tamanho):
+        lote = pendentes[inicio:inicio + tamanho]
+        conexao = _conexao_sincrona()
+        try:
+            conexao.open()
+        except Exception as erro:  # noqa: BLE001 - SMTP é externo
+            logger.exception("comunicados: falha ao abrir SMTP no job %s", job.pk)
+            erro_txt = ("Falha ao conectar no SMTP: %s" % erro)[:255]
+            ids_do_lote = [destino.id for destino in lote]
+            ComunicadoDestinatario.objects.filter(id__in=ids_do_lote).update(
+                status=ComunicadoDestinatario.STATUS_FALHOU,
+                erro=erro_txt,
+                enviado_em=None,
+            )
+            falhas += len(ids_do_lote)
+            processados += len(ids_do_lote)
+            # O restante da fila falharia pelo mesmo motivo: marca tudo como
+            # falho para o reenvio ser preciso (e não insistir no SMTP fora).
+            restantes = job.destinatarios.filter(
+                status=ComunicadoDestinatario.STATUS_PENDENTE
+            )
+            quantidade = restantes.count()
+            if quantidade:
+                restantes.update(
+                    status=ComunicadoDestinatario.STATUS_FALHOU,
+                    erro=erro_txt,
+                    enviado_em=None,
+                )
+                falhas += quantidade
+                processados += quantidade
+            _atualizar_progresso(
+                job, total=total, processados=processados,
+                enviados=enviados, falhas=falhas,
+            )
+            return _finalizar_job(job, enviados=enviados, falhas=falhas)
+
+        for destino in lote:
+            if reply_to:
+                mensagem = EmailMessage(
+                    job.assunto, job.corpo, remetente, [destino.email],
+                    reply_to=[reply_to],
+                )
+            else:
+                mensagem = EmailMessage(
+                    job.assunto, job.corpo, remetente, [destino.email]
+                )
+            try:
+                conexao.send_messages([mensagem])
+                destino.status = ComunicadoDestinatario.STATUS_ENVIADO
+                destino.erro = ""
+                destino.enviado_em = timezone.now()
+                enviados += 1
+            except Exception as erro:  # noqa: BLE001 - erro de um destinatário
+                destino.status = ComunicadoDestinatario.STATUS_FALHOU
+                destino.erro = str(erro)[:255]
+                destino.enviado_em = None
+                falhas += 1
+            destino.save(update_fields=["status", "erro", "enviado_em"])
+            processados += 1
+
+        try:
+            conexao.close()
+        except Exception:  # noqa: BLE001 - fechar conexão é acessório
+            pass
+        _atualizar_progresso(
+            job, total=total, processados=processados,
+            enviados=enviados, falhas=falhas,
+        )
+        if intervalo and inicio + tamanho < len(pendentes):
+            time.sleep(intervalo)
+
+    return _finalizar_job(job, enviados=enviados, falhas=falhas)
+
+
+def processar_proximo_job():
+    """Reivindica e processa o próximo job pendente (claim atômico)."""
+    with transaction.atomic():
+        job = (
+            ComunicadoJob.objects.select_for_update(skip_locked=True)
+            .filter(status=ComunicadoJob.STATUS_PENDENTE)
+            .order_by("criado_em", "id")
+            .first()
+        )
+        if job is None:
+            return None
+        ComunicadoJob.objects.filter(pk=job.pk).update(
+            status=ComunicadoJob.STATUS_PROCESSANDO,
+            iniciado_em=timezone.now(),
+        )
+
+    try:
+        processar_job(job)
+    except Exception:  # noqa: BLE001 - task em background
+        logger.exception("comunicados: job %s falhou", job.pk)
+        ComunicadoJob.objects.filter(pk=job.pk).update(
+            status=ComunicadoJob.STATUS_FALHOU,
+            mensagem="Erro ao processar o envio.",
+            concluido_em=timezone.now(),
+        )
+    return job
+
+
+def reciclar_presos():
+    """Devolve jobs presos em `processando` (worker caiu) para `pendente`."""
+    limite = timezone.now() - timedelta(minutes=MINUTOS_PRESO)
+    return ComunicadoJob.objects.filter(
+        status=ComunicadoJob.STATUS_PROCESSANDO,
+        iniciado_em__lt=limite,
+    ).update(status=ComunicadoJob.STATUS_PENDENTE, iniciado_em=None)
+
+
+def reenviar_falhas(job):
+    """Devolve as linhas FALHOU para a fila. Devolve quantas foram reenfileiradas.
+
+    Quem já recebeu fica como `enviado` e não é tocado; o progresso recomeça
+    em `enviados` e o total vira enviados + falhas.
+    """
+    if job.status not in (
+        ComunicadoJob.STATUS_CONCLUIDO,
+        ComunicadoJob.STATUS_FALHOU,
+    ):
         return 0
-    return len(mensagens)
+    with transaction.atomic():
+        falhas = job.destinatarios.filter(
+            status=ComunicadoDestinatario.STATUS_FALHOU
+        )
+        quantidade = falhas.count()
+        if not quantidade:
+            return 0
+        falhas.update(
+            status=ComunicadoDestinatario.STATUS_PENDENTE,
+            erro="",
+            enviado_em=None,
+        )
+        enviados = job.destinatarios.filter(
+            status=ComunicadoDestinatario.STATUS_ENVIADO
+        ).count()
+        ComunicadoJob.objects.filter(pk=job.pk).update(
+            status=ComunicadoJob.STATUS_PENDENTE,
+            enviados=enviados,
+            falhas=0,
+            processados=enviados,
+            total=enviados + quantidade,
+            mensagem="",
+            iniciado_em=None,
+            concluido_em=None,
+        )
+    job.refresh_from_db()
+    return quantidade
+
+
+def job_como_dict(job):
+    """JSON do job para a tela (status/progresso/reenvio)."""
+    pronto = job.status in (
+        ComunicadoJob.STATUS_CONCLUIDO,
+        ComunicadoJob.STATUS_FALHOU,
+    )
+    detalhes = []
+    if pronto and job.falhas:
+        detalhes = list(
+            job.destinatarios.filter(
+                status=ComunicadoDestinatario.STATUS_FALHOU
+            ).values("nome", "erro")[:10]
+        )
+    return {
+        "job_id": job.pk,
+        "status": job.status,
+        "total": job.total,
+        "processados": job.processados,
+        "enviados": job.enviados,
+        "falhas": job.falhas,
+        "falhas_detalhe": detalhes,
+        "mensagem": job.mensagem,
+        "pronto": pronto,
+        "pode_reenviar": bool(pronto and job.falhas),
+    }
 
 
 def envios_recentes(evento, limite=5):
     """Últimos comunicados do evento registrados na auditoria."""
-    from .models import RegistroAuditoria
-
     return list(
         RegistroAuditoria.objects.filter(
             evento=evento, acao=RegistroAuditoria.ACAO_ENVIAR_COMUNICADO

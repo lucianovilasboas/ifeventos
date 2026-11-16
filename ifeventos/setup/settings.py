@@ -339,6 +339,11 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")  # Substitua pelo seu e-mail
 COMUNICADOS_MAX_DESTINATARIOS = config(
     "COMUNICADOS_MAX_DESTINATARIOS", default=300, cast=int
 )
+# O worker envia em lotes e pausa entre eles para não estourar a taxa do SMTP.
+COMUNICADOS_TAM_LOTE = config("COMUNICADOS_TAM_LOTE", default=10, cast=int)
+COMUNICADOS_INTERVALO_LOTE = config(
+    "COMUNICADOS_INTERVALO_LOTE", default=2, cast=int
+)
 
 
 # -- Configurações da API OpenAI --

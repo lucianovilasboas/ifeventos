@@ -5,6 +5,26 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.27.0] — 2026-11-15
+
+### Adicionado
+
+- **Fila de envio de e-mails**: o envio do organizador não acontece mais na requisição. Cada disparo cria um `ComunicadoJob` com os destinatários congelados (`ComunicadoDestinatario`) e o worker **`processar_comunicados`** envia em lotes (10 por vez, pausa de 2 s), com progresso real por pessoa. Dois disparos simultâneos no mesmo evento são bloqueados.
+- **Barra de progresso no envio**: modal “Enviando e-mails… X de N” com enviados/falhas. Pode ser **fechado** — o job continua em segundo plano; a página mostra “Envio em andamento” com **Acompanhar envio** mesmo após recarregar.
+- **Indicador no rodapé**: mantém o status do envio ao lado do total (“Enviando e-mails… X de N”), mesmo com o modal fechado, e muda para “E-mails enviados: X de N” ou “X enviado(s), Y falha(s)” com **Reenviar falhas**. Ao recarregar, mostra o último envio.
+- **Reenvio apenas das falhas**: o status é por destinatário; o botão **“Reenviar falhas”** recoloca só quem falhou na fila, sem duplicar quem já recebeu.
+- **Notificações persistentes**: novo model `Notificacao`, sino no topo (contador, painel e “marcar todas como lidas”) e **toast** em qualquer página do app quando o envio termina. Fica registrado mesmo se o usuário sair da tela ou trocar de dispositivo.
+- **Auditoria do resultado real**: a ação `enviar_comunicado` é gravada ao final do job, com enviados/falhas.
+
+### Operação
+
+- Novo worker no `entrypoint.sh`: `python manage.py processar_comunicados` (junto do de certificados).
+- Novas chaves opcionais: `COMUNICADOS_TAM_LOTE` (padrão 10) e `COMUNICADOS_INTERVALO_LOTE` (padrão 2 s).
+
+### Notas
+
+- Migration `0061` (`ComunicadoJob`, `ComunicadoDestinatario`, `Notificacao`).
+
 ## [2.26.0] — 2026-11-15
 
 ### Adicionado

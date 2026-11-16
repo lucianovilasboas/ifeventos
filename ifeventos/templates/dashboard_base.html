@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v={{ ASSET_VERSION }}">
     <link rel="stylesheet" href="{% static 'css/organizador/style.css' %}?v={{ ASSET_VERSION }}">
     <link rel="stylesheet" href="{% static 'css/app/main.css' %}?v={{ ASSET_VERSION }}">
+    <link rel="stylesheet" href="{% static 'css/app/notificacoes.css' %}?v={{ ASSET_VERSION }}">
     {% include 'includes/pwa_head.html' %}
     {# Folhas específicas de uma tela (ex.: o crachá). Vazio por padrão. #}
     {% block extra_css %}{% endblock extra_css %}
@@ -27,6 +28,7 @@
     <script src="{% static 'js/botao_rolagem.js' %}?v={{ ASSET_VERSION }}" defer></script>
     {# Menu do usuário (avatar): toggle próprio, alinhado ao da landing #}
     <script src="{% static 'js/menu_usuario.js' %}?v={{ ASSET_VERSION }}" defer></script>
+    <script src="{% static 'js/notificacoes.js' %}?v={{ ASSET_VERSION }}" defer></script>
 </head>
 <body>
     <!-- Topbar app -->
@@ -37,6 +39,7 @@
                 {% include 'includes/app_nav_items.html' %}
             </nav>
             {% include 'includes/pwa_install_button.html' %}
+            {% include 'includes/notificacoes_sino.html' %}
             {% include 'includes/menu_usuario.html' %}
         </div>
     </div>

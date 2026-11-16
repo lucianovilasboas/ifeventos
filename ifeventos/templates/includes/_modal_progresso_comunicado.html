@@ -1,0 +1,167 @@
+{% comment %}
+Modal de progresso do envio de comunicados.
+
+O envio roda no worker (`processar_comunicados`); esta tela só acompanha por
+AJAX polling. Pode ser fechada a qualquer momento: o job continua e o autor
+recebe uma notificação persistente ao final.
+
+Uso: `window.acompanharComunicado(jobId, totalInicial)`.
+{% endcomment %}
+<div class="modal fade" id="modal-progresso-comunicado" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-paper-plane"></i> Enviando e-mails</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p id="com-progresso-texto" class="mb-2">Iniciando…</p>
+                <div class="progress" role="progressbar" aria-label="Progresso do envio"
+                     aria-valuemin="0" aria-valuemax="100">
+                    <div id="com-progresso-barra" class="progress-bar" style="width:0%"></div>
+                </div>
+                <p id="com-progresso-resumo" class="text-muted small mt-2 mb-0"></p>
+                <ul id="com-progresso-falhas" class="small mt-2 mb-0" hidden></ul>
+                <p class="text-muted small mt-2 mb-0">
+                    Você pode fechar esta janela: o envio continua em segundo plano
+                    e avisaremos quando terminar.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="com-progresso-reenviar" hidden>
+                    <i class="fa-solid fa-rotate-right"></i> Reenviar falhas
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var STATUS_URL = "{% url 'organizador:comunicacao_job_status' 0 %}";
+    var REENVIAR_URL = "{% url 'organizador:comunicacao_reenviar' 0 %}";
+    var csrf = "{{ csrf_token }}";
+    var modalEl = document.getElementById("modal-progresso-comunicado");
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    var barra = document.getElementById("com-progresso-barra");
+    var texto = document.getElementById("com-progresso-texto");
+    var resumo = document.getElementById("com-progresso-resumo");
+    var listaFalhas = document.getElementById("com-progresso-falhas");
+    var reenviar = document.getElementById("com-progresso-reenviar");
+    var timer = null;
+
+    function parar() {
+        if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    function limparFalhas() {
+        listaFalhas.hidden = true;
+        listaFalhas.innerHTML = "";
+    }
+
+    function mostrarFalhas(detalhes) {
+        listaFalhas.innerHTML = "";
+        (detalhes || []).forEach(function (falha) {
+            var item = document.createElement("li");
+            item.textContent = (falha.nome || "Destinatário") + ": "
+                + (falha.erro || "falhou");
+            listaFalhas.appendChild(item);
+        });
+        listaFalhas.hidden = !listaFalhas.children.length;
+    }
+
+    function urlComId(base, id) {
+        return base.replace("/0/", "/" + id + "/");
+    }
+
+    window.acompanharComunicado = function (jobId, totalInicial) {
+        parar();
+        barra.style.width = "0%";
+        barra.className = "progress-bar";
+        texto.textContent = "Enviando e-mails… 0 de " + (totalInicial || "?");
+        resumo.textContent = "";
+        reenviar.hidden = true;
+        limparFalhas();
+        modal.show();
+
+        var inicio = Date.now();
+        var urlStatus = urlComId(STATUS_URL, jobId);
+
+        timer = setInterval(function () {
+            fetch(urlStatus, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    var pct = d.total ? Math.round(100 * d.processados / d.total) : 0;
+                    barra.style.width = pct + "%";
+                    texto.textContent = "Enviando e-mails… " + d.processados + " de " + d.total;
+                    resumo.textContent = "Enviados: " + d.enviados + " · Falhas: " + d.falhas;
+
+                    if (d.pronto) {
+                        parar();
+                        if (d.falhas > 0) {
+                            barra.className = "progress-bar bg-warning";
+                            texto.textContent = "Envio concluído com " + d.falhas + " falha(s).";
+                            reenviar.hidden = false;
+                            reenviar.dataset.job = d.job_id;
+                        } else {
+                            barra.className = "progress-bar bg-success";
+                            barra.style.width = "100%";
+                            texto.textContent = "🎉 " + d.enviados + " e-mail(s) enviado(s).";
+                        }
+                        resumo.textContent = d.mensagem || "";
+                        if (d.falhas > 0) {
+                            mostrarFalhas(d.falhas_detalhe);
+                        } else {
+                            limparFalhas();
+                        }
+                        return;
+                    }
+
+                    var decorrido = Date.now() - inicio;
+                    if (d.status === "pendente" && d.processados === 0 && decorrido > 30000) {
+                        parar();
+                        texto.innerHTML = "⏳ O envio está na fila e ainda não começou. "
+                            + "Verifique se o <b>worker de comunicados</b> está rodando.";
+                    }
+                })
+                .catch(function () { /* segue tentando */ });
+        }, 2000);
+    };
+
+    reenviar.addEventListener("click", function () {
+        var jobId = reenviar.dataset.job;
+        if (!jobId) return;
+        reenviar.disabled = true;
+        fetch(urlComId(REENVIAR_URL, jobId), {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrf,
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        })
+            .then(function (r) {
+                return r.json().then(function (d) { return { ok: r.ok, dados: d }; });
+            })
+            .then(function (res) {
+                reenviar.disabled = false;
+                if (!res.ok) {
+                    texto.textContent = res.dados.erro || "Não foi possível reenviar.";
+                    return;
+                }
+                window.acompanharComunicado(res.dados.job_id, res.dados.total);
+                if (window.monitorarStatusComunicado) {
+                    window.monitorarStatusComunicado(res.dados.job_id, res.dados.total);
+                }
+            })
+            .catch(function () {
+                reenviar.disabled = false;
+                texto.textContent = "Erro de conexão ao reenviar as falhas.";
+            });
+    });
+
+    // Fechar o modal só interrompe o polling desta tela — o job segue no worker.
+    modalEl.addEventListener("hidden.bs.modal", parar);
+})();
+</script>

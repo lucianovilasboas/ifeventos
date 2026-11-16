@@ -1,0 +1,115 @@
+/* Sino de notificações persistentes (topbar do app). */
+.notif {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.notif-gatilho {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--app-ink, #1f2937);
+    font-size: 17px;
+    cursor: pointer;
+}
+
+.notif-gatilho:hover,
+.notif-gatilho[aria-expanded="true"] {
+    background: rgba(15, 23, 42, 0.06);
+}
+
+.notif-badge {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #dc3545;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+}
+
+.notif-painel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(360px, calc(100vw - 24px));
+    max-height: 420px;
+    overflow: auto;
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+    z-index: 1200;
+}
+
+.notif-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    font-size: 13px;
+}
+
+.notif-todas {
+    border: 0;
+    background: transparent;
+    color: var(--app-green-d, #1d7a2f);
+    font-size: 11px;
+    padding: 0;
+    cursor: pointer;
+}
+
+.notif-item {
+    display: block;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    color: inherit;
+    text-decoration: none;
+}
+
+.notif-item:last-child {
+    border-bottom: 0;
+}
+
+.notif-item:hover {
+    background: #f8fafc;
+}
+
+.notif-item.nao-lida {
+    background: #eef7ff;
+}
+
+.notif-item strong {
+    display: block;
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+.notif-item span {
+    display: block;
+    margin-top: 2px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.notif-vazio {
+    margin: 0;
+    padding: 14px 12px;
+    color: #64748b;
+    font-size: 13px;
+}

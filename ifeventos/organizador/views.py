@@ -74,6 +74,7 @@ from eventos.crachas import (
     registrar_presenca,
 )
 from eventos.models import Inscricao
+from eventos.models import ComunicadoJob
 from eventos.tempo import local_legivel
 
 from eventos.imagens import imagem_cortada
@@ -2445,6 +2446,14 @@ def _contexto_comunicacao(evento, valores=None):
     valores = valores or {}
     atividade = comunicados.atividade_do_evento(evento, valores.get("atividade_id"))
     pessoas_ids = _ids_da_lista(valores.get("pessoas"))
+    em_andamento = comunicados.job_em_andamento(evento)
+    ultimo = evento.comunicado_jobs.order_by("-criado_em", "-id").first()
+    ultimo_envio = None
+    if em_andamento is None and ultimo is not None and ultimo.status in (
+        ComunicadoJob.STATUS_CONCLUIDO,
+        ComunicadoJob.STATUS_FALHOU,
+    ):
+        ultimo_envio = comunicados.job_como_dict(ultimo)
     return {
         "evento": evento,
         "grupos": comunicados.grupos_com_contagem(evento),
@@ -2454,6 +2463,12 @@ def _contexto_comunicacao(evento, valores=None):
         "atividade_selecionada": atividade,
         "pessoas_selecionadas": comunicados.pessoas_por_ids(evento, pessoas_ids),
         "envios_recentes": comunicados.envios_recentes(evento),
+        # Job pendente/processando: mostra o aviso e bloqueia um novo disparo.
+        "envio_em_andamento": (
+            comunicados.job_como_dict(em_andamento) if em_andamento else None
+        ),
+        # Último job concluído: o rodapé mantém o status após recarregar.
+        "ultimo_envio": ultimo_envio,
         "valores": {
             "assunto": valores.get("assunto", ""),
             "corpo": valores.get("corpo", ""),
@@ -2469,10 +2484,12 @@ def _contexto_comunicacao(evento, valores=None):
 
 @login_required(login_url='/accounts/login/')
 def comunicacao_evento(request, evento_id):
-    """Tela de comunicação: escolhe destinatários, escreve e envia um e-mail.
+    """Tela de comunicação: escolhe destinatários, escreve e enfileira o envio.
 
     Cada pessoa recebe uma mensagem individual (sem CC/BCC). O servidor
-    recalcula os destinatários no POST — a contagem da tela é só conferência.
+    recalcula os destinatários no POST e congela o snapshot no
+    `ComunicadoJob`; quem envia é o worker (`processar_comunicados`). A tela
+    acompanha o progresso por polling.
     """
     evento = _evento_gerenciavel(request, evento_id)
 
@@ -2480,6 +2497,10 @@ def comunicacao_evento(request, evento_id):
         return render(request, "organizador/comunicacao.html",
                       _contexto_comunicacao(evento))
 
+    ajax = (
+        request.headers.get("x-requested-with") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("accept", "")
+    )
     assunto = (request.POST.get("assunto") or "").strip()[:160]
     corpo = (request.POST.get("corpo") or "").strip()[:5000]
     grupos = request.POST.getlist("grupos")
@@ -2488,6 +2509,17 @@ def comunicacao_evento(request, evento_id):
         evento, request.POST.get("atividade_id")
     )
     nao_eu = request.POST.get("nao_eu") == "1"
+
+    em_andamento = comunicados.job_em_andamento(evento)
+    if em_andamento is not None:
+        texto = (
+            "Já existe um envio em andamento para este evento. "
+            "Acompanhe a conclusão antes de disparar outro."
+        )
+        if ajax:
+            return JsonResponse({"erro": texto}, status=409)
+        messages.error(request, texto)
+        return redirect("organizador:comunicacao_evento", evento_id=evento.id)
 
     destinatarios, ignorados = comunicados.destinatarios(
         evento,
@@ -2512,6 +2544,8 @@ def comunicacao_evento(request, evento_id):
         )
 
     if erros:
+        if ajax:
+            return JsonResponse({"erro": " ".join(erros)}, status=400)
         for erro in erros:
             messages.error(request, erro)
         return render(request, "organizador/comunicacao.html", _contexto_comunicacao(
@@ -2528,36 +2562,53 @@ def comunicacao_evento(request, evento_id):
             },
         ))
 
-    enfileirados = comunicados.enviar_comunicado(
-        assunto, corpo, destinatarios, reply_to=request.user.email
-    )
-    auditoria.registrar(
-        acao=RegistroAuditoria.ACAO_ENVIAR_COMUNICADO,
-        objeto=evento,
+    job = comunicados.criar_job(
         evento=evento,
-        resumo="Enviou comunicado: %s" % assunto,
-        detalhes={
-            "assunto": assunto,
-            "grupos": grupos,
-            "atividade_id": atividade.pk if atividade else None,
-            "total": len(destinatarios),
-            "ignorados": len(ignorados),
-            "enfileirados": enfileirados,
-        },
+        assunto=assunto,
+        corpo=corpo,
+        grupos=grupos,
+        pessoas=destinatarios,
+        atividade=atividade,
+        criado_por=request.user,
     )
 
-    if enfileirados:
-        texto = "%s e-mail(s) enfileirado(s) para envio." % enfileirados
-        if ignorados:
-            texto += " %s pessoa(s) sem e-mail foram ignoradas." % len(ignorados)
-        messages.success(request, texto)
-    else:
-        messages.error(
-            request,
-            "Nenhum e-mail pôde ser enviado. Confira a configuração de SMTP "
-            "e tente novamente.",
-        )
+    if ajax:
+        return JsonResponse({"job_id": job.pk, "total": job.total})
+
+    texto = "%s e-mail(s) na fila de envio." % job.total
+    if ignorados:
+        texto += " %s pessoa(s) sem e-mail foram ignoradas." % len(ignorados)
+    messages.success(request, texto)
     return redirect("organizador:comunicacao_evento", evento_id=evento.id)
+
+
+@login_required(login_url='/accounts/login/')
+def comunicacao_job_status(request, job_id):
+    """Status/progresso de um envio de comunicado (AJAX polling)."""
+    job = get_object_or_404(ComunicadoJob, id=job_id)
+    if not pode_gerenciar_evento(request.user, job.evento):
+        raise PermissionDenied("Você não gerencia este evento.")
+    return JsonResponse(comunicados.job_como_dict(job))
+
+
+@login_required(login_url='/accounts/login/')
+@require_POST
+def comunicacao_reenviar(request, job_id):
+    """Devolve à fila apenas os destinatários que falharam."""
+    job = get_object_or_404(ComunicadoJob, id=job_id)
+    if not pode_gerenciar_evento(request.user, job.evento):
+        raise PermissionDenied("Você não gerencia este evento.")
+    quantidade = comunicados.reenviar_falhas(job)
+    if not quantidade:
+        return JsonResponse(
+            {"erro": "Este envio não tem falhas para reenviar."}, status=400
+        )
+    job.refresh_from_db()
+    return JsonResponse({
+        "job_id": job.pk,
+        "total": job.total,
+        "mensagem": "%s e-mail(s) de volta na fila." % quantidade,
+    })
 
 
 @csrf_exempt

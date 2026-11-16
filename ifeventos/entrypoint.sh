@@ -6,6 +6,7 @@
 #   8500 -> servidor Socket.IO (ASGI, uvicorn)
 #   8501 -> aplicação Django (WSGI)
 #   worker de emissão de certificados (fila em banco, sem porta)
+#   worker de comunicados por e-mail (fila em banco, sem porta)
 #
 # Variáveis de ambiente reconhecidas:
 #   APP_SERVER=gunicorn|runserver   (padrão: gunicorn)
@@ -70,8 +71,14 @@ SOCKET_PID=$!
 python manage.py processar_certificados &
 WORKER_PID=$!
 
-# Repassa sinais para o Socket.IO e o worker quando o contêiner for parado
-trap 'kill -TERM "$SOCKET_PID" "$WORKER_PID" 2>/dev/null || true' TERM INT
+# ---------------------------------------------------------------------
+# 4c. Worker da fila de comunicados por e-mail (fila em banco), em segundo plano
+# ---------------------------------------------------------------------
+python manage.py processar_comunicados &
+COMUNICADOS_WORKER_PID=$!
+
+# Repassa sinais para o Socket.IO e os workers quando o contêiner for parado
+trap 'kill -TERM "$SOCKET_PID" "$WORKER_PID" "$COMUNICADOS_WORKER_PID" 2>/dev/null || true' TERM INT
 
 # ---------------------------------------------------------------------
 # 5. Aplicação Django (porta 8501) em primeiro plano
