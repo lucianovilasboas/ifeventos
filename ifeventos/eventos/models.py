@@ -95,6 +95,15 @@ class Participante(AbstractUser):
     # só opera nos eventos que estão no M2M `Evento.equipe`.
     is_equipe = models.BooleanField(default=False, verbose_name="Equipe de apoio")
 
+    # Evento que a pessoa fixou como contexto principal (painel do participante
+    # e do organizador). Um só por pessoa: cada painel filtra o seu universo e,
+    # se o evento não pertencer a ele, a regra automática assume (ver
+    # eventos/contexto.py). SET_NULL: excluir o evento não quebra o perfil.
+    evento_padrao = models.ForeignKey(
+        "Evento", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+", verbose_name="Evento padrão",
+    )
+
     # Última alteração da conta (auto_now): usada no admin para ver quando a
     # pessoa foi mexida pela última vez. A CRIAÇÃO continua sendo `date_joined`.
     atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")

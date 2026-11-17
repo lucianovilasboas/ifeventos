@@ -8,7 +8,7 @@ from .models import Evento
 import qrcode
 import io
 from django.http import HttpResponse
-from .models import Inscricao, Atividade, Presenca
+from .models import Inscricao, Atividade, Participante, Presenca
 from django.contrib.auth.decorators import login_required
 from PIL import Image, ImageDraw, ImageFont
 from datetime import date, timedelta
@@ -22,8 +22,9 @@ from .crachas import (
 from django.conf import settings
 from django.contrib import messages
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
-from . import agenda, propostas
+from . import agenda, contexto, propostas
 
 
 def eventos_view(request):
@@ -673,3 +674,39 @@ def programacao_pdf_view(request, evento_id):
         "pdf", f"programacao_{evento.id}", cabecalhos, linhas,
         titulo=f"Programação — {evento.title}",
     )
+
+
+def _destino_do_evento_padrao(request):
+    """Para onde voltar depois de fixar o evento (o `next` só vale se for local)."""
+    destino = request.POST.get("next") or ""
+    if destino and url_has_allowed_host_and_scheme(
+        destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return destino
+    if request.user.is_organizador and not request.user.is_participante:
+        return reverse("organizador:dashboard")
+    return reverse("participante:dashboard")
+
+
+@login_required(login_url="/accounts/login/")
+@require_POST
+def definir_evento_padrao(request, evento_id):
+    """Fixa o evento como contexto principal do painel (POST, uma vez por pessoa).
+
+    Só aceita evento que a pessoa enxerga em algum painel (organiza, participa
+    ou tem inscrição). Evento encerrado não é fixado: ele vive em "Eventos
+    passados" e a regra automática (eventos/contexto.py) reassume o foco.
+    """
+    evento = get_object_or_404(Evento, id=evento_id)
+    if not contexto.pode_fixar(request.user, evento):
+        raise Http404("Evento não disponível para você.")
+
+    if evento.encerrado:
+        messages.warning(
+            request, "Evento encerrado fica em “Eventos passados” e não vira padrão."
+        )
+        return redirect(_destino_do_evento_padrao(request))
+
+    Participante.objects.filter(pk=request.user.pk).update(evento_padrao=evento)
+    messages.success(request, f"Evento padrão definido: {evento.title}.")
+    return redirect(_destino_do_evento_padrao(request))
