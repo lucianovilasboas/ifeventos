@@ -1,9 +1,11 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.db.models import Exists, OuterRef
+from django.urls import reverse
 from eventos.models import Atividade, Evento, Inscricao, Participante, Presenca
 from eventos.tempo import local_legivel
 from eventos import agenda, propostas
+from eventos import contexto as contexto_evento
 from eventos.forms import PropostaForm
 from eventos.propostas import PropostaBloqueada
 from eventos.inscricoes import (
@@ -51,20 +53,44 @@ def dashboard(request):
         .order_by("data_hora_inicio", "id")
     )
 
-    # Filtro por evento (afeta as duas listas). A lista de opções é montada
-    # ANTES de filtrar, senão o próprio filtro sumiria da tela.
-    eventos_filtro = sorted(
-        {i.atividade.evento for i in inscricoes} | {a.evento for a in atividades},
-        key=lambda e: e.title,
+    # Contexto de evento: o painel mostra UM evento por vez (o padrão). Os
+    # grupos já vêm ordenados — atuais, próximos e o arquivo de passados.
+    grupos = contexto_evento.classificar(
+        contexto_evento.eventos_do_participante(participante)
     )
+    evento_padrao = contexto_evento.resolver_padrao(participante, grupos)
+
+    # "Eventos passados" é arquivo: o link abre o evento em modo CONSULTA (só
+    # minhas inscrições), sem trocar o padrão. Só vale id que está no arquivo
+    # da própria pessoa.
+    evento_consulta = None
+    evento_id = (request.GET.get("evento") or "").strip()
+    if evento_id.isdigit():
+        evento_consulta = next(
+            (e for e in grupos["passados"] if str(e.id) == evento_id), None
+        )
+    evento_foco = evento_consulta or evento_padrao
+    modo_consulta = bool(evento_consulta) or bool(
+        evento_foco is not None
+        and evento_foco.situacao_contexto == contexto_evento.ENCERRADO
+    )
+    tem_mais_eventos = len(grupos["atuais"]) + len(grupos["futuros"]) > 1
+    # O arquivo abre em modo consulta (só minhas inscrições), sem trocar o padrão.
+    for arquivado in grupos["passados"]:
+        arquivado.link_contexto = (
+            f"{reverse('participante:dashboard')}?evento={arquivado.id}"
+        )
+
     # Todas as minhas inscrições (sem o filtro de evento): é com elas que a
     # lista de disponíveis detecta conflito de horário.
     minhas_todas = [i.atividade for i in inscricoes]
 
-    evento_id = (request.GET.get("evento") or "").strip()
-    if evento_id.isdigit():
-        inscricoes = inscricoes.filter(atividade__evento_id=evento_id)
-        atividades = atividades.filter(evento_id=evento_id)
+    if evento_foco is not None:
+        inscricoes = inscricoes.filter(atividade__evento=evento_foco)
+        atividades = atividades.filter(evento=evento_foco)
+    if modo_consulta:
+        # Evento encerrado: não há o que se inscrever.
+        atividades = atividades.none()
 
     # "Acontecendo agora" e "a seguir" (entre as minhas inscrições).
     agora = localtime()
@@ -160,8 +186,15 @@ def dashboard(request):
         'grade_minha_agenda': agenda.montar_grade(minhas),
         'acontecendo': acontecendo,
         'a_seguir': a_seguir,
-        'eventos_filtro': eventos_filtro,
-        'evento_id': evento_id,
+        # Evento em foco e o arquivo separado (não viram chips de filtro).
+        'evento_padrao': evento_padrao,
+        'evento_foco': evento_foco,
+        'modo_consulta': modo_consulta,
+        'evento_consulta': evento_consulta,
+        'eventos_atuais': grupos["atuais"],
+        'eventos_futuros': grupos["futuros"],
+        'eventos_passados': grupos["passados"],
+        'tem_mais_eventos': tem_mais_eventos,
         'vistas_inscricoes': [
             {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
             {"valor": "cartoes", "rotulo": "Cartões", "icone": "fa-solid fa-table-cells-large"},

@@ -1,0 +1,155 @@
+{% comment %}
+Evento em destaque no painel do organizador: o evento padrão (o fixado ou o de
+agora). Reúne as ações que antes ficavam espalhadas em dez botões — o resto
+virou menu, para a tela inicial não virar um paredão de ícones.
+{% endcomment %}
+{% if evento_padrao %}
+<article class="evento-destaque">
+    {% if evento_padrao.imagem %}
+    <div class="evento-destaque-capa">
+        <img src="{{ evento_padrao.get_url_imagem }}" alt="{{ evento_padrao.title }}">
+    </div>
+    {% endif %}
+
+    <div class="evento-destaque-corpo">
+        <div class="evento-destaque-info">
+            <div class="evento-destaque-selos">
+                <span class="badge-app evento-foco-selo">Evento padrão</span>
+                <span class="badge-app">{{ evento_padrao.situacao_contexto_rotulo }}</span>
+                {% if evento_padrao.organizador and evento_padrao.organizador != user %}
+                <span class="badge-app" title="Organizado por {{ evento_padrao.organizador.get_full_name|default:evento_padrao.organizador.username }}">
+                    <i class="fa-solid fa-user-shield"></i> outro organizador
+                </span>
+                {% endif %}
+            </div>
+            <div class="evento-destaque-titulo-linha">
+                <h3 class="evento-destaque-titulo">{{ evento_padrao.title }}</h3>
+                <a href="{% url 'organizador:editar_evento' evento_padrao.id %}"
+                   class="btn btn-sm btn-outline-warning btn-icon" title="Editar Evento">
+                    <i class="fa-solid fa-pen"></i>
+                </a>
+            </div>
+            <p class="evento-destaque-meta">
+                <i class="fa-regular fa-calendar"></i>
+                {{ evento_padrao.data_inicio|date:"d/m/Y" }} – {{ evento_padrao.data_fim|date:"d/m/Y" }}
+                {% if evento_padrao.local %} · <i class="fa-solid fa-location-dot"></i> {{ evento_padrao.local }}{% endif %}
+            </p>
+            <p class="evento-destaque-meta">
+                <i class="fa-solid fa-users"></i> {{ evento_padrao.get_n_inscricoes }} inscrito(s)
+                · <i class="fa-solid fa-calendar-days"></i> {{ evento_padrao.n_atividades }} atividade(s)
+                {% if evento_padrao.n_pendentes %}
+                · <i class="fa-solid fa-inbox"></i> {{ evento_padrao.n_pendentes }} proposta(s) pendente(s)
+                {% endif %}
+            </p>
+        </div>
+        {% include 'includes/_seletor_evento.html' with seletor_destino=request.path evento_foco=evento_padrao %}
+    </div>
+
+    <div class="evento-destaque-acoes">
+        <a href="{% url 'organizador:atividades_evento' evento_padrao.id %}" class="btn btn-sm btn-app">
+            <i class="fa-solid fa-calendar-days"></i> Atividades
+        </a>
+
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-success dropdown-toggle"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa-solid fa-file-pdf"></i> Listas de presença
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" target="_blank" rel="noopener"
+                       href="{% url 'organizador:listas_presenca_evento_pdf' evento_padrao.id %}?modo=simples">
+                    <i class="fa-solid fa-list"></i> Simples (só nomes)
+                </a></li>
+                <li><a class="dropdown-item" target="_blank" rel="noopener"
+                       href="{% url 'organizador:listas_presenca_evento_pdf' evento_padrao.id %}?modo=agrupada">
+                    <i class="fa-solid fa-layer-group"></i> Agrupada (vínculo → turma)
+                </a></li>
+                <li><a class="dropdown-item" target="_blank" rel="noopener"
+                       href="{% url 'organizador:listas_presenca_evento_pdf' evento_padrao.id %}?modo=vinculo">
+                    <i class="fa-solid fa-user-tag"></i> Nome com vínculo
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:listas_presenca_preparar' evento_padrao.id %}">
+                    <i class="fa-solid fa-clipboard-check"></i> Preparar listas
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fa-solid fa-chart-simple"></i> Relatórios
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_inscricoes' evento_padrao.id %}">
+                    <i class="fa-solid fa-list-ul"></i> Inscrições
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_participantes' evento_padrao.id %}">
+                    <i class="fa-solid fa-users"></i> Por participante
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_turmas' evento_padrao.id %}">
+                    <i class="fa-solid fa-layer-group"></i> Por turma
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorio_oficinas' evento_padrao.id %}">
+                    <i class="fa-solid fa-tags"></i> Por tipo de atividade
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:ocupacao_salas' evento_padrao.id %}?next={% url 'organizador:dashboard' %}">
+                    <i class="fa-solid fa-door-open"></i> Ocupação por salas
+                </a></li>
+                <li><a class="dropdown-item" href="{% url 'organizador:relatorios_graficos' evento_padrao.id %}">
+                    <i class="fa-solid fa-chart-pie"></i> Gráficos
+                </a></li>
+            </ul>
+        </div>
+
+        <a href="{% url 'organizador:comunicacao_evento' evento_padrao.id %}" class="btn btn-sm btn-outline-primary"
+           title="Comunicação por e-mail">
+            <i class="fa-solid fa-envelope"></i> Comunicação
+        </a>
+
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                    data-bs-toggle="dropdown" aria-expanded="false" aria-label="Mais ações">
+                <i class="fa-solid fa-ellipsis"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item d-flex align-items-center justify-content-between gap-2"
+                       href="{% url 'organizador:chamada_proposicoes' evento_padrao.id %}">
+                        <span><i class="fa-solid fa-bullhorn"></i> Chamada de propostas</span>
+                        <span class="badge rounded-pill bg-danger"
+                              data-pendentes-evento="{{ evento_padrao.id }}"
+                              {% if not evento_padrao.n_pendentes %}hidden{% endif %}>{{ evento_padrao.n_pendentes }}</span>
+                    </a>
+                </li>
+                <li>
+                    <button type="button" class="dropdown-item"
+                            data-equipe-abrir
+                            data-evento-id="{{ evento_padrao.id }}"
+                            data-evento-nome="{{ evento_padrao.title }}"
+                            data-url-add="{% url 'organizador:equipe_apoio_adicionar' evento_padrao.id %}"
+                            data-url-rem="{% url 'organizador:equipe_apoio_remover' evento_padrao.id %}">
+                        <i class="fa-solid fa-hands-helping"></i> Equipe de apoio
+                    </button>
+                </li>
+                {% if evento_padrao.encerrado %}
+                <li>
+                    <button type="button" class="dropdown-item js-emitir-evento"
+                            data-url="{% url 'organizador:emitir_certificados_evento' evento_padrao.id %}"
+                            data-evento-nome="{{ evento_padrao.title }}">
+                        <i class="fa-solid fa-certificate"></i> Emitir certificados
+                    </button>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+
+        {# Excluir no canto oposto, longe do resto (evita clique acidental). #}
+        <a href="{% url 'organizador:excluir_evento' evento_padrao.id %}"
+           class="btn btn-sm btn-outline-danger btn-icon ms-auto" title="Excluir Evento"
+           onclick="return confirm('Tem certeza que deseja excluir este evento?');">
+            <i class="fa-solid fa-trash-can"></i>
+        </a>
+    </div>
+</article>
+{% endif %}

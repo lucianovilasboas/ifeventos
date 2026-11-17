@@ -1892,3 +1892,155 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 
 /* Selo "Gerado por IA" dos gráficos anexados pelo text-to-chart. */
 .ia-selo { font-size: 0.72rem; white-space: nowrap; }
+
+/* =========================================================================
+   Contexto de evento (evento padrão + arquivo de eventos passados)
+   -------------------------------------------------------------------------
+   O painel abre num evento só. O cabeçalho diz qual é, o seletor troca a
+   fixação (POST) e os encerrados ficam num disclosure à parte.
+   ========================================================================= */
+.evento-foco-card {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: var(--space-4); flex-wrap: wrap;
+    background: var(--app-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+.evento-foco-info { flex: 1 1 260px; min-width: 0; }
+.evento-foco-selo { background: var(--accent-soft) !important; color: var(--accent-ink) !important; }
+.evento-foco-titulo {
+    font-size: var(--text-xl); font-weight: 800;
+    margin: 6px 0 2px;
+    overflow-wrap: anywhere;
+}
+.evento-foco-meta {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    margin: 0 0 8px;
+}
+.evento-foco-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Seletor "Trocar evento": um details, sem JS. */
+.seletor-evento { margin-left: auto; }
+.seletor-gatilho {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    color: var(--accent-ink);
+    font-size: var(--text-sm); font-weight: 700;
+    cursor: pointer; list-style: none;
+}
+.seletor-gatilho::-webkit-details-marker { display: none; }
+.seletor-gatilho:hover { border-color: var(--accent); }
+.seletor-painel {
+    margin-top: var(--space-2);
+    min-width: min(320px, 86vw);
+    background: var(--app-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, .08);
+}
+.seletor-grupo {
+    font-size: var(--text-xs); font-weight: 800;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin: 8px 0 2px;
+}
+.seletor-form { margin: 0; }
+.seletor-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    padding: 8px 6px;
+    border: 0; border-bottom: 1px solid var(--border);
+    background: transparent; color: var(--fg);
+    font-size: var(--text-sm); text-align: left; text-decoration: none;
+    cursor: pointer; overflow-wrap: anywhere;
+}
+.seletor-item:last-child { border-bottom: 0; }
+.seletor-item:hover { color: var(--accent-ink); background: var(--accent-soft); }
+.seletor-item.is-ativo { color: var(--accent-ink); font-weight: 800; }
+.seletor-selo {
+    font-family: var(--font-mono); font-size: var(--text-xs);
+    color: var(--muted); white-space: nowrap;
+}
+
+/* Arquivo de eventos encerrados. */
+.eventos-passados { margin-top: var(--space-4); }
+.eventos-passados-gatilho {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 0; cursor: pointer; list-style: none;
+    font-family: var(--font-display); font-weight: 800;
+    color: var(--muted);
+}
+.eventos-passados-gatilho::-webkit-details-marker { display: none; }
+.eventos-passados-gatilho:hover { color: var(--fg); }
+.eventos-passados-lista { margin-top: var(--space-2); }
+
+/* Linha compacta de evento (outros eventos e arquivo). */
+.evento-linha {
+    display: flex; align-items: center; gap: var(--space-3);
+    background: var(--app-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px var(--space-4);
+    margin-bottom: 8px;
+    color: var(--fg); text-decoration: none;
+    overflow-wrap: anywhere;
+}
+.evento-linha .info { flex: 1; min-width: 0; }
+.evento-linha h5 { font-size: var(--text-base); font-weight: 800; margin: 0; }
+.evento-linha p { color: var(--muted); font-size: var(--text-xs); margin: 2px 0 0; }
+.evento-linha form { margin: 0; }
+.evento-linha:hover { border-color: var(--border-ui); }
+.evento-linha.is-ativo { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Evento em destaque (painel do organizador). */
+.evento-destaque {
+    background: var(--app-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: var(--space-4);
+}
+.evento-destaque-capa { height: 130px; background: var(--accent-soft); }
+.evento-destaque-capa img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.evento-destaque-corpo {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: var(--space-3); flex-wrap: wrap;
+    padding: var(--space-4) var(--space-4) 0;
+}
+.evento-destaque-info { flex: 1 1 260px; min-width: 0; }
+.evento-destaque-selos { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.evento-destaque-titulo-linha {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 8px;
+}
+.evento-destaque-titulo { font-size: var(--text-lg); font-weight: 800; margin: 0 0 4px; }
+.evento-destaque-meta {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    margin: 0 0 4px;
+}
+.evento-destaque-acoes {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.painel-secao-titulo {
+    font-size: var(--text-sm); font-weight: 800;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted);
+    margin: var(--space-4) 0 var(--space-2);
+}
+@media (max-width: 991.98px) {
+    .evento-destaque-acoes .btn,
+    .evento-destaque-acoes .btn-group { flex: 1 1 auto; }
+    .seletor-evento { margin-left: 0; }
+    .seletor-painel { min-width: 100%; }
+}

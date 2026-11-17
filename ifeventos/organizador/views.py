@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from eventos.models import Atividade, Inscricao, Participante, Presenca
 from eventos.inscricoes import certificados_que_dependem
 from eventos import agenda
+from eventos import contexto as contexto_evento
 from django.contrib import messages
 from django.utils.timezone import localtime
 from django.conf import settings
@@ -93,19 +94,18 @@ from eventos.listas_presenca import (
 def dashboard(request):
     organizador = get_object_or_404(Participante, id=request.user.id)  
 
-    if organizador.is_superuser:
-        eventos = Evento.objects.all() # Todos os eventos de todos os organizadores
-    else:
-        # Dono OU co-organizador: quem gerencia o evento o vê no painel.
-        eventos = Evento.objects.filter(
-            Q(organizador=organizador) | Q(organizadores=organizador)
-        ).distinct()
+    # Dono OU co-organizador: quem gerencia o evento o vê no painel.
+    # (superuser vê todos — a regra vive em eventos/contexto.py.)
+    eventos = contexto_evento.eventos_do_organizador(organizador)
 
     # Chamada de proposições: o cartão do evento mostra o atalho e quantas
     # propostas esperam decisão (sem uma query por cartão).
     eventos = eventos.annotate(
         n_pendentes=Count(
             "atividades", filter=Q(atividades__situacao=Atividade.SITUACAO_PENDENTE)
+        ),
+        n_atividades=Count(
+            "atividades", filter=Q(atividades__publicada=True), distinct=True
         ),
         tem_chamada=Exists(ChamadaProposicoes.objects.filter(evento=OuterRef("pk"))),
     )
@@ -118,6 +118,20 @@ def dashboard(request):
         ]
         for e in eventos
     }
+
+    # Contexto de evento: o painel abre no evento padrão (o fixado ou o de
+    # agora); os demais atuais/próximos viram linhas e os encerrados, arquivo.
+    grupos = contexto_evento.classificar(eventos)
+    evento_padrao = contexto_evento.resolver_padrao(organizador, grupos)
+    eventos_outros = [
+        e
+        for e in grupos["atuais"] + grupos["futuros"]
+        if evento_padrao is None or e.id != evento_padrao.id
+    ]
+    for arquivado in grupos["passados"]:
+        arquivado.link_contexto = reverse(
+            "organizador:atividades_evento", args=[arquivado.id]
+        )
 
     # if organizador.is_participante: # rever essa condição 
     #     inscricoes = Inscricao.objects.filter(participante=organizador) # Inscrições do organizador
@@ -163,6 +177,12 @@ def dashboard(request):
 
     contexto = {
         'eventos': eventos,
+        'evento_padrao': evento_padrao,
+        'eventos_outros': eventos_outros,
+        'eventos_atuais': grupos["atuais"],
+        'eventos_futuros': grupos["futuros"],
+        'eventos_passados': grupos["passados"],
+        'tem_mais_eventos': bool(eventos_outros),
         'equipe_por_evento': equipe_por_evento,
         'form': form,
         'is_participante': organizador.is_participante,

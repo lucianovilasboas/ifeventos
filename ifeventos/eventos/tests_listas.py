@@ -597,7 +597,7 @@ class CartoesEditarExcluirSeparadosTests(TestCase):
 
     def test_editar_no_corpo_e_excluir_na_acoes(self):
         html = self.client.get(reverse("organizador:dashboard")).content.decode()
-        pos_acoes = html.find("event-card-actions")
+        pos_acoes = html.find("evento-destaque-acoes")
         pos_editar = html.find('title="Editar Evento"')
         pos_excluir = html.find('title="Excluir Evento"')
         self.assertGreater(pos_acoes, -1)

@@ -5,6 +5,27 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.28.0] — 2026-11-16
+
+### Adicionado
+
+- **Evento padrão no painel**: cada pessoa fixa um evento como contexto principal (`Participante.evento_padrao`, migration `0062`). O painel do participante e o do organizador abrem nesse evento, sem a antiga lista de chips com todos os eventos.
+- **Regra única de contexto** (`eventos/contexto.py`): o padrão é a escolha salva enquanto o evento não termina; sem escolha, vale o evento **atual** (entre simultâneos, o que começou por último), depois o próximo e, por fim, o passado mais recente. Quando o evento acaba, ele desce sozinho para o arquivo.
+- **"Eventos passados"**: lista separada, recolhida, com os eventos encerrados. No participante o item abre em **modo consulta** (só "Minhas inscrições", sem disponíveis e sem trocar o padrão); no organizador leva às atividades daquele evento.
+- **Seletor "Trocar evento"**: fixa o evento escolhido por `POST` (`/eventos/evento-padrao/<id>/`), com retorno seguro pelo `next`. Funciona sem JavaScript.
+- **Painel do organizador**: o evento padrão vira um cartão em destaque com as ações agrupadas (Atividades, Listas de presença, Relatórios, Comunicação e menu de ações); os demais eventos viram linhas compactas com "Fixar".
+
+### Mudado
+
+- **Atividades do painel são somente do evento selecionado**: resumo de participação, "acontecendo agora", "a seguir", minhas inscrições e atividades disponíveis passam a refletir o evento em foco. O chip "Todos os eventos" deixou de existir.
+- **Colunas na consulta de um evento encerrado**: "Atividades disponíveis" some e "Minhas inscrições" ocupa a tela inteira.
+
+### Notas
+
+- Migration `0062` (`Participante.evento_padrao`, `SET_NULL` ao excluir o evento).
+- Excluir um evento não quebra o perfil: a regra automática reassume o foco.
+- Novos testes: `eventos/tests_contexto.py` (ordenação e fallback) e `organizador/tests_evento_padrao.py` (destaque, arquivo e permissão de fixar).
+
 ## [2.27.0] — 2026-11-15
 
 ### Adicionado
