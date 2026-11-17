@@ -7,15 +7,35 @@
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span class="fw-semibold">
         Atividades do evento: <b>{{ evento.title }}</b>
+        {% if evento.arquivado %}
+        <span class="badge bg-secondary-subtle text-secondary" title="Evento encerrado e arquivado">
+            <i class="fa-solid fa-box-archive"></i> encerrado
+        </span>
+        {% endif %}
         {% if evento.organizador and evento.organizador != user %}
         <span class="badge bg-secondary-subtle text-secondary" title="Evento organizado por {{ evento.organizador.get_full_name|default:evento.organizador.username }}">
             <i class="fa-solid fa-user-shield"></i> outro organizador
         </span>
         {% endif %}
     </span>
-    <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
-         <i class="fa fa-arrow-left"></i> Voltar
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if evento.arquivado %}
+        <form method="post" action="{% url 'organizador:desarquivar_evento' evento.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                    title="Voltar este evento ao fluxo">
+                <i class="fa-solid fa-box-open"></i> Desarquivar
+            </button>
+        </form>
+        {% else %}
+        <a href="{% url 'organizador:encerrar_evento' evento.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fa-solid fa-flag-checkered"></i> Encerrar evento
+        </a>
+        {% endif %}
+        <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+             <i class="fa fa-arrow-left"></i> Voltar
+        </a>
+    </div>
 </div>
 {% endblock action %}
 

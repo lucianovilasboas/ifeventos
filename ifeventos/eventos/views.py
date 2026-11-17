@@ -694,14 +694,14 @@ def definir_evento_padrao(request, evento_id):
     """Fixa o evento como contexto principal do painel (POST, uma vez por pessoa).
 
     Só aceita evento que a pessoa enxerga em algum painel (organiza, participa
-    ou tem inscrição). Evento encerrado não é fixado: ele vive em "Eventos
-    passados" e a regra automática (eventos/contexto.py) reassume o foco.
+    ou tem inscrição). Evento encerrado (arquivado) não é fixado: ele vive em
+    "Eventos passados" e a regra automática (eventos/contexto.py) reassume.
     """
     evento = get_object_or_404(Evento, id=evento_id)
     if not contexto.pode_fixar(request.user, evento):
         raise Http404("Evento não disponível para você.")
 
-    if evento.encerrado:
+    if evento.arquivado:
         messages.warning(
             request, "Evento encerrado fica em “Eventos passados” e não vira padrão."
         )

@@ -5,16 +5,22 @@ O painel deixou de listar todos os eventos de uma vez: a pessoa fixa um
 módulo é a fonte única da regra — ordenação dos grupos, escolha do padrão e
 quem pode fixar o quê — para as duas telas não divergirem.
 
-Regra de ordenação (a mesma para todos os grupos):
+Encerrar é um ato explícito do organizador (`Evento.arquivado_em`). Passar da
+data **não** arquiva: o evento fica em `a_encerrar` até alguém decidir. Por
+isso os grupos são quatro:
 
 - **atuais** (`data_inicio <= hoje <= data_fim`): o que começou por último
   primeiro; entre simultâneos, o mais atual aparece primeiro;
 - **futuros** (`data_inicio > hoje`): o mais próximo primeiro;
-- **passados** (`data_fim < hoje`): o mais recente primeiro (arquivo).
+- **a_encerrar** (`data_fim < hoje` e ainda aberto): o mais recente primeiro —
+  é a fila de trabalho do organizador;
+- **arquivados** (encerrados pelo organizador): o encerrado por último primeiro
+  (arquivo, separado do fluxo).
 
-Evento padrão = escolha salva, se ainda não passou; senão o primeiro atual;
-senão o próximo futuro; senão o passado mais recente. Assim o padrão migra
-sozinho quando o evento termina, e o antigo desce para "Eventos passados".
+Evento padrão = escolha salva, se não estiver arquivada; senão o primeiro atual;
+senão o próximo futuro; senão o primeiro da fila `a_encerrar`. Arquivado nunca
+vira padrão. Assim o padrão migra sozinho quando o evento termina, mas o antigo
+só desce para "Eventos passados" quando o organizador encerra.
 """
 
 from django.db.models import Count, Q
@@ -24,12 +30,14 @@ from .models import Evento
 
 ATUAL = "atual"
 PROXIMO = "proximo"
-ENCERRADO = "encerrado"
+TERMINADO = "terminado"
+ARQUIVADO = "arquivado"
 
 ROTULOS = {
     ATUAL: "Atual",
     PROXIMO: "Próximo",
-    ENCERRADO: "Encerrado",
+    TERMINADO: "Terminado",
+    ARQUIVADO: "Encerrado",
 }
 
 
@@ -41,16 +49,18 @@ def _marcar(evento, situacao):
 
 
 def classificar(eventos, hoje=None):
-    """Divide os eventos em atuais, futuros e passados, já ordenados.
+    """Divide os eventos em atuais, futuros, a_encerrar e arquivados.
 
     Aceita queryset ou lista. A ordem é estável e independe da ordem de entrada,
     porque cada grupo tem sua própria chave (data + id como desempate).
     """
     hoje = hoje or timezone.localdate()
-    atuais, futuros, passados = [], [], []
+    atuais, futuros, a_encerrar, arquivados = [], [], [], []
     for evento in eventos:
-        if evento.data_fim < hoje:
-            passados.append(evento)
+        if getattr(evento, "arquivado_em", None) is not None:
+            arquivados.append(evento)
+        elif evento.data_fim < hoje:
+            a_encerrar.append(evento)
         elif evento.data_inicio > hoje:
             futuros.append(evento)
         else:
@@ -59,16 +69,24 @@ def classificar(eventos, hoje=None):
     # Entre simultâneos, o que começou por último (o "mais atual") primeiro.
     atuais.sort(key=lambda e: (e.data_inicio, e.id), reverse=True)
     futuros.sort(key=lambda e: (e.data_inicio, e.id))
-    passados.sort(key=lambda e: (e.data_fim, e.id), reverse=True)
+    a_encerrar.sort(key=lambda e: (e.data_fim, e.id), reverse=True)
+    arquivados.sort(key=lambda e: (e.arquivado_em, e.id), reverse=True)
 
     for evento in atuais:
         _marcar(evento, ATUAL)
     for evento in futuros:
         _marcar(evento, PROXIMO)
-    for evento in passados:
-        _marcar(evento, ENCERRADO)
+    for evento in a_encerrar:
+        _marcar(evento, TERMINADO)
+    for evento in arquivados:
+        _marcar(evento, ARQUIVADO)
 
-    return {"atuais": atuais, "futuros": futuros, "passados": passados}
+    return {
+        "atuais": atuais,
+        "futuros": futuros,
+        "a_encerrar": a_encerrar,
+        "arquivados": arquivados,
+    }
 
 
 def resolver_padrao(usuario, grupos):
@@ -80,13 +98,13 @@ def resolver_padrao(usuario, grupos):
     """
     salvo = getattr(usuario, "evento_padrao", None)
     if salvo is not None:
-        # A escolha vale enquanto o evento não terminou; depois ele vira
+        # A escolha vale enquanto o evento não for arquivado; depois ele vira
         # arquivo e o foco passa para o evento de agora/da vez.
-        for evento in grupos["atuais"] + grupos["futuros"]:
+        for evento in grupos["atuais"] + grupos["futuros"] + grupos["a_encerrar"]:
             if evento.id == salvo.id:
                 return evento
 
-    for grupo in ("atuais", "futuros", "passados"):
+    for grupo in ("atuais", "futuros", "a_encerrar"):
         if grupos[grupo]:
             return grupos[grupo][0]
     return None
@@ -100,7 +118,7 @@ def eventos_do_participante(usuario):
     """Eventos que o participante pode acompanhar.
 
     Todo evento com atividade publicada (é o que a tela de inscrição oferece)
-    mais os eventos em que ele já tem inscrição — inclusive os encerrados, que
+    mais os eventos em que ele já tem inscrição — inclusive os arquivados, que
     aparecem no arquivo com as presenças/certificados.
     """
     return (

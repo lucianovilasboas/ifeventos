@@ -61,22 +61,25 @@ def dashboard(request):
     evento_padrao = contexto_evento.resolver_padrao(participante, grupos)
 
     # "Eventos passados" é arquivo: o link abre o evento em modo CONSULTA (só
-    # minhas inscrições), sem trocar o padrão. Só vale id que está no arquivo
+    # minhas inscrições), sem trocar o padrão. Só vale id de evento arquivado
     # da própria pessoa.
     evento_consulta = None
     evento_id = (request.GET.get("evento") or "").strip()
     if evento_id.isdigit():
         evento_consulta = next(
-            (e for e in grupos["passados"] if str(e.id) == evento_id), None
+            (e for e in grupos["arquivados"] if str(e.id) == evento_id), None
         )
     evento_foco = evento_consulta or evento_padrao
     modo_consulta = bool(evento_consulta) or bool(
         evento_foco is not None
-        and evento_foco.situacao_contexto == contexto_evento.ENCERRADO
+        and (evento_foco.terminou or evento_foco.arquivado)
     )
-    tem_mais_eventos = len(grupos["atuais"]) + len(grupos["futuros"]) > 1
+    tem_mais_eventos = (
+        len(grupos["atuais"]) + len(grupos["futuros"]) + len(grupos["a_encerrar"])
+        > 1
+    )
     # O arquivo abre em modo consulta (só minhas inscrições), sem trocar o padrão.
-    for arquivado in grupos["passados"]:
+    for arquivado in grupos["arquivados"]:
         arquivado.link_contexto = (
             f"{reverse('participante:dashboard')}?evento={arquivado.id}"
         )
@@ -193,7 +196,8 @@ def dashboard(request):
         'evento_consulta': evento_consulta,
         'eventos_atuais': grupos["atuais"],
         'eventos_futuros': grupos["futuros"],
-        'eventos_passados': grupos["passados"],
+        'eventos_a_encerrar': grupos["a_encerrar"],
+        'eventos_arquivados': grupos["arquivados"],
         'tem_mais_eventos': tem_mais_eventos,
         'vistas_inscricoes': [
             {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},

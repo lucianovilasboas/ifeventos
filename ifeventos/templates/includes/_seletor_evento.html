@@ -1,9 +1,10 @@
 {% comment %}
 Seletor do evento padrão (participante e organizador).
 
-Lista apenas os eventos que ainda valem (atuais e próximos): os encerrados
-ficam no arquivo da própria página (`includes/_eventos_passados.html`), para
-não misturar o contexto de trabalho com o histórico.
+Lista os eventos que ainda estão no fluxo: atuais, próximos e terminados que
+esperam o encerramento do organizador. Os encerrados ficam no arquivo da
+própria página (`includes/_eventos_passados.html`), para não misturar o
+contexto de trabalho com o histórico.
 
 Fixar é POST (`eventos:definir_evento_padrao`): grava a escolha no perfil e
 volta pelo `seletor_destino`, sem depender de JavaScript.
@@ -23,6 +24,12 @@ volta pelo `seletor_destino`, sem depender de JavaScript.
         {% if eventos_futuros %}
         <p class="seletor-grupo">Próximos</p>
         {% for ev in eventos_futuros %}
+            {% include 'includes/_seletor_item.html' with ev=ev %}
+        {% endfor %}
+        {% endif %}
+        {% if eventos_a_encerrar %}
+        <p class="seletor-grupo">Terminados</p>
+        {% for ev in eventos_a_encerrar %}
             {% include 'includes/_seletor_item.html' with ev=ev %}
         {% endfor %}
         {% endif %}

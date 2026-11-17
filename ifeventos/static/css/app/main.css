@@ -2044,3 +2044,34 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
     .seletor-evento { margin-left: 0; }
     .seletor-painel { min-width: 100%; }
 }
+
+/* =========================================================================
+   Encerramento do evento (checklist) e exclusão na edição (zona de perigo)
+   ========================================================================= */
+.checklist-evento { list-style: none; margin: 0; padding: 0; }
+.checklist-evento-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.checklist-evento-item:last-child { border-bottom: 0; }
+.checklist-evento-icone { color: var(--app-green-d); font-size: 1.05rem; line-height: 1.4; }
+.checklist-evento-item.is-pendente .checklist-evento-icone { color: #b45309; }
+.checklist-evento-corpo { flex: 1; min-width: 0; }
+.checklist-evento-corpo strong { font-weight: 800; }
+.checklist-evento-detalhe {
+    display: block;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    margin-top: 2px;
+}
+.zona-perigo { border-color: #fca5a5; }
+
+/* Linha de evento com corpo clicável + ações (ex.: Desarquivar). */
+.evento-linha-corpo {
+    display: flex; align-items: center; gap: var(--space-3);
+    flex: 1; min-width: 0;
+    color: inherit; text-decoration: none;
+}
+.evento-linha-corpo .info { flex: 1; min-width: 0; }
+.evento-linha-corpo:hover { color: var(--accent-ink); }

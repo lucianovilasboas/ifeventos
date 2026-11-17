@@ -5,6 +5,7 @@ from django.views.generic import RedirectView
 from organizador.views import adicionar_palestrante, adicionar_tipo_atividade
 from organizador.views import adicionar_espaco_ajax
 from .views import ModeloCrachaEventoView, dashboard, criar_evento, editar_evento, excluir_evento
+from .views import EncerrarEventoView, DesarquivarEventoView
 from .views import atividades_evento, criar_atividade, editar_atividade, excluir_atividade
 from .views import criar_editar_atividade
 from .views import profile
@@ -89,6 +90,8 @@ urlpatterns = [
     path('criar_evento/', criar_evento, name='criar_evento'),
     path('editar_evento/<int:evento_id>/', editar_evento, name='editar_evento'),
     path('excluir_evento/<int:evento_id>/', excluir_evento, name='excluir_evento'),    
+    path('encerrar_evento/<int:evento_id>/', EncerrarEventoView.as_view(), name='encerrar_evento'),
+    path('desarquivar_evento/<int:evento_id>/', DesarquivarEventoView.as_view(), name='desarquivar_evento'),
 
 
     path('atividades_evento/<int:evento_id>/', atividades_evento, name='atividades_evento'), 

@@ -1,30 +1,46 @@
 {% comment %}
-Arquivo de eventos encerrados. `ev.link_contexto` é montado pela view:
+Arquivo de eventos encerrados pelo organizador (`Evento.arquivado_em`).
+
+Não é "data vencida": enquanto o organizador não encerra, o evento fica no
+fluxo, com o selo "Aguardando encerramento". `ev.link_contexto` é montado pela
+view:
 - participante: abre o painel em modo consulta (`?evento=<id>`);
 - organizador: leva às atividades daquele evento.
+
+`acoes_arquivo` (só no organizador) acrescenta o botão "Desarquivar".
 {% endcomment %}
-{% if eventos_passados %}
+{% if eventos_arquivados %}
 <details class="eventos-passados"{% if abrir_passados %} open{% endif %}>
     <summary class="eventos-passados-gatilho">
-        <i class="fa-solid fa-clock-rotate-left"></i>
+        <i class="fa-solid fa-box-archive"></i>
         Eventos passados
-        <span class="badge-app">{{ eventos_passados|length }}</span>
+        <span class="badge-app">{{ eventos_arquivados|length }}</span>
     </summary>
     <div class="eventos-passados-lista">
-        {% for ev in eventos_passados %}
-        <a class="evento-linha{% if evento_foco.id == ev.id %} is-ativo{% endif %}"
-           href="{{ ev.link_contexto }}">
-            <div class="info">
-                <h5>{{ ev.title }}</h5>
-                <p>
-                    <i class="fa-regular fa-calendar"></i>
-                    {{ ev.data_inicio|date:"d/m/Y" }} – {{ ev.data_fim|date:"d/m/Y" }}
-                    {% if ev.n_atividades %} · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}{% endif %}
-                </p>
-            </div>
-            <span class="badge-app">encerrado</span>
-            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </a>
+        {% for ev in eventos_arquivados %}
+        <div class="evento-linha{% if evento_foco.id == ev.id %} is-ativo{% endif %}">
+            <a class="evento-linha-corpo" href="{{ ev.link_contexto }}">
+                <div class="info">
+                    <h5>{{ ev.title }}</h5>
+                    <p>
+                        <i class="fa-regular fa-calendar"></i>
+                        {{ ev.data_inicio|date:"d/m/Y" }} – {{ ev.data_fim|date:"d/m/Y" }}
+                        {% if ev.n_atividades %} · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}{% endif %}
+                    </p>
+                </div>
+                <span class="badge-app">encerrado</span>
+                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+            </a>
+            {% if acoes_arquivo %}
+            <form method="post" action="{% url 'organizador:desarquivar_evento' ev.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-secondary"
+                        title="Voltar este evento ao fluxo (editar ou reencerrar)">
+                    <i class="fa-solid fa-box-open"></i> Desarquivar
+                </button>
+            </form>
+            {% endif %}
+        </div>
         {% endfor %}
     </div>
 </details>

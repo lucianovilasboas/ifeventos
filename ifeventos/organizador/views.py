@@ -5,7 +5,9 @@ from eventos.models import Atividade, Inscricao, Participante, Presenca
 from eventos.inscricoes import certificados_que_dependem
 from eventos import agenda
 from eventos import contexto as contexto_evento
+from eventos import encerramento
 from django.contrib import messages
+from django.utils import timezone
 from django.utils.timezone import localtime
 from django.conf import settings
 from django.http import JsonResponse
@@ -120,15 +122,15 @@ def dashboard(request):
     }
 
     # Contexto de evento: o painel abre no evento padrão (o fixado ou o de
-    # agora); os demais atuais/próximos viram linhas e os encerrados, arquivo.
+    # agora); os demais abertos viram linhas e os encerrados, arquivo.
     grupos = contexto_evento.classificar(eventos)
     evento_padrao = contexto_evento.resolver_padrao(organizador, grupos)
     eventos_outros = [
         e
-        for e in grupos["atuais"] + grupos["futuros"]
+        for e in grupos["atuais"] + grupos["futuros"] + grupos["a_encerrar"]
         if evento_padrao is None or e.id != evento_padrao.id
     ]
-    for arquivado in grupos["passados"]:
+    for arquivado in grupos["arquivados"]:
         arquivado.link_contexto = reverse(
             "organizador:atividades_evento", args=[arquivado.id]
         )
@@ -181,7 +183,8 @@ def dashboard(request):
         'eventos_outros': eventos_outros,
         'eventos_atuais': grupos["atuais"],
         'eventos_futuros': grupos["futuros"],
-        'eventos_passados': grupos["passados"],
+        'eventos_a_encerrar': grupos["a_encerrar"],
+        'eventos_arquivados': grupos["arquivados"],
         'tem_mais_eventos': bool(eventos_outros),
         'equipe_por_evento': equipe_por_evento,
         'form': form,
@@ -401,8 +404,14 @@ def _exige_organizador(request):
 
 
 @login_required(login_url='/accounts/login/')
+@require_POST
 def excluir_evento(request, evento_id):
-    """Exclui um evento"""
+    """Exclui um evento (ação destrutiva, só na edição e com confirmação).
+
+    A tela de edição esconde a ação numa "zona de perigo" e o modal exige
+    digitar `excluir`. O servidor repete a checagem: a palavra é obrigatória,
+    não é só um enfeite de JavaScript. Só o dono (ou superuser) exclui.
+    """
     organizador = get_object_or_404(Participante, id=request.user.id)
 
     if organizador.is_superuser:
@@ -410,10 +419,137 @@ def excluir_evento(request, evento_id):
     else:
         evento = get_object_or_404(Evento, id=evento_id, organizador=organizador)
 
+    if (request.POST.get("confirmacao") or "").strip().lower() != "excluir":
+        messages.error(
+            request,
+            'Para excluir o evento, digite "excluir" no campo de confirmação.',
+        )
+        return redirect("organizador:editar_evento", evento_id=evento.id)
 
     evento.delete()
     messages.success(request, "Evento excluído com sucesso!")
     return redirect('organizador:dashboard')
+
+
+class EncerrarEventoView(LoginRequiredMixin, View):
+    """Confirmação do encerramento explícito (checklist + checkbox).
+
+    Passar da data não encerra nada: é esta tela que arquiva o evento. Os
+    itens bloqueantes são revalidados no POST, porque o formulário pode ter
+    sido aberto antes de uma proposta nova entrar na fila.
+    """
+
+    template_name = "organizador/encerrar_evento.html"
+
+    def _evento(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+        return evento
+
+    def _tela(self, request, evento, itens, status=200):
+        return render(
+            request,
+            self.template_name,
+            {
+                "evento": evento,
+                "itens": itens,
+                "bloqueios": [
+                    item for item in itens if item.bloqueante and not item.ok
+                ],
+            },
+            status=status,
+        )
+
+    def get(self, request, evento_id):
+        evento = self._evento(request, evento_id)
+        if evento.arquivado:
+            messages.info(request, "Este evento já está encerrado e arquivado.")
+            return redirect("organizador:dashboard")
+        return self._tela(request, evento, encerramento.checklist(evento))
+
+    def post(self, request, evento_id):
+        evento = self._evento(request, evento_id)
+        if evento.arquivado:
+            messages.info(request, "Este evento já está encerrado e arquivado.")
+            return redirect("organizador:dashboard")
+
+        itens = encerramento.checklist(evento)
+        bloqueios = [item for item in itens if item.bloqueante and not item.ok]
+        if bloqueios:
+            messages.error(
+                request,
+                "Há pendências que impedem o encerramento: "
+                + "; ".join(f"{item.titulo} ({item.detalhe})" for item in bloqueios),
+            )
+            return self._tela(request, evento, itens, status=400)
+
+        if request.POST.get("confirmado") != "on":
+            messages.error(
+                request, "Marque a confirmação para encerrar o evento."
+            )
+            return self._tela(request, evento, itens, status=400)
+
+        retrato = encerramento.retrato_para_auditoria(evento, itens)
+        agora = timezone.now()
+        Evento.objects.filter(pk=evento.pk).update(
+            arquivado_em=agora, arquivado_por=request.user
+        )
+        evento.arquivado_em = agora
+        evento.arquivado_por = request.user
+
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_ENCERRAR_EVENTO,
+            objeto=evento,
+            entidade="Evento",
+            objeto_id=evento.pk,
+            objeto_repr=evento.title,
+            evento=evento,
+            resumo="Evento encerrado e arquivado",
+            detalhes=retrato,
+            usuario=request.user,
+            request=request,
+        )
+        messages.success(
+            request, f"Evento encerrado e arquivado: {evento.title}."
+        )
+        return redirect("organizador:dashboard")
+
+
+class DesarquivarEventoView(LoginRequiredMixin, View):
+    """Devolve o evento ao fluxo (sem checklist) para editar ou reencerrar."""
+
+    def post(self, request, evento_id):
+        evento = get_object_or_404(Evento, id=evento_id)
+        if not pode_gerenciar_evento(request.user, evento):
+            raise PermissionDenied("Você não organiza este evento.")
+
+        if not evento.arquivado:
+            messages.info(request, "Este evento já está aberto.")
+            return redirect("organizador:dashboard")
+
+        Evento.objects.filter(pk=evento.pk).update(
+            arquivado_em=None, arquivado_por=None
+        )
+        evento.arquivado_em = None
+        evento.arquivado_por = None
+
+        auditoria.registrar(
+            acao=RegistroAuditoria.ACAO_DESARQUIVAR_EVENTO,
+            objeto=evento,
+            entidade="Evento",
+            objeto_id=evento.pk,
+            objeto_repr=evento.title,
+            evento=evento,
+            resumo="Evento desarquivado",
+            usuario=request.user,
+            request=request,
+        )
+        messages.success(
+            request,
+            f"Evento desarquivado: {evento.title}. Ele volta ao fluxo do painel.",
+        )
+        return redirect("organizador:dashboard")
 
 
 
