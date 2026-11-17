@@ -36,14 +36,14 @@ class DashboardOrdemAtividadesTests(TestCase):
         self.tipo = TipoAtividade.objects.create(nome="Palestra")
         self.evento = Evento.objects.create(
             title="Evento", description="d", local="l",
-            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
+            data_inicio=date(2030, 10, 10), data_fim=date(2030, 10, 12),
             categoria="formacao", organizador=self.org,
         )
         for titulo, dia in (("Terceiro", 12), ("Primeiro", 10), ("Segundo", 11)):
             Atividade.objects.create(
                 evento=self.evento, titulo=titulo, descricao="d", tipo=self.tipo,
-                data_hora_inicio=datetime(2026, 10, dia, 10, 0, tzinfo=tz.utc),
-                data_hora_fim=datetime(2026, 10, dia, 11, 0, tzinfo=tz.utc),
+                data_hora_inicio=datetime(2030, 10, dia, 10, 0, tzinfo=tz.utc),
+                data_hora_fim=datetime(2030, 10, dia, 11, 0, tzinfo=tz.utc),
                 n_vagas=10,
             )
         self.client.force_login(self.participante)
@@ -101,57 +101,135 @@ class PerfilMetadadosTests(TestCase):
         self.assertEqual(dados["turma"], "Turma 2")
 
 
-class FiltroDeEventoChipsTests(TestCase):
-    """O filtro por evento do painel é de chips (links), não mais um select."""
+class EventoPadraoNoPainelTests(TestCase):
+    """O painel abre num evento só: o padrão. Os passados vão para o arquivo."""
 
     def setUp(self):
-        self.pessoa = U.objects.create_user(
-            email="chips@example.com", password=SENHA, cpf="11144477735"
-        )
         hoje = date.today()
-        for titulo in ("Evento Alfa", "Evento Beta"):
-            evento = Evento.objects.create(
+        self.org = U.objects.create_user(
+            email="org_evpadrao@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.participante = U.objects.create_user(
+            email="evpadrao@example.com", password=SENHA, cpf="11144477735"
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina do painel")
+
+        def evento(titulo, inicio, fim):
+            return Evento.objects.create(
                 title=titulo, description="d", local="Campus",
-                data_inicio=hoje + timedelta(days=5),
-                data_fim=hoje + timedelta(days=6),
-                organizador=self.pessoa,
+                data_inicio=inicio, data_fim=fim,
+                categoria="formacao", organizador=self.org,
+            )
+
+        self.atual = evento(
+            "Evento Atual", hoje - timedelta(days=1), hoje + timedelta(days=1)
+        )
+        self.simultaneo = evento(
+            "Evento Simultâneo", hoje - timedelta(days=1), hoje + timedelta(days=1)
+        )
+        self.futuro = evento(
+            "Evento Futuro", hoje + timedelta(days=10), hoje + timedelta(days=11)
+        )
+        self.passado = evento(
+            "Evento Passado", hoje - timedelta(days=30), hoje - timedelta(days=29)
+        )
+
+        for ev, titulo in (
+            (self.atual, "Atividade Atual"),
+            (self.simultaneo, "Atividade Simultânea"),
+            (self.futuro, "Atividade Futura"),
+            (self.passado, "Atividade Passada"),
+        ):
+            inicio = datetime(
+                ev.data_inicio.year, ev.data_inicio.month, ev.data_inicio.day,
+                10, 0, tzinfo=tz.utc,
             )
             Atividade.objects.create(
-                evento=evento, titulo=f"Atividade {titulo}", descricao="d",
-                tipo=TipoAtividade.objects.create(nome=f"Tipo {titulo}"),
-                data_hora_inicio=datetime(2030, 1, 1, 10, 0, tzinfo=tz.utc),
-                data_hora_fim=datetime(2030, 1, 1, 11, 0, tzinfo=tz.utc),
+                evento=ev, titulo=titulo, descricao="d", tipo=self.tipo,
+                data_hora_inicio=inicio,
+                data_hora_fim=inicio + timedelta(hours=1),
                 n_vagas=10,
             )
-        self.client.force_login(self.pessoa)
+        self.client.force_login(self.participante)
 
-    def _html(self, parametros=""):
-        return self.client.get(
-            reverse("participante:dashboard") + parametros
-        ).content.decode()
+    def _pagina(self, parametros=""):
+        return self.client.get(reverse("participante:dashboard") + parametros)
 
-    def test_mostra_chips_no_lugar_do_select(self):
-        html = self._html()
+    def test_evento_atual_abre_por_padrao(self):
+        resposta = self._pagina()
 
-        self.assertIn("chips-evento", html)
-        self.assertIn("Evento Alfa", html)
-        self.assertIn("Evento Beta", html)
-        self.assertNotIn('<select name="evento"', html)
+        # Entre simultâneos, vale o que começou por último.
+        self.assertEqual(resposta.context["evento_foco"].id, self.simultaneo.id)
+        self.assertContains(resposta, "Evento Simultâneo")
+        self.assertContains(resposta, "Atividade Simultânea")
+        self.assertNotContains(resposta, "Atividade Atual")
+        self.assertNotContains(resposta, "Atividade Futura")
 
-    def test_todos_e_o_chip_ativo_sem_filtro(self):
-        html = self._html()
+    def test_simultaneos_mostram_o_mais_atual_primeiro(self):
+        resposta = self._pagina()
 
-        self.assertIn('href="?"', html)
-        self.assertIn("chip-evento is-ativo", html)
+        self.assertEqual(
+            [e.id for e in resposta.context["eventos_atuais"]],
+            [self.simultaneo.id, self.atual.id],
+        )
 
-    def test_filtro_marca_o_chip_e_corta_as_listas(self):
-        evento = Evento.objects.get(title="Evento Alfa")
+    def test_passados_ficam_na_lista_propria_e_fora_do_contexto(self):
+        resposta = self._pagina()
 
-        html = self._html(f"?evento={evento.id}")
+        self.assertContains(resposta, "Eventos passados")
+        self.assertContains(resposta, f"?evento={self.passado.id}")
+        self.assertNotEqual(resposta.context["evento_foco"].id, self.passado.id)
+        self.assertNotContains(resposta, "Atividade Passada")
 
-        self.assertIn(f'href="?evento={evento.id}"', html)
-        self.assertIn("Atividade Evento Alfa", html)
-        self.assertNotIn("Atividade Evento Beta", html)
+    def test_fixar_evento_grava_a_preferencia(self):
+        resposta = self.client.post(
+            reverse("eventos:definir_evento_padrao", args=[self.futuro.id]),
+            {"next": reverse("participante:dashboard")},
+        )
+
+        self.assertRedirects(resposta, reverse("participante:dashboard"))
+        self.participante.refresh_from_db()
+        self.assertEqual(self.participante.evento_padrao_id, self.futuro.id)
+
+        resposta = self._pagina()
+        self.assertEqual(resposta.context["evento_foco"].id, self.futuro.id)
+        self.assertContains(resposta, "Atividade Futura")
+        self.assertNotContains(resposta, "Atividade Atual")
+
+    def test_consulta_de_passado_nao_muda_o_padrao(self):
+        Inscricao.objects.create(
+            participante=self.participante,
+            atividade=Atividade.objects.get(titulo="Atividade Passada"),
+        )
+
+        resposta = self._pagina(f"?evento={self.passado.id}")
+
+        self.assertTrue(resposta.context["modo_consulta"])
+        self.assertEqual(resposta.context["evento_foco"].id, self.passado.id)
+        self.assertContains(resposta, "Atividade Passada")
+        self.assertNotContains(resposta, "Atividade Simultânea")
+        self.participante.refresh_from_db()
+        self.assertIsNone(self.participante.evento_padrao_id)
+
+    def test_evento_encerrado_nao_vira_padrao(self):
+        self.client.post(reverse("eventos:definir_evento_padrao", args=[self.passado.id]))
+
+        self.participante.refresh_from_db()
+        self.assertIsNone(self.participante.evento_padrao_id)
+
+    def test_evento_fora_do_universo_nao_pode_ser_fixado(self):
+        alheio = Evento.objects.create(
+            title="Evento Alheio", description="d", local="l",
+            data_inicio=date.today(), data_fim=date.today(),
+            organizador=self.org,
+        )
+
+        resposta = self.client.post(
+            reverse("eventos:definir_evento_padrao", args=[alheio.id])
+        )
+
+        self.assertEqual(resposta.status_code, 404)
 
 
 class RotulosDaBarraInferiorTests(TestCase):
@@ -540,13 +618,13 @@ class AtividadeSemInscricaoTests(TestCase):
         self.tipo = TipoAtividade.objects.create(nome="Festa")
         self.evento = Evento.objects.create(
             title="SNCT", description="d", local="Campus",
-            data_inicio=date(2026, 10, 10), data_fim=date(2026, 10, 12),
+            data_inicio=date(2030, 10, 10), data_fim=date(2030, 10, 12),
             organizador=self.org,
         )
         self.atividade = Atividade.objects.create(
             evento=self.evento, titulo="LUAU", descricao="d", tipo=self.tipo,
-            data_hora_inicio=datetime(2026, 10, 10, 20, 0, tzinfo=tz.utc),
-            data_hora_fim=datetime(2026, 10, 10, 23, 0, tzinfo=tz.utc),
+            data_hora_inicio=datetime(2030, 10, 10, 20, 0, tzinfo=tz.utc),
+            data_hora_fim=datetime(2030, 10, 10, 23, 0, tzinfo=tz.utc),
             n_vagas=0, exige_inscricao=False,
         )
 

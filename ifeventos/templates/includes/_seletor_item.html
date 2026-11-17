@@ -1,0 +1,15 @@
+{% if ev.id == evento_foco.id %}
+<div class="seletor-item is-ativo" aria-current="true">
+    <span><i class="fa-solid fa-check"></i> {{ ev.title }}</span>
+    <span class="seletor-selo">{{ ev.situacao_contexto_rotulo }}</span>
+</div>
+{% else %}
+<form method="post" action="{% url 'eventos:definir_evento_padrao' ev.id %}" class="seletor-form">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ seletor_destino }}">
+    <button type="submit" class="seletor-item">
+        <span>{{ ev.title }}</span>
+        <span class="seletor-selo">{{ ev.situacao_contexto_rotulo }}</span>
+    </button>
+</form>
+{% endif %}

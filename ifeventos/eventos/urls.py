@@ -8,6 +8,7 @@ from eventos.views import agenda_ics_view
 from eventos.views import atividade_ics_view
 from eventos.views import programacao_pdf_view
 from eventos.views import favorito_toggle, favoritos_mesclar
+from eventos.views import definir_evento_padrao
 from .views import gerar_qr_code, confirmar_presenca
 from .views import gerar_qr_code_atividade, confirmar_presenca_atividade
 from django.views.generic import TemplateView
@@ -35,6 +36,9 @@ urlpatterns = [
     # -- Favoritos (Minha agenda) --
     path("favorito/<int:atividade_id>/", favorito_toggle, name="favorito_toggle"),
     path("favoritos/", favoritos_mesclar, name="favoritos_mesclar"),
+
+    # -- Evento padrão (contexto principal do painel) --
+    path("evento-padrao/<int:evento_id>/", definir_evento_padrao, name="definir_evento_padrao"),
 
     # -- QR Code - Confirmação de Presença por inscrição --
     path("gerar-qr-code/<int:inscricao_id>/", gerar_qr_code, name="gerar_qr_code"),

@@ -1,3 +1,36 @@
+{% if evento_foco %}
+{# Cabeçalho do contexto: o evento em foco (padrão) e a troca explícita. #}
+<div class="evento-foco-card">
+    <div class="evento-foco-info">
+        <span class="badge-app evento-foco-selo">{{ evento_foco.situacao_contexto_rotulo }}</span>
+        <h2 class="evento-foco-titulo">{{ evento_foco.title }}</h2>
+        <p class="evento-foco-meta">
+            <i class="fa-regular fa-calendar"></i>
+            {{ evento_foco.data_inicio|date:"d/m/Y" }} – {{ evento_foco.data_fim|date:"d/m/Y" }}
+            {% if evento_foco.local %} · <i class="fa-solid fa-location-dot"></i> {{ evento_foco.local }}{% endif %}
+        </p>
+        {% with resumo=resumos_participacao.0 %}
+        {% if resumo %}
+        <div class="evento-foco-badges">
+            <span class="badge-app">{{ resumo.inscritas }} atividades inscritas</span>
+            <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">{{ resumo.confirmadas }} presenças confirmadas</span>
+            <span class="badge-app">{{ resumo.percentual }}% de participação</span>
+            {% if resumo.elegivel %}<span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">✓ Elegível para certificado</span>{% endif %}
+        </div>
+        {% endif %}
+        {% endwith %}
+    </div>
+    {% include 'includes/_seletor_evento.html' with seletor_destino=request.path %}
+</div>
+
+{% if modo_consulta %}
+<div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <span><i class="fa-solid fa-clock-rotate-left"></i> Evento encerrado — visualização somente leitura.</span>
+    {% if evento_consulta %}<a class="btn btn-sm btn-outline-secondary" href="{{ request.path }}">Voltar ao evento de agora</a>{% endif %}
+</div>
+{% endif %}
+{% endif %}
+
 {% if acontecendo or a_seguir %}
 <div class="alert alert-info">
     {% if acontecendo %}
@@ -13,42 +46,9 @@
 </div>
 {% endif %}
 
-{% if eventos_filtro %}
-{# Filtro por evento em chips: cada um é um link, sem submit/JS. #}
-<div class="chips-evento d-flex align-items-center gap-2 px-1 mb-2 flex-wrap">
-    <span class="filtro-rotulo">Evento</span>
-    <a href="?" class="chip-evento{% if not evento_id %} is-ativo{% endif %}">
-        Todos os eventos
-    </a>
-    {% for ev in eventos_filtro %}
-    <a href="?evento={{ ev.id }}"
-       class="chip-evento{% if ev.id|stringformat:"s" == evento_id %} is-ativo{% endif %}">{{ ev.title }}</a>
-    {% endfor %}
-</div>
-{% endif %}
-
 <div class="row g-3 px-0 mx-0">
-    {% if resumos_participacao %}
-    <div class="col-12">
-        <div class="d-flex flex-wrap gap-3 mb-3">
-        {% for resumo in resumos_participacao %}
-            <div class="app-panel flex-grow-1" style="min-width:220px">
-                <h6 class="mb-2">{{ resumo.evento.title }}</h6>
-                <div class="d-flex gap-2 flex-wrap">
-                    <span class="badge-app">{{ resumo.inscritas }} atividades inscritas</span>
-                    <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">{{ resumo.confirmadas }} presenças confirmadas</span>
-                    <span class="badge-app">{{ resumo.percentual }}% de participação</span>
-                </div>
-                {# Certificado do evento: mínimo de {{ resumo.limiar }}% de participação. Mantido para futura reexibição. #}
-                {# <p class="small text-muted mb-1 mt-2">Certificado do evento: mínimo de {{ resumo.limiar }}% de participação.</p> #}
-                {% if resumo.elegivel %}<span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">✓ Elegível para certificado</span>{% endif %}
-            </div>
-        {% endfor %}
-        </div>
-    </div>
-    {% endif %}
     <!-- Minhas Inscrições -->
-    <div class="col-md-6" data-vista-grupo="minhas-inscricoes">
+    <div class="{% if modo_consulta %}col-12{% else %}col-md-6{% endif %}" data-vista-grupo="minhas-inscricoes">
         <div class="d-flex align-items-center justify-content-between px-1 mb-2">
             <h5 class="fw-bold mb-0" style="color:var(--app-indigo)">
                 <i class="fa-solid fa-bookmark"></i> Minhas Inscrições
@@ -141,12 +141,15 @@
         <div class="app-item">
             <div class="info text-center" style="flex:1">
                 <h5 style="color:var(--app-muted)">Você ainda não está inscrito(a).</h5>
-                <p class="mb-0">Escolha uma atividade ao lado para participar.</p>
+                <p class="mb-0">
+                    {% if modo_consulta %}Nenhuma inscrição registrada neste evento.{% else %}Escolha uma atividade ao lado para participar.{% endif %}
+                </p>
             </div>
         </div>
         {% endif %}
     </div>
 
+    {% if not modo_consulta %}
     <!-- Atividades Disponíveis -->
     <div class="col-md-6" data-vista-grupo="disponiveis">
         <div class="d-flex align-items-center justify-content-between px-1 mb-2">
@@ -250,4 +253,8 @@
         </div>
         {% endif %}
     </div>
+    {% endif %}
 </div>
+
+{% include 'includes/_eventos_passados.html' with eventos_passados=eventos_passados abrir_passados=modo_consulta %}
+

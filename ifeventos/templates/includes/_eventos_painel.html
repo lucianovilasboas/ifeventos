@@ -1,0 +1,53 @@
+{% comment %}
+Painel de eventos do organizador: um evento em destaque (o padrão), os outros
+que ainda valem em linhas compactas e o arquivo de encerrados separado.
+Substitui a grade de cartões completos, que repetia dez botões por evento.
+{% endcomment %}
+{% if evento_padrao %}
+    {% include 'includes/_evento_destaque.html' %}
+{% endif %}
+
+{% if eventos_outros %}
+<h6 class="painel-secao-titulo">Outros eventos</h6>
+<div class="eventos-linhas">
+    {% for ev in eventos_outros %}
+    <div class="evento-linha">
+        <div class="info">
+            <h5>{{ ev.title }}</h5>
+            <p>
+                <i class="fa-regular fa-calendar"></i>
+                {{ ev.data_inicio|date:"d/m/Y" }} – {{ ev.data_fim|date:"d/m/Y" }}
+                · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}
+            </p>
+        </div>
+        <span class="badge-app">{{ ev.situacao_contexto_rotulo }}</span>
+        <span class="badge-app" style="background:#fee2e2;color:#b91c1c"
+              title="Propostas aguardando decisão"
+              data-pendentes-evento="{{ ev.id }}"
+              {% if not ev.n_pendentes %}hidden{% endif %}>{{ ev.n_pendentes }}</span>
+        <form method="post" action="{% url 'eventos:definir_evento_padrao' ev.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="btn btn-sm btn-outline-primary" title="Usar este evento como padrão">
+                <i class="fa-solid fa-thumbtack"></i> Fixar
+            </button>
+        </form>
+        <a href="{% url 'organizador:atividades_evento' ev.id %}"
+           class="btn btn-sm btn-outline-secondary btn-icon" title="Abrir evento">
+            <i class="fa-solid fa-arrow-right"></i>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% include 'includes/_eventos_passados.html' with eventos_passados=eventos_passados evento_foco=evento_padrao %}
+
+{% if not evento_padrao and not eventos_passados %}
+<div class="app-item">
+    <div class="info text-center" style="flex:1">
+        <h5 style="color:var(--app-muted)">Nenhum evento encontrado.</h5>
+        <p class="mb-0">Clique em <strong>Criar</strong> para cadastrar o primeiro evento.</p>
+    </div>
+</div>
+{% endif %}
