@@ -1,0 +1,96 @@
+{% extends 'dashboard_base.html' %}
+
+{% block title %}Encerrar evento | Organizador{% endblock %}
+
+{% block action %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span><i class="fa-solid fa-flag-checkered"></i> Encerrar evento: <b>{{ evento.title }}</b></span>
+    <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Voltar
+    </a>
+</div>
+{% endblock action %}
+
+{% block content %}
+<div class="app-page">
+    <div class="app-panel mb-3">
+        <h4 class="mb-1">{{ evento.title }}</h4>
+        <p class="evento-foco-meta mb-2">
+            <i class="fa-regular fa-calendar"></i>
+            {{ evento.data_inicio|date:"d/m/Y" }} – {{ evento.data_fim|date:"d/m/Y" }}
+            {% if evento.local %} · <i class="fa-solid fa-location-dot"></i> {{ evento.local }}{% endif %}
+        </p>
+        <p class="mb-0 small text-muted">
+            Passar da data não encerra o evento sozinho: esta ação é sua. Ao
+            encerrar, o evento vai para <b>“Eventos passados”</b>, deixa de ser
+            contexto das atividades e pode ser <b>desarquivado</b> a qualquer
+            momento. Nada é apagado.
+        </p>
+    </div>
+
+    {% if not evento.terminou %}
+    <div class="alert alert-warning">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <b>O evento ainda não terminou</b> (termina em {{ evento.data_fim|date:"d/m/Y" }}).
+        Encerrar agora arquiva o evento antes do fim — as inscrições e presenças
+        deixam de aparecer no fluxo normal. Você poderá desarquivar depois.
+    </div>
+    {% endif %}
+
+    {% if bloqueios %}
+    <div class="alert alert-danger">
+        <i class="fa-solid fa-circle-xmark"></i>
+        <b>Resolva as pendências abaixo para encerrar.</b>
+        Elas continuam em aberto: {% for item in bloqueios %}{{ item.titulo }}{% if not forloop.last %}; {% endif %}{% endfor %}.
+    </div>
+    {% endif %}
+
+    <div class="app-panel mb-3">
+        <h5 class="mb-3"><i class="fa-solid fa-list-check"></i> Checklist de encerramento</h5>
+        <ul class="checklist-evento">
+            {% for item in itens %}
+            <li class="checklist-evento-item{% if not item.ok %} is-pendente{% endif %}">
+                <span class="checklist-evento-icone">
+                    {% if item.ok %}
+                    <i class="fa-solid fa-circle-check" aria-label="Conforme"></i>
+                    {% else %}
+                    <i class="fa-solid fa-circle-exclamation" aria-label="Pendente"></i>
+                    {% endif %}
+                </span>
+                <span class="checklist-evento-corpo">
+                    <strong>{{ item.titulo }}</strong>{% if item.bloqueante and not item.ok %} <span class="badge-app" style="background:#fee2e2;color:#b91c1c">bloqueia</span>{% endif %}
+                    <span class="checklist-evento-detalhe">{{ item.detalhe }}</span>
+                </span>
+                {% if not item.ok and item.url %}
+                <a href="{{ item.url }}" class="btn btn-sm btn-outline-secondary">
+                    {{ item.acao|default:"Revisar" }}
+                </a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% if not evento.terminou %}
+        <p class="small text-muted mb-0 mt-2">
+            <i class="fa-regular fa-clock"></i>
+            Os itens de certificados só entram na verificação depois do término do evento.
+        </p>
+        {% endif %}
+    </div>
+
+    <form method="post" action="{% url 'organizador:encerrar_evento' evento.id %}">
+        {% csrf_token %}
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="confirmado" id="confirmadoEncerramento" required>
+            <label class="form-check-label" for="confirmadoEncerramento">
+                Confirmo que revisei o checklist e quero <b>encerrar e arquivar</b> este evento.
+            </label>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'organizador:dashboard' %}" class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-app" {% if bloqueios %}disabled{% endif %}>
+                <i class="fa-solid fa-flag-checkered"></i> Encerrar e arquivar
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock content %}

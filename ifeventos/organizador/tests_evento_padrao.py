@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta, timezone as tz
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from eventos.models import Atividade, Evento, TipoAtividade
 
@@ -41,7 +42,15 @@ class PainelEventoPadraoTests(TestCase):
         self.passado = evento(
             "Evento Passado", hoje - timedelta(days=30), hoje - timedelta(days=29)
         )
-        for ev in (self.atual, self.futuro, self.passado):
+        # "Passado" no painel = encerrado pelo organizador, não só data vencida.
+        Evento.objects.filter(pk=self.passado.pk).update(
+            arquivado_em=timezone.now(), arquivado_por=self.org
+        )
+        self.passado.refresh_from_db()
+        self.aberto_vencido = evento(
+            "Evento Vencido Aberto", hoje - timedelta(days=20), hoje - timedelta(days=19)
+        )
+        for ev in (self.atual, self.futuro, self.passado, self.aberto_vencido):
             inicio = datetime(
                 ev.data_inicio.year, ev.data_inicio.month, ev.data_inicio.day,
                 10, 0, tzinfo=tz.utc,
@@ -82,6 +91,19 @@ class PainelEventoPadraoTests(TestCase):
         )
         # O evento encerrado fica no arquivo, depois dos eventos que ainda valem.
         self.assertGreater(html.find("Eventos passados"), html.find("Outros eventos"))
+
+    def test_vencido_sem_encerrar_fica_no_fluxo_com_acao(self):
+        html = self._html()
+
+        self.assertIn(self.aberto_vencido.title, html)
+        self.assertIn("Aguardando encerramento", html)
+        self.assertIn(
+            reverse("organizador:encerrar_evento", args=[self.aberto_vencido.id]), html
+        )
+        self.assertNotIn(
+            reverse("organizador:desarquivar_evento", args=[self.aberto_vencido.id]),
+            html,
+        )
 
     def test_fixar_evento_reorganiza_o_painel(self):
         resposta = self.client.post(

@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta, timezone as tz
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from eventos.models import (
     Atividade,
@@ -134,12 +135,20 @@ class EventoPadraoNoPainelTests(TestCase):
         self.passado = evento(
             "Evento Passado", hoje - timedelta(days=30), hoje - timedelta(days=29)
         )
+        # No painel, "passado" = encerrado pelo organizador (não só data vencida).
+        Evento.objects.filter(pk=self.passado.pk).update(
+            arquivado_em=timezone.now(), arquivado_por=self.org
+        )
+        self.aberto_vencido = evento(
+            "Evento Vencido", hoje - timedelta(days=20), hoje - timedelta(days=19)
+        )
 
         for ev, titulo in (
             (self.atual, "Atividade Atual"),
             (self.simultaneo, "Atividade Simultânea"),
             (self.futuro, "Atividade Futura"),
             (self.passado, "Atividade Passada"),
+            (self.aberto_vencido, "Atividade Vencida"),
         ):
             inicio = datetime(
                 ev.data_inicio.year, ev.data_inicio.month, ev.data_inicio.day,
@@ -211,6 +220,23 @@ class EventoPadraoNoPainelTests(TestCase):
         self.assertNotContains(resposta, "Atividade Simultânea")
         self.participante.refresh_from_db()
         self.assertIsNone(self.participante.evento_padrao_id)
+
+    def test_terminado_sem_encerrar_fica_no_fluxo(self):
+        resposta = self._pagina()
+
+        self.assertIn(self.aberto_vencido, resposta.context["eventos_a_encerrar"])
+        self.assertNotIn(self.aberto_vencido, resposta.context["eventos_arquivados"])
+        self.assertContains(resposta, "Terminados")
+
+    def test_fixar_terminado_aberto_abre_em_consulta(self):
+        self.client.post(
+            reverse("eventos:definir_evento_padrao", args=[self.aberto_vencido.id])
+        )
+
+        resposta = self._pagina()
+
+        self.assertEqual(resposta.context["evento_foco"].id, self.aberto_vencido.id)
+        self.assertTrue(resposta.context["modo_consulta"])
 
     def test_evento_encerrado_nao_vira_padrao(self):
         self.client.post(reverse("eventos:definir_evento_padrao", args=[self.passado.id]))

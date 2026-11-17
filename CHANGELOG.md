@@ -5,6 +5,26 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.29.0] — 2026-11-16
+
+### Adicionado
+
+- **Encerramento explícito do evento**: o organizador encerra e arquiva pelo botão **“Encerrar evento”** (destaque do painel e tela de atividades), com **tela de checklist** e confirmação. Passar da data não arquiva mais sozinho: o evento fica em **“Aguardando encerramento”** até a decisão.
+- **Checklist de encerramento**: bloqueiam **atividades em rascunho** e **propostas sem decisão**; avisam certificados de atividade/evento/função pendentes, emissão em andamento, ausência de programação, presenças não confirmadas e carga horária faltante. Os itens de certificado aparecem como “não aplicáveis” antes do término.
+- **Desarquivar**: devolve o evento ao fluxo a qualquer momento (com auditoria), inclusive para editar e reencerrar. Encerrados ficam em **“Eventos passados”**; no participante, em modo consulta.
+- **Auditoria**: ações `encerrar_evento` e `desarquivar_evento`, com retrato das pendências no momento do encerramento.
+- **API**: campos `arquivado` e `arquivado_em` no `EventoSerializer`.
+
+### Mudado
+
+- **“Eventos passados” agora é arquivo explícito** (não mais “data vencida”). Evento terminado e aberto continua no painel, com selo **“Aguardando encerramento”** e atalho para encerrar; o evento padrão nunca cai em arquivado.
+- **Exclusão de evento saiu do cartão**: fica na tela de edição, na **“Zona de perigo”**, atrás de um modal que exige digitar `excluir`. A rota passou a ser `POST` e o servidor revalida a palavra (não é só JavaScript).
+
+### Notas
+
+- Migration `0063` (`Evento.arquivado_em`, `Evento.arquivado_por` e as novas ações de auditoria).
+- Eventos antigos com data vencida passam a aparecer como “Aguardando encerramento” até serem encerrados — sem backfill automático.
+
 ## [2.28.0] — 2026-11-16
 
 ### Adicionado

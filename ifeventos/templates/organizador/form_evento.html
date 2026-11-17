@@ -311,15 +311,63 @@
                     {% else %}
                         <button type="submit" class="btn btn-app">Criar Evento</button>
                     {% endif %}
-
-                    {% if pode_gerenciar_coorganizadores %}
-                    <a href="{% url 'organizador:excluir_evento' evento.id %}" class="btn btn-danger" onclick="return confirm('Tem certeza que deseja excluir este evento?');">
-                        <i class="fa-solid fa-xmark"></i> Excluir
-                    </a>
-                    {% endif %}
                 </div>
             </form>   
         </div>
+
+        {% if evento and pode_gerenciar_coorganizadores %}
+        <div class="app-panel zona-perigo mt-3">
+            <h5 class="text-danger mb-1">
+                <i class="fa-solid fa-triangle-exclamation"></i> Zona de perigo
+            </h5>
+            <p class="small text-muted mb-3">
+                Excluir o evento apaga também atividades, inscrições, presenças e
+                certificados. Não há como desfazer.
+            </p>
+            <button type="button" class="btn btn-outline-danger"
+                    data-bs-toggle="modal" data-bs-target="#modalExcluirEvento">
+                <i class="fa-solid fa-trash-can"></i> Excluir evento
+            </button>
+        </div>
+
+        <div class="modal fade" id="modalExcluirEvento" tabindex="-1"
+             aria-labelledby="modalExcluirEventoTitulo" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'organizador:excluir_evento' evento.id %}">
+                        {% csrf_token %}
+                        <div class="modal-header">
+                            <h5 class="modal-title text-danger" id="modalExcluirEventoTitulo">
+                                <i class="fa-solid fa-trash-can"></i> Excluir evento?
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>
+                                Esta ação é <b>permanente</b>. Serão apagados os dados de
+                                <b>{{ evento.title }}</b>: atividades, inscrições, presenças
+                                e certificados.
+                            </p>
+                            <label class="form-label" for="confirmarExclusao">
+                                Para confirmar, digite <code>excluir</code>:
+                            </label>
+                            <input type="text" class="form-control" id="confirmarExclusao"
+                                   name="confirmacao" placeholder="excluir" required
+                                   autocomplete="off" autocapitalize="none" spellcheck="false">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-danger" id="btnConfirmarExclusao" disabled>
+                                Excluir definitivamente
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock content %}
@@ -329,6 +377,28 @@
 {{ programacao_titulos|json_script:"programacao-eventos" }}
 <script src="{% static 'js/senha_padrao_campo.js' %}?v={{ ASSET_VERSION }}" defer></script>
 <script>
+    // Exclusão de evento: o botão do modal só habilita com a palavra digitada.
+    // O servidor repete a checagem (não é só UX).
+    (function () {
+        const modal = document.getElementById("modalExcluirEvento");
+        const campo = document.getElementById("confirmarExclusao");
+        const botao = document.getElementById("btnConfirmarExclusao");
+        if (!modal || !campo || !botao) return;
+
+        function validar() {
+            botao.disabled = campo.value.trim().toLowerCase() !== "excluir";
+        }
+        campo.addEventListener("input", validar);
+        modal.addEventListener("shown.bs.modal", function () {
+            campo.focus();
+            validar();
+        });
+        modal.addEventListener("hidden.bs.modal", function () {
+            campo.value = "";
+            validar();
+        });
+        validar();
+    })();
 
     document.addEventListener("DOMContentLoaded", function () {
 

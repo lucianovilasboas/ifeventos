@@ -25,7 +25,7 @@
 
 {% if modo_consulta %}
 <div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <span><i class="fa-solid fa-clock-rotate-left"></i> Evento encerrado — visualização somente leitura.</span>
+    <span><i class="fa-solid fa-clock-rotate-left"></i> Evento terminado — visualização somente leitura.</span>
     {% if evento_consulta %}<a class="btn btn-sm btn-outline-secondary" href="{{ request.path }}">Voltar ao evento de agora</a>{% endif %}
 </div>
 {% endif %}
@@ -256,5 +256,5 @@
     {% endif %}
 </div>
 
-{% include 'includes/_eventos_passados.html' with eventos_passados=eventos_passados abrir_passados=modo_consulta %}
+{% include 'includes/_eventos_passados.html' with eventos_arquivados=eventos_arquivados abrir_passados=modo_consulta %}
 

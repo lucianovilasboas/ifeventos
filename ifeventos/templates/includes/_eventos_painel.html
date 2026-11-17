@@ -20,7 +20,15 @@ Substitui a grade de cartões completos, que repetia dez botões por evento.
                 · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}
             </p>
         </div>
+        {% if ev.aguardando_encerramento %}
+        <span class="badge-app" style="background:#fef3c7;color:#92400e">Aguardando encerramento</span>
+        <a href="{% url 'organizador:encerrar_evento' ev.id %}"
+           class="btn btn-sm btn-outline-danger" title="Revisar o checklist e encerrar">
+            <i class="fa-solid fa-flag-checkered"></i> Encerrar
+        </a>
+        {% else %}
         <span class="badge-app">{{ ev.situacao_contexto_rotulo }}</span>
+        {% endif %}
         <span class="badge-app" style="background:#fee2e2;color:#b91c1c"
               title="Propostas aguardando decisão"
               data-pendentes-evento="{{ ev.id }}"
@@ -41,9 +49,9 @@ Substitui a grade de cartões completos, que repetia dez botões por evento.
 </div>
 {% endif %}
 
-{% include 'includes/_eventos_passados.html' with eventos_passados=eventos_passados evento_foco=evento_padrao %}
+{% include 'includes/_eventos_passados.html' with eventos_arquivados=eventos_arquivados evento_foco=evento_padrao acoes_arquivo=True %}
 
-{% if not evento_padrao and not eventos_passados %}
+{% if not evento_padrao and not eventos_arquivados %}
 <div class="app-item">
     <div class="info text-center" style="flex:1">
         <h5 style="color:var(--app-muted)">Nenhum evento encontrado.</h5>

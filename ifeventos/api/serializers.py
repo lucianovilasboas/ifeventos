@@ -256,6 +256,7 @@ class EventoSerializer(serializers.ModelSerializer):
     categoria_display = serializers.CharField(
         source="get_categoria_display", read_only=True
     )
+    arquivado = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Evento
@@ -273,6 +274,8 @@ class EventoSerializer(serializers.ModelSerializer):
             "atividades",
             "n_inscricoes",
             "n_atividades",
+            "arquivado",
+            "arquivado_em",
             "created_at",
             "updated_at",
         ]

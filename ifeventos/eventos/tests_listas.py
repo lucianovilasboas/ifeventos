@@ -579,8 +579,8 @@ class AcoesDaPaginaDeAtividadesTests(TestCase):
         self.assertFalse(detector.aninhado, "há um <form> aninhado na página de atividades")
 
 
-class CartoesEditarExcluirSeparadosTests(TestCase):
-    """Editar e Excluir ficam em locais opostos no cartão do evento."""
+class ExclusaoSoNaEdicaoTests(TestCase):
+    """Excluir não fica no cartão (clique acidental): só na edição, confirmado."""
 
     def setUp(self):
         self.org = U.objects.create_user(
@@ -595,14 +595,22 @@ class CartoesEditarExcluirSeparadosTests(TestCase):
         )
         self.client.force_login(self.org)
 
-    def test_editar_no_corpo_e_excluir_na_acoes(self):
+    def test_dashboard_nao_expoe_excluir(self):
         html = self.client.get(reverse("organizador:dashboard")).content.decode()
-        pos_acoes = html.find("evento-destaque-acoes")
-        pos_editar = html.find('title="Editar Evento"')
-        pos_excluir = html.find('title="Excluir Evento"')
-        self.assertGreater(pos_acoes, -1)
-        self.assertGreater(pos_editar, -1)
-        self.assertGreater(pos_excluir, -1)
-        # Editar vem antes da barra de ações (fica no corpo); Excluir, depois.
-        self.assertLess(pos_editar, pos_acoes)
-        self.assertGreater(pos_excluir, pos_acoes)
+
+        self.assertNotIn(
+            reverse("organizador:excluir_evento", args=[self.evento.id]), html
+        )
+
+    def test_edicao_tem_zona_de_perigo_e_modal_de_confirmacao(self):
+        html = self.client.get(
+            reverse("organizador:editar_evento", args=[self.evento.id])
+        ).content.decode()
+
+        self.assertIn("Zona de perigo", html)
+        self.assertIn('id="modalExcluirEvento"', html)
+        self.assertIn(
+            reverse("organizador:excluir_evento", args=[self.evento.id]), html
+        )
+        self.assertIn('name="confirmacao"', html)
+        self.assertIn('id="btnConfirmarExclusao"', html)

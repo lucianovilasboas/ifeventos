@@ -242,7 +242,10 @@ class CoOrganizadorTests(_BaseAutorizacao):
     def test_coorganizador_nao_exclui_o_evento(self):
         self.evento.organizadores.add(self.outro_org)
         self.client.force_login(self.outro_org)
-        resposta = self.client.get(reverse("organizador:excluir_evento", args=[self.evento.id]))
+        resposta = self.client.post(
+            reverse("organizador:excluir_evento", args=[self.evento.id]),
+            {"confirmacao": "excluir"},
+        )
         self.assertEqual(resposta.status_code, 404)
         self.assertTrue(Evento.objects.filter(id=self.evento.id).exists())
 

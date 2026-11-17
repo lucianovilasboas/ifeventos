@@ -386,6 +386,20 @@ class Evento(models.Model):
         max_length=20, choices=MODELO_CRACHA_CHOICES, default=CRA_ETIQUETA
     )
 
+    # ----------------------------------------------------------------------
+    # Encerramento (explícito, decidido pelo organizador)
+    # ----------------------------------------------------------------------
+    # Passar da data NÃO encerra nem arquiva o evento: só tira ele do grupo
+    # "atual". O arquivamento é um ato do organizador (com checklist e
+    # confirmação) e pode ser desfeito a qualquer momento. NULL = aberto.
+    arquivado_em = models.DateTimeField(
+        null=True, blank=True, verbose_name="Encerrado em"
+    )
+    arquivado_por = models.ForeignKey(
+        Participante, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="eventos_arquivados", verbose_name="Encerrado por",
+    )
+
     def __str__(self):
         return self.title
 
@@ -414,9 +428,33 @@ class Evento(models.Model):
         return Inscricao.objects.filter(atividade__evento=self).count()
 
     @property
-    def encerrado(self):
-        """O evento terminou? Libera a emissão dos certificados DO EVENTO."""
+    def terminou(self):
+        """O calendário do evento passou? (Não confundir com `arquivado`.)
+
+        É o que libera a emissão dos certificados, porque a presença já não
+        muda. Não tira o evento do painel nem o manda para "Eventos passados":
+        isso só acontece quando o organizador encerra.
+        """
         return self.data_fim < timezone.localdate()
+
+    @property
+    def arquivado(self):
+        """O organizador encerrou e arquivou o evento?"""
+        return self.arquivado_em is not None
+
+    @property
+    def aguardando_encerramento(self):
+        """Data vencida e ainda aberto — espera a decisão do organizador."""
+        return self.terminou and not self.arquivado
+
+    @property
+    def encerrado(self):
+        """Compatibilidade: `encerrado` sempre significou "data vencida".
+
+        Vários pontos (emissão de certificados) dependem dessa data. Quem
+        decide se o evento saiu do fluxo é `arquivado`.
+        """
+        return self.terminou
     
 
     def save(self, *args, **kwargs):
@@ -1621,6 +1659,8 @@ class RegistroAuditoria(models.Model):
     ACAO_REGISTRAR_PRESENCA = "registrar_presenca"
     ACAO_REMOVER_CERTIFICADO = "remover_certificado"
     ACAO_ENVIAR_COMUNICADO = "enviar_comunicado"
+    ACAO_ENCERRAR_EVENTO = "encerrar_evento"
+    ACAO_DESARQUIVAR_EVENTO = "desarquivar_evento"
     ACAO_ERRO = "erro"
     ACAO_CHOICES = [
         (ACAO_CRIAR, "Criar"),
@@ -1639,6 +1679,8 @@ class RegistroAuditoria(models.Model):
         (ACAO_REGISTRAR_PRESENCA, "Registrar presença"),
         (ACAO_REMOVER_CERTIFICADO, "Remover certificado"),
         (ACAO_ENVIAR_COMUNICADO, "Enviar comunicado"),
+        (ACAO_ENCERRAR_EVENTO, "Encerrar evento"),
+        (ACAO_DESARQUIVAR_EVENTO, "Desarquivar evento"),
         (ACAO_ERRO, "Erro"),
     ]
 

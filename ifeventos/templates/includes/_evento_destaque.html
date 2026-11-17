@@ -15,7 +15,11 @@ virou menu, para a tela inicial não virar um paredão de ícones.
         <div class="evento-destaque-info">
             <div class="evento-destaque-selos">
                 <span class="badge-app evento-foco-selo">Evento padrão</span>
+                {% if evento_padrao.aguardando_encerramento %}
+                <span class="badge-app" style="background:#fef3c7;color:#92400e">Aguardando encerramento</span>
+                {% else %}
                 <span class="badge-app">{{ evento_padrao.situacao_contexto_rotulo }}</span>
+                {% endif %}
                 {% if evento_padrao.organizador and evento_padrao.organizador != user %}
                 <span class="badge-app" title="Organizado por {{ evento_padrao.organizador.get_full_name|default:evento_padrao.organizador.username }}">
                     <i class="fa-solid fa-user-shield"></i> outro organizador
@@ -107,6 +111,10 @@ virou menu, para a tela inicial não virar um paredão de ícones.
             <i class="fa-solid fa-envelope"></i> Comunicação
         </a>
 
+        <a href="{% url 'organizador:encerrar_evento' evento_padrao.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fa-solid fa-flag-checkered"></i> Encerrar evento
+        </a>
+
         <div class="btn-group">
             <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
                     data-bs-toggle="dropdown" aria-expanded="false" aria-label="Mais ações">
@@ -132,7 +140,7 @@ virou menu, para a tela inicial não virar um paredão de ícones.
                         <i class="fa-solid fa-hands-helping"></i> Equipe de apoio
                     </button>
                 </li>
-                {% if evento_padrao.encerrado %}
+                {% if evento_padrao.terminou %}
                 <li>
                     <button type="button" class="dropdown-item js-emitir-evento"
                             data-url="{% url 'organizador:emitir_certificados_evento' evento_padrao.id %}"
@@ -143,13 +151,6 @@ virou menu, para a tela inicial não virar um paredão de ícones.
                 {% endif %}
             </ul>
         </div>
-
-        {# Excluir no canto oposto, longe do resto (evita clique acidental). #}
-        <a href="{% url 'organizador:excluir_evento' evento_padrao.id %}"
-           class="btn btn-sm btn-outline-danger btn-icon ms-auto" title="Excluir Evento"
-           onclick="return confirm('Tem certeza que deseja excluir este evento?');">
-            <i class="fa-solid fa-trash-can"></i>
-        </a>
     </div>
 </article>
 {% endif %}
