@@ -27,18 +27,22 @@ view:
                         {{ ev.data_inicio|date:"d/m/Y" }} – {{ ev.data_fim|date:"d/m/Y" }}
                         {% if ev.n_atividades %} · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}{% endif %}
                     </p>
+                    <div class="evento-linha-selos">
+                        <span class="badge-app">encerrado</span>
+                    </div>
                 </div>
-                <span class="badge-app">encerrado</span>
                 <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
             </a>
             {% if acoes_arquivo %}
-            <form method="post" action="{% url 'organizador:desarquivar_evento' ev.id %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-secondary"
-                        title="Voltar este evento ao fluxo (editar ou reencerrar)">
-                    <i class="fa-solid fa-box-open"></i> Desarquivar
-                </button>
-            </form>
+            <div class="evento-linha-acoes">
+                <form method="post" action="{% url 'organizador:desarquivar_evento' ev.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-secondary"
+                            title="Voltar este evento ao fluxo (editar ou reencerrar)">
+                        <i class="fa-solid fa-box-open"></i> Desarquivar
+                    </button>
+                </form>
+            </div>
             {% endif %}
         </div>
         {% endfor %}
