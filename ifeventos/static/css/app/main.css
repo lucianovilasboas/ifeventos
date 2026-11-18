@@ -1982,23 +1982,48 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 .eventos-passados-gatilho:hover { color: var(--fg); }
 .eventos-passados-lista { margin-top: var(--space-2); }
 
-/* Linha compacta de evento (outros eventos e arquivo). */
+/* Linha compacta de evento (outros eventos e arquivo).
+   Duas faixas em vez de uma linha rígida: o texto (título/datas/selos) fica em
+   `.info` e as ações em `.evento-linha-acoes`. Antes tudo dividia a mesma linha
+   sem `flex-wrap`; no celular o `.info` (min-width:0 + overflow-wrap:anywhere)
+   colapsava para 1 caractere — título e datas verticais — e os botões, com
+   flex-shrink:1, viravam colunas de ~20px, esticando o cartão por centenas de
+   pixels. */
 .evento-linha {
-    display: flex; align-items: center; gap: var(--space-3);
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 10px var(--space-3);
     background: var(--app-card);
     border: 2px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 10px var(--space-4);
+    padding: 12px var(--space-4);
     margin-bottom: 8px;
     color: var(--fg); text-decoration: none;
     overflow-wrap: anywhere;
 }
-.evento-linha .info { flex: 1; min-width: 0; }
+.evento-linha .info { flex: 1 1 260px; min-width: 0; }
 .evento-linha h5 { font-size: var(--text-base); font-weight: 800; margin: 0; }
 .evento-linha p { color: var(--muted); font-size: var(--text-xs); margin: 2px 0 0; }
 .evento-linha form { margin: 0; }
+.evento-linha-selos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.evento-linha-acoes {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-left: auto;
+}
+.evento-linha-acoes .btn { min-height: 40px; white-space: nowrap; }
+.evento-linha-acoes .btn-icon { width: 40px; min-width: 40px; height: 40px; }
 .evento-linha:hover { border-color: var(--border-ui); }
 .evento-linha.is-ativo { border-color: var(--accent); background: var(--accent-soft); }
+
+@media (max-width: 575.98px) {
+    /* No celular cada faixa ocupa a largura toda e os botões dividem a linha
+       por igual — nada de texto espremido nem botão quebrado. */
+    .evento-linha > .info,
+    .evento-linha-corpo { flex: 1 1 100%; }
+    .evento-linha-acoes { flex: 1 1 100%; margin-left: 0; }
+    .evento-linha-acoes > form { display: flex; flex: 1 1 0; min-width: 0; }
+    .evento-linha-acoes .btn:not(.btn-icon) { flex: 1 1 0; }
+    .evento-linha-acoes .btn-icon { flex: 0 0 44px; width: 44px; height: 44px; }
+}
 
 /* Evento em destaque (painel do organizador). */
 .evento-destaque {
@@ -2070,7 +2095,7 @@ footer a:hover { color: var(--accent-press); text-decoration: underline; }
 /* Linha de evento com corpo clicável + ações (ex.: Desarquivar). */
 .evento-linha-corpo {
     display: flex; align-items: center; gap: var(--space-3);
-    flex: 1; min-width: 0;
+    flex: 1 1 260px; min-width: 0;
     color: inherit; text-decoration: none;
 }
 .evento-linha-corpo .info { flex: 1; min-width: 0; }

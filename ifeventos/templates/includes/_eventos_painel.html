@@ -19,31 +19,38 @@ Substitui a grade de cartões completos, que repetia dez botões por evento.
                 {{ ev.data_inicio|date:"d/m/Y" }} – {{ ev.data_fim|date:"d/m/Y" }}
                 · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}
             </p>
+            <div class="evento-linha-selos">
+                {% if ev.aguardando_encerramento %}
+                <span class="badge-app" style="background:#fef3c7;color:#92400e">Aguardando encerramento</span>
+                {% else %}
+                <span class="badge-app">{{ ev.situacao_contexto_rotulo }}</span>
+                {% endif %}
+                <span class="badge-app" style="background:#fee2e2;color:#b91c1c"
+                      title="Propostas aguardando decisão"
+                      data-pendentes-evento="{{ ev.id }}"
+                      {% if not ev.n_pendentes %}hidden{% endif %}>{{ ev.n_pendentes }}</span>
+            </div>
         </div>
-        {% if ev.aguardando_encerramento %}
-        <span class="badge-app" style="background:#fef3c7;color:#92400e">Aguardando encerramento</span>
-        <a href="{% url 'organizador:encerrar_evento' ev.id %}"
-           class="btn btn-sm btn-outline-danger" title="Revisar o checklist e encerrar">
-            <i class="fa-solid fa-flag-checkered"></i> Encerrar
-        </a>
-        {% else %}
-        <span class="badge-app">{{ ev.situacao_contexto_rotulo }}</span>
-        {% endif %}
-        <span class="badge-app" style="background:#fee2e2;color:#b91c1c"
-              title="Propostas aguardando decisão"
-              data-pendentes-evento="{{ ev.id }}"
-              {% if not ev.n_pendentes %}hidden{% endif %}>{{ ev.n_pendentes }}</span>
-        <form method="post" action="{% url 'eventos:definir_evento_padrao' ev.id %}">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.path }}">
-            <button type="submit" class="btn btn-sm btn-outline-primary" title="Usar este evento como padrão">
-                <i class="fa-solid fa-thumbtack"></i> Fixar
-            </button>
-        </form>
-        <a href="{% url 'organizador:atividades_evento' ev.id %}"
-           class="btn btn-sm btn-outline-secondary btn-icon" title="Abrir evento">
-            <i class="fa-solid fa-arrow-right"></i>
-        </a>
+        <div class="evento-linha-acoes">
+            {% if ev.aguardando_encerramento %}
+            <a href="{% url 'organizador:encerrar_evento' ev.id %}"
+               class="btn btn-sm btn-outline-danger" title="Revisar o checklist e encerrar">
+                <i class="fa-solid fa-flag-checkered"></i> Encerrar
+            </a>
+            {% endif %}
+            <form method="post" action="{% url 'eventos:definir_evento_padrao' ev.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Usar este evento como padrão">
+                    <i class="fa-solid fa-thumbtack"></i> Fixar
+                </button>
+            </form>
+            <a href="{% url 'organizador:atividades_evento' ev.id %}"
+               class="btn btn-sm btn-outline-secondary btn-icon" title="Abrir evento"
+               aria-label="Acessar evento">
+                <i class="fa-solid fa-arrow-right"></i>
+            </a>
+        </div>
     </div>
     {% endfor %}
 </div>

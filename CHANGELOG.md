@@ -5,6 +5,12 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.29.1] — 2026-11-18
+
+### Corrigido
+
+- **Cartões de evento do painel do organizador**: a linha de “Outros eventos” (e o arquivo de “Eventos passados”) era uma única linha flex sem quebra; no celular o título/datas colapsava para um caractere por linha e os botões “Encerrar”/“Fixar” viravam colunas estreitas, esticando o cartão por centenas de pixels. O texto e as ações passaram a ocupar faixas próprias, os selos foram para junto do título e os botões ganharam altura mínima de 40 px (ícone de acesso 44×44 px no celular), dividindo a largura da tela.
+
 ## [2.29.0] — 2026-11-16
 
 ### Adicionado
