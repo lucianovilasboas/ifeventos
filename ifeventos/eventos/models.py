@@ -432,24 +432,24 @@ class Evento(models.Model):
         """O calendário do evento passou? (Não confundir com `arquivado`.)
 
         É o que libera a emissão dos certificados, porque a presença já não
-        muda. Não tira o evento do painel nem o manda para "Eventos passados":
-        isso só acontece quando o organizador encerra.
+        muda. A partir daqui o evento está **encerrado**; ele só sai do painel
+        quando o organizador **arquiva** (vai para "Eventos arquivados").
         """
         return self.data_fim < timezone.localdate()
 
     @property
     def arquivado(self):
-        """O organizador encerrou e arquivou o evento?"""
+        """O organizador arquivou o evento?"""
         return self.arquivado_em is not None
 
     @property
     def aguardando_encerramento(self):
-        """Data vencida e ainda aberto — espera a decisão do organizador."""
+        """Data vencida e ainda não arquivado — aguarda o arquivamento."""
         return self.terminou and not self.arquivado
 
     @property
     def encerrado(self):
-        """Compatibilidade: `encerrado` sempre significou "data vencida".
+        """Data vencida: o evento está encerrado (mas pode não estar arquivado).
 
         Vários pontos (emissão de certificados) dependem dessa data. Quem
         decide se o evento saiu do fluxo é `arquivado`.
@@ -1679,7 +1679,7 @@ class RegistroAuditoria(models.Model):
         (ACAO_REGISTRAR_PRESENCA, "Registrar presença"),
         (ACAO_REMOVER_CERTIFICADO, "Remover certificado"),
         (ACAO_ENVIAR_COMUNICADO, "Enviar comunicado"),
-        (ACAO_ENCERRAR_EVENTO, "Encerrar evento"),
+        (ACAO_ENCERRAR_EVENTO, "Arquivar evento"),
         (ACAO_DESARQUIVAR_EVENTO, "Desarquivar evento"),
         (ACAO_ERRO, "Erro"),
     ]

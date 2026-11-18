@@ -24,7 +24,7 @@
 
 {% if modo_consulta %}
 <div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <span><i class="fa-solid fa-clock-rotate-left"></i> Evento terminado — visualização somente leitura.</span>
+    <span><i class="fa-solid fa-clock-rotate-left"></i> {% if evento_foco.arquivado %}Evento arquivado{% else %}Evento encerrado{% endif %} — visualização somente leitura.</span>
     {% if evento_consulta %}<a class="btn btn-sm btn-outline-secondary" href="{{ request.path }}">Voltar ao evento de agora</a>{% endif %}
 </div>
 {% endif %}
@@ -101,8 +101,8 @@
                                 </a>
                                 {% else %}
                                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled
-                                        title="O evento terminou; o cancelamento só pode ser feito pelo organizador">
-                                    <i class="fa-solid fa-lock"></i> Cancelamento encerrado
+                                        title="O evento encerrou; o cancelamento só pode ser feito pelo organizador">
+                                    <i class="fa-solid fa-lock"></i> Cancelamento indisponível
                                 </button>
                                 {% endif %}
                             </span>
@@ -156,8 +156,8 @@
                         </a>
                         {% else %}
                         <button type="button" class="btn btn-sm btn-outline-secondary" disabled
-                                title="O evento terminou; o cancelamento só pode ser feito pelo organizador">
-                            <i class="fa-solid fa-lock"></i> Cancelamento encerrado
+                                title="O evento encerrou; o cancelamento só pode ser feito pelo organizador">
+                            <i class="fa-solid fa-lock"></i> Cancelamento indisponível
                         </button>
                         {% endif %}
                         <button type="button" class="btn btn-sm btn-outline-primary btn-detalhe"

@@ -66,13 +66,13 @@ class EncerramentoEventoTests(TestCase):
         resposta = self.client.get(self.dashboard)
 
         self.assertEqual(resposta.context["evento_padrao"].id, self.evento.id)
-        self.assertContains(resposta, "Aguardando encerramento")
+        self.assertContains(resposta, "Aguardando arquivamento")
 
     def test_tela_de_confirmacao_mostra_o_checklist(self):
         resposta = self.client.get(self.url)
 
         self.assertEqual(resposta.status_code, 200)
-        self.assertContains(resposta, "Checklist de encerramento")
+        self.assertContains(resposta, "Checklist de arquivamento")
         self.assertContains(resposta, "Atividades publicadas")
         self.assertContains(resposta, "Certificados das atividades")
         self.assertContains(resposta, 'name="confirmado"')
@@ -91,7 +91,7 @@ class EncerramentoEventoTests(TestCase):
         self.evento.refresh_from_db()
         self.assertFalse(self.evento.arquivado)
         self.assertContains(
-            resposta, "pendências que impedem o encerramento", status_code=400
+            resposta, "pendências que impedem o arquivamento", status_code=400
         )
 
     def test_proposta_pendente_bloqueia_o_encerramento(self):
@@ -156,7 +156,7 @@ class EncerramentoEventoTests(TestCase):
 
         self.assertIn(self.evento, resposta.context["eventos_arquivados"])
         self.assertIsNone(resposta.context["evento_padrao"])
-        self.assertContains(resposta, "Eventos passados")
+        self.assertContains(resposta, "Eventos arquivados")
         self.assertContains(
             resposta,
             reverse("organizador:desarquivar_evento", args=[self.evento.id]),
@@ -201,7 +201,7 @@ class EncerramentoEventoTests(TestCase):
         url = reverse("organizador:encerrar_evento", args=[futuro.id])
 
         resposta = self.client.get(url)
-        self.assertContains(resposta, "ainda não terminou")
+        self.assertContains(resposta, "ainda não encerrou")
 
         resposta = self.client.post(url, {"confirmado": "on"})
         self.assertRedirects(resposta, self.dashboard)

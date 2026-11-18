@@ -122,7 +122,7 @@ def dashboard(request):
     }
 
     # Contexto de evento: o painel abre no evento padrão (o fixado ou o de
-    # agora); os demais abertos viram linhas e os encerrados, arquivo.
+    # agora); os demais abertos viram linhas e os arquivados, arquivo.
     grupos = contexto_evento.classificar(eventos)
     evento_padrao = contexto_evento.resolver_padrao(organizador, grupos)
     eventos_outros = [
@@ -432,9 +432,9 @@ def excluir_evento(request, evento_id):
 
 
 class EncerrarEventoView(LoginRequiredMixin, View):
-    """Confirmação do encerramento explícito (checklist + checkbox).
+    """Confirmação do arquivamento explícito (checklist + checkbox).
 
-    Passar da data não encerra nada: é esta tela que arquiva o evento. Os
+    A data encerra o evento, mas é esta tela que o arquiva (tira do fluxo). Os
     itens bloqueantes são revalidados no POST, porque o formulário pode ter
     sido aberto antes de uma proposta nova entrar na fila.
     """
@@ -464,14 +464,14 @@ class EncerrarEventoView(LoginRequiredMixin, View):
     def get(self, request, evento_id):
         evento = self._evento(request, evento_id)
         if evento.arquivado:
-            messages.info(request, "Este evento já está encerrado e arquivado.")
+            messages.info(request, "Este evento já está arquivado.")
             return redirect("organizador:dashboard")
         return self._tela(request, evento, encerramento.checklist(evento))
 
     def post(self, request, evento_id):
         evento = self._evento(request, evento_id)
         if evento.arquivado:
-            messages.info(request, "Este evento já está encerrado e arquivado.")
+            messages.info(request, "Este evento já está arquivado.")
             return redirect("organizador:dashboard")
 
         itens = encerramento.checklist(evento)
@@ -479,14 +479,14 @@ class EncerrarEventoView(LoginRequiredMixin, View):
         if bloqueios:
             messages.error(
                 request,
-                "Há pendências que impedem o encerramento: "
+                "Há pendências que impedem o arquivamento: "
                 + "; ".join(f"{item.titulo} ({item.detalhe})" for item in bloqueios),
             )
             return self._tela(request, evento, itens, status=400)
 
         if request.POST.get("confirmado") != "on":
             messages.error(
-                request, "Marque a confirmação para encerrar o evento."
+                request, "Marque a confirmação para arquivar o evento."
             )
             return self._tela(request, evento, itens, status=400)
 
@@ -505,19 +505,19 @@ class EncerrarEventoView(LoginRequiredMixin, View):
             objeto_id=evento.pk,
             objeto_repr=evento.title,
             evento=evento,
-            resumo="Evento encerrado e arquivado",
+            resumo="Evento arquivado",
             detalhes=retrato,
             usuario=request.user,
             request=request,
         )
         messages.success(
-            request, f"Evento encerrado e arquivado: {evento.title}."
+            request, f"Evento arquivado: {evento.title}."
         )
         return redirect("organizador:dashboard")
 
 
 class DesarquivarEventoView(LoginRequiredMixin, View):
-    """Devolve o evento ao fluxo (sem checklist) para editar ou reencerrar."""
+    """Devolve o evento ao fluxo (sem checklist) para editar ou arquivar de novo."""
 
     def post(self, request, evento_id):
         evento = get_object_or_404(Evento, id=evento_id)

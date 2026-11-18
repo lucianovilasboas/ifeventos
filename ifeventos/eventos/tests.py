@@ -570,7 +570,7 @@ class PresencaCanceladaTests(_BasePresencaTests):
         self.assertFalse(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
         self.assertEqual(PresencaCancelada.objects.count(), 0)
 
-    # --- travas de data (evento terminado) ----------------------------------
+    # --- travas de data (evento encerrado) ----------------------------------
 
     def test_cancelamento_recusado_ao_participante_apos_o_evento(self):
         with self.assertRaises(InscricaoBloqueada):

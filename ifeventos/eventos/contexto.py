@@ -5,22 +5,22 @@ O painel deixou de listar todos os eventos de uma vez: a pessoa fixa um
 módulo é a fonte única da regra — ordenação dos grupos, escolha do padrão e
 quem pode fixar o quê — para as duas telas não divergirem.
 
-Encerrar é um ato explícito do organizador (`Evento.arquivado_em`). Passar da
-data **não** arquiva: o evento fica em `a_encerrar` até alguém decidir. Por
-isso os grupos são quatro:
+Encerrar é o que a data faz sozinha (`Evento.encerrado`): passou o último dia,
+o evento está encerrado. Arquivar é um ato explícito do organizador
+(`Evento.arquivado_em`): tira o evento do fluxo. Por isso os grupos são quatro:
 
 - **atuais** (`data_inicio <= hoje <= data_fim`): o que começou por último
   primeiro; entre simultâneos, o mais atual aparece primeiro;
 - **futuros** (`data_inicio > hoje`): o mais próximo primeiro;
-- **a_encerrar** (`data_fim < hoje` e ainda aberto): o mais recente primeiro —
-  é a fila de trabalho do organizador;
-- **arquivados** (encerrados pelo organizador): o encerrado por último primeiro
+- **a_encerrar** (`data_fim < hoje` e ainda não arquivado): já encerrado pela
+  data, aguardando o arquivamento — o mais recente primeiro;
+- **arquivados** (arquivados pelo organizador): o arquivado por último primeiro
   (arquivo, separado do fluxo).
 
 Evento padrão = escolha salva, se não estiver arquivada; senão o primeiro atual;
 senão o próximo futuro; senão o primeiro da fila `a_encerrar`. Arquivado nunca
-vira padrão. Assim o padrão migra sozinho quando o evento termina, mas o antigo
-só desce para "Eventos passados" quando o organizador encerra.
+vira padrão. Assim o padrão migra sozinho quando o evento encerra, mas o antigo
+só desce para "Eventos arquivados" quando o organizador arquiva.
 """
 
 from django.db.models import Count, Q
@@ -36,8 +36,8 @@ ARQUIVADO = "arquivado"
 ROTULOS = {
     ATUAL: "Atual",
     PROXIMO: "Próximo",
-    TERMINADO: "Terminado",
-    ARQUIVADO: "Encerrado",
+    TERMINADO: "Encerrado",
+    ARQUIVADO: "Arquivado",
 }
 
 

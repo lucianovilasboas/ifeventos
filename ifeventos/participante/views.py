@@ -90,7 +90,7 @@ def dashboard(request):
     )
     evento_padrao = contexto_evento.resolver_padrao(participante, grupos)
 
-    # "Eventos passados" é arquivo: o link abre o evento em modo CONSULTA (só
+    # "Eventos arquivados" é arquivo: o link abre o evento em modo CONSULTA (só
     # minhas inscrições), sem trocar o padrão. Só vale id de evento arquivado
     # da própria pessoa.
     evento_consulta = None
@@ -168,7 +168,7 @@ def dashboard(request):
         inicio_local = localtime(inscricao.atividade.data_hora_inicio)
         inscricao.dia = inicio_local.strftime("%d/%m/%Y")
         inscricao.hoje = inicio_local.date() == hoje
-        # Depois que o evento termina/é arquivado, o participante não cancela
+        # Depois que o evento encerra/é arquivado, o participante não cancela
         # mais — só o organizador (pelo admin).
         inscricao.cancelavel = not modo_consulta
         inscricao.atividade.inscricao = inscricao
@@ -195,9 +195,15 @@ def dashboard(request):
         )
 
     # Disponíveis agrupadas por dia (mesmo cabeçalho da lista de inscrições),
-    # com "hoje" marcado, e a grade para a vista Cronograma.
+    # com "hoje" marcado. Na lista e nos cartões a ordem é da mais recente para
+    # a mais antiga; o cronograma continua cronológico (a grade ordena por
+    # dia/hora por conta própria).
     secoes_disponiveis = agenda.agrupar(atividades)
+    for secao in secoes_disponiveis:
+        secao["itens"] = list(reversed(secao["itens"]))
+    secoes_disponiveis.reverse()
     grade_disponiveis = agenda.montar_grade(atividades)
+    atividades.reverse()
 
     # Detalhes do modal "Mais informações": um mapa por atividade, usado pelos
     # cartões e pelos chips do cronograma (sem repetir dezenas de atributos).

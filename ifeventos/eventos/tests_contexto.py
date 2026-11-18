@@ -43,6 +43,9 @@ class ClassificarTests(SimpleTestCase):
 
         self.assertEqual([e.id for e in grupos["a_encerrar"]], [1])
         self.assertEqual(grupos["a_encerrar"][0].situacao_contexto, contexto.TERMINADO)
+        self.assertEqual(
+            grupos["a_encerrar"][0].situacao_contexto_rotulo, "Encerrado"
+        )
         self.assertEqual(grupos["arquivados"], [])
 
     def test_simultaneos_mostram_o_que_comecou_por_ultimo(self):
@@ -71,7 +74,7 @@ class ClassificarTests(SimpleTestCase):
 
         self.assertEqual([e.id for e in grupos["a_encerrar"]], [2, 1])
 
-    def test_arquivados_pelo_encerramento_mais_recente(self):
+    def test_arquivados_pelo_arquivamento_mais_recente(self):
         antigo = _evento(
             1, HOJE - timedelta(days=90), HOJE - timedelta(days=80),
             ARQUIVADO_AGORA - timedelta(days=30),
@@ -85,6 +88,9 @@ class ClassificarTests(SimpleTestCase):
         self.assertEqual([e.id for e in grupos["arquivados"]], [2, 1])
         self.assertEqual(
             grupos["arquivados"][0].situacao_contexto, contexto.ARQUIVADO
+        )
+        self.assertEqual(
+            grupos["arquivados"][0].situacao_contexto_rotulo, "Arquivado"
         )
 
 
