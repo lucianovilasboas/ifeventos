@@ -4,14 +4,17 @@
 {% block title %}Painel | Organizador{% endblock %}
 
 {% block action %}
-<h2><i class="fa-solid fa-bookmark"></i> Meus Eventos</h2>
-<div class="d-flex gap-2">
-    <a href="{% url 'organizador:importar_metadados' %}" class="btn btn-outline-secondary">
-        <i class="fa-solid fa-file-import"></i> Importar metadados
-    </a>
-    <button type="button" class="btn btn-app" data-bs-toggle="modal" data-bs-target="#criarEventoModal">
-        <i class="fa-solid fa-plus"></i> Criar
-    </button>
+<div class="painel-topo">
+    <h2><i class="fa-solid fa-bookmark"></i> Meus Eventos</h2>
+    {% include 'includes/_seletor_evento.html' with seletor_destino=request.path evento_foco=evento_padrao %}
+    <div class="painel-topo-acoes">
+        <a href="{% url 'organizador:importar_metadados' %}" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-file-import"></i> Importar metadados
+        </a>
+        <button type="button" class="btn btn-app" data-bs-toggle="modal" data-bs-target="#criarEventoModal">
+            <i class="fa-solid fa-plus"></i> Criar
+        </button>
+    </div>
 </div>
 {% endblock action %}
 

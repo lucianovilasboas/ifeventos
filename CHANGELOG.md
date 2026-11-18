@@ -5,6 +5,27 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.30.0] — 2026-11-18
+
+### Adicionado
+
+- **Modal “Mais informações” da atividade** no painel do participante: descrição, início/fim, local, evento, palestrantes, vagas, certificado e status, aberto pelo botão do cartão e pelos chips do cronograma.
+- **Cronograma nas “Atividades do evento”**, ao lado de Lista e Cartões.
+- **Destaque do dia atual** nas listas e cartões (cabeçalho do dia e selo “Hoje”).
+
+### Mudado
+
+- **“Trocar evento” saiu do cartão e foi para o cabeçalho** dos painéis do organizador e do participante, com destaque único (pill verde), à direita no celular e inline no desktop. O painel do seletor abre como dropdown ancorado à direita.
+- **Cartões de atividade reformulados**: miniatura à esquerda, título/tipo/início/inscritos/status/certificado e ações no rodapé, com “Mais informações” no canto inferior direito.
+- **“Atividades do evento” com menos peso visual** que “Minhas Inscrições”, para reduzir a poluição da tela; itens encerrados ficam ainda mais discretos.
+- Nome do evento dentro do chip do cronograma ficou menor e sem a pílula dos filtros.
+
+### Corrigido
+
+- **Atividades já encerradas continuam na lista, mas desabilitadas**: aparecem esmaecidas, com selo **“Encerrada”** e sem o botão de inscrição (que dá lugar a “Inscrições encerradas”). As atuais/futuras seguem destacadas.
+- **Inscrição e cancelamento bloqueados depois do fim do evento**: mesmo sem o organizador encerrar, o participante não se inscreve nem cancela mais após a data final; a ação continua disponível ao organizador (admin/co-organização). As regras valem na tela, no AJAX e na API.
+- **“Presença não confirmada” estourava o cartão**; nos cartões o rótulo passou a ser “Não confirmada” (a lista mantém o texto completo).
+
 ## [2.29.1] — 2026-11-18
 
 ### Corrigido

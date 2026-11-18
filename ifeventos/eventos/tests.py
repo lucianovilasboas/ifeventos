@@ -51,7 +51,11 @@ from .crachas import (
     pessoas_do_evento,
     url_da_logo,
 )
-from .inscricoes import InscricaoBloqueada, cancelar_inscricao
+from .inscricoes import (
+    InscricaoBloqueada,
+    cancelar_inscricao,
+    exigir_cancelamento_permitido,
+)
 from .validators import apenas_digitos, cpf_e_valido, formatar_cpf, validar_cpf
 
 U = get_user_model()
@@ -566,6 +570,18 @@ class PresencaCanceladaTests(_BasePresencaTests):
         self.assertFalse(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
         self.assertEqual(PresencaCancelada.objects.count(), 0)
 
+    # --- travas de data (evento terminado) ----------------------------------
+
+    def test_cancelamento_recusado_ao_participante_apos_o_evento(self):
+        with self.assertRaises(InscricaoBloqueada):
+            exigir_cancelamento_permitido(self.inscricao, por=self.participante)
+
+        self.assertTrue(Inscricao.objects.filter(pk=self.inscricao.pk).exists())
+
+    def test_cancelamento_liberado_ao_organizador_apos_o_evento(self):
+        # Não levanta: dono do evento, co-organizador ou staff seguem podendo.
+        exigir_cancelamento_permitido(self.inscricao, por=self.organizador)
+
     # --- a trava do certificado ----------------------------------------------
 
     def test_recusa_quando_ha_certificado_da_atividade(self):
@@ -614,6 +630,20 @@ class PresencaCanceladaTests(_BasePresencaTests):
 
 class DesfazerPresencaPelaApiTests(_BasePresencaTests):
     """O caminho da API (o mesmo que o MCP usa) e o da tela do QR."""
+
+    def setUp(self):
+        super().setUp()
+        # O cenário base é de setembro/2026 (passado). Para testar o
+        # cancelamento self-service, o evento/atividade precisam estar abertos.
+        from django.utils import timezone as dj_timezone
+
+        agora = dj_timezone.now()
+        self.evento.data_inicio = dj_timezone.localdate()
+        self.evento.data_fim = dj_timezone.localdate() + timedelta(days=1)
+        self.evento.save(update_fields=["data_inicio", "data_fim"])
+        self.atividade.data_hora_inicio = agora - timedelta(minutes=5)
+        self.atividade.data_hora_fim = agora + timedelta(hours=1)
+        self.atividade.save(update_fields=["data_hora_inicio", "data_hora_fim"])
 
     def test_api_cancelar_inscricao_remove_presenca(self):
         presenca = self._presenca()

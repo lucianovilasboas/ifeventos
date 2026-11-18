@@ -12,6 +12,8 @@ from eventos.inscricoes import (
     InscricaoBloqueada,
     cancelar_inscricao as cancelar_inscricao_servico,
     conflito_com_inscricoes,
+    exigir_cancelamento_permitido,
+    motivo_inscricao_encerrada,
 )
 from django.contrib import messages
 from django.utils.timezone import localtime
@@ -28,6 +30,30 @@ from eventos.crachas import crachas_do_usuario, url_da_logo
 from eventos.imagens import imagem_cortada
 
 
+def _detalhe_atividade(atividade, confirmada=None, inscricao_aberta=True):
+    """Dados do modal "Mais informações" (vai para um `json_script`)."""
+    return {
+        "titulo": atividade.titulo,
+        "tipo": str(atividade.tipo) if atividade.tipo_id else "",
+        "evento": atividade.evento.title,
+        "inicio": localtime(atividade.data_hora_inicio).strftime("%d/%m/%Y %H:%M"),
+        "fim": localtime(atividade.data_hora_fim).strftime("%d/%m/%Y %H:%M"),
+        "local": atividade.local or atividade.evento.local or "",
+        "descricao": atividade.descricao or "",
+        "inscritos": atividade.n_inscricoes,
+        "vagas": atividade.n_vagas,
+        "exige_inscricao": atividade.exige_inscricao,
+        "certificado": atividade.emite_certificado,
+        "confirmada": confirmada,
+        "inscricao_aberta": inscricao_aberta,
+        "imagem": atividade.imagem.url if atividade.imagem else "",
+        "palestrantes": [
+            p.get_full_name() or p.email for p in atividade.palestrantes.all()
+        ],
+        "ics": reverse("eventos:atividade_ics", args=[atividade.id]),
+    }
+
+
 @login_required(login_url='/accounts/login/')
 def dashboard(request):
 
@@ -35,7 +61,7 @@ def dashboard(request):
 
     inscricoes = Inscricao.objects.filter(participante=participante).select_related(
         "atividade", "atividade__evento", "atividade__tipo"
-    ).annotate(
+    ).prefetch_related("atividade__palestrantes").annotate(
         # "Emitido" deriva da tabela `Certificado` (fonte de verdade).
         tem_certificado=Exists(
             Certificado.objects.filter(
@@ -50,8 +76,12 @@ def dashboard(request):
         Atividade.objects.exclude(inscritos__participante=participante)
         .filter(publicada=True)
         .select_related("evento", "tipo")
+        .prefetch_related("palestrantes")
         .order_by("data_hora_inicio", "id")
     )
+
+    agora = localtime()
+    hoje = agora.date()
 
     # Contexto de evento: o painel mostra UM evento por vez (o padrão). Os
     # grupos já vêm ordenados — atuais, próximos e o arquivo de passados.
@@ -91,12 +121,13 @@ def dashboard(request):
     if evento_foco is not None:
         inscricoes = inscricoes.filter(atividade__evento=evento_foco)
         atividades = atividades.filter(evento=evento_foco)
+
     if modo_consulta:
-        # Evento encerrado: não há o que se inscrever.
+        # Evento encerrado/arquivado: a tela é somente leitura (só as minhas
+        # inscrições). O bloqueio de servidor vive em `eventos.inscricoes`.
         atividades = atividades.none()
 
     # "Acontecendo agora" e "a seguir" (entre as minhas inscrições).
-    agora = localtime()
     minhas = [i.atividade for i in inscricoes]
     acontecendo = [
         a for a in minhas if a.data_hora_inicio <= agora < a.data_hora_fim
@@ -134,13 +165,24 @@ def dashboard(request):
         por_evento.values(), key=lambda item: item["evento"].title.casefold()
     )
     for inscricao in inscricoes:
-        inscricao.dia = localtime(inscricao.atividade.data_hora_inicio).strftime("%d/%m/%Y")
+        inicio_local = localtime(inscricao.atividade.data_hora_inicio)
+        inscricao.dia = inicio_local.strftime("%d/%m/%Y")
+        inscricao.hoje = inicio_local.date() == hoje
+        # Depois que o evento termina/é arquivado, o participante não cancela
+        # mais — só o organizador (pelo admin).
+        inscricao.cancelavel = not modo_consulta
         inscricao.atividade.inscricao = inscricao
 
     # Aviso de conflito nas disponíveis — calculado em memória (sem query por
     # atividade), pela mesma regra que recusa a inscrição.
     atividades = list(atividades)
     for atividade in atividades:
+        atividade.hoje = (
+            localtime(atividade.data_hora_inicio).date() == hoje
+        )
+        atividade.inscricao_aberta = (
+            not atividade.encerrada and not modo_consulta
+        )
         atividade.conflito = next(
             (
                 m
@@ -150,6 +192,29 @@ def dashboard(request):
                 and atividade.data_hora_fim > m.data_hora_inicio
             ),
             None,
+        )
+
+    # Disponíveis agrupadas por dia (mesmo cabeçalho da lista de inscrições),
+    # com "hoje" marcado, e a grade para a vista Cronograma.
+    secoes_disponiveis = agenda.agrupar(atividades)
+    grade_disponiveis = agenda.montar_grade(atividades)
+
+    # Detalhes do modal "Mais informações": um mapa por atividade, usado pelos
+    # cartões e pelos chips do cronograma (sem repetir dezenas de atributos).
+    detalhes_atividades = {}
+    for inscricao in inscricoes:
+        atividade = inscricao.atividade
+        detalhes_atividades[atividade.id] = _detalhe_atividade(
+            atividade,
+            confirmada=inscricao.confirmada,
+            inscricao_aberta=(
+                not modo_consulta and not atividade.encerrada
+            ),
+        )
+    for atividade in atividades:
+        detalhes_atividades[atividade.id] = _detalhe_atividade(
+            atividade,
+            inscricao_aberta=atividade.inscricao_aberta,
         )
 
     form = ParticipanteUpdateForm(instance=participante)
@@ -185,8 +250,11 @@ def dashboard(request):
     contexto = {
         'inscricoes': inscricoes,
         'atividades': atividades,
+        'secoes_disponiveis': secoes_disponiveis,
         'resumos_participacao': resumos_participacao,
         'grade_minha_agenda': agenda.montar_grade(minhas),
+        'grade_disponiveis': grade_disponiveis,
+        'detalhes_atividades': detalhes_atividades,
         'acontecendo': acontecendo,
         'a_seguir': a_seguir,
         # Evento em foco e o arquivo separado (não viram chips de filtro).
@@ -207,6 +275,7 @@ def dashboard(request):
         'vistas_disponiveis': [
             {"valor": "lista", "rotulo": "Lista", "icone": "fa-solid fa-list"},
             {"valor": "cartoes", "rotulo": "Cartões", "icone": "fa-solid fa-table-cells-large"},
+            {"valor": "cronograma", "rotulo": "Cronograma", "icone": "fa-regular fa-calendar-days"},
         ],
         'message': 'Bora se inscrever em mais atividades?',
         'is_organizador': participante.is_organizador,
@@ -226,6 +295,12 @@ def dashboard(request):
 def inscrever(request, atividade_id):
     atividade = get_object_or_404(Atividade, id=atividade_id)
     participante = Participante.from_user(request.user)  # Obtém o participante vinculado ao usuário
+
+    # Atividade ou evento já encerrados: a oferta não aceita mais inscrição.
+    motivo = motivo_inscricao_encerrada(atividade)
+    if motivo:
+        messages.warning(request, motivo)
+        return redirect('participante:dashboard')
 
     # Verifica se o participante já está inscrito na atividade
     if Inscricao.objects.filter(participante=participante, atividade=atividade).exists():
@@ -270,6 +345,9 @@ def cancelar_inscricao(request, inscricao_id):
     inscricao = get_object_or_404(Inscricao, id=inscricao_id, participante=request.user)
 
     try:
+        # Só o participante cancela enquanto o evento está em andamento; depois
+        # do fim (ou do arquivamento), a ação é do organizador.
+        exigir_cancelamento_permitido(inscricao, por=request.user)
         # Cancela a inscrição E a presença naquela atividade, com auditoria.
         cancelar_inscricao_servico(inscricao, por=request.user)
     except InscricaoBloqueada as bloqueio:
@@ -315,15 +393,20 @@ def gerenciar_inscricoes_ajax(request):
                 )
 
             if inscrito: 
-                # Inscrever usuário
+                # Inscrever usuário — recusa quando a atividade/evento fechou.
+                motivo = motivo_inscricao_encerrada(atividade)
+                if motivo:
+                    raise InscricaoBloqueada(motivo)
                 Inscricao.objects.get_or_create(participante=participante, atividade=atividade)
             else:
-                # Cancelar inscrição: o serviço também cancela a presença na
-                # atividade (com auditoria) e recusa quando já há certificado.
+                # Cancelar inscrição: depois do fim do evento só o organizador;
+                # o serviço também cancela a presença (com auditoria) e recusa
+                # quando já há certificado.
                 para_cancelar = Inscricao.objects.filter(
                     participante=participante, atividade=atividade
                 ).first()
                 if para_cancelar is not None:
+                    exigir_cancelamento_permitido(para_cancelar, por=request.user)
                     cancelar_inscricao_servico(para_cancelar, por=request.user)
 
             # Atualiza o número de inscritos

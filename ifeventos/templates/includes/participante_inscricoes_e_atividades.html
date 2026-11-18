@@ -20,7 +20,6 @@
         {% endif %}
         {% endwith %}
     </div>
-    {% include 'includes/_seletor_evento.html' with seletor_destino=request.path %}
 </div>
 
 {% if modo_consulta %}
@@ -69,9 +68,9 @@
                 <div class="app-list">
                 {% regroup inscricoes by dia as dias %}
                 {% for dia in dias %}
-                <h6 class="dia-cabecalho">{{ dia.grouper }} <span>{{ dia.list|length }} atividade{{ dia.list|length|pluralize }}</span></h6>
+                <h6 class="dia-cabecalho{% if dia.list.0.hoje %} is-hoje{% endif %}">{{ dia.grouper }} <span>{{ dia.list|length }} atividade{{ dia.list|length|pluralize }}</span></h6>
                 {% for inscricao in dia.list %}
-                <div class="app-item" data-titulo="{{ inscricao.atividade.titulo }}">
+                <div class="app-item{% if inscricao.hoje %} is-hoje{% endif %}" data-titulo="{{ inscricao.atividade.titulo }}">
                     <div class="dot" style="background:linear-gradient(135deg,var(--app-violet),var(--app-indigo))">
                         <i class="fa-solid fa-bookmark"></i>
                     </div>
@@ -96,9 +95,16 @@
                                 <a href="{% url 'eventos:atividade_ics' inscricao.atividade.id %}" class="btn btn-sm btn-outline-secondary" title="Adicionar ao calendário">
                                     <i class="fa-regular fa-calendar-plus"></i>
                                 </a>
+                                {% if inscricao.cancelavel %}
                                 <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger" title="Cancelar inscrição">
                                     <i class="fa-solid fa-xmark"></i> Cancelar
                                 </a>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                        title="O evento terminou; o cancelamento só pode ser feito pelo organizador">
+                                    <i class="fa-solid fa-lock"></i> Cancelamento encerrado
+                                </button>
+                                {% endif %}
                             </span>
                         </div>
                     </div>
@@ -112,19 +118,54 @@
             <div data-vista-painel="cartoes" hidden>
                 <div class="card-grid px-1">
                 {% for inscricao in inscricoes %}
-                <article class="card-box" data-titulo="{{ inscricao.atividade.titulo }}">
-                    <span class="card-tag" style="background:#e0e7ff;color:var(--app-indigo)"><i class="fa-solid fa-bookmark"></i> {{ inscricao.atividade.tipo }}</span>
-                    <h6 class="card-titulo">{{ inscricao.atividade.titulo }}</h6>
-                    <p class="card-meta"><i class="fa-solid fa-calendar-day"></i> {{ inscricao.atividade.evento.title }}</p>
-                    <p class="card-meta"><i class="fa-regular fa-calendar"></i> {{ inscricao.atividade.data_hora_inicio|date:"d/m H:i" }} – {{ inscricao.atividade.data_hora_fim|date:"d/m H:i" }}</p>
-                    {% if inscricao.atividade.local %}
-                    <p class="card-meta"><i class="fa-solid fa-location-dot"></i> {{ inscricao.atividade.local }}</p>
-                    {% endif %}
-                    <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span> inscritos</p>
-                    {% if inscricao.confirmada %}<span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">✓ Presença confirmada</span>{% else %}<span class="badge-app" style="background:#fee2e2;color:#b91c1c">x Presença não confirmada</span>{% endif %}
-                    <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger w-100">
-                        <i class="fa-solid fa-xmark"></i> Cancelar
-                    </a>
+                <article class="card-box card-box--inscricao{% if inscricao.hoje %} is-hoje{% endif %}" data-titulo="{{ inscricao.atividade.titulo }}">
+                    <div class="card-atividade">
+                        <div class="card-thumb">
+                            {% if inscricao.atividade.imagem %}
+                            <img src="{{ inscricao.atividade.imagem.url }}" alt="" loading="lazy" decoding="async">
+                            {% else %}
+                            <i class="fa-solid fa-bookmark"></i>
+                            {% endif %}
+                        </div>
+                        <div class="card-conteudo">
+                            <div class="card-topo">
+                                {% if inscricao.atividade.tipo %}<span class="card-tag" style="background:#e0e7ff;color:var(--app-indigo)"><i class="fa-solid fa-bookmark"></i> {{ inscricao.atividade.tipo }}</span>{% endif %}
+                                {% if inscricao.hoje %}<span class="badge-app badge-hoje">Hoje</span>{% endif %}
+                                {% if inscricao.confirmada %}<span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-check"></i> Confirmada</span>{% else %}<span class="badge-app" style="background:#fee2e2;color:#b91c1c"><i class="fa-solid fa-xmark"></i> Não confirmada</span>{% endif %}
+                            </div>
+                            <h6 class="card-titulo">{{ inscricao.atividade.titulo }}</h6>
+                            <p class="card-meta"><i class="fa-regular fa-calendar"></i> {{ inscricao.atividade.data_hora_inicio|date:"d/m H:i" }}</p>
+                            <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-my-inscritos="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_inscricoes }}</span>/<span data-my-vagas="{{ inscricao.atividade.id }}">{{ inscricao.atividade.n_vagas }}</span> inscritos</p>
+                            <div class="card-selos">
+                                {% if inscricao.atividade.emite_certificado %}
+                                <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-certificate"></i> Certificado</span>
+                                {% endif %}
+                                {% if inscricao.tem_certificado %}
+                                <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-award"></i> Emitido</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-acoes">
+                        <a href="{% url 'eventos:atividade_ics' inscricao.atividade.id %}" class="btn btn-sm btn-outline-secondary btn-icon" title="Adicionar ao calendário" aria-label="Adicionar ao calendário">
+                            <i class="fa-regular fa-calendar-plus"></i>
+                        </a>
+                        {% if inscricao.cancelavel %}
+                        <a href="{% url 'participante:cancelar_inscricao' inscricao.id %}" class="btn btn-sm btn-outline-danger">
+                            <i class="fa-solid fa-xmark"></i> Cancelar
+                        </a>
+                        {% else %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                title="O evento terminou; o cancelamento só pode ser feito pelo organizador">
+                            <i class="fa-solid fa-lock"></i> Cancelamento encerrado
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-detalhe"
+                                data-detalhe-atividade="{{ inscricao.atividade.id }}"
+                                aria-label="Mais informações sobre {{ inscricao.atividade.titulo }}">
+                            <i class="fa-solid fa-circle-info"></i> Mais informações
+                        </button>
+                    </div>
                 </article>
                 {% endfor %}
                 </div>
@@ -132,7 +173,7 @@
 
             <!-- Cronograma (Minha agenda) -->
             <div data-vista-painel="cronograma" hidden>
-                {% include 'includes/agenda_grade.html' with grade=grade_minha_agenda mostrar_evento=True %}
+                {% include 'includes/agenda_grade.html' with grade=grade_minha_agenda mostrar_evento=True mostrar_detalhes=True %}
             </div>
 
             <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma inscrição encontrada com esse termo.</p>
@@ -153,10 +194,10 @@
     <!-- Atividades Disponíveis -->
     <div class="col-md-6" data-vista-grupo="disponiveis">
         <div class="d-flex align-items-center justify-content-between px-1 mb-2">
-            <h5 class="fw-bold mb-0" style="color:var(--app-green-d)">
-                <i class="fa-solid fa-calendar-plus"></i> Atividades Disponíveis
+            <h5 class="fw-bold mb-0 secao-titulo secao-titulo--secundaria">
+                <i class="fa-solid fa-calendar-plus"></i> Atividades do evento
             </h5>
-            <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">{{ atividades|length }}</span>
+            <span class="badge-app">{{ atividades|length }}</span>
         </div>
         {% if atividades %}
         <div class="px-1 mb-2">
@@ -170,8 +211,10 @@
             <!-- Lista -->
             <div data-vista-painel="lista">
                 <div class="app-list">
-                {% for atividade in atividades %}
-                <div class="app-item" data-titulo="{{ atividade.titulo }}">
+                {% for secao in secoes_disponiveis %}
+                <h6 class="dia-cabecalho{% if secao.hoje %} is-hoje{% endif %}">{{ secao.rotulo }} <span>{{ secao.total }} atividade{{ secao.total|pluralize }}</span></h6>
+                {% for atividade in secao.itens %}
+                <div class="app-item{% if atividade.inscricao_aberta %}{% if atividade.hoje %} is-hoje{% endif %}{% else %} is-passada{% endif %}" data-titulo="{{ atividade.titulo }}">
                     <div class="dot" style="background:linear-gradient(135deg,var(--app-green),var(--app-green-d))">
                         <i class="fa-solid fa-calendar-plus"></i>
                     </div>
@@ -183,7 +226,9 @@
                         <p class="mb-0 mt-1" style="font-size:12px;color:var(--app-danger)"><i class="fa-solid fa-triangle-exclamation"></i> Conflita com “{{ atividade.conflito.titulo }}”</p>
                         {% endif %}
                         <div class="mt-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            {% if atividade.exige_inscricao %}
+                            {% if not atividade.inscricao_aberta %}
+                            <span class="badge-app badge-encerrada"><i class="fa-solid fa-lock"></i> Encerrada</span>
+                            {% elif atividade.exige_inscricao %}
                             <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">
                                 <i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos
                             </span>
@@ -193,6 +238,12 @@
                             </span>
                             {% endif %}
                             <span class="d-inline-flex gap-2">
+                                {% if not atividade.inscricao_aberta %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                        title="As inscrições para esta atividade estão encerradas">
+                                    <i class="fa-solid fa-lock"></i> Inscrições encerradas
+                                </button>
+                                {% else %}
                                 <a href="{% url 'eventos:atividade_ics' atividade.id %}" class="btn btn-sm btn-outline-secondary" title="Adicionar ao calendário">
                                     <i class="fa-regular fa-calendar-plus"></i>
                                 </a>
@@ -201,10 +252,12 @@
                                     <i class="fa-solid fa-check"></i> Inscrever
                                 </a>
                                 {% endif %}
+                                {% endif %}
                             </span>
                         </div>
                     </div>
                 </div>
+                {% endfor %}
                 {% endfor %}
                 </div>
             </div>
@@ -213,33 +266,75 @@
             <div data-vista-painel="cartoes" hidden>
                 <div class="card-grid px-1">
                 {% for atividade in atividades %}
-                <article class="card-box" data-titulo="{{ atividade.titulo }}">
-                    <span class="card-tag" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-calendar-plus"></i> {{ atividade.tipo }}</span>
-                    <h6 class="card-titulo">{{ atividade.titulo }}</h6>
-                    <p class="card-meta"><i class="fa-solid fa-calendar-day"></i> {{ atividade.evento.title }}</p>
-                    <p class="card-meta"><i class="fa-regular fa-calendar"></i> {{ atividade.data_hora_inicio|date:"d/m H:i" }} – {{ atividade.data_hora_fim|date:"d/m H:i" }}</p>
-                    {% if atividade.local %}
-                    <p class="card-meta"><i class="fa-solid fa-location-dot"></i> {{ atividade.local }}</p>
-                    {% endif %}
-                    {% if atividade.exige_inscricao %}
-                    <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos</p>
-                    {% else %}
-                    <p class="card-meta" style="color:#0369a1"><i class="fa-solid fa-door-open"></i> Não precisa de inscrição</p>
-                    {% endif %}
-                    {% if atividade.conflito %}
-                    <p class="card-meta" style="color:var(--app-danger)"><i class="fa-solid fa-triangle-exclamation"></i> Conflita com “{{ atividade.conflito.titulo }}”</p>
-                    {% endif %}
-                    <a href="{% url 'eventos:atividade_ics' atividade.id %}" class="btn btn-sm btn-outline-secondary w-100 mb-1">
-                        <i class="fa-regular fa-calendar-plus"></i> Calendário
-                    </a>
-                    {% if atividade.exige_inscricao %}
-                    <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green w-100">
-                        <i class="fa-solid fa-check"></i> Inscrever
-                    </a>
-                    {% endif %}
+                <article class="card-box card-box--disponivel{% if atividade.inscricao_aberta %}{% if atividade.hoje %} is-hoje{% endif %}{% else %} card-box--encerrada{% endif %}" data-titulo="{{ atividade.titulo }}">
+                    <div class="card-atividade">
+                        <div class="card-thumb">
+                            {% if atividade.imagem %}
+                            <img src="{{ atividade.imagem.url }}" alt="" loading="lazy" decoding="async">
+                            {% else %}
+                            <i class="fa-solid fa-calendar-plus"></i>
+                            {% endif %}
+                        </div>
+                        <div class="card-conteudo">
+                            <div class="card-topo">
+                                {% if atividade.tipo %}<span class="card-tag" style="background:#dcfce7;color:var(--app-green-d)"><i class="fa-solid fa-calendar-plus"></i> {{ atividade.tipo }}</span>{% endif %}
+                                {% if not atividade.inscricao_aberta %}
+                                <span class="badge-app badge-encerrada"><i class="fa-solid fa-lock"></i> Encerrada</span>
+                                {% else %}
+                                    {% if atividade.hoje %}<span class="badge-app badge-hoje">Hoje</span>{% endif %}
+                                    {% if atividade.exige_inscricao %}
+                                        {% if atividade.n_inscricoes < atividade.n_vagas %}
+                                        <span class="badge-app" style="background:#dcfce7;color:var(--app-green-d)">Vagas abertas</span>
+                                        {% else %}
+                                        <span class="badge-app" style="background:#fee2e2;color:#b91c1c">Lotado</span>
+                                        {% endif %}
+                                    {% else %}
+                                    <span class="badge-app" style="background:#e0f2fe;color:#0369a1">Sem inscrição</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            <h6 class="card-titulo">{{ atividade.titulo }}</h6>
+                            <p class="card-meta"><i class="fa-regular fa-calendar"></i> {{ atividade.data_hora_inicio|date:"d/m H:i" }}</p>
+                            {% if atividade.exige_inscricao %}
+                            <p class="card-meta"><i class="fa-solid fa-users"></i> <span data-inscritos="{{ atividade.id }}">{{ atividade.n_inscricoes }}</span>/<span data-vagas="{{ atividade.id }}">{{ atividade.n_vagas }}</span> inscritos</p>
+                            {% else %}
+                            <p class="card-meta" style="color:#0369a1"><i class="fa-solid fa-door-open"></i> Não precisa de inscrição</p>
+                            {% endif %}
+                            {% if atividade.conflito %}
+                            <p class="card-meta" style="color:var(--app-danger)"><i class="fa-solid fa-triangle-exclamation"></i> Conflita com “{{ atividade.conflito.titulo }}”</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-acoes">
+                        {% if atividade.inscricao_aberta %}
+                        <a href="{% url 'eventos:atividade_ics' atividade.id %}" class="btn btn-sm btn-outline-secondary btn-icon" title="Adicionar ao calendário" aria-label="Adicionar ao calendário">
+                            <i class="fa-regular fa-calendar-plus"></i>
+                        </a>
+                        {% if atividade.exige_inscricao %}
+                        <a href="{% url 'participante:inscrever' atividade.id %}" class="btn btn-sm btn-app-green" title="Inscrever-se">
+                            <i class="fa-solid fa-check"></i> Inscrever
+                        </a>
+                        {% endif %}
+                        {% else %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                title="As inscrições para esta atividade estão encerradas">
+                            <i class="fa-solid fa-lock"></i> Inscrições encerradas
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-detalhe"
+                                data-detalhe-atividade="{{ atividade.id }}"
+                                aria-label="Mais informações sobre {{ atividade.titulo }}">
+                            <i class="fa-solid fa-circle-info"></i> Mais informações
+                        </button>
+                    </div>
                 </article>
                 {% endfor %}
                 </div>
+            </div>
+
+            <!-- Cronograma -->
+            <div data-vista-painel="cronograma" hidden>
+                {% include 'includes/agenda_grade.html' with grade=grade_disponiveis mostrar_evento=True mostrar_detalhes=True marcar_encerradas=True %}
             </div>
 
             <p class="busca-vazio" data-busca-vazio style="display:none">Nenhuma atividade encontrada com esse termo.</p>
@@ -247,7 +342,7 @@
         {% else %}
         <div class="app-item">
             <div class="info text-center" style="flex:1">
-                <h5 style="color:var(--app-muted)">Nenhuma atividade disponível.</h5>
+                <h5 style="color:var(--app-muted)">Nenhuma atividade cadastrada.</h5>
                 <p class="mb-0">Novas atividades aparecerão aqui.</p>
             </div>
         </div>

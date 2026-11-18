@@ -6,6 +6,8 @@ Fontes: API.md:132-147 (endpoints e 3 formas de check-in), README.md:3-10.
 from datetime import datetime, timedelta
 from datetime import timezone as tz
 
+from django.utils import timezone
+
 from eventos.models import Inscricao
 
 from .base import API, RequisitosTestCase
@@ -15,11 +17,23 @@ class _BaseInscricao(RequisitosTestCase):
     def setUp(self):
         self.u = self.dono("dono-insc@req.test")
         self.e = self.evento(self.u)
+        # O cenário base é de outubro/2026 (passado). Inscrição e cancelamento
+        # só valem com o evento aberto, então este bloco usa "hoje".
+        self.e.data_inicio = timezone.localdate()
+        self.e.data_fim = timezone.localdate() + timedelta(days=2)
+        self.e.save(update_fields=["data_inicio", "data_fim"])
         self.tp = self.tipo("Minicurso")
         self.a1 = self.atividade(self.e, titulo="Com 1 vaga", n_vagas=1, tipo=self.tp)
         self.p1 = self.participante("p1@req.test")
         self.p2 = self.participante("p2@req.test")
         self.tk1, self.tk2 = self.token(self.p1), self.token(self.p2)
+
+    def atividade(self, evento, **kwargs):
+        # Atividade em andamento: inscreve e permite o check-in da janela.
+        agora = timezone.now()
+        kwargs.setdefault("data_hora_inicio", agora - timedelta(minutes=10))
+        kwargs.setdefault("data_hora_fim", agora + timedelta(minutes=50))
+        return super().atividade(evento, **kwargs)
 
     def inscrever(self, tk, atividade=None):
         return self.api("post", f"{API}/minhas-inscricoes/",
