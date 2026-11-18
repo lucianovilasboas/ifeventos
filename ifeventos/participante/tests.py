@@ -24,7 +24,7 @@ SENHA = "SenhaForte123!"
 
 
 class DashboardOrdemAtividadesTests(TestCase):
-    """As atividades disponíveis saem na ordem em que vão acontecer."""
+    """Lista/cartões: da atividade mais recente para a mais antiga."""
 
     def setUp(self):
         self.org = U.objects.create_user(
@@ -49,11 +49,21 @@ class DashboardOrdemAtividadesTests(TestCase):
             )
         self.client.force_login(self.participante)
 
-    def test_atividades_em_ordem_de_data(self):
+    def test_atividades_da_mais_recente_para_a_mais_antiga(self):
         resposta = self.client.get(reverse("participante:dashboard"))
         self.assertEqual(resposta.status_code, 200)
         titulos = [a.titulo for a in resposta.context["atividades"]]
-        self.assertEqual(titulos, ["Primeiro", "Segundo", "Terceiro"])
+        self.assertEqual(titulos, ["Terceiro", "Segundo", "Primeiro"])
+
+    def test_cronograma_continua_em_ordem_cronologica(self):
+        resposta = self.client.get(reverse("participante:dashboard"))
+
+        datas = [
+            coluna["data"]
+            for semana in resposta.context["grade_disponiveis"]["semanas"]
+            for coluna in semana["colunas"]
+        ]
+        self.assertEqual(datas, sorted(datas))
 
 
     def test_dashboard_exibe_status_e_kpis_de_presenca(self):
@@ -70,7 +80,7 @@ class DashboardOrdemAtividadesTests(TestCase):
 
 
 class AtividadesDisponiveisTests(TestCase):
-    """Disponíveis: sem o que já terminou, com marca de hoje e cronograma."""
+    """Atividades do evento: ordem, marca de hoje e estado encerrado."""
 
     def setUp(self):
         self.org = U.objects.create_user(
@@ -115,6 +125,11 @@ class AtividadesDisponiveisTests(TestCase):
         resposta = self.client.get(reverse("participante:dashboard"))
 
         titulos = [a.titulo for a in resposta.context["atividades"]]
+        self.assertEqual(
+            titulos,
+            ["Oficina de Amanhã", "Oficina de Hoje", "Oficina Encerrada"],
+            "lista/cartões vão da mais recente para a mais antiga",
+        )
         self.assertIn("Oficina Encerrada", titulos)
         self.assertContains(resposta, "Oficina Encerrada")
         self.assertContains(resposta, "Inscrições encerradas")
@@ -127,6 +142,15 @@ class AtividadesDisponiveisTests(TestCase):
             if a.id == self.atividade_encerrada.id
         )
         self.assertFalse(encerrada.inscricao_aberta)
+
+        # As seções por dia também descem: amanhã → hoje, com a encerrada
+        # depois da atividade ainda aberta do mesmo dia.
+        secoes = resposta.context["secoes_disponiveis"]
+        self.assertEqual(
+            [secao["itens"][0].titulo for secao in secoes],
+            ["Oficina de Amanhã", "Oficina de Hoje"],
+        )
+        self.assertEqual(secoes[-1]["itens"][-1].titulo, "Oficina Encerrada")
 
     def test_atividade_de_hoje_recebe_marca(self):
         resposta = self.client.get(reverse("participante:dashboard"))
@@ -204,7 +228,7 @@ class AtividadesDisponiveisTests(TestCase):
 
         resposta = self.client.get(reverse("participante:dashboard"))
 
-        self.assertContains(resposta, "Cancelamento encerrado")
+        self.assertContains(resposta, "Cancelamento indisponível")
         self.assertNotContains(
             resposta,
             reverse("participante:cancelar_inscricao", args=[inscricao.id]),
@@ -339,7 +363,7 @@ class EventoPadraoNoPainelTests(TestCase):
     def test_passados_ficam_na_lista_propria_e_fora_do_contexto(self):
         resposta = self._pagina()
 
-        self.assertContains(resposta, "Eventos passados")
+        self.assertContains(resposta, "Eventos arquivados")
         self.assertContains(resposta, f"?evento={self.passado.id}")
         self.assertNotEqual(resposta.context["evento_foco"].id, self.passado.id)
         self.assertNotContains(resposta, "Atividade Passada")
@@ -374,14 +398,14 @@ class EventoPadraoNoPainelTests(TestCase):
         self.participante.refresh_from_db()
         self.assertIsNone(self.participante.evento_padrao_id)
 
-    def test_terminado_sem_encerrar_fica_no_fluxo(self):
+    def test_encerrado_sem_arquivar_fica_no_fluxo(self):
         resposta = self._pagina()
 
         self.assertIn(self.aberto_vencido, resposta.context["eventos_a_encerrar"])
         self.assertNotIn(self.aberto_vencido, resposta.context["eventos_arquivados"])
-        self.assertContains(resposta, "Terminados")
+        self.assertContains(resposta, "Encerrados")
 
-    def test_fixar_terminado_aberto_abre_em_consulta(self):
+    def test_fixar_encerrado_aberto_abre_em_consulta(self):
         self.client.post(
             reverse("eventos:definir_evento_padrao", args=[self.aberto_vencido.id])
         )

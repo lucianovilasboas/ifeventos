@@ -8,8 +8,8 @@
     <span class="fw-semibold">
         Atividades do evento: <b>{{ evento.title }}</b>
         {% if evento.arquivado %}
-        <span class="badge bg-secondary-subtle text-secondary" title="Evento encerrado e arquivado">
-            <i class="fa-solid fa-box-archive"></i> encerrado
+        <span class="badge bg-secondary-subtle text-secondary" title="Evento arquivado">
+            <i class="fa-solid fa-box-archive"></i> arquivado
         </span>
         {% endif %}
         {% if evento.organizador and evento.organizador != user %}
@@ -29,7 +29,7 @@
         </form>
         {% else %}
         <a href="{% url 'organizador:encerrar_evento' evento.id %}" class="btn btn-sm btn-outline-danger">
-            <i class="fa-solid fa-flag-checkered"></i> Encerrar evento
+            <i class="fa-solid fa-box-archive"></i> Arquivar evento
         </a>
         {% endif %}
         <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">

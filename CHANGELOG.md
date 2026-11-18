@@ -5,6 +5,19 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.31.0] — 2026-11-18
+
+### Mudado
+
+- **Terminologia de eventos**: evento com data final passada é **“Encerrado”**; evento arquivado pelo organizador é **“Arquivado”**. O aviso de pendência vira **“Aguardando arquivamento”** e a seção do arquivo vira **“Eventos arquivados”** (selo “arquivado”).
+- **A ação “Encerrar evento” passou a se chamar “Arquivar evento”**: botões, tela de checklist, confirmação, mensagens e rótulo da auditoria. As regras continuam as mesmas — checklist, bloqueios, arquivamento antecipado com aviso, permissões e **Desarquivar**.
+- **Atividades do evento em lista e cartões**: ordem da mais recente para a mais antiga, com as encerradas no fim. O **cronograma** e a coluna **“Minhas Inscrições”** continuam em ordem cronológica.
+
+### Notas
+
+- URLs, views e nomes internos foram preservados (`organizador:encerrar_evento`, `EncerrarEventoView`, `terminou`, `aguardando_encerramento`) para não quebrar links nem regras.
+- Migration apenas de `choices` da auditoria (`Arquivar evento`); nenhum dado é migrado.
+
 ## [2.30.0] — 2026-11-18
 
 ### Adicionado

@@ -1,8 +1,8 @@
 {% comment %}
-Arquivo de eventos encerrados pelo organizador (`Evento.arquivado_em`).
+Arquivo de eventos arquivados pelo organizador (`Evento.arquivado_em`).
 
-Não é "data vencida": enquanto o organizador não encerra, o evento fica no
-fluxo, com o selo "Aguardando encerramento". `ev.link_contexto` é montado pela
+Não é "data vencida": enquanto o organizador não arquiva, o evento fica no
+fluxo, com o selo "Aguardando arquivamento". `ev.link_contexto` é montado pela
 view:
 - participante: abre o painel em modo consulta (`?evento=<id>`);
 - organizador: leva às atividades daquele evento.
@@ -13,7 +13,7 @@ view:
 <details class="eventos-passados"{% if abrir_passados %} open{% endif %}>
     <summary class="eventos-passados-gatilho">
         <i class="fa-solid fa-box-archive"></i>
-        Eventos passados
+        Eventos arquivados
         <span class="badge-app">{{ eventos_arquivados|length }}</span>
     </summary>
     <div class="eventos-passados-lista">
@@ -28,7 +28,7 @@ view:
                         {% if ev.n_atividades %} · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}{% endif %}
                     </p>
                     <div class="evento-linha-selos">
-                        <span class="badge-app">encerrado</span>
+                        <span class="badge-app">arquivado</span>
                     </div>
                 </div>
                 <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
@@ -38,7 +38,7 @@ view:
                 <form method="post" action="{% url 'organizador:desarquivar_evento' ev.id %}">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-outline-secondary"
-                            title="Voltar este evento ao fluxo (editar ou reencerrar)">
+                            title="Voltar este evento ao fluxo (editar ou arquivar de novo)">
                         <i class="fa-solid fa-box-open"></i> Desarquivar
                     </button>
                 </form>

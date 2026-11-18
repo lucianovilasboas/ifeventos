@@ -1,8 +1,8 @@
 {% comment %}
 Seletor do evento padrão (participante e organizador).
 
-Lista os eventos que ainda estão no fluxo: atuais, próximos e terminados que
-esperam o encerramento do organizador. Os encerrados ficam no arquivo da
+Lista os eventos que ainda estão no fluxo: atuais, próximos e encerrados que
+aguardam o arquivamento do organizador. Os arquivados ficam no arquivo da
 própria página (`includes/_eventos_passados.html`), para não misturar o
 contexto de trabalho com o histórico.
 
@@ -28,7 +28,7 @@ volta pelo `seletor_destino`, sem depender de JavaScript.
         {% endfor %}
         {% endif %}
         {% if eventos_a_encerrar %}
-        <p class="seletor-grupo">Terminados</p>
+        <p class="seletor-grupo">Encerrados</p>
         {% for ev in eventos_a_encerrar %}
             {% include 'includes/_seletor_item.html' with ev=ev %}
         {% endfor %}

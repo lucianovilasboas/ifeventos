@@ -1,6 +1,6 @@
 {% comment %}
 Painel de eventos do organizador: um evento em destaque (o padrão), os outros
-que ainda valem em linhas compactas e o arquivo de encerrados separado.
+que ainda valem em linhas compactas e o arquivo de arquivados separado.
 Substitui a grade de cartões completos, que repetia dez botões por evento.
 {% endcomment %}
 {% if evento_padrao %}
@@ -20,10 +20,9 @@ Substitui a grade de cartões completos, que repetia dez botões por evento.
                 · {{ ev.n_atividades }} atividade{{ ev.n_atividades|pluralize }}
             </p>
             <div class="evento-linha-selos">
-                {% if ev.aguardando_encerramento %}
-                <span class="badge-app" style="background:#fef3c7;color:#92400e">Aguardando encerramento</span>
-                {% else %}
                 <span class="badge-app">{{ ev.situacao_contexto_rotulo }}</span>
+                {% if ev.aguardando_encerramento %}
+                <span class="badge-app" style="background:#fef3c7;color:#92400e">Aguardando arquivamento</span>
                 {% endif %}
                 <span class="badge-app" style="background:#fee2e2;color:#b91c1c"
                       title="Propostas aguardando decisão"
@@ -34,8 +33,8 @@ Substitui a grade de cartões completos, que repetia dez botões por evento.
         <div class="evento-linha-acoes">
             {% if ev.aguardando_encerramento %}
             <a href="{% url 'organizador:encerrar_evento' ev.id %}"
-               class="btn btn-sm btn-outline-danger" title="Revisar o checklist e encerrar">
-                <i class="fa-solid fa-flag-checkered"></i> Encerrar
+               class="btn btn-sm btn-outline-danger" title="Revisar o checklist e arquivar">
+                <i class="fa-solid fa-box-archive"></i> Arquivar
             </a>
             {% endif %}
             <form method="post" action="{% url 'eventos:definir_evento_padrao' ev.id %}">

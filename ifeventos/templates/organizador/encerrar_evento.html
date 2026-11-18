@@ -1,10 +1,10 @@
 {% extends 'dashboard_base.html' %}
 
-{% block title %}Encerrar evento | Organizador{% endblock %}
+{% block title %}Arquivar evento | Organizador{% endblock %}
 
 {% block action %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <span><i class="fa-solid fa-flag-checkered"></i> Encerrar evento: <b>{{ evento.title }}</b></span>
+    <span><i class="fa-solid fa-box-archive"></i> Arquivar evento: <b>{{ evento.title }}</b></span>
     <a href="{% url 'organizador:dashboard' %}" class="btn btn-sm btn-outline-secondary">
         <i class="fa fa-arrow-left"></i> Voltar
     </a>
@@ -21,32 +21,33 @@
             {% if evento.local %} · <i class="fa-solid fa-location-dot"></i> {{ evento.local }}{% endif %}
         </p>
         <p class="mb-0 small text-muted">
-            Passar da data não encerra o evento sozinho: esta ação é sua. Ao
-            encerrar, o evento vai para <b>“Eventos passados”</b>, deixa de ser
-            contexto das atividades e pode ser <b>desarquivado</b> a qualquer
-            momento. Nada é apagado.
+            Passar da data <b>encerra</b> o evento, mas não o arquiva: esta ação
+            é sua. Ao arquivar, o evento vai para <b>“Eventos arquivados”</b>,
+            deixa de ser contexto das atividades e pode ser <b>desarquivado</b>
+            a qualquer momento. Nada é apagado.
         </p>
     </div>
 
     {% if not evento.terminou %}
     <div class="alert alert-warning">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        <b>O evento ainda não terminou</b> (termina em {{ evento.data_fim|date:"d/m/Y" }}).
-        Encerrar agora arquiva o evento antes do fim — as inscrições e presenças
-        deixam de aparecer no fluxo normal. Você poderá desarquivar depois.
+        <b>O evento ainda não encerrou</b> (fim em {{ evento.data_fim|date:"d/m/Y" }}).
+        Arquivar agora tira o evento do fluxo antes do fim — as inscrições e
+        presenças deixam de aparecer no fluxo normal. Você poderá desarquivar
+        depois.
     </div>
     {% endif %}
 
     {% if bloqueios %}
     <div class="alert alert-danger">
         <i class="fa-solid fa-circle-xmark"></i>
-        <b>Resolva as pendências abaixo para encerrar.</b>
+        <b>Resolva as pendências abaixo para arquivar.</b>
         Elas continuam em aberto: {% for item in bloqueios %}{{ item.titulo }}{% if not forloop.last %}; {% endif %}{% endfor %}.
     </div>
     {% endif %}
 
     <div class="app-panel mb-3">
-        <h5 class="mb-3"><i class="fa-solid fa-list-check"></i> Checklist de encerramento</h5>
+        <h5 class="mb-3"><i class="fa-solid fa-list-check"></i> Checklist de arquivamento</h5>
         <ul class="checklist-evento">
             {% for item in itens %}
             <li class="checklist-evento-item{% if not item.ok %} is-pendente{% endif %}">
@@ -72,7 +73,7 @@
         {% if not evento.terminou %}
         <p class="small text-muted mb-0 mt-2">
             <i class="fa-regular fa-clock"></i>
-            Os itens de certificados só entram na verificação depois do término do evento.
+            Os itens de certificados só entram na verificação depois que o evento encerrar.
         </p>
         {% endif %}
     </div>
@@ -82,13 +83,13 @@
         <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" name="confirmado" id="confirmadoEncerramento" required>
             <label class="form-check-label" for="confirmadoEncerramento">
-                Confirmo que revisei o checklist e quero <b>encerrar e arquivar</b> este evento.
+                Confirmo que revisei o checklist e quero <b>arquivar</b> este evento.
             </label>
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <a href="{% url 'organizador:dashboard' %}" class="btn btn-outline-secondary">Cancelar</a>
             <button type="submit" class="btn btn-app" {% if bloqueios %}disabled{% endif %}>
-                <i class="fa-solid fa-flag-checkered"></i> Encerrar e arquivar
+                <i class="fa-solid fa-box-archive"></i> Arquivar evento
             </button>
         </div>
     </form>

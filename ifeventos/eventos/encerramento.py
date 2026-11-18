@@ -1,8 +1,8 @@
-"""Checklist do encerramento explícito de um evento.
+"""Checklist do arquivamento explícito de um evento.
 
-Encerrar/arquivar é decisão do organizador — passar da data não faz isso
-sozinho. Antes de arquivar, a tela mostra o que está em aberto e o servidor
-revalida a MESMA lista (nunca confia no formulário).
+Arquivar é decisão do organizador — a data encerra o evento, mas não o arquiva.
+Antes de arquivar, a tela mostra o que está em aberto e o servidor revalida a
+MESMA lista (nunca confia no formulário).
 
 O que bloqueia é só o que impede o evento de estar "fechado para balanço":
 atividade em rascunho e proposta sem decisão. Certificados, presenças e carga
@@ -206,7 +206,7 @@ def checklist(evento):
 
 
 def itens_bloqueantes(evento):
-    """Itens que impedem o encerramento agora."""
+    """Itens que impedem o arquivamento agora."""
     return [item for item in checklist(evento) if item.bloqueante and not item.ok]
 
 
@@ -215,7 +215,7 @@ def pode_encerrar(evento):
 
 
 def retrato_para_auditoria(evento, itens=None):
-    """O que estava em aberto no momento do encerramento (rastreabilidade)."""
+    """O que estava em aberto no momento do arquivamento (rastreabilidade)."""
     itens = checklist(evento) if itens is None else itens
     return {
         "data_fim": evento.data_fim.isoformat(),

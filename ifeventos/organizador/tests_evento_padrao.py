@@ -1,4 +1,4 @@
-"""Painel do organizador: evento em destaque, outros eventos e passados."""
+"""Painel do organizador: evento em destaque, outros eventos e arquivados."""
 
 from datetime import date, datetime, timedelta, timezone as tz
 
@@ -42,7 +42,7 @@ class PainelEventoPadraoTests(TestCase):
         self.passado = evento(
             "Evento Passado", hoje - timedelta(days=30), hoje - timedelta(days=29)
         )
-        # "Passado" no painel = encerrado pelo organizador, não só data vencida.
+        # "Passado" no painel = arquivado pelo organizador, não só data vencida.
         Evento.objects.filter(pk=self.passado.pk).update(
             arquivado_em=timezone.now(), arquivado_por=self.org
         )
@@ -82,21 +82,21 @@ class PainelEventoPadraoTests(TestCase):
             reverse("eventos:definir_evento_padrao", args=[self.futuro.id]), html
         )
 
-    def test_passados_ficam_no_arquivo_e_nao_em_outros(self):
+    def test_arquivados_ficam_no_arquivo_e_nao_em_outros(self):
         html = self._html()
 
-        self.assertIn("Eventos passados", html)
+        self.assertIn("Eventos arquivados", html)
         self.assertIn(
             reverse("organizador:atividades_evento", args=[self.passado.id]), html
         )
-        # O evento encerrado fica no arquivo, depois dos eventos que ainda valem.
-        self.assertGreater(html.find("Eventos passados"), html.find("Outros eventos"))
+        # O evento arquivado fica no arquivo, depois dos eventos que ainda valem.
+        self.assertGreater(html.find("Eventos arquivados"), html.find("Outros eventos"))
 
-    def test_vencido_sem_encerrar_fica_no_fluxo_com_acao(self):
+    def test_vencido_sem_arquivar_fica_no_fluxo_com_acao(self):
         html = self._html()
 
         self.assertIn(self.aberto_vencido.title, html)
-        self.assertIn("Aguardando encerramento", html)
+        self.assertIn("Aguardando arquivamento", html)
         self.assertIn(
             reverse("organizador:encerrar_evento", args=[self.aberto_vencido.id]), html
         )
