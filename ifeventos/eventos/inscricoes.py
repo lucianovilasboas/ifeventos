@@ -11,12 +11,70 @@ inscrição (tela do participante, AJAX dela e API/MCP). Todos passam por aqui.
 
 from django.core.exceptions import ValidationError
 from django.db.models import Q
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from .models import Atividade, Certificado, Presenca
 
 
 class InscricaoBloqueada(ValidationError):
     """Remoção de inscrição recusada por regra de negócio."""
+
+
+def evento_encerrado(evento, hoje=None):
+    """O evento já não aceita (des)inscrições de participantes?
+
+    Vale a data final (`Evento.terminou`) **ou** o encerramento explícito do
+    organizador (`Evento.arquivado`). Não confundir com "evento fora do painel":
+    um evento vencido e ainda aberto continua visível ao organizador.
+    """
+    if evento is None:
+        return True
+    fim = evento.data_fim
+    if isinstance(fim, str):        # instâncias recém-criadas em testes/fixtures
+        fim = parse_date(fim)
+    if fim is None:
+        return evento.arquivado_em is not None
+    return bool(
+        evento.arquivado_em is not None
+        or fim < (hoje or timezone.localdate())
+    )
+
+
+def atividade_encerrada(atividade):
+    """A atividade já terminou? (mesma regra de `Atividade.encerrada`)."""
+    return bool(atividade.encerrada)
+
+
+def motivo_inscricao_encerrada(atividade):
+    """Motivo pelo qual o participante não pode se inscrever, ou None."""
+    if evento_encerrado(atividade.evento):
+        return "As inscrições deste evento estão encerradas."
+    if atividade_encerrada(atividade):
+        return "As inscrições para esta atividade estão encerradas."
+    return None
+
+
+def exigir_cancelamento_permitido(inscricao, por=None, hoje=None):
+    """Participante não cancela depois que o evento termina.
+
+    Organizador do evento, co-organizador e staff continuam podendo (pelo
+    admin). O cancelamento em si segue a cargo de `cancelar_inscricao`; esta
+    função é a trava de autorização usada nas entradas (tela, AJAX e API).
+    """
+    evento = inscricao.atividade.evento
+    if not evento_encerrado(evento, hoje):
+        return
+    if por is not None:
+        # Import local: crachas importa models, não este módulo, mas a função é
+        # de autorização e não precisa entrar no topo (evita ciclo futuro).
+        from .crachas import pode_gerenciar_evento
+
+        if pode_gerenciar_evento(por, evento):
+            return
+    raise InscricaoBloqueada(
+        "O evento já terminou; o cancelamento só pode ser feito pelo organizador."
+    )
 
 
 def conflito_com_inscricoes(participante, atividade):

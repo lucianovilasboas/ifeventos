@@ -401,8 +401,16 @@ class AtividadeCicloApiTests(_BaseApiTests):
 class InscricaoApiTests(_BaseApiTests):
     """Self-inscrição pela API: reusa a regra da tela (vagas/duplicidade/conflito)."""
 
+    def setUp(self):
+        super().setUp()
+        # O cenário base é de outubro/2026 (passado): para testar a
+        # self-inscrição, o evento precisa estar aberto.
+        self.evento.data_inicio = date(2030, 10, 1)
+        self.evento.data_fim = date(2030, 10, 2)
+        self.evento.save(update_fields=["data_inicio", "data_fim"])
+
     def _atividade(self, titulo="Atividade", hora=8, minuto=0, duracao_min=60, n_vagas=10):
-        inicio = datetime(2026, 10, 1, hora, minuto, tzinfo=tz.utc)
+        inicio = datetime(2030, 10, 1, hora, minuto, tzinfo=tz.utc)
         return Atividade.objects.create(
             evento=self.evento, titulo=titulo, descricao="d", local="Sala",
             tipo=self.tipo, data_hora_inicio=inicio,
@@ -480,6 +488,45 @@ class InscricaoApiTests(_BaseApiTests):
         self.assertEqual(resposta.status_code, 400)
         self.assertIn("não precisa de inscrição", self._mensagem(resposta))
         self.assertFalse(Inscricao.objects.filter(atividade=atividade).exists())
+
+    def test_atividade_encerrada_recusa(self):
+        atividade = self._atividade()
+        atividade.data_hora_inicio = timezone.now() - timedelta(hours=2)
+        atividade.data_hora_fim = timezone.now() - timedelta(hours=1)
+        atividade.save(update_fields=["data_hora_inicio", "data_hora_fim"])
+        self._autenticar(self.participante)
+
+        resposta = self._inscrever(atividade)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("encerrad", self._mensagem(resposta))
+        self.assertFalse(Inscricao.objects.filter(atividade=atividade).exists())
+
+    def test_evento_encerrado_recusa_inscricao(self):
+        atividade = self._atividade()
+        self.evento.data_fim = timezone.localdate() - timedelta(days=1)
+        self.evento.save(update_fields=["data_fim"])
+        self._autenticar(self.participante)
+
+        resposta = self._inscrever(atividade)
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("encerrad", self._mensagem(resposta))
+        self.assertFalse(Inscricao.objects.filter(atividade=atividade).exists())
+
+    def test_cancelar_recusado_depois_do_evento(self):
+        atividade = self._atividade()
+        self._autenticar(self.participante)
+        self._inscrever(atividade)
+        inscricao = Inscricao.objects.get(participante=self.participante)
+        self.evento.data_fim = timezone.localdate() - timedelta(days=1)
+        self.evento.save(update_fields=["data_fim"])
+
+        resposta = self.client.delete(f"/api/v1/minhas-inscricoes/{inscricao.id}/")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("organizador", resposta.json()["detail"])
+        self.assertTrue(Inscricao.objects.filter(pk=inscricao.pk).exists())
 
     def test_cancela_a_propria(self):
         atividade = self._atividade()

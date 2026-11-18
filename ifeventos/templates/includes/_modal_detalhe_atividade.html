@@ -1,0 +1,52 @@
+{% comment %}
+Modal "Mais informações" da atividade (painel do participante).
+
+Os dados vêm de `atividades-detalhes` (um `json_script` montado pela view);
+este template só tem os alvos que `static/js/atividade_detalhe.js` preenche.
+Assim a descrição longa não é repetida nos data-* de cada cartão.
+{% endcomment %}
+<div class="modal fade" id="atividadeDetalheModal" tabindex="-1"
+     aria-labelledby="atividadeDetalheTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="atividadeDetalheTitulo" data-detalhe-titulo></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <img class="detalhe-imagem" data-detalhe-imagem alt="" hidden>
+                <div class="detalhe-selos" data-detalhe-selos></div>
+                <p class="detalhe-descricao" data-detalhe-descricao></p>
+
+                <div class="detalhe-campo" data-campo>
+                    <span class="detalhe-rotulo">Tipo</span>
+                    <span data-detalhe-tipo></span>
+                </div>
+                <div class="detalhe-campo" data-campo>
+                    <span class="detalhe-rotulo">Evento</span>
+                    <span data-detalhe-evento></span>
+                </div>
+                <div class="detalhe-campo" data-campo>
+                    <span class="detalhe-rotulo">Quando</span>
+                    <span data-detalhe-quando></span>
+                </div>
+                <div class="detalhe-campo" data-campo>
+                    <span class="detalhe-rotulo">Local</span>
+                    <span data-detalhe-local></span>
+                </div>
+                <div class="detalhe-campo" data-campo>
+                    <span class="detalhe-rotulo">Inscritos</span>
+                    <span data-detalhe-inscritos></span>
+                </div>
+                <div class="detalhe-campo" data-campo>
+                    <span class="detalhe-rotulo">Palestrantes</span>
+                    <span data-detalhe-palestrantes></span>
+                </div>
+
+                <a class="btn btn-sm btn-outline-secondary mt-2" data-detalhe-ics href="#">
+                    <i class="fa-regular fa-calendar-plus"></i> Adicionar ao calendário
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

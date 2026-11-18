@@ -513,6 +513,7 @@ class InscricaoCreateSerializer(serializers.ModelSerializer):
     - já inscrito -> erro
     - sem vagas  -> erro
     - conflito de horário -> erro (via `eventos.inscricoes.conflito_com_inscricoes`)
+    - atividade/evento encerrado -> erro
     `participante` é setado automaticamente a request.user.
     """
 
@@ -532,6 +533,13 @@ class InscricaoCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Esta atividade não precisa de inscrição.", code="nao_exige_inscricao"
             )
+
+        # 0.1) Atividade ou evento já encerrados.
+        from eventos.inscricoes import motivo_inscricao_encerrada
+
+        motivo = motivo_inscricao_encerrada(atividade)
+        if motivo:
+            raise serializers.ValidationError(motivo, code="inscricao_encerrada")
 
         # 1) Já inscrito
         if Inscricao.objects.filter(participante=participante, atividade=atividade).exists():

@@ -69,6 +69,159 @@ class DashboardOrdemAtividadesTests(TestCase):
         self.assertNotContains(resposta, "x Ainda não elegível")
 
 
+class AtividadesDisponiveisTests(TestCase):
+    """Disponíveis: sem o que já terminou, com marca de hoje e cronograma."""
+
+    def setUp(self):
+        self.org = U.objects.create_user(
+            email="org_disp@example.com", password=SENHA, cpf="12345678909",
+            is_organizador=True,
+        )
+        self.participante = U.objects.create_user(
+            email="disp@example.com", password=SENHA, cpf="11144477735"
+        )
+        self.tipo = TipoAtividade.objects.create(nome="Oficina")
+        hoje = timezone.localdate()
+        self.evento = Evento.objects.create(
+            title="Evento Disponível", description="d", local="Campus",
+            data_inicio=hoje - timedelta(days=1), data_fim=hoje + timedelta(days=2),
+            categoria="formacao", organizador=self.org,
+        )
+        agora = timezone.now()
+        self.atividade_hoje = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina de Hoje", descricao="desc",
+            tipo=self.tipo,
+            data_hora_inicio=agora,
+            data_hora_fim=agora + timedelta(minutes=30),
+            n_vagas=10,
+        )
+        self.atividade_encerrada = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina Encerrada", descricao="desc",
+            tipo=self.tipo,
+            data_hora_inicio=agora - timedelta(hours=3),
+            data_hora_fim=agora - timedelta(hours=2),
+            n_vagas=10,
+        )
+        self.atividade_amanha = Atividade.objects.create(
+            evento=self.evento, titulo="Oficina de Amanhã", descricao="desc",
+            tipo=self.tipo,
+            data_hora_inicio=agora + timedelta(days=1),
+            data_hora_fim=agora + timedelta(days=1, hours=1),
+            n_vagas=10,
+        )
+        self.client.force_login(self.participante)
+
+    def test_atividade_encerrada_continua_visivel_e_desabilitada(self):
+        resposta = self.client.get(reverse("participante:dashboard"))
+
+        titulos = [a.titulo for a in resposta.context["atividades"]]
+        self.assertIn("Oficina Encerrada", titulos)
+        self.assertContains(resposta, "Oficina Encerrada")
+        self.assertContains(resposta, "Inscrições encerradas")
+        self.assertNotContains(
+            resposta,
+            reverse("participante:inscrever", args=[self.atividade_encerrada.id]),
+        )
+        encerrada = next(
+            a for a in resposta.context["atividades"]
+            if a.id == self.atividade_encerrada.id
+        )
+        self.assertFalse(encerrada.inscricao_aberta)
+
+    def test_atividade_de_hoje_recebe_marca(self):
+        resposta = self.client.get(reverse("participante:dashboard"))
+
+        marcas = {a.titulo: a.hoje for a in resposta.context["atividades"]}
+        self.assertTrue(marcas["Oficina de Hoje"])
+        self.assertFalse(marcas["Oficina de Amanhã"])
+        # A encerrada de hoje continua sendo "de hoje", mas não recebe o selo
+        # de destaque: só a aberta conta.
+        self.assertTrue(marcas["Oficina Encerrada"])
+        self.assertEqual(resposta.content.decode().count("badge-hoje"), 1)
+
+    def test_inscricao_recusada_em_atividade_encerrada(self):
+        resposta = self.client.get(
+            reverse("participante:inscrever", args=[self.atividade_encerrada.id])
+        )
+
+        self.assertRedirects(resposta, reverse("participante:dashboard"))
+        self.assertFalse(
+            Inscricao.objects.filter(
+                participante=self.participante,
+                atividade=self.atividade_encerrada,
+            ).exists()
+        )
+
+    def test_ajax_recusa_inscricao_em_atividade_encerrada(self):
+        resposta = self.client.post(
+            reverse("participante:gerenciar_inscricoes_ajax"),
+            data=json.dumps({
+                "atividade_id": self.atividade_encerrada.id,
+                "inscrito": True,
+            }),
+            content_type="application/json",
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("encerrad", resposta.json()["message"])
+
+    def test_inscricao_recusada_depois_do_evento(self):
+        self.evento.data_fim = timezone.localdate() - timedelta(days=1)
+        self.evento.save(update_fields=["data_fim"])
+
+        resposta = self.client.get(
+            reverse("participante:inscrever", args=[self.atividade_amanha.id])
+        )
+
+        self.assertRedirects(resposta, reverse("participante:dashboard"))
+        self.assertFalse(
+            Inscricao.objects.filter(
+                participante=self.participante,
+                atividade=self.atividade_amanha,
+            ).exists()
+        )
+
+    def test_cancelamento_bloqueado_depois_do_evento(self):
+        inscricao = Inscricao.objects.create(
+            participante=self.participante, atividade=self.atividade_hoje
+        )
+        self.evento.data_fim = timezone.localdate() - timedelta(days=1)
+        self.evento.save(update_fields=["data_fim"])
+
+        resposta = self.client.get(
+            reverse("participante:cancelar_inscricao", args=[inscricao.id])
+        )
+
+        self.assertRedirects(resposta, reverse("participante:dashboard"))
+        self.assertTrue(Inscricao.objects.filter(pk=inscricao.pk).exists())
+
+    def test_consulta_desabilita_o_cancelamento(self):
+        inscricao = Inscricao.objects.create(
+            participante=self.participante, atividade=self.atividade_hoje
+        )
+        self.evento.data_fim = timezone.localdate() - timedelta(days=1)
+        self.evento.save(update_fields=["data_fim"])
+
+        resposta = self.client.get(reverse("participante:dashboard"))
+
+        self.assertContains(resposta, "Cancelamento encerrado")
+        self.assertNotContains(
+            resposta,
+            reverse("participante:cancelar_inscricao", args=[inscricao.id]),
+        )
+
+    def test_oferta_tem_cronograma_e_modal_de_detalhes(self):
+        resposta = self.client.get(reverse("participante:dashboard"))
+
+        valores = [v["valor"] for v in resposta.context["vistas_disponiveis"]]
+        self.assertEqual(valores, ["lista", "cartoes", "cronograma"])
+        self.assertFalse(resposta.context["grade_disponiveis"]["vazio"])
+        self.assertContains(resposta, 'id="atividades-detalhes"')
+        self.assertContains(
+            resposta, 'data-detalhe-atividade="%s"' % self.atividade_hoje.id
+        )
+
+
 class PerfilMetadadosTests(TestCase):
     """O perfil do participante grava os metadados configurados por escola."""
 
@@ -736,10 +889,10 @@ class ConflitoFusoTests(TestCase):
         tipo = TipoAtividade.objects.create(nome="Palestra")
         evento = Evento.objects.create(
             title="E", description="d", local="l",
-            data_inicio=date(2026, 10, 1), data_fim=date(2026, 10, 2),
+            data_inicio=date(2030, 10, 1), data_fim=date(2030, 10, 2),
             organizador=org,
         )
-        inicio = dj_timezone.make_aware(datetime(2026, 10, 5, 10, 0))
+        inicio = dj_timezone.make_aware(datetime(2030, 10, 5, 10, 0))
         primeira = Atividade.objects.create(
             evento=evento, titulo="Primeira", descricao="d", tipo=tipo, n_vagas=10,
             data_hora_inicio=inicio, data_hora_fim=inicio + timedelta(hours=1),

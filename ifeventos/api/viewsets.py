@@ -438,10 +438,16 @@ class MinhasInscricoesViewSet(viewsets.ModelViewSet):
         participante usa. É lá que se decide recusar quando já existe
         certificado emitido, para não deixar certificado sem comprovação.
         """
-        from eventos.inscricoes import InscricaoBloqueada, cancelar_inscricao
+        from eventos.inscricoes import (
+            InscricaoBloqueada,
+            cancelar_inscricao,
+            exigir_cancelamento_permitido,
+        )
 
         inscricao = self.get_object()
         try:
+            # Depois do fim do evento, o participante não cancela mais.
+            exigir_cancelamento_permitido(inscricao, por=request.user)
             cancelar_inscricao(inscricao, por=request.user)
         except InscricaoBloqueada as bloqueio:
             return Response(
