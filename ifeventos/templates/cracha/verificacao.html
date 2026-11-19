@@ -1,17 +1,18 @@
 {% load static %}
-{# Página pública: é para onde o QR do crachá (e do certificado) aponta.    #}
-{# Fica fora do painel de propósito — quem confere pode estar deslogado,    #}
-{# no celular, na porta da atividade, e só precisa ver se o crachá é real.  #}
+{# Página pública do CRACHÁ: é para onde o QR do crachá aponta.             #}
+{# Fica fora do painel de propósito — quem confere pode estar deslogado,     #}
+{# no celular, na porta da atividade, e só precisa ver se o crachá é real.   #}
 <!DOCTYPE html>
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>{% if valido %}Crachá válido{% else %}Crachá não verificado{% endif %} | Nossos Eventos</title>
+    <title>{% if valido %}Crachá válido{% else %}Código não verificado{% endif %} | Nossos Eventos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Mona+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v={{ ASSET_VERSION }}">
+    <link rel="stylesheet" href="{% static 'css/eventos/verificacao.css' %}?v={{ ASSET_VERSION }}">
     <link rel="stylesheet" href="{% static 'css/eventos/cracha.css' %}?v={{ ASSET_VERSION }}">
     {% include 'includes/pwa_head.html' %}
 </head>
@@ -38,12 +39,6 @@
             <div>
                 <dt>Atividade</dt>
                 <dd>{{ atividade.titulo }}</dd>
-            </div>
-            {% endif %}
-            {% if certificado %}
-            <div>
-                <dt>Emitido em</dt>
-                <dd>{{ certificado.data_emissao|date:"d/m/Y" }}</dd>
             </div>
             {% endif %}
         </dl>

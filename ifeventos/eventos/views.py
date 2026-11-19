@@ -1,3 +1,5 @@
+import logging
+
 from django.utils import timezone  # ✅ Correto
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Count, Q
@@ -25,6 +27,8 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from . import agenda, contexto, propostas
+
+logger = logging.getLogger(__name__)
 
 
 def eventos_view(request):
@@ -367,21 +371,66 @@ def confirmar_presenca_atividade(request, codigo_confirmacao):
 # ---------------------------------------------------------------------------
 
 
+def _pagina_certificado(request, resultado):
+    """Página pública do certificado — separada da conferência de crachá."""
+    evento = resultado.get("evento")
+    if evento is not None:
+        link_voltar = reverse("eventos:programacao", args=[evento.id])
+        link_voltar_texto = "Ir para a programação do evento"
+    else:
+        link_voltar = reverse("eventos:eventos")
+        link_voltar_texto = "Ir para a agenda de eventos"
+
+    return render(
+        request,
+        "certificado/verificacao.html",
+        {
+            "situacao": resultado.get("situacao", "invalido"),
+            "erro": resultado.get("erro", ""),
+            "nome": resultado.get("nome", ""),
+            "tipo_participacao": resultado.get("tipo_participacao", ""),
+            "evento": evento,
+            "periodo": resultado.get("periodo", ""),
+            "local": resultado.get("local", ""),
+            "atividade": resultado.get("atividade"),
+            "carga_horaria": resultado.get("carga_horaria"),
+            "data_emissao": resultado.get("data_emissao"),
+            "codigo_autenticacao": resultado.get("codigo_autenticacao", ""),
+            "link_voltar": link_voltar,
+            "link_voltar_texto": link_voltar_texto,
+        },
+        status=resultado.get("status", 200),
+    )
+
+
 def verificar_cracha(request, token):
-    """Página aberta pelo QR do crachá — e também pelo QR do certificado.
+    """Página aberta pelo QR do crachá — e pelo QR do certificado.
 
     Fica fora do painel de propósito: quem confere costuma estar deslogado, no
-    celular, na porta da atividade. Mostra apenas o que a conferência exige
-    (nome, papel, evento e período) e nada de dado pessoal — CPF, e-mail e
-    telefone não aparecem aqui.
+    celular, na porta da atividade. Crachá e certificado têm páginas e regras de
+    apresentação próprias; o que compartilham é o token assinado e esta rota
+    curta, que já está impressa nos documentos.
     """
     # A regra da verificação vive em eventos/crachas.py, a mesma que a API usa.
-    resultado = verificar_token(token)
+    try:
+        resultado = verificar_token(token)
+    except Exception:
+        logger.exception("Falha ao verificar o documento público")
+        return render(
+            request,
+            "verificacao/erro.html",
+            {"erro": "Não foi possível consultar os dados agora. Tente novamente."},
+            status=503,
+        )
+
+    if resultado.get("tipo") == "certificado":
+        return _pagina_certificado(request, resultado)
+
     if not resultado["valido"]:
         return render(
             request,
-            "cracha/verificacao.html",
-            {"valido": False, "erro": resultado.get("erro", "Crachá inválido.")},
+            "verificacao/erro.html",
+            {"erro": resultado.get("erro", "Não foi possível verificar este código.")},
             status=resultado.get("status", 404),
         )
 
@@ -402,9 +451,12 @@ def verificar_cracha(request, token):
 
     if request.method == "POST":
         if not organizacao:
-            return render(request, "cracha/verificacao.html",
-                          {"valido": False, "erro": "Só quem organiza este evento pode fazer isso."},
-                          status=403)
+            return render(
+                request,
+                "verificacao/erro.html",
+                {"erro": "Só quem organiza este evento pode fazer isso."},
+                status=403,
+            )
 
         if request.POST.get("desfazer"):
             presenca = (
@@ -457,7 +509,6 @@ def verificar_cracha(request, token):
         "evento": evento,
         "atividade": resultado.get("atividade"),
         "periodo": resultado.get("periodo", ""),
-        "certificado": resultado.get("certificado"),
         "confirmacao": confirmacao,
         "presencas_da_pessoa": presencas_da_pessoa,
         "tipo": resultado["tipo"],

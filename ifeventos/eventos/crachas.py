@@ -1331,92 +1331,135 @@ def pode_alterar_presenca_agora(usuario, atividade, agora=None):
     return True, ""
 
 
-def verificar_token(token):
-    """Verifica um token de crachá ou de certificado e devolve o resultado.
-
-    Regra única da verificação, usada pela página pública e pela API. Devolve
-    sempre um dicionário com `valido`, `erro` e `status`, para as duas pontas
-    contarem a mesma história.
-    """
-    try:
-        dados = ler_token(token)
-    except CrachaInvalido as erro:
-        return {"valido": False, "erro": str(erro), "status": 404}
-
-    pessoa = Participante.objects.filter(id=dados.get("u")).first()
-    if pessoa is None:
-        return {
-            "valido": False,
-            "status": 404,
-            "erro": "Este código aponta para um usuário que não existe mais.",
-        }
-
-    resultado = {
-        "tipo": dados.get("t") or "cracha",
-        "pessoa": pessoa,
-        "nome": nome_completo(pessoa),
+def _invalido(mensagem, *, tipo=None, status=404):
+    """Resultado padrão de uma verificação que não autenticou o documento."""
+    return {
+        "valido": False,
+        "erro": mensagem,
+        "status": status,
+        "situacao": "invalido",
+        "tipo": tipo,
     }
 
-    # -- Certificado ---------------------------------------------------------
-    if resultado["tipo"] == "certificado":
-        # Casa com o que a linha do certificado realmente guarda: na emissão por
-        # atividade a linha tem `atividade` (e `evento` vazio); na por evento é o
-        # contrário; na por função tem `evento` + `funcao`. Exigir os dois daria
-        # 404 em certificado bom.
-        consulta = Certificado.objects.filter(participante=pessoa)
-        if dados.get("a"):
-            consulta = consulta.filter(atividade_id=dados["a"])
-        elif dados.get("p"):
-            consulta = consulta.filter(
-                evento_id=dados.get("e"), funcao=dados["p"]
-            )
-        elif dados.get("e"):
-            # Certificado do evento: sem atividade e sem função.
-            consulta = consulta.filter(
-                evento_id=dados["e"], atividade__isnull=True, funcao=""
-            )
 
-        certificado = consulta.first()
-        if certificado is None:
-            return {
-                "valido": False,
-                "status": 404,
-                "erro": "Não há certificado emitido com este código para esta pessoa.",
-            }
+def _dados_certificado(certificado):
+    """Informações públicas do certificado, tiradas SÓ do registro emitido.
 
-        evento = certificado.evento or (
-            certificado.atividade.evento if certificado.atividade else None
+    `tipo_participacao` é a função gravada no certificado de função; nos
+    certificados de atividade/evento o registro não guarda outra função, então o
+    rótulo honesto é "Participante". Nada é inferido do crachá ou do vínculo.
+    """
+    atividade = certificado.atividade
+    evento = certificado.evento or (
+        atividade.evento if atividade is not None else None
+    )
+    local = ""
+    if atividade is not None and atividade.local:
+        local = atividade.local
+    elif evento is not None:
+        local = evento.local
+
+    funcao_rotulo = certificado.get_funcao_display() if certificado.funcao else ""
+    tipo_certificado = (
+        "Função" if certificado.funcao else ("Atividade" if atividade else "Evento")
+    )
+    return {
+        "certificado": certificado,
+        "atividade": atividade,
+        "evento": evento,
+        "nome": nome_completo(certificado.participante),
+        "periodo": periodo_legivel(evento) if evento else "",
+        "local": local,
+        "carga_horaria": certificado.carga_horaria,
+        "data_emissao": certificado.data_emissao,
+        "codigo_autenticacao": str(certificado.codigo).upper(),
+        "tipo_certificado": tipo_certificado,
+        "tipo_participacao": funcao_rotulo or "Participante",
+        # Compatibilidade com quem já lia `papel`/`papel_rotulo` na verificação.
+        "papel": certificado.funcao or None,
+        "papel_rotulo": funcao_rotulo or "Certificado",
+        "papeis_rotulos": [funcao_rotulo or "Certificado"],
+    }
+
+
+def _verificar_certificado(dados, pessoa):
+    """Autentica o certificado pelo PRÓPRIO registro emitido.
+
+    O token diz qual certificado procurar (atividade, função ou evento); sem uma
+    linha correspondente em `Certificado` o documento não vale — nem que a
+    pessoa exista, tenha crachá ou esteja inscrita.
+    """
+    consulta = Certificado.objects.filter(participante=pessoa)
+    if dados.get("a"):
+        consulta = consulta.filter(atividade_id=dados["a"])
+        if dados.get("e"):
+            consulta = consulta.filter(atividade__evento_id=dados["e"])
+    elif dados.get("p"):
+        if not dados.get("e"):
+            return _invalido(
+                "Este código de certificado não identifica o evento.",
+                tipo="certificado",
+            )
+        consulta = consulta.filter(
+            evento_id=dados["e"],
+            funcao=dados["p"],
         )
-        funcao_rotulo = certificado.get_funcao_display() if certificado.funcao else ""
-        resultado.update({
-            "valido": True,
-            "status": 200,
-            "certificado": certificado,
-            "atividade": certificado.atividade,
-            "evento": evento,
-            "papel": certificado.funcao or None,
-            "papel_rotulo": funcao_rotulo or "Certificado",
-            "papeis_rotulos": [funcao_rotulo or "Certificado"],
-            "periodo": periodo_legivel(evento) if evento else "",
-        })
-        return resultado
+    elif dados.get("e"):
+        # Certificado do evento: sem atividade e sem função.
+        consulta = consulta.filter(
+            evento_id=dados["e"],
+            atividade__isnull=True,
+            funcao="",
+        )
+    else:
+        return _invalido(
+            "Este código não identifica um certificado.",
+            tipo="certificado",
+        )
 
-    # -- Crachá: o papel é reconferido agora --------------------------------
+    certificado = (
+        consulta.select_related("participante", "atividade__evento", "evento").first()
+    )
+    if certificado is None:
+        return _invalido(
+            "Não há certificado emitido com este código para esta pessoa.",
+            tipo="certificado",
+        )
+
+    resultado = _dados_certificado(certificado)
+    resultado["tipo"] = "certificado"
+    if certificado.revogado:
+        resultado.update({
+            "valido": False,
+            "status": 410,
+            "situacao": "revogado",
+            "erro": "Este certificado foi revogado e não tem mais validade.",
+        })
+    else:
+        resultado.update({"valido": True, "status": 200, "situacao": "valido"})
+    return resultado
+
+
+def _verificar_cracha(dados, pessoa):
+    """Crachá: o papel é reconferido agora, no evento do token."""
     evento = Evento.objects.filter(id=dados.get("e")).first()
     if evento is None:
-        return {"valido": False, "status": 404, "erro": "O evento deste crachá não existe mais."}
+        return _invalido("O evento deste crachá não existe mais.", tipo="cracha")
 
     papel = papel_no_evento(pessoa, evento)
     if not papel:
-        return {
-            "valido": False,
-            "status": 404,
-            "erro": "Esta pessoa não tem mais vínculo com o evento, então o crachá não vale mais.",
-        }
+        return _invalido(
+            "Esta pessoa não tem mais vínculo com o evento, então o crachá não vale mais.",
+            tipo="cracha",
+        )
 
-    resultado.update({
+    return {
         "valido": True,
         "status": 200,
+        "situacao": "valido",
+        "tipo": "cracha",
+        "pessoa": pessoa,
+        "nome": nome_completo(pessoa),
         "evento": evento,
         "papel": papel,
         "papel_rotulo": ROTULOS_PAPEL.get(papel, papel),
@@ -1424,8 +1467,34 @@ def verificar_token(token):
         # evento, com todos os papéis da pessoa nele.
         "papeis_rotulos": [ROTULOS_PAPEL.get(p, p) for p in papeis_no_evento(pessoa, evento)],
         "periodo": periodo_legivel(evento),
-    })
-    return resultado
+    }
+
+
+def verificar_token(token):
+    """Verifica um token de crachá ou de certificado e devolve o resultado.
+
+    Regra única da verificação, usada pela página pública e pela API. Devolve
+    sempre um dicionário com `valido`, `situacao`, `tipo`, `erro` e `status`,
+    para as duas pontas contarem a mesma história.
+    """
+    try:
+        dados = ler_token(token)
+    except CrachaInvalido as erro:
+        return _invalido(str(erro))
+
+    tipo = dados.get("t") or "cracha"
+    if tipo not in ("cracha", "certificado"):
+        return _invalido("Este código não pertence a um documento reconhecido.")
+
+    pessoa = Participante.objects.filter(id=dados.get("u")).first()
+    if pessoa is None:
+        return _invalido(
+            "Este código aponta para um usuário que não existe mais.", tipo=tipo
+        )
+
+    if tipo == "certificado":
+        return _verificar_certificado(dados, pessoa)
+    return _verificar_cracha(dados, pessoa)
 
 
 def pessoa_por_token_ou_codigo(token=None, codigo=None, evento=None):

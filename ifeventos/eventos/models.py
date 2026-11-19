@@ -866,6 +866,11 @@ class Certificado(models.Model):
     
     codigo = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     data_emissao = models.DateTimeField(default=timezone.now)
+
+    # Revogação: o registro continua existindo (para a validação pública
+    # distinguir "não existe" de "existiu e perdeu validade"), mas não vale mais.
+    revogado_em = models.DateTimeField(null=True, blank=True, db_index=True)
+    motivo_revogacao = models.CharField(max_length=255, blank=True, default="")
     
     pdf = models.FileField(upload_to="usuarios/certificados/", blank=True, null=True)
 
@@ -909,6 +914,11 @@ class Certificado(models.Model):
         if self.evento_id:
             return f"Certificado de {nome} - Evento {self.evento.title}"
         return f"Certificado de {nome}"
+
+    @property
+    def revogado(self):
+        """True quando a organização revogou o certificado (registro mantido)."""
+        return self.revogado_em is not None
 
 
 class CertificadoJob(models.Model):

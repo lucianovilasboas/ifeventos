@@ -167,6 +167,13 @@ Sem `vaga`, `local`, `data_hora_inicio` e `data_hora_fim` continuam obrigatório
 | GET/POST/DELETE | `presencas/` | organizador do evento |
 | GET | `verificar/{token}/` | **público** (crachá ou certificado; sem dados pessoais) |
 
+Na verificação, `tipo` diz se o documento é `cracha` ou `certificado` e
+`situacao` diz `valido`, `invalido` ou `revogado`. Para certificado, a resposta
+inclui também os dados do **próprio registro emitido**: `tipo_participacao`,
+`tipo_certificado`, `local`, `carga_horaria`, `data_emissao` e
+`codigo_autenticacao`. Certificado revogado responde **410** e nunca vem com
+`valido: true`; token desconhecido responde 404.
+
 O check-in (`POST /presencas/`) aceita três formas, como na portaria:
 
 - `{atividade, participante}` — **marcação manual** na lista (a organização

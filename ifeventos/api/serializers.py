@@ -591,8 +591,11 @@ class VerificacaoSerializer(serializers.Serializer):
     """Resposta da verificação de um crachá ou certificado."""
 
     valido = serializers.BooleanField()
+    situacao = serializers.CharField(
+        required=False, help_text="valido | invalido | revogado | erro"
+    )
     erro = serializers.CharField(required=False)
-    tipo = serializers.CharField(required=False, help_text="cracha | certificado")
+    tipo = serializers.CharField(required=False, allow_null=True, help_text="cracha | certificado")
     nome = serializers.CharField(required=False)
     papel = serializers.CharField(required=False, allow_null=True)
     papel_rotulo = serializers.CharField(required=False)
@@ -601,6 +604,13 @@ class VerificacaoSerializer(serializers.Serializer):
     periodo = serializers.CharField(required=False, allow_blank=True)
     atividade_id = serializers.IntegerField(required=False, allow_null=True)
     atividade = serializers.CharField(required=False, allow_null=True)
+    # Dados próprios do certificado (presentes só quando tipo == "certificado").
+    tipo_participacao = serializers.CharField(required=False)
+    tipo_certificado = serializers.CharField(required=False)
+    local = serializers.CharField(required=False, allow_blank=True)
+    carga_horaria = serializers.IntegerField(required=False, allow_null=True)
+    data_emissao = serializers.DateTimeField(required=False, allow_null=True)
+    codigo_autenticacao = serializers.CharField(required=False)
 
 
 class PresencaSerializer(serializers.ModelSerializer):

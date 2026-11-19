@@ -1,0 +1,112 @@
+{% load static %}
+{# Página pública do CERTIFICADO: é para onde o QR do certificado aponta.     #}
+{# Mostra os dados do próprio registro emitido — nunca os do crachá.         #}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{% if situacao == 'valido' %}Certificado válido{% elif situacao == 'revogado' %}Certificado revogado{% else %}Certificado inválido{% endif %} | Nossos Eventos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Mona+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v={{ ASSET_VERSION }}">
+    <link rel="stylesheet" href="{% static 'css/eventos/verificacao.css' %}?v={{ ASSET_VERSION }}">
+    {% include 'includes/pwa_head.html' %}
+</head>
+<body>
+
+<main class="verificacao verificacao--certificado">
+    {% if situacao == 'valido' %}
+        <span class="selo" aria-hidden="true">✅</span>
+        <h1>Certificado válido</h1>
+        <p class="subtitulo">Documento autêntico e vigente.</p>
+
+        <p class="nome">{{ nome }}</p>
+
+        <dl>
+            <div>
+                <dt>Tipo de participação</dt>
+                <dd><span class="papel">{{ tipo_participacao }}</span></dd>
+            </div>
+            {% if evento %}
+            <div>
+                <dt>Evento</dt>
+                <dd>{{ evento.title }}</dd>
+            </div>
+            {% endif %}
+            {% if periodo %}
+            <div>
+                <dt>Período</dt>
+                <dd>{{ periodo }}</dd>
+            </div>
+            {% endif %}
+            {% if local %}
+            <div>
+                <dt>Local</dt>
+                <dd>{{ local }}</dd>
+            </div>
+            {% endif %}
+            {% if atividade %}
+            <div>
+                <dt>Atividade</dt>
+                <dd>{{ atividade.titulo }}</dd>
+            </div>
+            {% endif %}
+            {% if carga_horaria %}
+            <div>
+                <dt>Carga horária</dt>
+                <dd>{{ carga_horaria }}h</dd>
+            </div>
+            {% endif %}
+            {% if data_emissao %}
+            <div>
+                <dt>Data de emissão</dt>
+                <dd>{{ data_emissao|date:"d/m/Y" }}</dd>
+            </div>
+            {% endif %}
+            {% if codigo_autenticacao %}
+            <div>
+                <dt>Código de autenticação</dt>
+                <dd class="codigo">{{ codigo_autenticacao }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+    {% elif situacao == 'revogado' %}
+        <span class="selo" aria-hidden="true">⛔</span>
+        <h1>Certificado revogado</h1>
+        <p class="aviso">Este certificado foi localizado, mas foi revogado pela organização e não tem validade.</p>
+
+        {% if nome %}<p class="nome">{{ nome }}</p>{% endif %}
+
+        <dl>
+            {% if evento %}
+            <div>
+                <dt>Evento</dt>
+                <dd>{{ evento.title }}</dd>
+            </div>
+            {% endif %}
+            {% if data_emissao %}
+            <div>
+                <dt>Data de emissão</dt>
+                <dd>{{ data_emissao|date:"d/m/Y" }}</dd>
+            </div>
+            {% endif %}
+            {% if codigo_autenticacao %}
+            <div>
+                <dt>Código de autenticação</dt>
+                <dd class="codigo">{{ codigo_autenticacao }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+    {% else %}
+        <span class="selo" aria-hidden="true">⚠️</span>
+        <h1>Certificado inválido</h1>
+        <p class="subtitulo">{{ erro }}</p>
+    {% endif %}
+
+    <a class="voltar" href="{{ link_voltar }}">{{ link_voltar_texto }}</a>
+</main>
+
+</body>
+</html>

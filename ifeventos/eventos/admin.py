@@ -327,14 +327,14 @@ class CertificadoAdmin(admin.ModelAdmin):
     def arquivo_pdf(self, obj):
         return link_arquivo(obj.pdf, "Abrir PDF")
 
-    list_display = ('participante', 'tipo', 'funcao', 'atividade', 'evento', 'carga_horaria', 'data_emissao', 'codigo', 'arquivo_pdf')
+    list_display = ('participante', 'tipo', 'funcao', 'atividade', 'evento', 'carga_horaria', 'data_emissao', 'codigo', 'revogado_em', 'arquivo_pdf')
     readonly_fields = ('arquivo_pdf',)
     search_fields = (
         'participante__first_name', 'participante__last_name',
         'participante__email', 'participante__cpf',
         'atividade__titulo', 'evento__title',
     )
-    list_filter = ('tipo', 'funcao', 'atividade', 'atividade__evento',)
+    list_filter = ('tipo', 'funcao', 'revogado_em', 'atividade', 'atividade__evento',)
 
 
 @admin.register(CertificadoJob)

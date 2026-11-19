@@ -1,0 +1,99 @@
+/* Página pública de verificação — crachá e certificado.
+
+   Compartilha só a moldura (cartão central, tipografia e campos). O conteúdo é
+   diferente de propósito: o crachá mostra papéis e presença; o certificado
+   mostra os dados do próprio registro emitido. */
+
+.verificacao {
+    width: calc(100% - 32px);
+    max-width: 520px;
+    margin: 40px auto;
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    font-family: "Mona Sans", "Nunito", system-ui, sans-serif;
+    color: var(--fg);
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.verificacao .selo {
+    font-size: 2.6rem;
+    line-height: 1;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.verificacao h1 {
+    font-size: 1.35rem;
+    margin: 0 0 6px;
+}
+
+.verificacao .subtitulo {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.verificacao .nome {
+    font-size: 1.8rem;
+    font-weight: 900;
+    margin: 14px 0 4px;
+}
+
+.verificacao .papel {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.75rem;
+}
+
+.verificacao dl {
+    margin: 20px 0 0;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.verificacao dt {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.verificacao dd {
+    margin: 0 0 6px;
+    font-weight: 600;
+}
+
+.verificacao .codigo {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.82rem;
+    font-weight: 500;
+    word-break: break-all;
+}
+
+.verificacao .aviso {
+    margin: 18px 0 0;
+    padding: 12px 14px;
+    border: 1px solid #f0c36d;
+    border-radius: 12px;
+    background: #fdf6e3;
+    color: #7a5200;
+    font-weight: 600;
+}
+
+.verificacao .voltar {
+    display: inline-block;
+    margin-top: 22px;
+    font-weight: 700;
+    color: var(--accent-ink);
+}
