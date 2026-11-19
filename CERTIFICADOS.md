@@ -134,4 +134,20 @@ tem `titulo`, `tipo`, `carga_horaria`, `carga_minutos`, `data`). O palestrante
 - Idempotente: não gera de novo o que já existe (nem reenvia e-mail) — conta como
   “já existente”; uma pessoa pode ter certificados de funções diferentes (ex.:
   organizador **e** palestrante).
-- Verificação pública pelo QR: `/c/<token>/`.
+
+## Validação pública pelo QR
+
+O QR impresso no certificado abre `/c/<token>/`. A página mostra **“Certificado
+válido”** e os dados do **próprio registro emitido**: nome, tipo de participação,
+evento, período, local, atividade (quando houver), carga horária (quando
+registrada), data de emissão e código de autenticação. Nada é preenchido a partir
+do crachá ou de dados fictícios.
+
+- **Inválido**: token adulterado ou sem registro em `Certificado` → 404.
+- **Revogado**: o registro existe, mas `revogado_em` está preenchido → 410, com
+  aviso de que o documento não tem validade.
+- **Erro técnico**: 503, com mensagem neutra.
+
+A revogação é feita no **admin** (campo `revogado_em` / `motivo_revogacao`). O
+cadastro do certificado **não** é apagado ao revogar; para reemitir, limpe a
+revogação antes (a emissão é idempotente).

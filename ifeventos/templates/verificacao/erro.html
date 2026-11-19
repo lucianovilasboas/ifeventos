@@ -1,0 +1,27 @@
+{% load static %}
+{# Página neutra: usada quando não dá para saber se o código é de crachá ou de certificado. #}
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Documento não verificado | Nossos Eventos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Mona+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/base/tokens.css' %}?v={{ ASSET_VERSION }}">
+    <link rel="stylesheet" href="{% static 'css/eventos/verificacao.css' %}?v={{ ASSET_VERSION }}">
+    {% include 'includes/pwa_head.html' %}
+</head>
+<body>
+
+<main class="verificacao">
+    <span class="selo" aria-hidden="true">⚠️</span>
+    <h1>Não foi possível verificar este código</h1>
+    <p class="subtitulo">{{ erro }}</p>
+
+    <a class="voltar" href="/eventos/">Ir para a agenda de eventos</a>
+</main>
+
+</body>
+</html>

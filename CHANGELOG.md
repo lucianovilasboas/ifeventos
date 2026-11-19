@@ -5,6 +5,26 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [2.32.0] — 2026-11-19
+
+### Adicionado
+
+- **Página pública de validação de certificado**: o QR do certificado agora abre uma tela própria com “Certificado válido” e os dados do registro emitido — nome, tipo de participação, evento, período, local, atividade, carga horária, data de emissão e código de autenticação.
+- **Estado de certificado revogado**: novo campo `revogado_em` (e `motivo_revogacao`) em `Certificado`. A validação responde 410 e a página informa que o documento não tem validade.
+
+### Corrigido
+
+- **Validação de certificado não usa mais a interface de crachá**: rota pública continua `/c/<token>/` (QRs já impressos seguem válidos), mas a view despacha para templates separados. O certificado não mostra mais tarjas de papel, bloco de presenças nem “Ir para a agenda de eventos”.
+- **Dados reais do certificado**: autenticação feita exclusivamente pelo registro em `Certificado` (tipo, atividade/evento e função); pessoa inscrita ou com crachá sem certificado emitido não é aceita.
+- **API de verificação** devolve `situacao`, `tipo` e os campos próprios do certificado; token inválido continua 404, revogado 410 e falha técnica 503.
+- **Erro genérico neutro** para token ilegível/adulterado, sem título “Crachá não verificado”.
+
+### Notas
+
+- Migration `0065_certificado_revogacao` apenas adiciona os campos de revogação; nenhum certificado existente é alterado.
+- O código de autenticação exibido é o UUID do registro (`Certificado.codigo`); ele ainda não é impresso nos PDFs atuais.
+- A revogação é operada no admin; o fluxo “remover certificado” da lista de presença continua apagando o registro.
+
 ## [2.31.0] — 2026-11-18
 
 ### Mudado

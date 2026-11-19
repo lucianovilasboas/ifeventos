@@ -211,76 +211,7 @@
     margin-bottom: 10px;
 }
 
-/* Página pública de verificação (aberta pelo QR no celular) */
-.verificacao {
-    max-width: 520px;
-    margin: 40px auto;
-    padding: 28px;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: var(--surface);
-    font-family: "Mona Sans", "Nunito", system-ui, sans-serif;
-    color: var(--fg);
-    text-align: center;
-}
-
-.verificacao .selo {
-    font-size: 2.6rem;
-    line-height: 1;
-    display: block;
-    margin-bottom: 12px;
-}
-
-.verificacao h1 {
-    font-size: 1.35rem;
-    margin: 0 0 6px;
-}
-
-.verificacao .nome {
-    font-size: 1.8rem;
-    font-weight: 900;
-    margin: 14px 0 4px;
-}
-
-.verificacao .papel {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent-ink);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-size: 0.75rem;
-}
-
-.verificacao dl {
-    margin: 20px 0 0;
-    text-align: left;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-}
-
-.verificacao dt {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-}
-
-.verificacao dd {
-    margin: 0 0 6px;
-    font-weight: 600;
-}
-
-.verificacao .voltar {
-    display: inline-block;
-    margin-top: 22px;
-    font-weight: 700;
-    color: var(--accent-ink);
-}
-
+/* Impressão do crachá */
 @media print {
     @page {
         size: 100mm 70mm;

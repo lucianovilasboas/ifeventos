@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
@@ -92,6 +94,8 @@ from .serializers import (
     VagaSerializer,
     VerificacaoSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class EventoViewSet(viewsets.ModelViewSet):
@@ -517,36 +521,83 @@ class VerificacaoView(APIView):
 
     É público de propósito: quem confere pode estar deslogado, na porta da
     atividade, e um app scanner não deve precisar de login para checar um
-    crachá. Devolve só o necessário para a conferência — nome, papel e evento —
-    e nenhum dado pessoal (CPF, e-mail e telefone não saem aqui).
+    documento. Devolve só o necessário para a conferência — nome, papel/evento —
+    e nenhum dado pessoal (CPF, e-mail e telefone não saem aqui). Para
+    certificado, devolve também os dados do PRÓPRIO registro emitido.
     """
 
     authentication_classes = []
     permission_classes = [AllowAny]
 
-    @extend_schema(responses=VerificacaoSerializer)
-    def get(self, request, token):
-        resultado = verificar_token(token)
-        if not resultado["valido"]:
-            return Response(
-                {"valido": False, "erro": resultado["erro"]},
-                status=resultado["status"],
-            )
+    @staticmethod
+    def _dados_certificado(resultado):
+        data_emissao = resultado.get("data_emissao")
+        return {
+            "nome": resultado.get("nome"),
+            "tipo_participacao": resultado.get("tipo_participacao"),
+            "tipo_certificado": resultado.get("tipo_certificado"),
+            "local": resultado.get("local"),
+            "carga_horaria": resultado.get("carga_horaria"),
+            "data_emissao": data_emissao.isoformat() if data_emissao else None,
+            "codigo_autenticacao": resultado.get("codigo_autenticacao"),
+        }
 
+    def _corpo(self, resultado):
         evento = resultado.get("evento")
         atividade = resultado.get("atividade")
-        return Response({
-            "valido": True,
-            "tipo": resultado["tipo"],
-            "nome": resultado["nome"],
-            "papel": resultado["papel"],
-            "papel_rotulo": resultado["papel_rotulo"],
+        dados = {
+            "valido": bool(resultado.get("valido")),
+            "situacao": resultado.get("situacao", "invalido"),
+            "tipo": resultado.get("tipo"),
+            "nome": resultado.get("nome"),
+            "papel": resultado.get("papel"),
+            "papel_rotulo": resultado.get("papel_rotulo"),
             "evento_id": evento.id if evento else None,
             "evento": evento.title if evento else None,
             "periodo": resultado.get("periodo", ""),
             "atividade_id": atividade.id if atividade else None,
             "atividade": atividade.titulo if atividade else None,
-        })
+        }
+        if resultado.get("tipo") == "certificado":
+            dados.update(self._dados_certificado(resultado))
+        if resultado.get("erro"):
+            dados["erro"] = resultado["erro"]
+        return dados
+
+    @extend_schema(responses=VerificacaoSerializer)
+    def get(self, request, token):
+        try:
+            resultado = verificar_token(token)
+        except Exception:
+            logger.exception("Falha ao verificar documento na API pública")
+            return Response(
+                {
+                    "valido": False,
+                    "situacao": "erro",
+                    "erro": "Não foi possível consultar os dados agora.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not resultado["valido"]:
+            # Certificado revogado continua identificável (o registro existe),
+            # mas nunca é devolvido como válido.
+            if resultado.get("situacao") == "revogado":
+                corpo = self._corpo(resultado)
+                corpo["erro"] = resultado["erro"]
+                return Response(corpo, status=resultado["status"])
+
+            return Response(
+                {
+                    "valido": False,
+                    "situacao": resultado.get("situacao", "invalido"),
+                    "tipo": resultado.get("tipo"),
+                    "erro": resultado["erro"],
+                },
+                status=resultado["status"],
+            )
+
+        return Response(self._corpo(resultado))
 
 
 class PresencaViewSet(viewsets.ModelViewSet):
